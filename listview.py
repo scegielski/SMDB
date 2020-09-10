@@ -10,7 +10,8 @@ import subprocess
 
 # TODO: Add progress bar and button to get movie summaries
 # TODO: Create separate derived class for movie list and move methods
-
+# TODO: Change colors to dark
+# TODO: Add summary panel
 
 def splitCamelCase(inputText):
     return re.sub('([A-Z][a-z]+)', r' \1', re.sub('([A-Z]+)', r' \1', inputText)).split()
@@ -30,7 +31,7 @@ class MyWindow(QtWidgets.QWidget):
         super(MyWindow, self).__init__()
 
         self.movieDirPattern = "*(*)"
-        self.moviesBaseDir = "J:\Movies"
+        self.moviesBaseDir = "J:/Movies"
         self.moviePlayer = "C:/Program Files/MPC-HC/mpc-hc64.exe"
 
         self.db = IMDb()
