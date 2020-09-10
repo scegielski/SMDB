@@ -6,6 +6,7 @@ import fnmatch
 from imdb import IMDb
 import re
 import urllib.request
+import subprocess
 
 
 def splitCamelCase(input):
@@ -55,9 +56,9 @@ class MyWindow(QtWidgets.QWidget):
             urllib.request.urlretrieve(movieCoverUrl, outputFile)
 
     def clicked(self, item):
-        baseDir = item.data(QtCore.Qt.UserRole)
+        moviePath = item.data(QtCore.Qt.UserRole)
         fullTitle = item.text()
-        outputCoverFile = "%s/%s/%s.jpg" % (baseDir, fullTitle, fullTitle)
+        outputCoverFile = os.path.join(moviePath, '%s.jpg' % fullTitle)
         print('outputCoverFile = %s' % outputCoverFile)
         outputCoverFileExists = False
         if os.path.exists(outputCoverFile):
@@ -84,21 +85,49 @@ class MyWindow(QtWidgets.QWidget):
 
         print(movie.summary())
 
-    def rightMenuClick(self, text):
-        if text == "Play":
-            print(text)
+    def playMovie(self):
+        selectedMovie = self.movieList.selectedItems()[0]
+        filePath = selectedMovie.data(QtCore.Qt.UserRole)
+        movieFiles = []
+        for file in os.listdir(filePath):
+            extension = os.path.splitext(file)[1]
+            if extension == '.mkv' or \
+               extension == '.mp4' or \
+               extension == '.avi' or \
+               extension == '.wmv':
+                movieFiles.append(file)
+        if len(movieFiles) == 1:
+            fileToPlay = os.path.join(filePath, movieFiles[0])
+            print("Playing Movie: %s" % fileToPlay)
+            subprocess.run([self.moviePlayer, fileToPlay])
+        else:
+            os.startfile(filePath)
+
+    def openMovieFolder(self):
+        selectedMovie = self.movieList.selectedItems()[0]
+        filePath = selectedMovie.data(QtCore.Qt.UserRole)
+        os.startfile(filePath)
 
     def rightMenuShow(self, QPos):
-        self.removeAction = QtWidgets.QAction("Play", self)
-        self.removeAction.triggered.connect(lambda: self.rightMenuClick("Play"))
-
         self.rightMenu = QtWidgets.QMenu(self.movieList)
-        self.rightMenu.addAction(self.removeAction)
+
+        selectedMovie = self.movieList.selectedItems()[0]
+        self.clicked(selectedMovie)
+
+        self.playAction = QtWidgets.QAction("Play", self)
+        self.playAction.triggered.connect(lambda: self.playMovie())
+        self.rightMenu.addAction(self.playAction)
+
+        self.openFolderAction = QtWidgets.QAction("Open Folder", self)
+        self.openFolderAction.triggered.connect(lambda: self.openMovieFolder())
+        self.rightMenu.addAction(self.openFolderAction)
+
         self.rightMenu.exec_(QtGui.QCursor.pos())
 
     def initUI(self):
         movieDirPattern = "*(*)"
-        moviesBaseDir = "J:/Movies"
+        self.moviesBaseDir = "J:\Movies"
+        self.moviePlayer = "C:/Program Files/MPC-HC/mpc-hc64.exe"
 
         self.layout = QtWidgets.QHBoxLayout(self)
 
@@ -108,11 +137,12 @@ class MyWindow(QtWidgets.QWidget):
         self.movieList = QtWidgets.QListWidget(self)
         self.movieList.itemClicked.connect(self.clicked)
         starWarsItem = None
-        with os.scandir(moviesBaseDir) as files:
+        with os.scandir(self.moviesBaseDir) as files:
             for f in files:
                 if f.is_dir() and fnmatch.fnmatch(f, movieDirPattern):
                     item = QtWidgets.QListWidgetItem(f.name)
-                    item.setData(QtCore.Qt.UserRole, moviesBaseDir)
+                    moviePath = os.path.join(self.moviesBaseDir, item.text())
+                    item.setData(QtCore.Qt.UserRole, moviePath)
                     self.movieList.addItem(item)
                     if (f.name == 'StarWars-Episode-5-TheEmpireStrikesBack(1980)'):
                         starWarsItem = item
