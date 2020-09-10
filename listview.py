@@ -28,7 +28,7 @@ def copyCoverImage(movie, coverFile):
     urllib.request.urlretrieve(movieCoverUrl, coverFile)
 
 
-class MyWindow(QtWidgets.QWidget):
+class MyWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super(MyWindow, self).__init__()
 
@@ -41,7 +41,16 @@ class MyWindow(QtWidgets.QWidget):
         self.setGeometry(0, 0, 1000, 700)
         self.setWindowTitle("Movie Database")
 
+    def test(self):
+        print ("Test")
+
     def initUI(self):
+        self.actionCount = QtWidgets.QAction("Test")
+        self.actionCount.triggered.connect(self.test)
+
+        self.taskMenu = self.menuBar().addMenu("Tasks")
+        self.taskMenu.addAction(self.actionCount);
+
         self.layout = QtWidgets.QVBoxLayout(self)
 
         self.splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
@@ -83,6 +92,12 @@ class MyWindow(QtWidgets.QWidget):
         self.cancelButton = QtWidgets.QPushButton("Cancel", self)
         self.cancelButton.clicked.connect(self.cancelButtonClicked)
         self.bottomLayout.addWidget(self.cancelButton)
+
+        self.centralWidget = QtWidgets.QWidget()
+        self.centralWidget.setLayout(self.layout)
+        self.setCentralWidget(self.centralWidget)
+
+        self.statusBar().showMessage('Welcome to MDB.  Current number of movies: %d' % self.movieList.count())
 
         if (starWarsItem):
             self.movieList.setCurrentItem(starWarsItem)
