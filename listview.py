@@ -8,17 +8,89 @@ import re
 import urllib.request
 import subprocess
 
+# TODO: Add progress bar and button to get movie summaries
+# TODO: Create separate derived class for movie list and move methods
 
-def splitCamelCase(input):
-    return re.sub('([A-Z][a-z]+)', r' \1', re.sub('([A-Z]+)', r' \1', input)).split()
+
+def splitCamelCase(inputText):
+    return re.sub('([A-Z][a-z]+)', r' \1', re.sub('([A-Z]+)', r' \1', inputText)).split()
+
+
+def copyCoverImage(movie, coverFile):
+    movieCoverUrl = ''
+    if 'full-size cover url' in movie:
+        movieCoverUrl = movie['full-size cover url']
+    elif 'cover' in movie:
+        movieCoverUrl = movie['cover url']
+    urllib.request.urlretrieve(movieCoverUrl, coverFile)
+
 
 class MyWindow(QtWidgets.QWidget):
     def __init__(self):
         super(MyWindow, self).__init__()
+
+        self.movieDirPattern = "*(*)"
+        self.moviesBaseDir = "J:\Movies"
+        self.moviePlayer = "C:/Program Files/MPC-HC/mpc-hc64.exe"
+
         self.db = IMDb()
         self.initUI()
         self.setGeometry(0, 0, 1000, 700)
         self.setWindowTitle("Movie Database")
+
+    def initUI(self):
+        self.layout = QtWidgets.QHBoxLayout(self)
+
+        self.splitter = QtWidgets.QSplitter(self)
+        self.layout.addWidget(self.splitter)
+
+        self.movieList = QtWidgets.QListWidget(self)
+        self.movieList.itemClicked.connect(self.clicked)
+        starWarsItem = None
+        with os.scandir(self.moviesBaseDir) as files:
+            for f in files:
+                if f.is_dir() and fnmatch.fnmatch(f, self.movieDirPattern):
+                    item = QtWidgets.QListWidgetItem(f.name)
+                    moviePath = os.path.join(self.moviesBaseDir, item.text())
+                    item.setData(QtCore.Qt.UserRole, moviePath)
+                    self.movieList.addItem(item)
+                    if (f.name == 'StarWars-Episode-5-TheEmpireStrikesBack(1980)'):
+                        starWarsItem = item
+        self.movieList.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.movieList.customContextMenuRequested[QtCore.QPoint].connect(self.rightMenuShow)
+        self.splitter.addWidget(self.movieList)
+
+        self.movieCover = QtWidgets.QLabel(self)
+        self.movieCover.setScaledContents(False)
+        self.movieCover.setObjectName("photo")
+        self.movieCover.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        self.splitter.addWidget(self.movieCover)
+
+        if (starWarsItem):
+            self.movieList.setCurrentItem(starWarsItem)
+            self.clicked(starWarsItem)
+
+    def clicked(self, item):
+        moviePath = item.data(QtCore.Qt.UserRole)
+        fullTitle = item.text()
+        mdbFile = os.path.join(moviePath, '%s.mdb' % fullTitle)
+        coverFile = os.path.join(moviePath, '%s.jpg' % fullTitle)
+
+        if not os.path.exists(mdbFile):
+            self.downloadMovieData(fullTitle, mdbFile, coverFile)
+
+        if os.path.exists(mdbFile):
+            with open(mdbFile) as f:
+                summary = f.read()
+
+            print(summary)
+        else:
+            print("Error reading mdb file: %s" % mdbFile)
+
+        if os.path.exists(coverFile):
+            self.showCoverFile(coverFile)
+        else:
+            print("Error reading cover file: %s" % coverFile)
 
     def getMovie(self, movieName) -> object:
         m = re.match(r'(.*)\((.*)\)', movieName)
@@ -41,22 +113,13 @@ class MyWindow(QtWidgets.QWidget):
 
         return movie
 
-    def copyCoverImage(self, movie, coverFile):
-        movieCoverUrl = ''
-        if movie.has_key('full-size cover url'):
-            movieCoverUrl = movie['full-size cover url']
-        elif movie.has_key('cover'):
-            movieCoverUrl = movie['cover url']
-        print("Movie Cover: %s" % movieCoverUrl)
-        urllib.request.urlretrieve(movieCoverUrl, coverFile)
-
     def showCoverFile(self, coverFile):
         pixMap = QtGui.QPixmap(coverFile)
         self.movieCover.setPixmap(pixMap.scaled(500, 500,
                                                 QtCore.Qt.KeepAspectRatio,
                                                 QtCore.Qt.SmoothTransformation))
 
-    def downloadMovieData(self, movieFolderName, moviePath, mdbFile, coverFile):
+    def downloadMovieData(self, movieFolderName, mdbFile, coverFile):
         movie = self.getMovie(movieFolderName)
         self.db.update(movie)
 
@@ -65,29 +128,7 @@ class MyWindow(QtWidgets.QWidget):
                 print(movie.summary(), file=f)
 
         if not os.path.exists(coverFile):
-            self.copyCoverImage(movie, coverFile)
-
-    def clicked(self, item):
-        moviePath = item.data(QtCore.Qt.UserRole)
-        fullTitle = item.text()
-        mdbFile = os.path.join(moviePath, '%s.mdb' % fullTitle)
-        coverFile = os.path.join(moviePath, '%s.jpg' % fullTitle)
-
-        if not os.path.exists(mdbFile):
-            self.downloadMovieData(fullTitle, moviePath, mdbFile, coverFile)
-
-        if os.path.exists(mdbFile):
-            with open(mdbFile) as f:
-                summary = f.read()
-
-            print(summary)
-        else:
-            print("Error reading mdb file: %s" % mdbFile)
-
-        if os.path.exists(coverFile):
-            self.showCoverFile(coverFile)
-        else:
-            print("Error reading cover file: %s" % coverFile)
+            copyCoverImage(movie, coverFile)
 
     def playMovie(self):
         selectedMovie = self.movieList.selectedItems()[0]
@@ -130,42 +171,6 @@ class MyWindow(QtWidgets.QWidget):
         self.rightMenu.addAction(self.openFolderAction)
 
         self.rightMenu.exec_(QtGui.QCursor.pos())
-
-    def initUI(self):
-        movieDirPattern = "*(*)"
-        self.moviesBaseDir = "J:\Movies"
-        self.moviePlayer = "C:/Program Files/MPC-HC/mpc-hc64.exe"
-
-        self.layout = QtWidgets.QHBoxLayout(self)
-
-        self.splitter = QtWidgets.QSplitter(self)
-        self.layout.addWidget(self.splitter)
-
-        self.movieList = QtWidgets.QListWidget(self)
-        self.movieList.itemClicked.connect(self.clicked)
-        starWarsItem = None
-        with os.scandir(self.moviesBaseDir) as files:
-            for f in files:
-                if f.is_dir() and fnmatch.fnmatch(f, movieDirPattern):
-                    item = QtWidgets.QListWidgetItem(f.name)
-                    moviePath = os.path.join(self.moviesBaseDir, item.text())
-                    item.setData(QtCore.Qt.UserRole, moviePath)
-                    self.movieList.addItem(item)
-                    if (f.name == 'StarWars-Episode-5-TheEmpireStrikesBack(1980)'):
-                        starWarsItem = item
-        self.movieList.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self.movieList.customContextMenuRequested[QtCore.QPoint].connect(self.rightMenuShow)
-        self.splitter.addWidget(self.movieList)
-
-        self.movieCover = QtWidgets.QLabel(self)
-        self.movieCover.setScaledContents(False)
-        self.movieCover.setObjectName("photo")
-        self.movieCover.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
-        self.splitter.addWidget(self.movieCover)
-
-        if (starWarsItem):
-            self.movieList.setCurrentItem(starWarsItem)
-            self.clicked(starWarsItem)
 
 
 def window():
