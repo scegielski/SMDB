@@ -55,35 +55,45 @@ class MyWindow(QtWidgets.QWidget):
             print("Movie Cover: %s" % movieCoverUrl)
             urllib.request.urlretrieve(movieCoverUrl, outputFile)
 
-    def clicked(self, item):
-        moviePath = item.data(QtCore.Qt.UserRole)
-        fullTitle = item.text()
-        outputCoverFile = os.path.join(moviePath, '%s.jpg' % fullTitle)
-        print('outputCoverFile = %s' % outputCoverFile)
-        outputCoverFileExists = False
-        if os.path.exists(outputCoverFile):
-            outputCoverFileExists = True
-            print("cover file: %s exists" % outputCoverFile)
-            pixMap = QtGui.QPixmap(outputCoverFile)
-            print("setPixmap")
-            self.movieCover.setPixmap(pixMap.scaled(500, 500,
-                                                    QtCore.Qt.KeepAspectRatio,
-                                                    QtCore.Qt.SmoothTransformation))
-            self.movieCover.show()
-        else:
-            print("File doesn't exist: %s", outputCoverFile)
+    def showCoverFile(self, coverFile):
+        pixMap = QtGui.QPixmap(coverFile)
+        self.movieCover.setPixmap(pixMap.scaled(500, 500,
+                                                QtCore.Qt.KeepAspectRatio,
+                                                QtCore.Qt.SmoothTransformation))
 
+    def downloadMovieData(self, fullTitle, moviePath, mdbFile, coverFile):
         movie = self.getMovie(fullTitle)
         self.db.update(movie)
 
-        if not outputCoverFileExists:
-            self.copyCoverImage(movie, outputCoverFile)
-            pixMap = QtGui.QPixmap(outputCoverFile)
-            self.movieCover.setPixmap(pixMap.scaled(500, 500,
-                                                    QtCore.Qt.KeepAspectRatio,
-                                                    QtCore.Qt.SmoothTransformation))
+        if not os.path.exists(mdbFile):
+            with open(mdbFile, "w") as f:
+                print(movie.summary(), file=f)
 
-        print(movie.summary())
+        if not os.path.exists(coverFile):
+            self.copyCoverImage(movie, coverFile)
+
+    def clicked(self, item):
+        moviePath = item.data(QtCore.Qt.UserRole)
+        fullTitle = item.text()
+        mdbFile = os.path.join(moviePath, '%s.mdb' % fullTitle)
+        coverFile = os.path.join(moviePath, '%s.jpg' % fullTitle)
+
+        if not os.path.exists(mdbFile):
+            self.downloadMovieData(fullTitle, moviePath, mdbFile, coverFile)
+
+        if os.path.exists(mdbFile):
+            with open(mdbFile) as f:
+                summary = f.read()
+
+            print(summary)
+        else:
+            print("Error reading mdb file: %s" % mdbFile)
+
+        if os.path.exists(coverFile):
+            self.showCoverFile(coverFile)
+        else:
+            print("Error reading cover file: %s" % coverFile)
+
 
     def playMovie(self):
         selectedMovie = self.movieList.selectedItems()[0]
