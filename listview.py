@@ -1,4 +1,5 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5.QtCore import Qt, QThread, QObject, pyqtSignal
 from PyQt5.QtWidgets import QApplication, QSplitter
 import sys
 import os
@@ -7,6 +8,7 @@ from imdb import IMDb
 import re
 import urllib.request
 import subprocess
+import time
 
 # TODO: Add progress bar and button to get movie summaries
 # TODO: Create separate derived class for movie list and move methods
@@ -40,9 +42,9 @@ class MyWindow(QtWidgets.QWidget):
         self.setWindowTitle("Movie Database")
 
     def initUI(self):
-        self.layout = QtWidgets.QHBoxLayout(self)
+        self.layout = QtWidgets.QVBoxLayout(self)
 
-        self.splitter = QtWidgets.QSplitter(self)
+        self.splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
         self.layout.addWidget(self.splitter)
 
         self.movieList = QtWidgets.QListWidget(self)
@@ -67,9 +69,41 @@ class MyWindow(QtWidgets.QWidget):
         self.movieCover.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
         self.splitter.addWidget(self.movieCover)
 
+        self.bottomLayout = QtWidgets.QHBoxLayout(self)
+        self.layout.addLayout(self.bottomLayout)
+
+        self.goButton = QtWidgets.QPushButton("Go", self)
+        self.goButton.clicked.connect(self.goButtonClicked)
+        self.bottomLayout.addWidget(self.goButton)
+
+        self.progressBar = QtWidgets.QProgressBar(self)
+        self.progressBar.setMaximum(100)
+        self.bottomLayout.addWidget(self.progressBar)
+
+        self.cancelButton = QtWidgets.QPushButton("Cancel", self)
+        self.cancelButton.clicked.connect(self.cancelButtonClicked)
+        self.bottomLayout.addWidget(self.cancelButton)
+
         if (starWarsItem):
             self.movieList.setCurrentItem(starWarsItem)
             self.clicked(starWarsItem)
+
+    def goButtonClicked(self):
+        self.isCanceled = False
+        progressMax = 1000000
+        self.progressBar.setMaximum(progressMax)
+        count = 0
+        while count < progressMax:
+            QtCore.QCoreApplication.processEvents()
+            if self.isCanceled == True:
+                self.isCanceled = False
+                self.progressBar.setValue(0)
+                break
+            self.progressBar.setValue(count)
+            count += 1
+
+    def cancelButtonClicked(self):
+        self.isCanceled = True
 
     def clicked(self, item):
         moviePath = item.data(QtCore.Qt.UserRole)
