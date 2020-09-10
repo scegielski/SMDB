@@ -10,10 +10,7 @@ import subprocess
 
 
 def splitCamelCase(input):
-    return re.sub('([A-Z][a-z]+)', r' \1', \
-                  re.sub('([A-Z]+)', \
-                         r' \1', input)).split()
-
+    return re.sub('([A-Z][a-z]+)', r' \1', re.sub('([A-Z]+)', r' \1', input)).split()
 
 class MyWindow(QtWidgets.QWidget):
     def __init__(self):
@@ -24,7 +21,7 @@ class MyWindow(QtWidgets.QWidget):
         self.setWindowTitle("Movie Database")
 
     def getMovie(self, movieName) -> object:
-        m = re.match('(.*)\((.*)\)', movieName)
+        m = re.match(r'(.*)\((.*)\)', movieName)
         title = m.group(1)
         year = m.group(2)
         splitTitle = splitCamelCase(title)
@@ -44,16 +41,14 @@ class MyWindow(QtWidgets.QWidget):
 
         return movie
 
-    def copyCoverImage(self, movie, outputFile):
-        if not os.path.exists(outputFile):
-            movieCoverUrl = ''
-            # If the file doesn't exist, download it
-            if movie.has_key('full-size cover url'):
-                movieCoverUrl = movie['full-size cover url']
-            elif movie.has_key('cover'):
-                movieCoverUrl = movie['cover url']
-            print("Movie Cover: %s" % movieCoverUrl)
-            urllib.request.urlretrieve(movieCoverUrl, outputFile)
+    def copyCoverImage(self, movie, coverFile):
+        movieCoverUrl = ''
+        if movie.has_key('full-size cover url'):
+            movieCoverUrl = movie['full-size cover url']
+        elif movie.has_key('cover'):
+            movieCoverUrl = movie['cover url']
+        print("Movie Cover: %s" % movieCoverUrl)
+        urllib.request.urlretrieve(movieCoverUrl, coverFile)
 
     def showCoverFile(self, coverFile):
         pixMap = QtGui.QPixmap(coverFile)
@@ -61,8 +56,8 @@ class MyWindow(QtWidgets.QWidget):
                                                 QtCore.Qt.KeepAspectRatio,
                                                 QtCore.Qt.SmoothTransformation))
 
-    def downloadMovieData(self, fullTitle, moviePath, mdbFile, coverFile):
-        movie = self.getMovie(fullTitle)
+    def downloadMovieData(self, movieFolderName, moviePath, mdbFile, coverFile):
+        movie = self.getMovie(movieFolderName)
         self.db.update(movie)
 
         if not os.path.exists(mdbFile):
@@ -94,7 +89,6 @@ class MyWindow(QtWidgets.QWidget):
         else:
             print("Error reading cover file: %s" % coverFile)
 
-
     def playMovie(self):
         selectedMovie = self.movieList.selectedItems()[0]
         filePath = selectedMovie.data(QtCore.Qt.UserRole)
@@ -102,15 +96,18 @@ class MyWindow(QtWidgets.QWidget):
         for file in os.listdir(filePath):
             extension = os.path.splitext(file)[1]
             if extension == '.mkv' or \
-               extension == '.mp4' or \
-               extension == '.avi' or \
-               extension == '.wmv':
+                    extension == '.mp4' or \
+                    extension == '.avi' or \
+                    extension == '.wmv':
                 movieFiles.append(file)
         if len(movieFiles) == 1:
             fileToPlay = os.path.join(filePath, movieFiles[0])
             print("Playing Movie: %s" % fileToPlay)
             subprocess.run([self.moviePlayer, fileToPlay])
         else:
+            # If there are more than one movie like files in the
+            # folder, then just open the folder so the user can
+            # play the desired file.
             os.startfile(filePath)
 
     def openMovieFolder(self):
