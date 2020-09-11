@@ -60,9 +60,28 @@ class MyWindow(QtWidgets.QMainWindow):
                     os.remove(f)
 
     def downloadDataMenu(self):
+        numSelectedItems = len(self.movieList.selectedItems())
+        self.progressBar.setMaximum(numSelectedItems)
+        progress = 0
+        self.isCanceled = False
         for item in self.movieList.selectedItems():
-            print("Downloading data for: %s" % item.text())
+            QtCore.QCoreApplication.processEvents()
+            if self.isCanceled == True:
+                self.statusBar().showMessage('Cancelled')
+                self.isCanceled = False
+                self.progressBar.setValue(0)
+                break
+
+            message = "Downloading data (%d/%d): %s" % (progress,
+                                                        numSelectedItems,
+                                                        item.text())
+            self.statusBar().showMessage(message)
+            QtCore.QCoreApplication.processEvents()
+
             self.downloadMovieData(item)
+
+            progress += 1
+            self.progressBar.setValue(progress)
 
     def removeMdbFilesMenu(self):
         filesToDelete = []
