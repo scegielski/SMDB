@@ -1,6 +1,6 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import Qt, QThread, QObject, pyqtSignal
-from PyQt5.QtWidgets import QApplication, QSplitter
+from PyQt5.QtWidgets import QApplication, QSplitter, QMessageBox
 import sys
 import os
 import fnmatch
@@ -22,9 +22,15 @@ def splitCamelCase(inputText):
 def copyCoverImage(movie, coverFile):
     movieCoverUrl = ''
     if 'full-size cover url' in movie:
+        print ('')
         movieCoverUrl = movie['full-size cover url']
-    elif 'cover' in movie:
-        movieCoverUrl = movie['cover url']
+        print ('')
+    elif 'cover url' in movie:
+        movieCoverUrl = movie['cover']
+    else:
+        print("Error: No cover image available")
+        return
+    print('moveCoverUrl = %s' % movieCoverUrl)
     urllib.request.urlretrieve(movieCoverUrl, coverFile)
 
 
@@ -41,23 +47,61 @@ class MyWindow(QtWidgets.QMainWindow):
         self.setGeometry(0, 0, 1000, 700)
         self.setWindowTitle("Movie Database")
 
-    def test(self):
-        print ("Test")
+    def removeFiles(self, filesToDelete, extension):
+        if len(filesToDelete) > 0:
+            ret = QMessageBox.question(self,
+                                       'Confirm Delete',
+                                       'Really remove %d %s files?' % (len(filesToDelete), extension),
+                                       QMessageBox.Yes | QMessageBox.No,
+                                       QMessageBox.No)
+
+            if ret == QMessageBox.Yes:
+                for f in filesToDelete:
+                    print('Deleting file: %s' % f)
+                    os.remove(f)
+
+    def removeMdbFiles(self):
+        filesToDelete = []
+        for row in range(self.movieList.count()):
+            item = self.movieList.item(row)
+            moviePath = item.data(QtCore.Qt.UserRole)
+            with os.scandir(moviePath) as files:
+                for f in files:
+                    if not f.is_dir() and fnmatch.fnmatch(f, '*.mdb'):
+                        filesToDelete.append(os.path.join(moviePath, f))
+        self.removeFiles(filesToDelete, '.mdb')
+
+    def removeCoverFiles(self):
+        filesToDelete = []
+        for row in range(self.movieList.count()):
+            item = self.movieList.item(row)
+            moviePath = item.data(QtCore.Qt.UserRole)
+            coverFile = os.path.join(moviePath, '%s.jpg' % item.text())
+            if os.path.exists(coverFile):
+                filesToDelete.append(coverFile)
+        self.removeFiles(filesToDelete, '.jpg')
 
     def initUI(self):
-        self.actionCount = QtWidgets.QAction("Test")
-        self.actionCount.triggered.connect(self.test)
 
+        # Menus
         self.taskMenu = self.menuBar().addMenu("Tasks")
-        self.taskMenu.addAction(self.actionCount);
 
+        self.actionRemoveMdbFiles = QtWidgets.QAction("Remove all .mdb files")
+        self.actionRemoveMdbFiles.triggered.connect(self.removeMdbFiles)
+        self.taskMenu.addAction(self.actionRemoveMdbFiles);
+
+        self.actionRemoveCoverFiles = QtWidgets.QAction("Remove all cover .jpg files")
+        self.actionRemoveCoverFiles.triggered.connect(self.removeCoverFiles)
+        self.taskMenu.addAction(self.actionRemoveCoverFiles);
+
+        # Layout
         self.layout = QtWidgets.QVBoxLayout(self)
 
         self.splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
         self.layout.addWidget(self.splitter)
 
         self.movieList = QtWidgets.QListWidget(self)
-        self.movieList.itemClicked.connect(self.clicked)
+        self.movieList.itemClicked.connect(self.clickedMovie)
         starWarsItem = None
         with os.scandir(self.moviesBaseDir) as files:
             for f in files:
@@ -70,6 +114,7 @@ class MyWindow(QtWidgets.QMainWindow):
                         starWarsItem = item
         self.movieList.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.movieList.customContextMenuRequested[QtCore.QPoint].connect(self.rightMenuShow)
+        self.movieList.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         self.splitter.addWidget(self.movieList)
 
         self.movieCover = QtWidgets.QLabel(self)
@@ -101,7 +146,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         if (starWarsItem):
             self.movieList.setCurrentItem(starWarsItem)
-            self.clicked(starWarsItem)
+            self.clickedMovie(starWarsItem)
 
     def goButtonClicked(self):
         self.isCanceled = False
@@ -120,15 +165,16 @@ class MyWindow(QtWidgets.QMainWindow):
     def cancelButtonClicked(self):
         self.isCanceled = True
 
-    def clicked(self, item):
+    def clickedMovie(self, item):
         moviePath = item.data(QtCore.Qt.UserRole)
         fullTitle = item.text()
         mdbFile = os.path.join(moviePath, '%s.mdb' % fullTitle)
         coverFile = os.path.join(moviePath, '%s.jpg' % fullTitle)
 
-        if not os.path.exists(mdbFile):
+        if not os.path.exists(mdbFile) or not os.path.exists(coverFile):
             self.downloadMovieData(fullTitle, mdbFile, coverFile)
 
+        """
         if os.path.exists(mdbFile):
             with open(mdbFile) as f:
                 summary = f.read()
@@ -136,6 +182,7 @@ class MyWindow(QtWidgets.QMainWindow):
             print(summary)
         else:
             print("Error reading mdb file: %s" % mdbFile)
+        """
 
         if os.path.exists(coverFile):
             self.showCoverFile(coverFile)
@@ -210,7 +257,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.rightMenu = QtWidgets.QMenu(self.movieList)
 
         selectedMovie = self.movieList.selectedItems()[0]
-        self.clicked(selectedMovie)
+        self.clickedMovie(selectedMovie)
 
         self.playAction = QtWidgets.QAction("Play", self)
         self.playAction.triggered.connect(lambda: self.playMovie())
