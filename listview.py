@@ -133,6 +133,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.movieList = QtWidgets.QListWidget(self)
         self.movieList.itemClicked.connect(self.clickedMovie)
+        self.movieList.itemSelectionChanged.connect(self.movieSelectionChanged)
         starWarsItem = None
         with os.scandir(self.moviesBaseDir) as files:
             for f in files:
@@ -175,8 +176,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.centralWidget.setLayout(self.layout)
         self.setCentralWidget(self.centralWidget)
 
-        self.statusBar().showMessage('Welcome to MDB.  Current number of movies: %d' % self.movieList.count())
-
         if (starWarsItem):
             self.movieList.setCurrentItem(starWarsItem)
             self.clickedMovie(starWarsItem)
@@ -184,7 +183,16 @@ class MyWindow(QtWidgets.QMainWindow):
     def cancelButtonClicked(self):
         self.isCanceled = True
 
+    def movieSelectionChanged(self):
+        numSelected = len(self.movieList.selectedItems())
+        total = self.movieList.count()
+        self.statusBar().showMessage('%s/%s' % (numSelected, total))
+
     def clickedMovie(self, listItem):
+        numSelected = len(self.movieList.selectedItems())
+        if numSelected > 1:
+            return
+
         moviePath = listItem.data(QtCore.Qt.UserRole)
         fullTitle = listItem.text()
         mdbFile = os.path.join(moviePath, '%s.mdb' % fullTitle)
