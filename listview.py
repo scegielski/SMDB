@@ -72,7 +72,7 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.progressBar.setValue(0)
                 break
 
-            message = "Downloading data (%d/%d): %s" % (progress,
+            message = "Downloading data (%d/%d): %s" % (progress + 1,
                                                         numSelectedItems,
                                                         item.text())
             self.statusBar().showMessage(message)
@@ -82,6 +82,9 @@ class MyWindow(QtWidgets.QMainWindow):
 
             progress += 1
             self.progressBar.setValue(progress)
+        self.statusBar().showMessage("Done")
+        self.progressBar.setValue(0)
+        self.setMovieListItemColors()
 
     def removeMdbFilesMenu(self):
         filesToDelete = []
@@ -91,6 +94,7 @@ class MyWindow(QtWidgets.QMainWindow):
             if (os.path.exists(mdbFile)):
                 filesToDelete.append(os.path.join(moviePath, mdbFile))
         self.removeFiles(filesToDelete, '.mdb')
+        self.setMovieListItemColors()
 
     def removeCoverFilesMenu(self):
         filesToDelete = []
@@ -105,6 +109,16 @@ class MyWindow(QtWidgets.QMainWindow):
                     filesToDelete.append(coverFile)
 
         self.removeFiles(filesToDelete, '.jpg')
+
+    def setMovieListItemColors(self):
+        for row in range(self.movieList.count()):
+            listItem = self.movieList.item(row)
+            moviePath = listItem.data(QtCore.Qt.UserRole)
+            mdbFile = os.path.join(moviePath, '%s.mdb' % listItem.text())
+            if not os.path.exists(mdbFile):
+                listItem.setBackground(QtGui.QColor(220, 220, 220))
+            else:
+                listItem.setBackground(QtGui.QColor(255, 255, 255))
 
     def initUI(self):
 
@@ -132,6 +146,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.movieList.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.movieList.customContextMenuRequested[QtCore.QPoint].connect(self.rightMenuShow)
         self.movieList.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        self.setMovieListItemColors()
         self.splitter.addWidget(self.movieList)
 
         self.vSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
