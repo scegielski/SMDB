@@ -19,16 +19,21 @@ def splitCamelCase(inputText):
     return re.sub('([A-Z][a-z]+)', r' \1', re.sub('([A-Z]+)', r' \1', inputText)).split()
 
 def copyCoverImage(movie, coverFile):
-    movieCoverUrl = ''
     if movie.has_key('full-size cover url'):
         movieCoverUrl = movie['full-size cover url']
     elif movie.has_key('cover'):
         movieCoverUrl = movie['cover']
     else:
         print("Error: No cover image available")
-        return
-    print('moveCoverUrl = %s' % movieCoverUrl)
+        return ""
+    extension = os.path.splitext(movieCoverUrl)[1]
+    print('movieCoverUrl = %s' % movieCoverUrl)
+    print('extension = %s' % extension)
+    if extension == '.png':
+        coverFile = coverFile.replace('.jpg', '.png')
+        print("coverFile = %s" % coverFile)
     urllib.request.urlretrieve(movieCoverUrl, coverFile)
+    return coverFile
 
 
 class MyWindow(QtWidgets.QMainWindow):
@@ -167,9 +172,12 @@ class MyWindow(QtWidgets.QMainWindow):
         fullTitle = item.text()
         mdbFile = os.path.join(moviePath, '%s.mdb' % fullTitle)
         coverFile = os.path.join(moviePath, '%s.jpg' % fullTitle)
+        coverFilePng = os.path.join(moviePath, '%s.png' % fullTitle)
+        if os.path.exists(coverFilePng):
+            coverFile = coverFilePng
 
         if not os.path.exists(mdbFile) or not os.path.exists(coverFile):
-            self.downloadMovieData(fullTitle, mdbFile, coverFile)
+            coverFile = self.downloadMovieData(fullTitle, mdbFile, coverFile)
 
         if os.path.exists(mdbFile):
             with open(mdbFile) as f:
@@ -203,6 +211,10 @@ class MyWindow(QtWidgets.QMainWindow):
 
         movie = results[0]
 
+        #imdbId = self.db.title2imdbID(searchText, 'movie')
+        #movieId = movie.getID()
+        #print("imdbId = %s movieId = %s" % (imdbId, movieId))
+
         return movie
 
     def showCoverFile(self, coverFile):
@@ -220,7 +232,8 @@ class MyWindow(QtWidgets.QMainWindow):
                 print(movie.summary(), file=f)
 
         if not os.path.exists(coverFile):
-            copyCoverImage(movie, coverFile)
+            coverFile = copyCoverImage(movie, coverFile)
+        return coverFile
 
     def playMovie(self):
         selectedMovie = self.movieList.selectedItems()[0]
