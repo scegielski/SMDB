@@ -171,7 +171,6 @@ class MyWindow(QtWidgets.QMainWindow):
         if not os.path.exists(mdbFile) or not os.path.exists(coverFile):
             self.downloadMovieData(fullTitle, mdbFile, coverFile)
 
-        """
         if os.path.exists(mdbFile):
             with open(mdbFile) as f:
                 summary = f.read()
@@ -179,7 +178,6 @@ class MyWindow(QtWidgets.QMainWindow):
             print(summary)
         else:
             print("Error reading mdb file: %s" % mdbFile)
-        """
 
         if os.path.exists(coverFile):
             self.showCoverFile(coverFile)
