@@ -90,19 +90,7 @@ class MyWindow(QtWidgets.QMainWindow):
     def initUI(self):
 
         # Menus
-        self.taskMenu = self.menuBar().addMenu("Tasks")
-
-        self.actionDownloadData = QtWidgets.QAction("Download data")
-        self.actionDownloadData.triggered.connect(self.downloadDataMenu)
-        self.taskMenu.addAction(self.actionDownloadData);
-
-        self.actionRemoveMdbFiles = QtWidgets.QAction("Remove .mdb files")
-        self.actionRemoveMdbFiles.triggered.connect(self.removeMdbFilesMenu)
-        self.taskMenu.addAction(self.actionRemoveMdbFiles);
-
-        self.actionRemoveCoverFiles = QtWidgets.QAction("Remove cover files")
-        self.actionRemoveCoverFiles.triggered.connect(self.removeCoverFilesMenu)
-        self.taskMenu.addAction(self.actionRemoveCoverFiles);
+        #self.taskMenu = self.menuBar().addMenu("Tasks")
 
         # Layout
         self.layout = QtWidgets.QVBoxLayout(self)
@@ -181,21 +169,22 @@ class MyWindow(QtWidgets.QMainWindow):
         self.isCanceled = True
 
     def clickedMovie(self, listItem):
-        coverFile = self.downloadMovieData(listItem)
         moviePath = listItem.data(QtCore.Qt.UserRole)
         fullTitle = listItem.text()
         mdbFile = os.path.join(moviePath, '%s.mdb' % fullTitle)
+        coverFile = os.path.join(moviePath, '%s.jpg' % fullTitle)
+        if not os.path.exists(coverFile):
+            coverFilePng = os.path.join(moviePath, '%s.png' % fullTitle)
+            if os.path.exists(coverFilePng):
+                coverFile = coverFilePng
+
         if os.path.exists(mdbFile):
             with open(mdbFile) as f:
                 summary = f.read()
             self.summary.setText(summary)
-        else:
-            print("Error reading mdb file: %s" % mdbFile)
 
         if os.path.exists(coverFile):
             self.showCoverFile(coverFile)
-        else:
-            print("Error reading cover file: %s" % coverFile)
 
     def getMovie(self, movieName) -> object:
         m = re.match(r'(.*)\((.*)\)', movieName)
@@ -287,6 +276,18 @@ class MyWindow(QtWidgets.QMainWindow):
         self.openFolderAction = QtWidgets.QAction("Open Folder", self)
         self.openFolderAction.triggered.connect(lambda: self.openMovieFolder())
         self.rightMenu.addAction(self.openFolderAction)
+
+        self.downloadDataAction = QtWidgets.QAction("Download Data", self)
+        self.downloadDataAction.triggered.connect(lambda: self.downloadDataMenu())
+        self.rightMenu.addAction(self.downloadDataAction)
+
+        self.removeMdbAction = QtWidgets.QAction("Remove .mdb files", self)
+        self.removeMdbAction.triggered.connect(lambda: self.removeMdbFilesMenu())
+        self.rightMenu.addAction(self.removeMdbAction)
+
+        self.removeCoversAction = QtWidgets.QAction("Remove cover files", self)
+        self.removeCoversAction.triggered.connect(lambda: self.removeCoverFilesMenu())
+        self.rightMenu.addAction(self.removeCoversAction)
 
         self.rightMenu.exec_(QtGui.QCursor.pos())
 
