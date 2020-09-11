@@ -148,10 +148,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.bottomLayout = QtWidgets.QHBoxLayout(self)
         self.layout.addLayout(self.bottomLayout)
 
-        self.goButton = QtWidgets.QPushButton("Go", self)
-        self.goButton.clicked.connect(self.goButtonClicked)
-        self.bottomLayout.addWidget(self.goButton)
-
         self.progressBar = QtWidgets.QProgressBar(self)
         self.progressBar.setMaximum(100)
         self.bottomLayout.addWidget(self.progressBar)
@@ -169,20 +165,6 @@ class MyWindow(QtWidgets.QMainWindow):
         if (starWarsItem):
             self.movieList.setCurrentItem(starWarsItem)
             self.clickedMovie(starWarsItem)
-
-    def goButtonClicked(self):
-        self.isCanceled = False
-        progressMax = 1000000
-        self.progressBar.setMaximum(progressMax)
-        count = 0
-        while count < progressMax:
-            QtCore.QCoreApplication.processEvents()
-            if self.isCanceled == True:
-                self.isCanceled = False
-                self.progressBar.setValue(0)
-                break
-            self.progressBar.setValue(count)
-            count += 1
 
     def cancelButtonClicked(self):
         self.isCanceled = True
