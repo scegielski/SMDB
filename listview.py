@@ -18,14 +18,11 @@ import time
 def splitCamelCase(inputText):
     return re.sub('([A-Z][a-z]+)', r' \1', re.sub('([A-Z]+)', r' \1', inputText)).split()
 
-
 def copyCoverImage(movie, coverFile):
     movieCoverUrl = ''
-    if 'full-size cover url' in movie:
-        print ('')
+    if movie.has_key('full-size cover url'):
         movieCoverUrl = movie['full-size cover url']
-        print ('')
-    elif 'cover url' in movie:
+    elif movie.has_key('cover'):
         movieCoverUrl = movie['cover']
     else:
         print("Error: No cover image available")
