@@ -81,6 +81,10 @@ class MyWindow(QtWidgets.QMainWindow):
             coverFile = os.path.join(moviePath, '%s.jpg' % item.text())
             if os.path.exists(coverFile):
                 filesToDelete.append(coverFile)
+            else:
+                coverFile = os.path.join(moviePath, '%s.png' % item.text())
+                if os.path.exists(coverFile):
+                    filesToDelete.append(coverFile)
         self.removeFiles(filesToDelete, '.jpg')
 
     def initUI(self):
@@ -202,7 +206,8 @@ class MyWindow(QtWidgets.QMainWindow):
         year = m.group(2)
         splitTitle = splitCamelCase(title)
 
-        searchText = '%s %s' % (' '.join(splitTitle), year)
+        #searchText = '%s %s' % (' '.join(splitTitle), year)
+        searchText = ' '.join(splitTitle)
 
         print('\nSearching for: "%s"' % searchText)
 
@@ -214,6 +219,11 @@ class MyWindow(QtWidgets.QMainWindow):
             print("Found it!")
 
         movie = results[0]
+        for res in results:
+            if int(res['year']) == int(year):
+                print ("year %s matches" % int(year))
+                movie = res
+                break
 
         return movie
 
