@@ -187,8 +187,6 @@ class MyWindow(QtWidgets.QMainWindow):
         if os.path.exists(mdbFile):
             with open(mdbFile) as f:
                 summary = f.read()
-
-            #print(summary)
             self.summary.setText(summary)
         else:
             print("Error reading mdb file: %s" % mdbFile)
