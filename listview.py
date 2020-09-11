@@ -27,11 +27,8 @@ def copyCoverImage(movie, coverFile):
         print("Error: No cover image available")
         return ""
     extension = os.path.splitext(movieCoverUrl)[1]
-    print('movieCoverUrl = %s' % movieCoverUrl)
-    print('extension = %s' % extension)
     if extension == '.png':
         coverFile = coverFile.replace('.jpg', '.png')
-        print("coverFile = %s" % coverFile)
     urllib.request.urlretrieve(movieCoverUrl, coverFile)
     return coverFile
 
@@ -62,21 +59,23 @@ class MyWindow(QtWidgets.QMainWindow):
                     print('Deleting file: %s' % f)
                     os.remove(f)
 
-    def removeMdbFiles(self):
+    def downloadDataMenu(self):
+        for item in self.movieList.selectedItems():
+            print("Downloading data for: %s" % item.text())
+            self.downloadMovieData(item)
+
+    def removeMdbFilesMenu(self):
         filesToDelete = []
-        for row in range(self.movieList.count()):
-            item = self.movieList.item(row)
+        for item in self.movieList.selectedItems():
             moviePath = item.data(QtCore.Qt.UserRole)
-            with os.scandir(moviePath) as files:
-                for f in files:
-                    if not f.is_dir() and fnmatch.fnmatch(f, '*.mdb'):
-                        filesToDelete.append(os.path.join(moviePath, f))
+            mdbFile = os.path.join(moviePath, '%s.mdb' % item.text())
+            if (os.path.exists(mdbFile)):
+                filesToDelete.append(os.path.join(moviePath, mdbFile))
         self.removeFiles(filesToDelete, '.mdb')
 
-    def removeCoverFiles(self):
+    def removeCoverFilesMenu(self):
         filesToDelete = []
-        for row in range(self.movieList.count()):
-            item = self.movieList.item(row)
+        for item in self.movieList.selectedItems():
             moviePath = item.data(QtCore.Qt.UserRole)
             coverFile = os.path.join(moviePath, '%s.jpg' % item.text())
             if os.path.exists(coverFile):
@@ -85,6 +84,7 @@ class MyWindow(QtWidgets.QMainWindow):
                 coverFile = os.path.join(moviePath, '%s.png' % item.text())
                 if os.path.exists(coverFile):
                     filesToDelete.append(coverFile)
+
         self.removeFiles(filesToDelete, '.jpg')
 
     def initUI(self):
@@ -92,12 +92,16 @@ class MyWindow(QtWidgets.QMainWindow):
         # Menus
         self.taskMenu = self.menuBar().addMenu("Tasks")
 
-        self.actionRemoveMdbFiles = QtWidgets.QAction("Remove all .mdb files")
-        self.actionRemoveMdbFiles.triggered.connect(self.removeMdbFiles)
+        self.actionDownloadData = QtWidgets.QAction("Download data")
+        self.actionDownloadData.triggered.connect(self.downloadDataMenu)
+        self.taskMenu.addAction(self.actionDownloadData);
+
+        self.actionRemoveMdbFiles = QtWidgets.QAction("Remove .mdb files")
+        self.actionRemoveMdbFiles.triggered.connect(self.removeMdbFilesMenu)
         self.taskMenu.addAction(self.actionRemoveMdbFiles);
 
-        self.actionRemoveCoverFiles = QtWidgets.QAction("Remove all cover .jpg files")
-        self.actionRemoveCoverFiles.triggered.connect(self.removeCoverFiles)
+        self.actionRemoveCoverFiles = QtWidgets.QAction("Remove cover files")
+        self.actionRemoveCoverFiles.triggered.connect(self.removeCoverFilesMenu)
         self.taskMenu.addAction(self.actionRemoveCoverFiles);
 
         # Layout
@@ -176,18 +180,11 @@ class MyWindow(QtWidgets.QMainWindow):
     def cancelButtonClicked(self):
         self.isCanceled = True
 
-    def clickedMovie(self, item):
-        moviePath = item.data(QtCore.Qt.UserRole)
-        fullTitle = item.text()
+    def clickedMovie(self, listItem):
+        coverFile = self.downloadMovieData(listItem)
+        moviePath = listItem.data(QtCore.Qt.UserRole)
+        fullTitle = listItem.text()
         mdbFile = os.path.join(moviePath, '%s.mdb' % fullTitle)
-        coverFile = os.path.join(moviePath, '%s.jpg' % fullTitle)
-        coverFilePng = os.path.join(moviePath, '%s.png' % fullTitle)
-        if os.path.exists(coverFilePng):
-            coverFile = coverFilePng
-
-        if not os.path.exists(mdbFile) or not os.path.exists(coverFile):
-            coverFile = self.downloadMovieData(fullTitle, mdbFile, coverFile)
-
         if os.path.exists(mdbFile):
             with open(mdbFile) as f:
                 summary = f.read()
@@ -209,14 +206,10 @@ class MyWindow(QtWidgets.QMainWindow):
         #searchText = '%s %s' % (' '.join(splitTitle), year)
         searchText = ' '.join(splitTitle)
 
-        print('\nSearching for: "%s"' % searchText)
-
         results = self.db.search_movie(searchText)
         if not results:
             print('No matches for: %s' % movieName)
             return
-        else:
-            print("Found it!")
 
         movie = results[0]
         for res in results:
@@ -232,16 +225,27 @@ class MyWindow(QtWidgets.QMainWindow):
                                                 QtCore.Qt.KeepAspectRatio,
                                                 QtCore.Qt.SmoothTransformation))
 
-    def downloadMovieData(self, movieFolderName, mdbFile, coverFile):
-        movie = self.getMovie(movieFolderName)
-        self.db.update(movie)
-
-        if not os.path.exists(mdbFile):
-            with open(mdbFile, "w") as f:
-                print(movie.summary(), file=f)
-
+    def downloadMovieData(self, listItem):
+        moviePath = listItem.data(QtCore.Qt.UserRole)
+        fullTitle = listItem.text()
+        mdbFile = os.path.join(moviePath, '%s.mdb' % fullTitle)
+        coverFile = os.path.join(moviePath, '%s.jpg' % fullTitle)
         if not os.path.exists(coverFile):
-            coverFile = copyCoverImage(movie, coverFile)
+            coverFilePng = os.path.join(moviePath, '%s.png' % fullTitle)
+            if os.path.exists(coverFilePng):
+                coverFile = coverFilePng
+
+        if not os.path.exists(mdbFile) or not os.path.exists(coverFile):
+            movie = self.getMovie(fullTitle)
+            self.db.update(movie)
+
+            if not os.path.exists(mdbFile):
+               with open(mdbFile, "w") as f:
+                   print(movie.summary(), file=f)
+
+            if not os.path.exists(coverFile):
+                coverFile = copyCoverImage(movie, coverFile)
+
         return coverFile
 
     def playMovie(self):
