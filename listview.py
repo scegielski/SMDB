@@ -70,7 +70,8 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.statusBar().showMessage('Cancelled')
                 self.isCanceled = False
                 self.progressBar.setValue(0)
-                break
+                self.setMovieListItemColors()
+                return
 
             message = "Downloading data (%d/%d): %s" % (progress + 1,
                                                         numSelectedItems,
@@ -132,7 +133,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.layout.addWidget(self.splitter)
 
         self.movieList = QtWidgets.QListWidget(self)
-        self.movieList.itemClicked.connect(self.clickedMovie)
+        #self.movieList.itemClicked.connect(self.clickedMovie)
         self.movieList.itemSelectionChanged.connect(self.movieSelectionChanged)
         starWarsItem = None
         with os.scandir(self.moviesBaseDir) as files:
@@ -187,12 +188,10 @@ class MyWindow(QtWidgets.QMainWindow):
         numSelected = len(self.movieList.selectedItems())
         total = self.movieList.count()
         self.statusBar().showMessage('%s/%s' % (numSelected, total))
+        if numSelected == 1:
+            self.clickedMovie(self.movieList.selectedItems()[0])
 
     def clickedMovie(self, listItem):
-        numSelected = len(self.movieList.selectedItems())
-        if numSelected > 1:
-            return
-
         moviePath = listItem.data(QtCore.Qt.UserRole)
         fullTitle = listItem.text()
         mdbFile = os.path.join(moviePath, '%s.mdb' % fullTitle)
@@ -202,18 +201,26 @@ class MyWindow(QtWidgets.QMainWindow):
             if os.path.exists(coverFilePng):
                 coverFile = coverFilePng
 
+        self.showCoverFile(coverFile)
+
         if os.path.exists(mdbFile):
             with open(mdbFile) as f:
                 summary = f.read()
             self.summary.setText(summary)
+        else:
+            self.summary.clear()
 
-        if os.path.exists(coverFile):
-            self.showCoverFile(coverFile)
 
     def getMovie(self, movieName) -> object:
         m = re.match(r'(.*)\((.*)\)', movieName)
         title = m.group(1)
-        year = m.group(2)
+
+        try:
+            year = int(m.group(2))
+        except ValueError:
+            print('Problem converting year to integer for movie: %s' % movieName)
+            return None
+
         splitTitle = splitCamelCase(title)
 
         #searchText = '%s %s' % (' '.join(splitTitle), year)
@@ -226,17 +233,21 @@ class MyWindow(QtWidgets.QMainWindow):
 
         movie = results[0]
         for res in results:
-            if int(res['year']) == int(year) and res['kind'] == 'movie':
-                movie = res
-                break
+            if res.has_key('year') and res.has_key('kind'):
+                if res['year'] == int(year) and res['kind'] == 'movie':
+                    movie = res
+                    break
 
         return movie
 
     def showCoverFile(self, coverFile):
-        pixMap = QtGui.QPixmap(coverFile)
-        self.movieCover.setPixmap(pixMap.scaled(500, 500,
-                                                QtCore.Qt.KeepAspectRatio,
-                                                QtCore.Qt.SmoothTransformation))
+        if os.path.exists(coverFile):
+            pixMap = QtGui.QPixmap(coverFile)
+            self.movieCover.setPixmap(pixMap.scaled(500, 500,
+                                                    QtCore.Qt.KeepAspectRatio,
+                                                    QtCore.Qt.SmoothTransformation))
+        else:
+            self.movieCover.setPixmap(QtGui.QPixmap(0,0))
 
     def downloadMovieData(self, listItem):
         moviePath = listItem.data(QtCore.Qt.UserRole)
@@ -250,6 +261,8 @@ class MyWindow(QtWidgets.QMainWindow):
 
         if not os.path.exists(mdbFile) or not os.path.exists(coverFile):
             movie = self.getMovie(fullTitle)
+            if movie == None:
+                return coverFile
             self.db.update(movie)
 
             if not os.path.exists(mdbFile):
