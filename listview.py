@@ -220,8 +220,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         movie = results[0]
         for res in results:
-            if int(res['year']) == int(year):
-                print ("year %s matches" % int(year))
+            if int(res['year']) == int(year) and res['kind'] == 'movie':
                 movie = res
                 break
 
