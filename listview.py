@@ -215,10 +215,6 @@ class MyWindow(QtWidgets.QMainWindow):
 
         movie = results[0]
 
-        #imdbId = self.db.title2imdbID(searchText, 'movie')
-        #movieId = movie.getID()
-        #print("imdbId = %s movieId = %s" % (imdbId, movieId))
-
         return movie
 
     def showCoverFile(self, coverFile):
