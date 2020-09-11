@@ -1,6 +1,5 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtCore import Qt, QThread, QObject, pyqtSignal
-from PyQt5.QtWidgets import QApplication, QSplitter, QMessageBox
+from PyQt5.QtWidgets import QApplication, QMessageBox
 import sys
 import os
 import fnmatch
@@ -8,12 +7,9 @@ from imdb import IMDb
 import re
 import urllib.request
 import subprocess
-import time
 
-# TODO: Add progress bar and button to get movie summaries
 # TODO: Create separate derived class for movie list and move methods
 # TODO: Change colors to dark
-# TODO: Add summary panel
 
 def splitCamelCase(inputText):
     return re.sub('([A-Z][a-z]+)', r' \1', re.sub('([A-Z]+)', r' \1', inputText)).split()
