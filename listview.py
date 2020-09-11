@@ -4,9 +4,11 @@ import sys
 import os
 import fnmatch
 from imdb import IMDb
+from imdb import Movie
 import re
 import urllib.request
 import subprocess
+import json
 
 # TODO: Create separate derived class for movie list and move methods
 # TODO: Change colors to dark
@@ -83,14 +85,14 @@ class MyWindow(QtWidgets.QMainWindow):
         self.progressBar.setValue(0)
         self.setMovieListItemColors()
 
-    def removeMdbFilesMenu(self):
+    def removeJsonFilesMenu(self):
         filesToDelete = []
         for item in self.movieList.selectedItems():
             moviePath = item.data(QtCore.Qt.UserRole)
-            mdbFile = os.path.join(moviePath, '%s.mdb' % item.text())
-            if (os.path.exists(mdbFile)):
-                filesToDelete.append(os.path.join(moviePath, mdbFile))
-        self.removeFiles(filesToDelete, '.mdb')
+            jsonFile = os.path.join(moviePath, '%s.json' % item.text())
+            if (os.path.exists(jsonFile)):
+                filesToDelete.append(os.path.join(moviePath, jsonFile))
+        self.removeFiles(filesToDelete, '.json')
         self.setMovieListItemColors()
 
     def removeCoverFilesMenu(self):
@@ -111,7 +113,7 @@ class MyWindow(QtWidgets.QMainWindow):
         for row in range(self.movieList.count()):
             listItem = self.movieList.item(row)
             moviePath = listItem.data(QtCore.Qt.UserRole)
-            mdbFile = os.path.join(moviePath, '%s.mdb' % listItem.text())
+            mdbFile = os.path.join(moviePath, '%s.json' % listItem.text())
             if not os.path.exists(mdbFile):
                 listItem.setBackground(QtGui.QColor(220, 220, 220))
             else:
@@ -190,7 +192,7 @@ class MyWindow(QtWidgets.QMainWindow):
     def clickedMovie(self, listItem):
         moviePath = listItem.data(QtCore.Qt.UserRole)
         fullTitle = listItem.text()
-        mdbFile = os.path.join(moviePath, '%s.mdb' % fullTitle)
+        jsonFile = os.path.join(moviePath, '%s.json' % fullTitle)
         coverFile = os.path.join(moviePath, '%s.jpg' % fullTitle)
         if not os.path.exists(coverFile):
             coverFilePng = os.path.join(moviePath, '%s.png' % fullTitle)
@@ -198,14 +200,7 @@ class MyWindow(QtWidgets.QMainWindow):
                 coverFile = coverFilePng
 
         self.showCoverFile(coverFile)
-
-        if os.path.exists(mdbFile):
-            with open(mdbFile) as f:
-                summary = f.read()
-            self.summary.setText(summary)
-        else:
-            self.summary.clear()
-
+        self.showSummary(jsonFile)
 
     def getMovie(self, movieName) -> object:
         m = re.match(r'(.*)\((.*)\)', movieName)
@@ -219,7 +214,6 @@ class MyWindow(QtWidgets.QMainWindow):
 
         splitTitle = splitCamelCase(title)
 
-        #searchText = '%s %s' % (' '.join(splitTitle), year)
         searchText = ' '.join(splitTitle)
 
         results = self.db.search_movie(searchText)
@@ -230,7 +224,7 @@ class MyWindow(QtWidgets.QMainWindow):
         movie = results[0]
         for res in results:
             if res.has_key('year') and res.has_key('kind'):
-                if res['year'] == int(year) and res['kind'] == 'movie':
+                if res['year'] == year and res['kind'] == 'movie':
                     movie = res
                     break
 
@@ -245,25 +239,72 @@ class MyWindow(QtWidgets.QMainWindow):
         else:
             self.movieCover.setPixmap(QtGui.QPixmap(0,0))
 
+    def showSummary(self, jsonFile):
+        if os.path.exists(jsonFile):
+            with open(jsonFile) as f:
+                data = json.load(f)
+                summary = data['summary']
+                self.summary.setText(summary)
+        else:
+            self.summary.clear()
+
+    def getMovieKey(self, movie, key):
+        if movie.has_key(key):
+            return movie[key]
+        else:
+            return None
+
+    def writeMovieJson(self, movie, jsonFile):
+        d = {}
+        d['title'] = self.getMovieKey(movie, 'title')
+        d['kind'] = self.getMovieKey(movie, 'kind')
+        d['year'] = self.getMovieKey(movie, 'year')
+        d['rating'] = self.getMovieKey(movie, 'rating')
+        d['runtime'] = self.getMovieKey(movie, 'runtimes')[0]
+        boxOffice = self.getMovieKey(movie, 'box office')
+        if boxOffice:
+            for k in boxOffice.keys():
+                d['box office'] = boxOffice[k]
+        director = self.getMovieKey(movie, 'director')
+        if (director):
+            if isinstance(director, list):
+                d['director'] = str(director[0]['name'])
+        d['cast'] = []
+        cast = self.getMovieKey(movie, 'cast')
+        if (cast and isinstance(cast, list)):
+            for c in movie['cast']:
+                d['cast'].append(c['name'])
+        d['genres'] = self.getMovieKey(movie, 'genres')
+        d['plot'] = self.getMovieKey(movie, 'plot')
+        d['plot outline'] = self.getMovieKey(movie, 'plot outline')
+        d['synopsis'] = self.getMovieKey(movie, 'synopsis')
+        d['summary'] = movie.summary()
+        d['cover url'] = self.getMovieKey(movie, 'cover url')
+        d['full-size cover url'] = self.getMovieKey(movie, 'full-size cover url')
+
+        if not os.path.exists(jsonFile):
+            with open(jsonFile, "w") as f:
+                json.dump(d, f, indent=4)
+
     def downloadMovieData(self, listItem):
         moviePath = listItem.data(QtCore.Qt.UserRole)
         fullTitle = listItem.text()
         mdbFile = os.path.join(moviePath, '%s.mdb' % fullTitle)
+        jsonFile = os.path.join(moviePath, '%s.json' % fullTitle)
         coverFile = os.path.join(moviePath, '%s.jpg' % fullTitle)
         if not os.path.exists(coverFile):
             coverFilePng = os.path.join(moviePath, '%s.png' % fullTitle)
             if os.path.exists(coverFilePng):
                 coverFile = coverFilePng
 
-        if not os.path.exists(mdbFile) or not os.path.exists(coverFile):
+        if not os.path.exists(jsonFile) or not os.path.exists(coverFile):
             movie = self.getMovie(fullTitle)
-            if movie == None:
+            if not movie:
                 return coverFile
             self.db.update(movie)
 
-            if not os.path.exists(mdbFile):
-               with open(mdbFile, "w") as f:
-                   print(movie.summary(), file=f)
+            if not os.path.exists(jsonFile):
+                self.writeMovieJson(movie, jsonFile)
 
             if not os.path.exists(coverFile):
                 coverFile = copyCoverImage(movie, coverFile)
@@ -314,8 +355,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.downloadDataAction.triggered.connect(lambda: self.downloadDataMenu())
         self.rightMenu.addAction(self.downloadDataAction)
 
-        self.removeMdbAction = QtWidgets.QAction("Remove .mdb files", self)
-        self.removeMdbAction.triggered.connect(lambda: self.removeMdbFilesMenu())
+        self.removeMdbAction = QtWidgets.QAction("Remove .json files", self)
+        self.removeMdbAction.triggered.connect(lambda: self.removeJsonFilesMenu())
         self.rightMenu.addAction(self.removeMdbAction)
 
         self.removeCoversAction = QtWidgets.QAction("Remove cover files", self)
