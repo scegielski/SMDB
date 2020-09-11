@@ -119,11 +119,16 @@ class MyWindow(QtWidgets.QMainWindow):
         self.movieList.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         self.splitter.addWidget(self.movieList)
 
+        self.vSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
+        self.splitter.addWidget(self.vSplitter)
+
         self.movieCover = QtWidgets.QLabel(self)
         self.movieCover.setScaledContents(False)
-        self.movieCover.setObjectName("photo")
-        self.movieCover.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
-        self.splitter.addWidget(self.movieCover)
+        self.movieCover.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored)
+        self.vSplitter.addWidget(self.movieCover)
+
+        self.summary = QtWidgets.QTextBrowser()
+        self.vSplitter.addWidget(self.summary)
 
         self.bottomLayout = QtWidgets.QHBoxLayout(self)
         self.layout.addLayout(self.bottomLayout)
@@ -183,7 +188,8 @@ class MyWindow(QtWidgets.QMainWindow):
             with open(mdbFile) as f:
                 summary = f.read()
 
-            print(summary)
+            #print(summary)
+            self.summary.setText(summary)
         else:
             print("Error reading mdb file: %s" % mdbFile)
 
