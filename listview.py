@@ -78,6 +78,7 @@ class MyWindow(QtWidgets.QMainWindow):
             QtCore.QCoreApplication.processEvents()
 
             self.downloadMovieData(item)
+            self.clickedMovie(item)
 
             progress += 1
             self.progressBar.setValue(progress)
