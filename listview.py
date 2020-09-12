@@ -30,6 +30,19 @@ def copyCoverImage(movie, coverFile):
     urllib.request.urlretrieve(movieCoverUrl, coverFile)
     return coverFile
 
+def removeFiles(parent, filesToDelete, extension):
+    if len(filesToDelete) > 0:
+        ret = QMessageBox.question(parent,
+                                   'Confirm Delete',
+                                   'Really remove %d %s files?' % (len(filesToDelete), extension),
+                                   QMessageBox.Yes | QMessageBox.No,
+                                   QMessageBox.No)
+
+        if ret == QMessageBox.Yes:
+            for f in filesToDelete:
+                print('Deleting file: %s' % f)
+                os.remove(f)
+
 
 class MyWindow(QtWidgets.QMainWindow):
     def __init__(self):
@@ -45,97 +58,6 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.setGeometry(0, 0, 1000, 700)
         self.setWindowTitle("Movie Database")
-
-    def removeFiles(self, filesToDelete, extension):
-        if len(filesToDelete) > 0:
-            ret = QMessageBox.question(self,
-                                       'Confirm Delete',
-                                       'Really remove %d %s files?' % (len(filesToDelete), extension),
-                                       QMessageBox.Yes | QMessageBox.No,
-                                       QMessageBox.No)
-
-            if ret == QMessageBox.Yes:
-                for f in filesToDelete:
-                    print('Deleting file: %s' % f)
-                    os.remove(f)
-
-    def downloadDataMenu(self):
-        numSelectedItems = len(self.movieList.selectedItems())
-        self.progressBar.setMaximum(numSelectedItems)
-        progress = 0
-        self.isCanceled = False
-        for item in self.movieList.selectedItems():
-            QtCore.QCoreApplication.processEvents()
-            if self.isCanceled == True:
-                self.statusBar().showMessage('Cancelled')
-                self.isCanceled = False
-                self.progressBar.setValue(0)
-                self.setMovieListItemColors()
-                return
-
-            message = "Downloading data (%d/%d): %s" % (progress + 1,
-                                                        numSelectedItems,
-                                                        item.text())
-            self.statusBar().showMessage(message)
-            QtCore.QCoreApplication.processEvents()
-
-            self.downloadMovieData(item)
-            self.clickedMovie(item)
-
-            progress += 1
-            self.progressBar.setValue(progress)
-        self.statusBar().showMessage("Done")
-        self.progressBar.setValue(0)
-        self.setMovieListItemColors()
-
-    def removeJsonFilesMenu(self):
-        filesToDelete = []
-        for item in self.movieList.selectedItems():
-            moviePath = item.data(QtCore.Qt.UserRole)['path']
-            jsonFile = os.path.join(moviePath, '%s.json' % item.text())
-            if (os.path.exists(jsonFile)):
-                filesToDelete.append(os.path.join(moviePath, jsonFile))
-        self.removeFiles(filesToDelete, '.json')
-        self.setMovieListItemColors()
-
-    def removeCoverFilesMenu(self):
-        filesToDelete = []
-        for item in self.movieList.selectedItems():
-            moviePath = item.data(QtCore.Qt.UserRole)['path']
-            coverFile = os.path.join(moviePath, '%s.jpg' % item.text())
-            if os.path.exists(coverFile):
-                filesToDelete.append(coverFile)
-            else:
-                coverFile = os.path.join(moviePath, '%s.png' % item.text())
-                if os.path.exists(coverFile):
-                    filesToDelete.append(coverFile)
-
-        self.removeFiles(filesToDelete, '.jpg')
-
-    def setMovieListItemColors(self):
-        for row in range(self.movieList.count()):
-            listItem = self.movieList.item(row)
-            moviePath = listItem.data(QtCore.Qt.UserRole)['path']
-            mdbFile = os.path.join(moviePath, '%s.json' % listItem.text())
-            if not os.path.exists(mdbFile):
-                listItem.setBackground(QtGui.QColor(220, 220, 220))
-            else:
-                listItem.setBackground(QtGui.QColor(255, 255, 255))
-
-    def populateMovieList(self):
-        with os.scandir(self.moviesBaseDir) as files:
-            for f in files:
-                if f.is_dir() and fnmatch.fnmatch(f, self.movieDirPattern):
-                    item = QtWidgets.QListWidgetItem(f.name)
-                    userData = {}
-                    userData['folder name'] = f.name
-                    userData['path'] = os.path.join(self.moviesBaseDir, f.name)
-                    item.setData(QtCore.Qt.UserRole, userData)
-                    self.movieList.addItem(item)
-        self.setMovieListItemColors()
-        firstItem = self.movieList.item(0)
-        self.movieList.setCurrentItem(firstItem)
-        #self.clickedMovie(firstItem)
 
     def initUI(self):
 
@@ -180,6 +102,84 @@ class MyWindow(QtWidgets.QMainWindow):
         self.centralWidget = QtWidgets.QWidget()
         self.centralWidget.setLayout(self.layout)
         self.setCentralWidget(self.centralWidget)
+
+    def downloadDataMenu(self):
+        numSelectedItems = len(self.movieList.selectedItems())
+        self.progressBar.setMaximum(numSelectedItems)
+        progress = 0
+        self.isCanceled = False
+        for item in self.movieList.selectedItems():
+            QtCore.QCoreApplication.processEvents()
+            if self.isCanceled == True:
+                self.statusBar().showMessage('Cancelled')
+                self.isCanceled = False
+                self.progressBar.setValue(0)
+                self.setMovieListItemColors()
+                return
+
+            message = "Downloading data (%d/%d): %s" % (progress + 1,
+                                                        numSelectedItems,
+                                                        item.text())
+            self.statusBar().showMessage(message)
+            QtCore.QCoreApplication.processEvents()
+
+            self.downloadMovieData(item)
+            self.clickedMovie(item)
+
+            progress += 1
+            self.progressBar.setValue(progress)
+        self.statusBar().showMessage("Done")
+        self.progressBar.setValue(0)
+        self.setMovieListItemColors()
+
+    def removeJsonFilesMenu(self):
+        filesToDelete = []
+        for item in self.movieList.selectedItems():
+            moviePath = item.data(QtCore.Qt.UserRole)['path']
+            jsonFile = os.path.join(moviePath, '%s.json' % item.text())
+            if (os.path.exists(jsonFile)):
+                filesToDelete.append(os.path.join(moviePath, jsonFile))
+        removeFiles(self, filesToDelete, '.json')
+        self.setMovieListItemColors()
+
+    def removeCoverFilesMenu(self):
+        filesToDelete = []
+        for item in self.movieList.selectedItems():
+            moviePath = item.data(QtCore.Qt.UserRole)['path']
+            coverFile = os.path.join(moviePath, '%s.jpg' % item.text())
+            if os.path.exists(coverFile):
+                filesToDelete.append(coverFile)
+            else:
+                coverFile = os.path.join(moviePath, '%s.png' % item.text())
+                if os.path.exists(coverFile):
+                    filesToDelete.append(coverFile)
+
+        removeFiles(self, filesToDelete, '.jpg')
+
+    def setMovieListItemColors(self):
+        for row in range(self.movieList.count()):
+            listItem = self.movieList.item(row)
+            moviePath = listItem.data(QtCore.Qt.UserRole)['path']
+            mdbFile = os.path.join(moviePath, '%s.json' % listItem.text())
+            if not os.path.exists(mdbFile):
+                listItem.setBackground(QtGui.QColor(220, 220, 220))
+            else:
+                listItem.setBackground(QtGui.QColor(255, 255, 255))
+
+    def populateMovieList(self):
+        with os.scandir(self.moviesBaseDir) as files:
+            for f in files:
+                if f.is_dir() and fnmatch.fnmatch(f, self.movieDirPattern):
+                    item = QtWidgets.QListWidgetItem(f.name)
+                    userData = {}
+                    userData['folder name'] = f.name
+                    userData['path'] = os.path.join(self.moviesBaseDir, f.name)
+                    item.setData(QtCore.Qt.UserRole, userData)
+                    self.movieList.addItem(item)
+        self.setMovieListItemColors()
+        firstItem = self.movieList.item(0)
+        self.movieList.setCurrentItem(firstItem)
+        #self.clickedMovie(firstItem)
 
     def cancelButtonClicked(self):
         self.isCanceled = True
