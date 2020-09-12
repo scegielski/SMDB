@@ -41,6 +41,8 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.db = IMDb()
         self.initUI()
+        self.populateMovieList()
+
         self.setGeometry(0, 0, 1000, 700)
         self.setWindowTitle("Movie Database")
 
@@ -89,7 +91,7 @@ class MyWindow(QtWidgets.QMainWindow):
     def removeJsonFilesMenu(self):
         filesToDelete = []
         for item in self.movieList.selectedItems():
-            moviePath = item.data(QtCore.Qt.UserRole)
+            moviePath = item.data(QtCore.Qt.UserRole)['path']
             jsonFile = os.path.join(moviePath, '%s.json' % item.text())
             if (os.path.exists(jsonFile)):
                 filesToDelete.append(os.path.join(moviePath, jsonFile))
@@ -99,7 +101,7 @@ class MyWindow(QtWidgets.QMainWindow):
     def removeCoverFilesMenu(self):
         filesToDelete = []
         for item in self.movieList.selectedItems():
-            moviePath = item.data(QtCore.Qt.UserRole)
+            moviePath = item.data(QtCore.Qt.UserRole)['path']
             coverFile = os.path.join(moviePath, '%s.jpg' % item.text())
             if os.path.exists(coverFile):
                 filesToDelete.append(coverFile)
@@ -113,12 +115,27 @@ class MyWindow(QtWidgets.QMainWindow):
     def setMovieListItemColors(self):
         for row in range(self.movieList.count()):
             listItem = self.movieList.item(row)
-            moviePath = listItem.data(QtCore.Qt.UserRole)
+            moviePath = listItem.data(QtCore.Qt.UserRole)['path']
             mdbFile = os.path.join(moviePath, '%s.json' % listItem.text())
             if not os.path.exists(mdbFile):
                 listItem.setBackground(QtGui.QColor(220, 220, 220))
             else:
                 listItem.setBackground(QtGui.QColor(255, 255, 255))
+
+    def populateMovieList(self):
+        with os.scandir(self.moviesBaseDir) as files:
+            for f in files:
+                if f.is_dir() and fnmatch.fnmatch(f, self.movieDirPattern):
+                    item = QtWidgets.QListWidgetItem(f.name)
+                    userData = {}
+                    userData['folder name'] = f.name
+                    userData['path'] = os.path.join(self.moviesBaseDir, f.name)
+                    item.setData(QtCore.Qt.UserRole, userData)
+                    self.movieList.addItem(item)
+        self.setMovieListItemColors()
+        firstItem = self.movieList.item(0)
+        self.movieList.setCurrentItem(firstItem)
+        #self.clickedMovie(firstItem)
 
     def initUI(self):
 
@@ -132,22 +149,10 @@ class MyWindow(QtWidgets.QMainWindow):
         self.layout.addWidget(self.splitter)
 
         self.movieList = QtWidgets.QListWidget(self)
-        #self.movieList.itemClicked.connect(self.clickedMovie)
         self.movieList.itemSelectionChanged.connect(self.movieSelectionChanged)
-        starWarsItem = None
-        with os.scandir(self.moviesBaseDir) as files:
-            for f in files:
-                if f.is_dir() and fnmatch.fnmatch(f, self.movieDirPattern):
-                    item = QtWidgets.QListWidgetItem(f.name)
-                    moviePath = os.path.join(self.moviesBaseDir, item.text())
-                    item.setData(QtCore.Qt.UserRole, moviePath)
-                    self.movieList.addItem(item)
-                    if (f.name == 'StarWars-Episode-5-TheEmpireStrikesBack(1980)'):
-                        starWarsItem = item
         self.movieList.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.movieList.customContextMenuRequested[QtCore.QPoint].connect(self.rightMenuShow)
         self.movieList.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
-        self.setMovieListItemColors()
         self.splitter.addWidget(self.movieList)
 
         self.vSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
@@ -176,10 +181,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.centralWidget.setLayout(self.layout)
         self.setCentralWidget(self.centralWidget)
 
-        if (starWarsItem):
-            self.movieList.setCurrentItem(starWarsItem)
-            self.clickedMovie(starWarsItem)
-
     def cancelButtonClicked(self):
         self.isCanceled = True
 
@@ -191,7 +192,7 @@ class MyWindow(QtWidgets.QMainWindow):
             self.clickedMovie(self.movieList.selectedItems()[0])
 
     def clickedMovie(self, listItem):
-        moviePath = listItem.data(QtCore.Qt.UserRole)
+        moviePath = listItem.data(QtCore.Qt.UserRole)['path']
         fullTitle = listItem.text()
         jsonFile = os.path.join(moviePath, '%s.json' % fullTitle)
         coverFile = os.path.join(moviePath, '%s.jpg' % fullTitle)
@@ -288,7 +289,7 @@ class MyWindow(QtWidgets.QMainWindow):
                 json.dump(d, f, indent=4)
 
     def downloadMovieData(self, listItem):
-        moviePath = listItem.data(QtCore.Qt.UserRole)
+        moviePath = listItem.data(QtCore.Qt.UserRole)['path']
         fullTitle = listItem.text()
         mdbFile = os.path.join(moviePath, '%s.mdb' % fullTitle)
         jsonFile = os.path.join(moviePath, '%s.json' % fullTitle)
@@ -314,7 +315,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def playMovie(self):
         selectedMovie = self.movieList.selectedItems()[0]
-        filePath = selectedMovie.data(QtCore.Qt.UserRole)
+        filePath = selectedMovie.data(QtCore.Qt.UserRole)['path']
         movieFiles = []
         for file in os.listdir(filePath):
             extension = os.path.splitext(file)[1]
@@ -335,7 +336,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def openMovieFolder(self):
         selectedMovie = self.movieList.selectedItems()[0]
-        filePath = selectedMovie.data(QtCore.Qt.UserRole)
+        filePath = selectedMovie.data(QtCore.Qt.UserRole)['path']
         os.startfile(filePath)
 
     def rightMenuShow(self, QPos):
