@@ -101,10 +101,23 @@ class MyWindow(QtWidgets.QMainWindow):
         self.movieListComboBox.activated.connect(self.movieListComboBoxChanged)
         movieListVLayout.addWidget(self.movieListComboBox)
 
+
+        movieListSearchHLayout = QtWidgets.QHBoxLayout(self)
+        movieListVLayout.addLayout(movieListSearchHLayout)
+
+        searchText = QtWidgets.QLabel("Search")
+        searchText.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
+        movieListSearchHLayout.addWidget(searchText)
+
         self.movieListSearchBox = QtWidgets.QLineEdit(self)
         self.movieListSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
         self.movieListSearchBox.textChanged.connect(self.seachMovieList)
-        movieListVLayout.addWidget(self.movieListSearchBox)
+        movieListSearchHLayout.addWidget(self.movieListSearchBox)
+
+        clearSearchButton = QtWidgets.QPushButton("Clear")
+        clearSearchButton.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
+        clearSearchButton.clicked.connect(self.movieListSearchBox.clear)
+        movieListSearchHLayout.addWidget(clearSearchButton)
 
         self.movieList = QtWidgets.QListWidget(self)
         self.movieList.itemSelectionChanged.connect(self.movieSelectionChanged)
