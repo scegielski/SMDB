@@ -43,6 +43,17 @@ def removeFiles(parent, filesToDelete, extension):
                 print('Deleting file: %s' % f)
                 os.remove(f)
 
+def getNiceTitleAndYear(folderName):
+    m = re.match(r'(.*)\((.*)\)', folderName)
+    title = m.group(1)
+    year = m.group(2)
+    splitTitle = splitCamelCase(title)
+    if splitTitle[0] == 'The':
+        splitTitle.pop(0)
+        splitTitle.append(', The')
+    niceTitle = ' '.join(splitTitle)
+    return niceTitle, year
+
 
 class MyWindow(QtWidgets.QMainWindow):
     def __init__(self):
@@ -59,49 +70,96 @@ class MyWindow(QtWidgets.QMainWindow):
         self.setGeometry(0, 0, 1000, 700)
         self.setWindowTitle("Movie Database")
 
+    def seachMovieList(self):
+        searchText = self.movieListSearchBox.text()
+        if searchText == "":
+            for row in range(self.movieList.count()):
+                self.movieList.item(row).setHidden(False)
+        else:
+            for row in range(self.movieList.count()):
+                self.movieList.item(row).setHidden(True)
+            for foundItem in self.movieList.findItems(searchText, QtCore.Qt.MatchContains):
+                foundItem.setHidden(False)
+                print(foundItem.text())
+
     def initUI(self):
+        mainVLayout = QtWidgets.QVBoxLayout(self)
 
-        # Menus
-        #self.taskMenu = self.menuBar().addMenu("Tasks")
+        hSplitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
+        mainVLayout.addWidget(hSplitter)
 
-        # Layout
-        self.layout = QtWidgets.QVBoxLayout(self)
+        movieListWidget = QtWidgets.QWidget(self)
+        hSplitter.addWidget(movieListWidget)
 
-        self.splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
-        self.layout.addWidget(self.splitter)
+        movieListVLayout = QtWidgets.QVBoxLayout(self)
+        movieListWidget.setLayout(movieListVLayout)
+
+        self.movieListComboBox = QtWidgets.QComboBox(self)
+        self.movieListComboBox.addItem("Folder Names")
+        self.movieListComboBox.addItem("Nice Names")
+        self.movieListComboBox.addItem("Nice Names Year First")
+        self.movieListComboBox.activated.connect(self.movieListComboBoxChanged)
+        movieListVLayout.addWidget(self.movieListComboBox)
+
+        self.movieListSearchBox = QtWidgets.QLineEdit(self)
+        self.movieListSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
+        self.movieListSearchBox.textChanged.connect(self.seachMovieList)
+        movieListVLayout.addWidget(self.movieListSearchBox)
 
         self.movieList = QtWidgets.QListWidget(self)
         self.movieList.itemSelectionChanged.connect(self.movieSelectionChanged)
         self.movieList.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.movieList.customContextMenuRequested[QtCore.QPoint].connect(self.rightMenuShow)
         self.movieList.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
-        self.splitter.addWidget(self.movieList)
+        movieListVLayout.addWidget(self.movieList)
 
-        self.vSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
-        self.splitter.addWidget(self.vSplitter)
+        vSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
+        hSplitter.addWidget(vSplitter)
 
         self.movieCover = QtWidgets.QLabel(self)
         self.movieCover.setScaledContents(False)
         self.movieCover.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored)
-        self.vSplitter.addWidget(self.movieCover)
+        vSplitter.addWidget(self.movieCover)
 
         self.summary = QtWidgets.QTextBrowser()
-        self.vSplitter.addWidget(self.summary)
+        vSplitter.addWidget(self.summary)
 
-        self.bottomLayout = QtWidgets.QHBoxLayout(self)
-        self.layout.addLayout(self.bottomLayout)
+        bottomLayout = QtWidgets.QHBoxLayout(self)
+        mainVLayout.addLayout(bottomLayout)
 
         self.progressBar = QtWidgets.QProgressBar(self)
         self.progressBar.setMaximum(100)
-        self.bottomLayout.addWidget(self.progressBar)
+        bottomLayout.addWidget(self.progressBar)
 
-        self.cancelButton = QtWidgets.QPushButton("Cancel", self)
-        self.cancelButton.clicked.connect(self.cancelButtonClicked)
-        self.bottomLayout.addWidget(self.cancelButton)
+        cancelButton = QtWidgets.QPushButton("Cancel", self)
+        cancelButton.clicked.connect(self.cancelButtonClicked)
+        bottomLayout.addWidget(cancelButton)
 
-        self.centralWidget = QtWidgets.QWidget()
-        self.centralWidget.setLayout(self.layout)
-        self.setCentralWidget(self.centralWidget)
+        centralWidget = QtWidgets.QWidget()
+        centralWidget.setLayout(mainVLayout)
+        self.setCentralWidget(centralWidget)
+
+    def movieListComboBoxChanged(self):
+        currentIndex = self.movieListComboBox.currentIndex()
+        if currentIndex == 0:  # Folder Names
+            for row in range(self.movieList.count()):
+                item = self.movieList.item(row)
+                folderName = item.data(QtCore.Qt.UserRole)['folder name']
+                item.setText(folderName)
+        elif currentIndex == 1:  # Nice Names
+            for row in range(self.movieList.count()):
+                item = self.movieList.item(row)
+                folderName = item.data(QtCore.Qt.UserRole)['folder name']
+                niceTitle, year = getNiceTitleAndYear(folderName)
+                item.setText('%s (%s)' % (niceTitle, year))
+        else:  # Nice Names Year First
+            for row in range(self.movieList.count()):
+                item = self.movieList.item(row)
+                folderName = item.data(QtCore.Qt.UserRole)['folder name']
+                niceTitle, year = getNiceTitleAndYear(folderName)
+                item.setText('%s - %s' % (year, niceTitle))
+        self.movieList.sortItems()
+
 
     def downloadDataMenu(self):
         numSelectedItems = len(self.movieList.selectedItems())
@@ -136,7 +194,8 @@ class MyWindow(QtWidgets.QMainWindow):
         filesToDelete = []
         for item in self.movieList.selectedItems():
             moviePath = item.data(QtCore.Qt.UserRole)['path']
-            jsonFile = os.path.join(moviePath, '%s.json' % item.text())
+            movieFolder = item.data(QtCore.Qt.UserRole)['folder name']
+            jsonFile = os.path.join(moviePath, '%s.json' % movieFolder)
             if (os.path.exists(jsonFile)):
                 filesToDelete.append(os.path.join(moviePath, jsonFile))
         removeFiles(self, filesToDelete, '.json')
@@ -146,7 +205,9 @@ class MyWindow(QtWidgets.QMainWindow):
         filesToDelete = []
         for item in self.movieList.selectedItems():
             moviePath = item.data(QtCore.Qt.UserRole)['path']
-            coverFile = os.path.join(moviePath, '%s.jpg' % item.text())
+            movieFolder = item.data(QtCore.Qt.UserRole)['folder name']
+
+            coverFile = os.path.join(moviePath, '%s.jpg' % movieFolder)
             if os.path.exists(coverFile):
                 filesToDelete.append(coverFile)
             else:
@@ -160,8 +221,9 @@ class MyWindow(QtWidgets.QMainWindow):
         for row in range(self.movieList.count()):
             listItem = self.movieList.item(row)
             moviePath = listItem.data(QtCore.Qt.UserRole)['path']
-            mdbFile = os.path.join(moviePath, '%s.json' % listItem.text())
-            if not os.path.exists(mdbFile):
+            movieFolder = listItem.data(QtCore.Qt.UserRole)['folder name']
+            jsonFile = os.path.join(moviePath, '%s.json' % movieFolder)
+            if not os.path.exists(jsonFile):
                 listItem.setBackground(QtGui.QColor(220, 220, 220))
             else:
                 listItem.setBackground(QtGui.QColor(255, 255, 255))
@@ -193,19 +255,19 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def clickedMovie(self, listItem):
         moviePath = listItem.data(QtCore.Qt.UserRole)['path']
-        fullTitle = listItem.text()
-        jsonFile = os.path.join(moviePath, '%s.json' % fullTitle)
-        coverFile = os.path.join(moviePath, '%s.jpg' % fullTitle)
+        folderName = listItem.data(QtCore.Qt.UserRole)['folder name']
+        jsonFile = os.path.join(moviePath, '%s.json' % folderName)
+        coverFile = os.path.join(moviePath, '%s.jpg' % folderName)
         if not os.path.exists(coverFile):
-            coverFilePng = os.path.join(moviePath, '%s.png' % fullTitle)
+            coverFilePng = os.path.join(moviePath, '%s.png' % folderName)
             if os.path.exists(coverFilePng):
                 coverFile = coverFilePng
 
         self.showCoverFile(coverFile)
         self.showSummary(jsonFile)
 
-    def getMovie(self, movieName) -> object:
-        m = re.match(r'(.*)\((.*)\)', movieName)
+    def getMovie(self, folderName) -> object:
+        m = re.match(r'(.*)\((.*)\)', folderName)
         title = m.group(1)
 
         try:
@@ -217,16 +279,18 @@ class MyWindow(QtWidgets.QMainWindow):
         splitTitle = splitCamelCase(title)
 
         searchText = ' '.join(splitTitle)
+        print('Searching for: %s' % searchText)
 
         results = self.db.search_movie(searchText)
         if not results:
-            print('No matches for: %s' % movieName)
+            print('No matches for: %s' % searchText)
             return
 
         movie = results[0]
         for res in results:
             if res.has_key('year') and res.has_key('kind'):
                 if res['year'] == year and res['kind'] == 'movie':
+                    print("Matched year: %s" % year)
                     movie = res
                     break
 
@@ -259,10 +323,13 @@ class MyWindow(QtWidgets.QMainWindow):
     def writeMovieJson(self, movie, jsonFile):
         d = {}
         d['title'] = self.getMovieKey(movie, 'title')
+        d['id'] = movie.getID()
         d['kind'] = self.getMovieKey(movie, 'kind')
         d['year'] = self.getMovieKey(movie, 'year')
         d['rating'] = self.getMovieKey(movie, 'rating')
-        d['runtime'] = self.getMovieKey(movie, 'runtimes')[0]
+        runtimes = self.getMovieKey(movie, 'runtimes')
+        if runtimes:
+            d['runtime'] = runtimes[0]
         boxOffice = self.getMovieKey(movie, 'box office')
         if boxOffice:
             for k in boxOffice.keys():
@@ -290,26 +357,26 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def downloadMovieData(self, listItem):
         moviePath = listItem.data(QtCore.Qt.UserRole)['path']
-        fullTitle = listItem.text()
-        mdbFile = os.path.join(moviePath, '%s.mdb' % fullTitle)
-        jsonFile = os.path.join(moviePath, '%s.json' % fullTitle)
-        coverFile = os.path.join(moviePath, '%s.jpg' % fullTitle)
+        folderName = listItem.data(QtCore.Qt.UserRole)['folder name']
+        mdbFile = os.path.join(moviePath, '%s.mdb' % folderName)
+        jsonFile = os.path.join(moviePath, '%s.json' % folderName)
+        coverFile = os.path.join(moviePath, '%s.jpg' % folderName)
         if not os.path.exists(coverFile):
-            coverFilePng = os.path.join(moviePath, '%s.png' % fullTitle)
+            coverFilePng = os.path.join(moviePath, '%s.png' % folderName)
             if os.path.exists(coverFilePng):
                 coverFile = coverFilePng
 
         if not os.path.exists(jsonFile) or not os.path.exists(coverFile):
-            movie = self.getMovie(fullTitle)
+            movie = self.getMovie(folderName)
             if not movie:
                 return coverFile
             self.db.update(movie)
 
-            if not os.path.exists(jsonFile):
-                self.writeMovieJson(movie, jsonFile)
+        if not os.path.exists(jsonFile):
+            self.writeMovieJson(movie, jsonFile)
 
-            if not os.path.exists(coverFile):
-                coverFile = copyCoverImage(movie, coverFile)
+        if not os.path.exists(coverFile):
+            coverFile = copyCoverImage(movie, coverFile)
 
         return coverFile
 
@@ -322,7 +389,8 @@ class MyWindow(QtWidgets.QMainWindow):
             if extension == '.mkv' or \
                     extension == '.mp4' or \
                     extension == '.avi' or \
-                    extension == '.wmv':
+                    extension == '.avi' or \
+                    extension == '.m4v':
                 movieFiles.append(file)
         if len(movieFiles) == 1:
             fileToPlay = os.path.join(filePath, movieFiles[0])
