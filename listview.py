@@ -86,10 +86,12 @@ class MyWindow(QtWidgets.QMainWindow):
         mainVLayout = QtWidgets.QVBoxLayout(self)
 
         hSplitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
-        mainVLayout.addWidget(hSplitter)
+        hSplitter.setHandleWidth(25)
+
+        mainVLayout.addWidget(hSplitter) # movie list and cover / progress bar and status line
 
         movieListWidget = QtWidgets.QWidget(self)
-        hSplitter.addWidget(movieListWidget)
+        hSplitter.addWidget(movieListWidget) # movie list / covers
 
         movieListVLayout = QtWidgets.QVBoxLayout(self)
         movieListWidget.setLayout(movieListVLayout)
@@ -100,7 +102,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.movieListComboBox.addItem("Nice Names Year First")
         self.movieListComboBox.activated.connect(self.movieListComboBoxChanged)
         movieListVLayout.addWidget(self.movieListComboBox)
-
 
         movieListSearchHLayout = QtWidgets.QHBoxLayout(self)
         movieListVLayout.addLayout(movieListSearchHLayout)
@@ -151,6 +152,9 @@ class MyWindow(QtWidgets.QMainWindow):
         centralWidget = QtWidgets.QWidget()
         centralWidget.setLayout(mainVLayout)
         self.setCentralWidget(centralWidget)
+
+        hSplitter.setSizes([300,600])
+
 
     def movieListComboBoxChanged(self):
         currentIndex = self.movieListComboBox.currentIndex()
