@@ -266,7 +266,7 @@ class MyWindow(QtWidgets.QMainWindow):
                 item = self.movieList.item(row)
                 folderName = item.data(QtCore.Qt.UserRole)['folder name']
                 item.setText(folderName)
-                self.movieList.sortItems()
+        self.movieList.sortItems()
 
 
     def downloadDataMenu(self):
