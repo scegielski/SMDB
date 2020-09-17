@@ -103,13 +103,14 @@ class MyWindow(QtWidgets.QMainWindow):
             if os.path.exists(jsonFile):
                 with open(jsonFile) as f:
                     data = json.load(f)
-                if 'director' in data and 'title' in data:
+                if 'director' in data and 'title' in data and 'year' in data:
                     title = data['title']
                     director = data['director']
+                    year = data['year']
                     if not director in smdbData['directors']:
                         smdbData['directors'][director] = []
-                    if title not in smdbData['directors'][director]:
-                        smdbData['directors'][director].append(title)
+                    if (title, year) not in smdbData['directors'][director]:
+                        smdbData['directors'][director].append((title, year))
 
         with open(self.smdbFile, "w") as f:
             json.dump(smdbData, f, indent=4)
@@ -360,6 +361,8 @@ class MyWindow(QtWidgets.QMainWindow):
                         data = json.load(f)
                         if 'title' in data:
                             userData['title'] = data['title']
+                        if 'year' in data:
+                            userData['year'] = data['year']
                     item.setData(QtCore.Qt.UserRole, userData)
                     self.movieList.addItem(item)
         self.setMovieListItemColors()
@@ -392,16 +395,13 @@ class MyWindow(QtWidgets.QMainWindow):
                 for row in range(self.movieList.count()):
                     self.movieList.item(row).setHidden(True)
 
-                for movieName in directorsMovieList:
+                for (t, y) in directorsMovieList:
                     for row in range(self.movieList.count()):
                         listItem = self.movieList.item(row)
                         title = listItem.data(QtCore.Qt.UserRole)['title']
-                        if movieName == title:
+                        year = listItem.data(QtCore.Qt.UserRole)['year']
+                        if t == title and y == year:
                             self.movieList.item(row).setHidden(False)
-
-                    print ("movieName = %s" % movieName)
-                    for foundItem in self.movieList.findItems(movieName, QtCore.Qt.MatchContains):
-                        foundItem.setHidden(False)
 
 
     def clickedMovie(self, listItem):
