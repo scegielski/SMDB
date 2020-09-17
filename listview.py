@@ -9,6 +9,7 @@ import re
 import urllib.request
 import subprocess
 import json
+import collections
 
 # TODO: Create separate derived class for movie list and move methods
 # TODO: Change colors to dark
@@ -94,7 +95,11 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def generateSmdbFile(self):
         smdbData = {}
-        smdbData['directors'] = {}
+        titles = {}
+        directors = {}
+        actors = {}
+        genres = {}
+        years = {}
         for row in range(self.movieList.count()):
             listItem = self.movieList.item(row)
             moviePath = listItem.data(QtCore.Qt.UserRole)['path']
@@ -102,15 +107,53 @@ class MyWindow(QtWidgets.QMainWindow):
             jsonFile = os.path.join(moviePath, '%s.json' % folderName)
             if os.path.exists(jsonFile):
                 with open(jsonFile) as f:
-                    data = json.load(f)
-                if 'director' in data and 'title' in data and 'year' in data:
-                    title = data['title']
-                    director = data['director']
-                    year = data['year']
-                    if not director in smdbData['directors']:
-                        smdbData['directors'][director] = []
-                    if (title, year) not in smdbData['directors'][director]:
-                        smdbData['directors'][director].append((title, year))
+                    jsonData = json.load(f)
+                if 'title' in jsonData and 'year' in jsonData:
+                    jsonTitle = jsonData['title']
+                    jsonYear = jsonData['year']
+                    titleYear = (jsonTitle, jsonYear)
+
+                    jsonYear = None
+                    if 'year' in jsonData and jsonData['year']:
+                        jsonYear = jsonData['year']
+                        if not jsonYear in years:
+                            years[jsonYear] = []
+                        if titleYear not in years[jsonYear]:
+                            years[jsonYear].append(titleYear)
+
+                    jsonDirector = None
+                    if 'director' in jsonData and jsonData['director']:
+                        jsonDirector = jsonData['director']
+                        if not jsonDirector in directors:
+                            directors[jsonDirector] = []
+                        if titleYear not in directors[jsonDirector]:
+                            directors[jsonDirector].append(titleYear)
+
+                    jsonActors = None
+                    if 'cast' in jsonData and jsonData['cast']:
+                        jsonActors = jsonData['cast']
+                        for actor in jsonActors:
+                            if actor not in actors:
+                                actors[actor] = []
+                            if titleYear not in actors[actor]:
+                                actors[actor].append(titleYear)
+
+                    jsonGenres = None
+                    if 'genres' in jsonData and jsonData['genres']:
+                        jsonGenres = jsonData['genres']
+                        for genre in jsonGenres:
+                            if genre not in genres:
+                                genres[genre] = []
+                            if titleYear not in genres[genre]:
+                                genres[genre].append(titleYear)
+
+                    titles[jsonTitle] = { 'year': jsonYear, 'director': jsonDirector, 'genres': jsonGenres, 'actors': jsonActors}
+
+        smdbData['titles'] = collections.OrderedDict(sorted(titles.items()))
+        smdbData['years'] = collections.OrderedDict(sorted(years.items()))
+        smdbData['genres'] = collections.OrderedDict(sorted(genres.items()))
+        smdbData['directors'] = collections.OrderedDict(sorted(directors.items()))
+        smdbData['actors'] = collections.OrderedDict(sorted(actors.items()))
 
         with open(self.smdbFile, "w") as f:
             json.dump(smdbData, f, indent=4)
