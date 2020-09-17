@@ -54,6 +54,17 @@ def getNiceTitleAndYear(folderName):
     niceTitle = ' '.join(splitTitle)
     return niceTitle, year
 
+def searchListWidget(searchBoxWidget, listWidget):
+    searchText = searchBoxWidget.text()
+    if searchText == "":
+        for row in range(listWidget.count()):
+            listWidget.item(row).setHidden(False)
+    else:
+        for row in range(listWidget.count()):
+            listWidget.item(row).setHidden(True)
+        for foundItem in listWidget.findItems(searchText, QtCore.Qt.MatchContains):
+            foundItem.setHidden(False)
+
 
 class MyWindow(QtWidgets.QMainWindow):
     def __init__(self):
@@ -61,6 +72,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.movieDirPattern = "*(*)"
         self.moviesBaseDir = "J:/Movies"
+        self.smdbFile = os.path.join(self.moviesBaseDir, "smdbFile.json")
         self.moviePlayer = "C:/Program Files/MPC-HC/mpc-hc64.exe"
 
         self.db = IMDb()
@@ -68,23 +80,45 @@ class MyWindow(QtWidgets.QMainWindow):
         self.populateMovieList()
         self.movieListDisplayStyleComboBoxChanged()
 
+        if not os.path.exists(self.smdbFile):
+            self.generateSmdbFile()
+
+        if os.path.exists(self.smdbFile):
+            with open(self.smdbFile) as f:
+                self.smdbData = json.load(f)
+
+        self.populateDirectorList()
+
         self.setGeometry(0, 0, 1000, 700)
         self.setWindowTitle("Movie Database")
 
+    def generateSmdbFile(self):
+        smdbData = {}
+        smdbData['directors'] = {}
+        for row in range(self.movieList.count()):
+            listItem = self.movieList.item(row)
+            moviePath = listItem.data(QtCore.Qt.UserRole)['path']
+            folderName = listItem.data(QtCore.Qt.UserRole)['folder name']
+            jsonFile = os.path.join(moviePath, '%s.json' % folderName)
+            if os.path.exists(jsonFile):
+                with open(jsonFile) as f:
+                    data = json.load(f)
+                if 'director' in data and 'title' in data:
+                    title = data['title']
+                    director = data['director']
+                    if not director in smdbData['directors']:
+                        smdbData['directors'][director] = []
+                    if title not in smdbData['directors'][director]:
+                        smdbData['directors'][director].append(title)
+
+        with open(self.smdbFile, "w") as f:
+            json.dump(smdbData, f, indent=4)
+
     def searchMovieList(self):
-        searchText = self.movieListSearchBox.text()
-        if searchText == "":
-            for row in range(self.movieList.count()):
-                self.movieList.item(row).setHidden(False)
-        else:
-            for row in range(self.movieList.count()):
-                self.movieList.item(row).setHidden(True)
-            for foundItem in self.movieList.findItems(searchText, QtCore.Qt.MatchContains):
-                foundItem.setHidden(False)
-                print(foundItem.text())
+        searchListWidget(self.movieListSearchBox, self.movieList)
 
     def searchDirectorList(self):
-        pass
+        searchListWidget(self.directorListSearchBox, self.directorList)
 
     def initUI(self):
         mainVLayout = QtWidgets.QVBoxLayout(self)
@@ -104,7 +138,7 @@ class MyWindow(QtWidgets.QMainWindow):
         criteriaVLayout.addWidget(directorsText)
 
         self.directorList = QtWidgets.QListWidget(self)
-        #self.directorList.itemSelectionChanged.connect(self.movieSelectionChanged)
+        self.directorList.itemSelectionChanged.connect(self.directorSelectionChanged)
         #self.directorList.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         #self.directorList.customContextMenuRequested[QtCore.QPoint].connect(self.rightMenuShow)
         self.directorList.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
@@ -301,6 +335,18 @@ class MyWindow(QtWidgets.QMainWindow):
             else:
                 listItem.setBackground(QtGui.QColor(255, 255, 255))
 
+    def populateDirectorList(self):
+        if 'directors' not in self.smdbData:
+            print("Error loading directors")
+            return
+
+        for director in self.smdbData['directors']:
+            self.directorList.addItem(director)
+
+        self.directorList.sortItems()
+
+        pass
+
     def populateMovieList(self):
         with os.scandir(self.moviesBaseDir) as files:
             for f in files:
@@ -309,6 +355,11 @@ class MyWindow(QtWidgets.QMainWindow):
                     userData = {}
                     userData['folder name'] = f.name
                     userData['path'] = os.path.join(self.moviesBaseDir, f.name)
+                    jsonFile = os.path.join(self.moviesBaseDir, f.name, '%s.json' % f.name)
+                    with open(jsonFile) as f:
+                        data = json.load(f)
+                        if 'title' in data:
+                            userData['title'] = data['title']
                     item.setData(QtCore.Qt.UserRole, userData)
                     self.movieList.addItem(item)
         self.setMovieListItemColors()
@@ -325,6 +376,33 @@ class MyWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage('%s/%s' % (numSelected, total))
         if numSelected == 1:
             self.clickedMovie(self.movieList.selectedItems()[0])
+
+    def directorSelectionChanged(self):
+        if len(self.directorList.selectedItems()) == 0:
+            for row in range(self.movieList.count()):
+                self.movieList.item(row).setHidden(False)
+        else:
+            directorsMovieList = []
+            for item in self.directorList.selectedItems():
+                director = item.text()
+                movies = self.smdbData['directors'][director]
+                for movie in movies:
+                    directorsMovieList.append(movie)
+
+                for row in range(self.movieList.count()):
+                    self.movieList.item(row).setHidden(True)
+
+                for movieName in directorsMovieList:
+                    for row in range(self.movieList.count()):
+                        listItem = self.movieList.item(row)
+                        title = listItem.data(QtCore.Qt.UserRole)['title']
+                        if movieName == title:
+                            self.movieList.item(row).setHidden(False)
+
+                    print ("movieName = %s" % movieName)
+                    for foundItem in self.movieList.findItems(movieName, QtCore.Qt.MatchContains):
+                        foundItem.setHidden(False)
+
 
     def clickedMovie(self, listItem):
         moviePath = listItem.data(QtCore.Qt.UserRole)['path']
@@ -431,7 +509,6 @@ class MyWindow(QtWidgets.QMainWindow):
     def downloadMovieData(self, listItem):
         moviePath = listItem.data(QtCore.Qt.UserRole)['path']
         folderName = listItem.data(QtCore.Qt.UserRole)['folder name']
-        mdbFile = os.path.join(moviePath, '%s.mdb' % folderName)
         jsonFile = os.path.join(moviePath, '%s.json' % folderName)
         coverFile = os.path.join(moviePath, '%s.jpg' % folderName)
         if not os.path.exists(coverFile):
