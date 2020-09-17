@@ -66,11 +66,12 @@ class MyWindow(QtWidgets.QMainWindow):
         self.db = IMDb()
         self.initUI()
         self.populateMovieList()
+        self.movieListDisplayStyleComboBoxChanged()
 
         self.setGeometry(0, 0, 1000, 700)
         self.setWindowTitle("Movie Database")
 
-    def seachMovieList(self):
+    def searchMovieList(self):
         searchText = self.movieListSearchBox.text()
         if searchText == "":
             for row in range(self.movieList.count()):
@@ -82,26 +83,79 @@ class MyWindow(QtWidgets.QMainWindow):
                 foundItem.setHidden(False)
                 print(foundItem.text())
 
+    def searchDirectorList(self):
+        pass
+
     def initUI(self):
         mainVLayout = QtWidgets.QVBoxLayout(self)
 
         hSplitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
-        hSplitter.setHandleWidth(25)
+        hSplitter.setHandleWidth(10)
 
         mainVLayout.addWidget(hSplitter) # movie list and cover / progress bar and status line
 
-        movieListWidget = QtWidgets.QWidget(self)
-        hSplitter.addWidget(movieListWidget) # movie list / covers
+        criteriaWidget = QtWidgets.QWidget(self)
+        criteriaVLayout = QtWidgets.QVBoxLayout(self)
+        criteriaWidget.setLayout(criteriaVLayout)
 
+        directorsText = QtWidgets.QLabel("Directors")
+        directorsText.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
+        directorsText.setAlignment(QtCore.Qt.AlignCenter)
+        criteriaVLayout.addWidget(directorsText)
+
+        self.directorList = QtWidgets.QListWidget(self)
+        #self.directorList.itemSelectionChanged.connect(self.movieSelectionChanged)
+        #self.directorList.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        #self.directorList.customContextMenuRequested[QtCore.QPoint].connect(self.rightMenuShow)
+        self.directorList.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        criteriaVLayout.addWidget(self.directorList)
+
+        directorSearchHLayout = QtWidgets.QHBoxLayout(self)
+        criteriaVLayout.addLayout(directorSearchHLayout)
+
+        directorSearchText = QtWidgets.QLabel("Search")
+        directorSearchText.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
+        directorSearchHLayout.addWidget(directorSearchText)
+
+        self.directorListSearchBox = QtWidgets.QLineEdit(self)
+        self.directorListSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
+        self.directorListSearchBox.textChanged.connect(self.searchDirectorList)
+        directorSearchHLayout.addWidget(self.directorListSearchBox)
+
+        clearDirectorSearchButton = QtWidgets.QPushButton("Clear")
+        clearDirectorSearchButton.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
+        clearDirectorSearchButton.clicked.connect(self.directorListSearchBox.clear)
+        directorSearchHLayout.addWidget(clearDirectorSearchButton)
+
+        movieListWidget = QtWidgets.QWidget(self)
         movieListVLayout = QtWidgets.QVBoxLayout(self)
         movieListWidget.setLayout(movieListVLayout)
 
-        self.movieListComboBox = QtWidgets.QComboBox(self)
-        self.movieListComboBox.addItem("Folder Names")
-        self.movieListComboBox.addItem("Nice Names")
-        self.movieListComboBox.addItem("Nice Names Year First")
-        self.movieListComboBox.activated.connect(self.movieListComboBoxChanged)
-        movieListVLayout.addWidget(self.movieListComboBox)
+        titlesText = QtWidgets.QLabel("Titles")
+        titlesText.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
+        titlesText.setAlignment(QtCore.Qt.AlignCenter)
+        movieListVLayout.addWidget(titlesText)
+
+        movieListDisplayStyleHLayout = QtWidgets.QHBoxLayout(self)
+        movieListVLayout.addLayout(movieListDisplayStyleHLayout)
+
+        displayStyleText = QtWidgets.QLabel("Title Display Style")
+        displayStyleText.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
+        movieListDisplayStyleHLayout.addWidget(displayStyleText)
+
+        self.movieListDisplayStyleComboBox = QtWidgets.QComboBox(self)
+        self.movieListDisplayStyleComboBox.addItem("Nice Names")
+        self.movieListDisplayStyleComboBox.addItem("Nice Names Year First")
+        self.movieListDisplayStyleComboBox.addItem("Folder Names")
+        self.movieListDisplayStyleComboBox.activated.connect(self.movieListDisplayStyleComboBoxChanged)
+        movieListDisplayStyleHLayout.addWidget(self.movieListDisplayStyleComboBox)
+
+        self.movieList = QtWidgets.QListWidget(self)
+        self.movieList.itemSelectionChanged.connect(self.movieSelectionChanged)
+        self.movieList.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.movieList.customContextMenuRequested[QtCore.QPoint].connect(self.rightMenuShow)
+        self.movieList.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        movieListVLayout.addWidget(self.movieList)
 
         movieListSearchHLayout = QtWidgets.QHBoxLayout(self)
         movieListVLayout.addLayout(movieListSearchHLayout)
@@ -112,7 +166,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.movieListSearchBox = QtWidgets.QLineEdit(self)
         self.movieListSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
-        self.movieListSearchBox.textChanged.connect(self.seachMovieList)
+        self.movieListSearchBox.textChanged.connect(self.searchMovieList)
         movieListSearchHLayout.addWidget(self.movieListSearchBox)
 
         clearSearchButton = QtWidgets.QPushButton("Clear")
@@ -120,15 +174,13 @@ class MyWindow(QtWidgets.QMainWindow):
         clearSearchButton.clicked.connect(self.movieListSearchBox.clear)
         movieListSearchHLayout.addWidget(clearSearchButton)
 
-        self.movieList = QtWidgets.QListWidget(self)
-        self.movieList.itemSelectionChanged.connect(self.movieSelectionChanged)
-        self.movieList.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self.movieList.customContextMenuRequested[QtCore.QPoint].connect(self.rightMenuShow)
-        self.movieList.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
-        movieListVLayout.addWidget(self.movieList)
 
+        # movie list / covers
         vSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
-        hSplitter.addWidget(vSplitter)
+        #vSplitter.setFrameStyle(QtWidgets.QFrame.Box|QtWidgets.QFrame.Raised)
+        #vSplitter.setLineWidth(10)
+        #vSplitter.setStyleSheet('background-color: orange;')
+        vSplitter.setHandleWidth(20)
 
         self.movieCover = QtWidgets.QLabel(self)
         self.movieCover.setScaledContents(False)
@@ -153,29 +205,33 @@ class MyWindow(QtWidgets.QMainWindow):
         centralWidget.setLayout(mainVLayout)
         self.setCentralWidget(centralWidget)
 
-        hSplitter.setSizes([300,600])
+        hSplitter.addWidget(criteriaWidget)
+        hSplitter.addWidget(movieListWidget)
+        hSplitter.addWidget(vSplitter)
+        hSplitter.setSizes([400, 400, 600])
 
 
-    def movieListComboBoxChanged(self):
-        currentIndex = self.movieListComboBox.currentIndex()
-        if currentIndex == 0:  # Folder Names
-            for row in range(self.movieList.count()):
-                item = self.movieList.item(row)
-                folderName = item.data(QtCore.Qt.UserRole)['folder name']
-                item.setText(folderName)
-        elif currentIndex == 1:  # Nice Names
+    def movieListDisplayStyleComboBoxChanged(self):
+        currentIndex = self.movieListDisplayStyleComboBox.currentIndex()
+        if currentIndex == 0:  # Nice Names
             for row in range(self.movieList.count()):
                 item = self.movieList.item(row)
                 folderName = item.data(QtCore.Qt.UserRole)['folder name']
                 niceTitle, year = getNiceTitleAndYear(folderName)
                 item.setText('%s (%s)' % (niceTitle, year))
-        else:  # Nice Names Year First
+
+        elif currentIndex == 1:  # Nice Names Year First
             for row in range(self.movieList.count()):
                 item = self.movieList.item(row)
                 folderName = item.data(QtCore.Qt.UserRole)['folder name']
                 niceTitle, year = getNiceTitleAndYear(folderName)
                 item.setText('%s - %s' % (year, niceTitle))
-        self.movieList.sortItems()
+        elif currentIndex == 2:  # Folder Names
+            for row in range(self.movieList.count()):
+                item = self.movieList.item(row)
+                folderName = item.data(QtCore.Qt.UserRole)['folder name']
+                item.setText(folderName)
+                self.movieList.sortItems()
 
 
     def downloadDataMenu(self):
@@ -290,7 +346,7 @@ class MyWindow(QtWidgets.QMainWindow):
         try:
             year = int(m.group(2))
         except ValueError:
-            print('Problem converting year to integer for movie: %s' % movieName)
+            print('Problem converting year to integer for movie: %s' % folderName)
             return None
 
         splitTitle = splitCamelCase(title)
