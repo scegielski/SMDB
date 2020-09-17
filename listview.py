@@ -179,8 +179,8 @@ class MyWindow(QtWidgets.QMainWindow):
         movieListDisplayStyleHLayout.addWidget(displayStyleText)
 
         self.movieListDisplayStyleComboBox = QtWidgets.QComboBox(self)
-        self.movieListDisplayStyleComboBox.addItem("Nice Names")
         self.movieListDisplayStyleComboBox.addItem("Nice Names Year First")
+        self.movieListDisplayStyleComboBox.addItem("Nice Names")
         self.movieListDisplayStyleComboBox.addItem("Folder Names")
         self.movieListDisplayStyleComboBox.activated.connect(self.movieListDisplayStyleComboBoxChanged)
         movieListDisplayStyleHLayout.addWidget(self.movieListDisplayStyleComboBox)
@@ -248,19 +248,19 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def movieListDisplayStyleComboBoxChanged(self):
         currentIndex = self.movieListDisplayStyleComboBox.currentIndex()
-        if currentIndex == 0:  # Nice Names
-            for row in range(self.movieList.count()):
-                item = self.movieList.item(row)
-                folderName = item.data(QtCore.Qt.UserRole)['folder name']
-                niceTitle, year = getNiceTitleAndYear(folderName)
-                item.setText('%s (%s)' % (niceTitle, year))
 
-        elif currentIndex == 1:  # Nice Names Year First
+        if currentIndex == 0:  # Nice Names Year First
             for row in range(self.movieList.count()):
                 item = self.movieList.item(row)
                 folderName = item.data(QtCore.Qt.UserRole)['folder name']
                 niceTitle, year = getNiceTitleAndYear(folderName)
                 item.setText('%s - %s' % (year, niceTitle))
+        elif currentIndex == 1:  # Nice Names
+            for row in range(self.movieList.count()):
+                item = self.movieList.item(row)
+                folderName = item.data(QtCore.Qt.UserRole)['folder name']
+                niceTitle, year = getNiceTitleAndYear(folderName)
+                item.setText('%s (%s)' % (niceTitle, year))
         elif currentIndex == 2:  # Folder Names
             for row in range(self.movieList.count()):
                 item = self.movieList.item(row)
