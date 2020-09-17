@@ -390,7 +390,8 @@ class MyWindow(QtWidgets.QMainWindow):
                 director = item.text()
                 movies = self.smdbData['directors'][director]
                 for movie in movies:
-                    directorsMovieList.append(movie)
+                    if movie not in directorsMovieList:
+                        directorsMovieList.append(movie)
 
                 for row in range(self.movieList.count()):
                     self.movieList.item(row).setHidden(True)
