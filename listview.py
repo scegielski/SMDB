@@ -165,31 +165,38 @@ class MyWindow(QtWidgets.QMainWindow):
         searchListWidget(self.directorListSearchBox, self.directorList)
 
     def initUI(self):
+        centralWidget = QtWidgets.QWidget()
+        self.setCentralWidget(centralWidget)
+
+        # Divides top h splitter and bottom progress bar
         mainVLayout = QtWidgets.QVBoxLayout(self)
+        centralWidget.setLayout(mainVLayout)
 
-        hSplitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
-        hSplitter.setHandleWidth(10)
+        mainHSplitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
+        mainHSplitter.setHandleWidth(10)
+        mainVLayout.addWidget(mainHSplitter)
 
-        mainVLayout.addWidget(hSplitter) # movie list and cover / progress bar and status line
+        # V Splitter on the left dividing Directors, etc.
+        criteriaVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
+        criteriaVSplitter.setHandleWidth(20)
 
-        criteriaWidget = QtWidgets.QWidget(self)
-        criteriaVLayout = QtWidgets.QVBoxLayout(self)
-        criteriaWidget.setLayout(criteriaVLayout)
+        # Directors ---------------------------------------------------------------------------------------
+        directorsWidget = QtWidgets.QWidget(self)
+        directorsVLayout = QtWidgets.QVBoxLayout(self)
+        directorsWidget.setLayout(directorsVLayout)
 
         directorsText = QtWidgets.QLabel("Directors")
         directorsText.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
         directorsText.setAlignment(QtCore.Qt.AlignCenter)
-        criteriaVLayout.addWidget(directorsText)
+        directorsVLayout.addWidget(directorsText)
 
         self.directorList = QtWidgets.QListWidget(self)
         self.directorList.itemSelectionChanged.connect(self.directorSelectionChanged)
-        #self.directorList.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        #self.directorList.customContextMenuRequested[QtCore.QPoint].connect(self.rightMenuShow)
         self.directorList.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
-        criteriaVLayout.addWidget(self.directorList)
+        directorsVLayout.addWidget(self.directorList)
 
         directorSearchHLayout = QtWidgets.QHBoxLayout(self)
-        criteriaVLayout.addLayout(directorSearchHLayout)
+        directorsVLayout.addLayout(directorSearchHLayout)
 
         directorSearchText = QtWidgets.QLabel("Search")
         directorSearchText.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
@@ -205,6 +212,10 @@ class MyWindow(QtWidgets.QMainWindow):
         clearDirectorSearchButton.clicked.connect(self.directorListSearchBox.clear)
         directorSearchHLayout.addWidget(clearDirectorSearchButton)
 
+        criteriaVSplitter.addWidget(directorsWidget)
+        # End Directors ---------------------------------------------------------------------------------------
+
+        # Movie List ---------------------------------------------------------------------------------------
         movieListWidget = QtWidgets.QWidget(self)
         movieListVLayout = QtWidgets.QVBoxLayout(self)
         movieListWidget.setLayout(movieListVLayout)
@@ -251,23 +262,28 @@ class MyWindow(QtWidgets.QMainWindow):
         clearSearchButton.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
         clearSearchButton.clicked.connect(self.movieListSearchBox.clear)
         movieListSearchHLayout.addWidget(clearSearchButton)
+        # End Movie List ---------------------------------------------------------------------------------------
 
-
-        # movie list / covers
-        vSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
-        #vSplitter.setFrameStyle(QtWidgets.QFrame.Box|QtWidgets.QFrame.Raised)
-        #vSplitter.setLineWidth(10)
-        #vSplitter.setStyleSheet('background-color: orange;')
-        vSplitter.setHandleWidth(20)
+        # Cover and Summary ---------------------------------------------------------------------------------------
+        movieSummaryVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
+        movieSummaryVSplitter.setHandleWidth(20)
 
         self.movieCover = QtWidgets.QLabel(self)
         self.movieCover.setScaledContents(False)
         self.movieCover.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored)
-        vSplitter.addWidget(self.movieCover)
+        movieSummaryVSplitter.addWidget(self.movieCover)
 
         self.summary = QtWidgets.QTextBrowser()
-        vSplitter.addWidget(self.summary)
+        movieSummaryVSplitter.addWidget(self.summary)
+        # End Cover and Summary ---------------------------------------------------------------------------------------
 
+        # Add the sub-layouts to the mainHSplitter
+        mainHSplitter.addWidget(criteriaVSplitter)
+        mainHSplitter.addWidget(movieListWidget)
+        mainHSplitter.addWidget(movieSummaryVSplitter)
+        mainHSplitter.setSizes([400, 400, 600])
+
+        # Bottom ---------------------------------------------------------------------------------------
         bottomLayout = QtWidgets.QHBoxLayout(self)
         mainVLayout.addLayout(bottomLayout)
 
@@ -278,15 +294,9 @@ class MyWindow(QtWidgets.QMainWindow):
         cancelButton = QtWidgets.QPushButton("Cancel", self)
         cancelButton.clicked.connect(self.cancelButtonClicked)
         bottomLayout.addWidget(cancelButton)
+        # End Bottom ---------------------------------------------------------------------------------------
 
-        centralWidget = QtWidgets.QWidget()
-        centralWidget.setLayout(mainVLayout)
-        self.setCentralWidget(centralWidget)
 
-        hSplitter.addWidget(criteriaWidget)
-        hSplitter.addWidget(movieListWidget)
-        hSplitter.addWidget(vSplitter)
-        hSplitter.setSizes([400, 400, 600])
 
 
     def movieListDisplayStyleComboBoxChanged(self):
