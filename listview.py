@@ -88,7 +88,8 @@ class MyWindow(QtWidgets.QMainWindow):
             with open(self.smdbFile) as f:
                 self.smdbData = json.load(f)
 
-        self.populateDirectorList()
+        self.populateDirectorsList()
+        self.populateGenresList()
 
         self.setGeometry(0, 0, 1000, 700)
         self.setWindowTitle("Movie Database")
@@ -162,7 +163,10 @@ class MyWindow(QtWidgets.QMainWindow):
         searchListWidget(self.movieListSearchBox, self.movieList)
 
     def searchDirectorList(self):
-        searchListWidget(self.directorListSearchBox, self.directorList)
+        searchListWidget(self.directorsListSearchBox, self.directorsList)
+
+    def searchGenresList(self):
+        searchListWidget(self.genresListSearchBox, self.genresList)
 
     def initUI(self):
         centralWidget = QtWidgets.QWidget()
@@ -190,30 +194,65 @@ class MyWindow(QtWidgets.QMainWindow):
         directorsText.setAlignment(QtCore.Qt.AlignCenter)
         directorsVLayout.addWidget(directorsText)
 
-        self.directorList = QtWidgets.QListWidget(self)
-        self.directorList.itemSelectionChanged.connect(self.directorSelectionChanged)
-        self.directorList.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
-        directorsVLayout.addWidget(self.directorList)
+        self.directorsList = QtWidgets.QListWidget(self)
+        self.directorsList.itemSelectionChanged.connect(self.directorSelectionChanged)
+        self.directorsList.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        directorsVLayout.addWidget(self.directorsList)
 
-        directorSearchHLayout = QtWidgets.QHBoxLayout(self)
-        directorsVLayout.addLayout(directorSearchHLayout)
+        directorsSearchHLayout = QtWidgets.QHBoxLayout(self)
+        directorsVLayout.addLayout(directorsSearchHLayout)
 
-        directorSearchText = QtWidgets.QLabel("Search")
-        directorSearchText.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
-        directorSearchHLayout.addWidget(directorSearchText)
+        directorsSearchText = QtWidgets.QLabel("Search")
+        directorsSearchText.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
+        directorsSearchHLayout.addWidget(directorsSearchText)
 
-        self.directorListSearchBox = QtWidgets.QLineEdit(self)
-        self.directorListSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
-        self.directorListSearchBox.textChanged.connect(self.searchDirectorList)
-        directorSearchHLayout.addWidget(self.directorListSearchBox)
+        self.directorsListSearchBox = QtWidgets.QLineEdit(self)
+        self.directorsListSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
+        self.directorsListSearchBox.textChanged.connect(self.searchDirectorList)
+        directorsSearchHLayout.addWidget(self.directorsListSearchBox)
 
-        clearDirectorSearchButton = QtWidgets.QPushButton("Clear")
-        clearDirectorSearchButton.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
-        clearDirectorSearchButton.clicked.connect(self.directorListSearchBox.clear)
-        directorSearchHLayout.addWidget(clearDirectorSearchButton)
+        clearDirectorsSearchButton = QtWidgets.QPushButton("Clear")
+        clearDirectorsSearchButton.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
+        clearDirectorsSearchButton.clicked.connect(self.directorsListSearchBox.clear)
+        directorsSearchHLayout.addWidget(clearDirectorsSearchButton)
 
         criteriaVSplitter.addWidget(directorsWidget)
         # End Directors ---------------------------------------------------------------------------------------
+
+        # Genres ---------------------------------------------------------------------------------------
+        genresWidget = QtWidgets.QWidget(self)
+        genresVLayout = QtWidgets.QVBoxLayout(self)
+        genresWidget.setLayout(genresVLayout)
+
+        genresText = QtWidgets.QLabel("Genres")
+        genresText.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
+        genresText.setAlignment(QtCore.Qt.AlignCenter)
+        genresVLayout.addWidget(genresText)
+
+        self.genresList = QtWidgets.QListWidget(self)
+        self.genresList.itemSelectionChanged.connect(self.genresSelectionChanged)
+        self.genresList.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        genresVLayout.addWidget(self.genresList)
+
+        genresSearchHLayout = QtWidgets.QHBoxLayout(self)
+        genresVLayout.addLayout(genresSearchHLayout)
+
+        genresSearchText = QtWidgets.QLabel("Search")
+        genresSearchText.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
+        genresSearchHLayout.addWidget(genresSearchText)
+
+        self.genresListSearchBox = QtWidgets.QLineEdit(self)
+        self.genresListSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
+        self.genresListSearchBox.textChanged.connect(self.searchGenresList)
+        genresSearchHLayout.addWidget(self.genresListSearchBox)
+
+        clearGenresSearchButton = QtWidgets.QPushButton("Clear")
+        clearGenresSearchButton.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
+        clearGenresSearchButton.clicked.connect(self.genresListSearchBox.clear)
+        genresSearchHLayout.addWidget(clearGenresSearchButton)
+
+        criteriaVSplitter.addWidget(genresWidget)
+        # End Genres ---------------------------------------------------------------------------------------
 
         # Movie List ---------------------------------------------------------------------------------------
         movieListWidget = QtWidgets.QWidget(self)
@@ -389,17 +428,25 @@ class MyWindow(QtWidgets.QMainWindow):
             else:
                 listItem.setBackground(QtGui.QColor(255, 255, 255))
 
-    def populateDirectorList(self):
+    def populateDirectorsList(self):
         if 'directors' not in self.smdbData:
             print("Error loading directors")
             return
 
         for director in self.smdbData['directors']:
-            self.directorList.addItem(director)
+            self.directorsList.addItem(director)
 
-        self.directorList.sortItems()
+        self.directorsList.sortItems()
 
-        pass
+    def populateGenresList(self):
+        if 'genres' not in self.smdbData:
+            print("Error loading genres")
+            return
+
+        for genre in self.smdbData['genres']:
+            self.genresList.addItem(genre)
+
+        self.genresList.sortItems()
 
     def populateMovieList(self):
         with os.scandir(self.moviesBaseDir) as files:
@@ -434,12 +481,12 @@ class MyWindow(QtWidgets.QMainWindow):
             self.clickedMovie(self.movieList.selectedItems()[0])
 
     def directorSelectionChanged(self):
-        if len(self.directorList.selectedItems()) == 0:
+        if len(self.directorsList.selectedItems()) == 0:
             for row in range(self.movieList.count()):
                 self.movieList.item(row).setHidden(False)
         else:
             directorsMovieList = []
-            for item in self.directorList.selectedItems():
+            for item in self.directorsList.selectedItems():
                 director = item.text()
                 movies = self.smdbData['directors'][director]
                 for movie in movies:
@@ -450,6 +497,30 @@ class MyWindow(QtWidgets.QMainWindow):
                     self.movieList.item(row).setHidden(True)
 
                 for (t, y) in directorsMovieList:
+                    for row in range(self.movieList.count()):
+                        listItem = self.movieList.item(row)
+                        title = listItem.data(QtCore.Qt.UserRole)['title']
+                        year = listItem.data(QtCore.Qt.UserRole)['year']
+                        if t == title and y == year:
+                            self.movieList.item(row).setHidden(False)
+
+    def genresSelectionChanged(self):
+        if len(self.genresList.selectedItems()) == 0:
+            for row in range(self.movieList.count()):
+                self.movieList.item(row).setHidden(False)
+        else:
+            genresMovieList = []
+            for item in self.genresList.selectedItems():
+                genre = item.text()
+                movies = self.smdbData['genres'][genre]
+                for movie in movies:
+                    if movie not in genresMovieList:
+                        genresMovieList.append(movie)
+
+                for row in range(self.movieList.count()):
+                    self.movieList.item(row).setHidden(True)
+
+                for (t, y) in genresMovieList:
                     for row in range(self.movieList.count()):
                         listItem = self.movieList.item(row)
                         title = listItem.data(QtCore.Qt.UserRole)['title']
