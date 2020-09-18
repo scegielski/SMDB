@@ -168,6 +168,40 @@ class MyWindow(QtWidgets.QMainWindow):
     def searchGenresList(self):
         searchListWidget(self.genresListSearchBox, self.genresList)
 
+    def addCriteriaWidgets(self, changedMethod, searchMethod):
+        criteriaWidget = QtWidgets.QWidget(self)
+        criteriaVLayout = QtWidgets.QVBoxLayout(self)
+        criteriaWidget.setLayout(criteriaVLayout)
+
+        criteriaText = QtWidgets.QLabel("Criteria")
+        criteriaText.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
+        criteriaText.setAlignment(QtCore.Qt.AlignCenter)
+        criteriaVLayout.addWidget(criteriaText)
+
+        criteriaList = QtWidgets.QListWidget(self)
+        criteriaList.itemSelectionChanged.connect(changedMethod)
+        criteriaList.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        criteriaVLayout.addWidget(criteriaList)
+
+        criteriaSearchHLayout = QtWidgets.QHBoxLayout(self)
+        criteriaVLayout.addLayout(criteriaSearchHLayout)
+
+        criteriaSearchText = QtWidgets.QLabel("Search")
+        criteriaSearchText.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
+        criteriaSearchHLayout.addWidget(criteriaSearchText)
+
+        searchBox = QtWidgets.QLineEdit(self)
+        searchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
+        searchBox.textChanged.connect(searchMethod)
+        criteriaSearchHLayout.addWidget(searchBox)
+
+        clearCriteriaSearchButton = QtWidgets.QPushButton("Clear")
+        clearCriteriaSearchButton.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
+        clearCriteriaSearchButton.clicked.connect(searchBox.clear)
+        criteriaSearchHLayout.addWidget(clearCriteriaSearchButton)
+
+        return criteriaWidget, criteriaList, searchBox
+
     def initUI(self):
         centralWidget = QtWidgets.QWidget()
         self.setCentralWidget(centralWidget)
@@ -184,75 +218,15 @@ class MyWindow(QtWidgets.QMainWindow):
         criteriaVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
         criteriaVSplitter.setHandleWidth(20)
 
-        # Directors ---------------------------------------------------------------------------------------
-        directorsWidget = QtWidgets.QWidget(self)
-        directorsVLayout = QtWidgets.QVBoxLayout(self)
-        directorsWidget.setLayout(directorsVLayout)
-
-        directorsText = QtWidgets.QLabel("Directors")
-        directorsText.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
-        directorsText.setAlignment(QtCore.Qt.AlignCenter)
-        directorsVLayout.addWidget(directorsText)
-
-        self.directorsList = QtWidgets.QListWidget(self)
-        self.directorsList.itemSelectionChanged.connect(self.directorSelectionChanged)
-        self.directorsList.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
-        directorsVLayout.addWidget(self.directorsList)
-
-        directorsSearchHLayout = QtWidgets.QHBoxLayout(self)
-        directorsVLayout.addLayout(directorsSearchHLayout)
-
-        directorsSearchText = QtWidgets.QLabel("Search")
-        directorsSearchText.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
-        directorsSearchHLayout.addWidget(directorsSearchText)
-
-        self.directorsListSearchBox = QtWidgets.QLineEdit(self)
-        self.directorsListSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
-        self.directorsListSearchBox.textChanged.connect(self.searchDirectorList)
-        directorsSearchHLayout.addWidget(self.directorsListSearchBox)
-
-        clearDirectorsSearchButton = QtWidgets.QPushButton("Clear")
-        clearDirectorsSearchButton.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
-        clearDirectorsSearchButton.clicked.connect(self.directorsListSearchBox.clear)
-        directorsSearchHLayout.addWidget(clearDirectorsSearchButton)
-
+        # Directors
+        directorsWidget, self.directorsList, self.directorsListSearchBox =\
+            self.addCriteriaWidgets(self.directorSelectionChanged, self.searchDirectorList)
         criteriaVSplitter.addWidget(directorsWidget)
-        # End Directors ---------------------------------------------------------------------------------------
 
         # Genres ---------------------------------------------------------------------------------------
-        genresWidget = QtWidgets.QWidget(self)
-        genresVLayout = QtWidgets.QVBoxLayout(self)
-        genresWidget.setLayout(genresVLayout)
-
-        genresText = QtWidgets.QLabel("Genres")
-        genresText.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
-        genresText.setAlignment(QtCore.Qt.AlignCenter)
-        genresVLayout.addWidget(genresText)
-
-        self.genresList = QtWidgets.QListWidget(self)
-        self.genresList.itemSelectionChanged.connect(self.genresSelectionChanged)
-        self.genresList.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
-        genresVLayout.addWidget(self.genresList)
-
-        genresSearchHLayout = QtWidgets.QHBoxLayout(self)
-        genresVLayout.addLayout(genresSearchHLayout)
-
-        genresSearchText = QtWidgets.QLabel("Search")
-        genresSearchText.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
-        genresSearchHLayout.addWidget(genresSearchText)
-
-        self.genresListSearchBox = QtWidgets.QLineEdit(self)
-        self.genresListSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
-        self.genresListSearchBox.textChanged.connect(self.searchGenresList)
-        genresSearchHLayout.addWidget(self.genresListSearchBox)
-
-        clearGenresSearchButton = QtWidgets.QPushButton("Clear")
-        clearGenresSearchButton.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
-        clearGenresSearchButton.clicked.connect(self.genresListSearchBox.clear)
-        genresSearchHLayout.addWidget(clearGenresSearchButton)
-
+        genresWidget, self.genresList, self.genresListSearchBox = \
+            self.addCriteriaWidgets(self.directorSelectionChanged, self.searchDirectorList)
         criteriaVSplitter.addWidget(genresWidget)
-        # End Genres ---------------------------------------------------------------------------------------
 
         # Movie List ---------------------------------------------------------------------------------------
         movieListWidget = QtWidgets.QWidget(self)
@@ -301,7 +275,6 @@ class MyWindow(QtWidgets.QMainWindow):
         clearSearchButton.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
         clearSearchButton.clicked.connect(self.movieListSearchBox.clear)
         movieListSearchHLayout.addWidget(clearSearchButton)
-        # End Movie List ---------------------------------------------------------------------------------------
 
         # Cover and Summary ---------------------------------------------------------------------------------------
         movieSummaryVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
@@ -314,7 +287,6 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.summary = QtWidgets.QTextBrowser()
         movieSummaryVSplitter.addWidget(self.summary)
-        # End Cover and Summary ---------------------------------------------------------------------------------------
 
         # Add the sub-layouts to the mainHSplitter
         mainHSplitter.addWidget(criteriaVSplitter)
@@ -333,10 +305,6 @@ class MyWindow(QtWidgets.QMainWindow):
         cancelButton = QtWidgets.QPushButton("Cancel", self)
         cancelButton.clicked.connect(self.cancelButtonClicked)
         bottomLayout.addWidget(cancelButton)
-        # End Bottom ---------------------------------------------------------------------------------------
-
-
-
 
     def movieListDisplayStyleComboBoxChanged(self):
         currentIndex = self.movieListDisplayStyleComboBox.currentIndex()
