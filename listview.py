@@ -71,7 +71,6 @@ class MyWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super(MyWindow, self).__init__()
 
-        self.movieDirPattern = "*(*)"
         self.moviesBaseDir = "J:/Movies"
         self.smdbFile = os.path.join(self.moviesBaseDir, "smdbFile.json")
         self.moviePlayer = "C:/Program Files/MPC-HC/mpc-hc64.exe"
@@ -168,12 +167,12 @@ class MyWindow(QtWidgets.QMainWindow):
     def searchGenresList(self):
         searchListWidget(self.genresListSearchBox, self.genresList)
 
-    def addCriteriaWidgets(self, changedMethod, searchMethod):
+    def addCriteriaWidgets(self, criteriaName, changedMethod, searchMethod):
         criteriaWidget = QtWidgets.QWidget(self)
         criteriaVLayout = QtWidgets.QVBoxLayout(self)
         criteriaWidget.setLayout(criteriaVLayout)
 
-        criteriaText = QtWidgets.QLabel("Criteria")
+        criteriaText = QtWidgets.QLabel(criteriaName)
         criteriaText.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
         criteriaText.setAlignment(QtCore.Qt.AlignCenter)
         criteriaVLayout.addWidget(criteriaText)
@@ -220,12 +219,12 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Directors
         directorsWidget, self.directorsList, self.directorsListSearchBox =\
-            self.addCriteriaWidgets(self.directorSelectionChanged, self.searchDirectorList)
+            self.addCriteriaWidgets("Directors", self.directorSelectionChanged, self.searchDirectorList)
         criteriaVSplitter.addWidget(directorsWidget)
 
         # Genres ---------------------------------------------------------------------------------------
         genresWidget, self.genresList, self.genresListSearchBox = \
-            self.addCriteriaWidgets(self.directorSelectionChanged, self.searchDirectorList)
+            self.addCriteriaWidgets("Genres", self.genresSelectionChanged, self.searchDirectorList)
         criteriaVSplitter.addWidget(genresWidget)
 
         # Movie List ---------------------------------------------------------------------------------------
@@ -419,24 +418,24 @@ class MyWindow(QtWidgets.QMainWindow):
     def populateMovieList(self):
         with os.scandir(self.moviesBaseDir) as files:
             for f in files:
-                if f.is_dir() and fnmatch.fnmatch(f, self.movieDirPattern):
+                if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
                     item = QtWidgets.QListWidgetItem(f.name)
                     userData = {}
                     userData['folder name'] = f.name
                     userData['path'] = os.path.join(self.moviesBaseDir, f.name)
                     jsonFile = os.path.join(self.moviesBaseDir, f.name, '%s.json' % f.name)
-                    with open(jsonFile) as f:
-                        data = json.load(f)
-                        if 'title' in data:
-                            userData['title'] = data['title']
-                        if 'year' in data:
-                            userData['year'] = data['year']
+                    if os.path.exists(jsonFile):
+                        with open(jsonFile) as f:
+                            data = json.load(f)
+                            if 'title' in data:
+                                userData['title'] = data['title']
+                            if 'year' in data:
+                                userData['year'] = data['year']
                     item.setData(QtCore.Qt.UserRole, userData)
                     self.movieList.addItem(item)
         self.setMovieListItemColors()
         firstItem = self.movieList.item(0)
         self.movieList.setCurrentItem(firstItem)
-        #self.clickedMovie(firstItem)
 
     def cancelButtonClicked(self):
         self.isCanceled = True
