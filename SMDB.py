@@ -85,18 +85,12 @@ class MyWindow(QtWidgets.QMainWindow):
             self.generateSmdbFile()
 
         if os.path.exists(self.smdbFile):
-            print("Loading smdb file")
             with open(self.smdbFile) as f:
                 self.smdbData = json.load(f)
-            print("Done Loading smdb file")
 
-        print("Adding %d directors" % len(self.smdbData['directors']))
         self.populateCriteriaList('directors', self.directorsList)
-        print("Adding %d genres" % len(self.smdbData['genres']))
         self.populateCriteriaList('genres', self.genresList)
-        print("Adding %d actors" % len(self.smdbData['actors']))
         self.populateCriteriaList('actors', self.actorsList)
-        print("Done")
 
         self.setGeometry(0, 0, 1000, 700)
         self.setWindowTitle("Scott's Movie Database")
@@ -419,9 +413,7 @@ class MyWindow(QtWidgets.QMainWindow):
             print("Error: '%s' not in smdbData" % criteriaKey)
             return
 
-        for criteria in self.smdbData[criteriaKey]:
-            listWidget.addItem(criteria)
-
+        listWidget.addItems(self.smdbData[criteriaKey])
         listWidget.sortItems()
 
 
