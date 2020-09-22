@@ -235,7 +235,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Genres ---------------------------------------------------------------------------------------
         genresWidget, self.genresList, self.genresListSearchBox = \
-            self.addCriteriaWidgets("Genres", self.searchDirectorList)
+            self.addCriteriaWidgets("Genres", self.searchGenresList)
         self.genresList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.genresList, 'genres'))
         criteriaVSplitter.addWidget(genresWidget)
 
