@@ -89,6 +89,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.populateDirectorsList()
         self.populateGenresList()
+        self.populateCastList()
 
         self.setGeometry(0, 0, 1000, 700)
         self.setWindowTitle("Movie Database")
@@ -167,6 +168,9 @@ class MyWindow(QtWidgets.QMainWindow):
     def searchGenresList(self):
         searchListWidget(self.genresListSearchBox, self.genresList)
 
+    def searchActorsList(self):
+        searchListWidget(self.actorsListSearchBox, self.actorsList)
+
     def addCriteriaWidgets(self, criteriaName, changedMethod, searchMethod):
         criteriaWidget = QtWidgets.QWidget(self)
         criteriaVLayout = QtWidgets.QVBoxLayout(self)
@@ -227,6 +231,11 @@ class MyWindow(QtWidgets.QMainWindow):
             self.addCriteriaWidgets("Genres", self.genresSelectionChanged, self.searchDirectorList)
         criteriaVSplitter.addWidget(genresWidget)
 
+        # Actors ---------------------------------------------------------------------------------------
+        actorsWidget, self.actorsList, self.actorsListSearchBox = \
+            self.addCriteriaWidgets("Cast", self.actorsSelectionChanged, self.searchActorsList)
+        criteriaVSplitter.addWidget(actorsWidget)
+
         # Movie List ---------------------------------------------------------------------------------------
         movieListWidget = QtWidgets.QWidget(self)
         movieListVLayout = QtWidgets.QVBoxLayout(self)
@@ -253,6 +262,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.movieList = QtWidgets.QListWidget(self)
         self.movieList.itemSelectionChanged.connect(self.movieSelectionChanged)
+        self.movieList.doubleClicked.connect(self.playMovie)
         self.movieList.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.movieList.customContextMenuRequested[QtCore.QPoint].connect(self.rightMenuShow)
         self.movieList.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
@@ -415,6 +425,16 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.genresList.sortItems()
 
+    def populateCastList(self):
+        if 'actors' not in self.smdbData:
+            print("Error loading actors")
+            return
+
+        for actor in self.smdbData['actors']:
+            self.actorsList.addItem(actor)
+
+        self.actorsList.sortItems()
+
     def populateMovieList(self):
         with os.scandir(self.moviesBaseDir) as files:
             for f in files:
@@ -451,49 +471,76 @@ class MyWindow(QtWidgets.QMainWindow):
         if len(self.directorsList.selectedItems()) == 0:
             for row in range(self.movieList.count()):
                 self.movieList.item(row).setHidden(False)
-        else:
-            directorsMovieList = []
-            for item in self.directorsList.selectedItems():
-                director = item.text()
-                movies = self.smdbData['directors'][director]
-                for movie in movies:
-                    if movie not in directorsMovieList:
-                        directorsMovieList.append(movie)
+            return
 
+        directorsMovieList = []
+        for item in self.directorsList.selectedItems():
+            director = item.text()
+            movies = self.smdbData['directors'][director]
+            for movie in movies:
+                if movie not in directorsMovieList:
+                    directorsMovieList.append(movie)
+
+            for row in range(self.movieList.count()):
+                self.movieList.item(row).setHidden(True)
+
+            for (t, y) in directorsMovieList:
                 for row in range(self.movieList.count()):
-                    self.movieList.item(row).setHidden(True)
-
-                for (t, y) in directorsMovieList:
-                    for row in range(self.movieList.count()):
-                        listItem = self.movieList.item(row)
-                        title = listItem.data(QtCore.Qt.UserRole)['title']
-                        year = listItem.data(QtCore.Qt.UserRole)['year']
-                        if t == title and y == year:
-                            self.movieList.item(row).setHidden(False)
+                    listItem = self.movieList.item(row)
+                    title = listItem.data(QtCore.Qt.UserRole)['title']
+                    year = listItem.data(QtCore.Qt.UserRole)['year']
+                    if t == title and y == year:
+                        self.movieList.item(row).setHidden(False)
 
     def genresSelectionChanged(self):
         if len(self.genresList.selectedItems()) == 0:
             for row in range(self.movieList.count()):
                 self.movieList.item(row).setHidden(False)
-        else:
-            genresMovieList = []
-            for item in self.genresList.selectedItems():
-                genre = item.text()
-                movies = self.smdbData['genres'][genre]
-                for movie in movies:
-                    if movie not in genresMovieList:
-                        genresMovieList.append(movie)
+            return
 
+        genresMovieList = []
+        for item in self.genresList.selectedItems():
+            genre = item.text()
+            movies = self.smdbData['genres'][genre]
+            for movie in movies:
+                if movie not in genresMovieList:
+                    genresMovieList.append(movie)
+
+            for row in range(self.movieList.count()):
+                self.movieList.item(row).setHidden(True)
+
+            for (t, y) in genresMovieList:
                 for row in range(self.movieList.count()):
-                    self.movieList.item(row).setHidden(True)
+                    listItem = self.movieList.item(row)
+                    title = listItem.data(QtCore.Qt.UserRole)['title']
+                    year = listItem.data(QtCore.Qt.UserRole)['year']
+                    if t == title and y == year:
+                        self.movieList.item(row).setHidden(False)
 
-                for (t, y) in genresMovieList:
-                    for row in range(self.movieList.count()):
-                        listItem = self.movieList.item(row)
-                        title = listItem.data(QtCore.Qt.UserRole)['title']
-                        year = listItem.data(QtCore.Qt.UserRole)['year']
-                        if t == title and y == year:
-                            self.movieList.item(row).setHidden(False)
+    def actorsSelectionChanged(self):
+        if len(self.actorsList.selectedItems()) == 0:
+            for row in range(self.movieList.count()):
+                self.movieList.item(row).setHidden(False)
+            return
+
+        actorMovieList = []
+        for item in self.actorsList.selectedItems():
+            actor = item.text()
+            movies = self.smdbData['actors'][actor]
+            for movie in movies:
+                if movie not in actorMovieList:
+                    actorMovieList.append(movie)
+
+            for row in range(self.movieList.count()):
+                self.movieList.item(row).setHidden(True)
+
+            for (t, y) in actorMovieList:
+                for row in range(self.movieList.count()):
+                    listItem = self.movieList.item(row)
+                    title = listItem.data(QtCore.Qt.UserRole)['title']
+                    year = listItem.data(QtCore.Qt.UserRole)['year']
+                    if t == title and y == year:
+                        self.movieList.item(row).setHidden(False)
 
 
     def clickedMovie(self, listItem):
@@ -637,7 +684,7 @@ class MyWindow(QtWidgets.QMainWindow):
         if len(movieFiles) == 1:
             fileToPlay = os.path.join(filePath, movieFiles[0])
             print("Playing Movie: %s" % fileToPlay)
-            subprocess.run([self.moviePlayer, fileToPlay])
+            subprocess.Popen([self.moviePlayer, fileToPlay])
         else:
             # If there are more than one movie like files in the
             # folder, then just open the folder so the user can
