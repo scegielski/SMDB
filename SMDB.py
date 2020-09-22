@@ -79,20 +79,27 @@ class MyWindow(QtWidgets.QMainWindow):
         self.initUI()
         self.populateMovieList()
         self.movieListDisplayStyleComboBoxChanged()
+        self.movieList.setCurrentItem(self.movieList.item(0))
 
         if not os.path.exists(self.smdbFile):
             self.generateSmdbFile()
 
         if os.path.exists(self.smdbFile):
+            print("Loading smdb file")
             with open(self.smdbFile) as f:
                 self.smdbData = json.load(f)
+            print("Done Loading smdb file")
 
-        self.populateDirectorsList()
-        self.populateGenresList()
-        self.populateCastList()
+        print("Adding %d directors" % len(self.smdbData['directors']))
+        self.populateCriteriaList('directors', self.directorsList)
+        print("Adding %d genres" % len(self.smdbData['genres']))
+        self.populateCriteriaList('genres', self.genresList)
+        print("Adding %d actors" % len(self.smdbData['actors']))
+        self.populateCriteriaList('actors', self.actorsList)
+        print("Done")
 
         self.setGeometry(0, 0, 1000, 700)
-        self.setWindowTitle("Movie Database")
+        self.setWindowTitle("Scott's Movie Database")
 
     def generateSmdbFile(self):
         smdbData = {}
@@ -407,35 +414,16 @@ class MyWindow(QtWidgets.QMainWindow):
             else:
                 listItem.setBackground(QtGui.QColor(255, 255, 255))
 
-    def populateDirectorsList(self):
-        if 'directors' not in self.smdbData:
-            print("Error loading directors")
+    def populateCriteriaList(self, criteriaKey, listWidget):
+        if criteriaKey not in self.smdbData:
+            print("Error: '%s' not in smdbData" % criteriaKey)
             return
 
-        for director in self.smdbData['directors']:
-            self.directorsList.addItem(director)
+        for criteria in self.smdbData[criteriaKey]:
+            listWidget.addItem(criteria)
 
-        self.directorsList.sortItems()
+        listWidget.sortItems()
 
-    def populateGenresList(self):
-        if 'genres' not in self.smdbData:
-            print("Error loading genres")
-            return
-
-        for genre in self.smdbData['genres']:
-            self.genresList.addItem(genre)
-
-        self.genresList.sortItems()
-
-    def populateCastList(self):
-        if 'actors' not in self.smdbData:
-            print("Error loading actors")
-            return
-
-        for actor in self.smdbData['actors']:
-            self.actorsList.addItem(actor)
-
-        self.actorsList.sortItems()
 
     def populateMovieList(self):
         with os.scandir(self.moviesBaseDir) as files:
@@ -456,8 +444,6 @@ class MyWindow(QtWidgets.QMainWindow):
                     item.setData(QtCore.Qt.UserRole, userData)
                     self.movieList.addItem(item)
         self.setMovieListItemColors()
-        firstItem = self.movieList.item(0)
-        self.movieList.setCurrentItem(firstItem)
 
     def cancelButtonClicked(self):
         self.isCanceled = True
