@@ -483,16 +483,27 @@ class MyWindow(QtWidgets.QMainWindow):
                 if movie not in criteriaMovieList:
                     criteriaMovieList.append(movie)
 
-            for row in range(self.movieList.count()):
-                self.movieList.item(row).setHidden(True)
+        print ("Done building list of movies")
 
+        for row in range(self.movieList.count()):
+            self.movieList.item(row).setHidden(True)
+
+        # Movies are stored as ['Anchorman: The Legend of Ron Burgundy', 2004]
+        print ("len(criteriaMovieList) = %d" % len(criteriaMovieList))
+        self.progressBar.setMaximum(len(criteriaMovieList))
+        progress = 0
+        for row in range(self.movieList.count()):
+            listItem = self.movieList.item(row)
+            userData = listItem.data(QtCore.Qt.UserRole)
+            title = userData['title']
+            year = userData['year']
             for (t, y) in criteriaMovieList:
-                for row in range(self.movieList.count()):
-                    listItem = self.movieList.item(row)
-                    title = listItem.data(QtCore.Qt.UserRole)['title']
-                    year = listItem.data(QtCore.Qt.UserRole)['year']
-                    if t == title and y == year:
-                        self.movieList.item(row).setHidden(False)
+                if t == title and y == year:
+                    self.movieList.item(row).setHidden(False)
+            progress += 1
+            self.progressBar.setValue(progress)
+
+        print ("Done populating movie list")
 
 
     def clickedMovie(self, listItem):
