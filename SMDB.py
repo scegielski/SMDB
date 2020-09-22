@@ -171,7 +171,7 @@ class MyWindow(QtWidgets.QMainWindow):
     def searchActorsList(self):
         searchListWidget(self.actorsListSearchBox, self.actorsList)
 
-    def addCriteriaWidgets(self, criteriaName, changedMethod, searchMethod):
+    def addCriteriaWidgets(self, criteriaName, searchMethod):
         criteriaWidget = QtWidgets.QWidget(self)
         criteriaVLayout = QtWidgets.QVBoxLayout(self)
         criteriaWidget.setLayout(criteriaVLayout)
@@ -182,7 +182,6 @@ class MyWindow(QtWidgets.QMainWindow):
         criteriaVLayout.addWidget(criteriaText)
 
         criteriaList = QtWidgets.QListWidget(self)
-        criteriaList.itemSelectionChanged.connect(changedMethod)
         criteriaList.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         criteriaVLayout.addWidget(criteriaList)
 
@@ -223,17 +222,20 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Directors
         directorsWidget, self.directorsList, self.directorsListSearchBox =\
-            self.addCriteriaWidgets("Directors", self.directorSelectionChanged, self.searchDirectorList)
+            self.addCriteriaWidgets("Directors", self.searchDirectorList)
+        self.directorsList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.directorsList, 'directors'))
         criteriaVSplitter.addWidget(directorsWidget)
 
         # Genres ---------------------------------------------------------------------------------------
         genresWidget, self.genresList, self.genresListSearchBox = \
-            self.addCriteriaWidgets("Genres", self.genresSelectionChanged, self.searchDirectorList)
+            self.addCriteriaWidgets("Genres", self.searchDirectorList)
+        self.genresList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.genresList, 'genres'))
         criteriaVSplitter.addWidget(genresWidget)
 
         # Actors ---------------------------------------------------------------------------------------
         actorsWidget, self.actorsList, self.actorsListSearchBox = \
-            self.addCriteriaWidgets("Cast", self.actorsSelectionChanged, self.searchActorsList)
+            self.addCriteriaWidgets("Cast", self.searchActorsList)
+        self.actorsList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.actorsList, 'actors'))
         criteriaVSplitter.addWidget(actorsWidget)
 
         # Movie List ---------------------------------------------------------------------------------------
@@ -467,74 +469,24 @@ class MyWindow(QtWidgets.QMainWindow):
         if numSelected == 1:
             self.clickedMovie(self.movieList.selectedItems()[0])
 
-    def directorSelectionChanged(self):
-        if len(self.directorsList.selectedItems()) == 0:
+    def criteriaSelectionChanged(self, listWidget, smdbKey):
+        if len(listWidget.selectedItems()) == 0:
             for row in range(self.movieList.count()):
                 self.movieList.item(row).setHidden(False)
             return
 
-        directorsMovieList = []
-        for item in self.directorsList.selectedItems():
-            director = item.text()
-            movies = self.smdbData['directors'][director]
+        criteriaMovieList = []
+        for item in listWidget.selectedItems():
+            criteria = item.text()
+            movies = self.smdbData[smdbKey][criteria]
             for movie in movies:
-                if movie not in directorsMovieList:
-                    directorsMovieList.append(movie)
+                if movie not in criteriaMovieList:
+                    criteriaMovieList.append(movie)
 
             for row in range(self.movieList.count()):
                 self.movieList.item(row).setHidden(True)
 
-            for (t, y) in directorsMovieList:
-                for row in range(self.movieList.count()):
-                    listItem = self.movieList.item(row)
-                    title = listItem.data(QtCore.Qt.UserRole)['title']
-                    year = listItem.data(QtCore.Qt.UserRole)['year']
-                    if t == title and y == year:
-                        self.movieList.item(row).setHidden(False)
-
-    def genresSelectionChanged(self):
-        if len(self.genresList.selectedItems()) == 0:
-            for row in range(self.movieList.count()):
-                self.movieList.item(row).setHidden(False)
-            return
-
-        genresMovieList = []
-        for item in self.genresList.selectedItems():
-            genre = item.text()
-            movies = self.smdbData['genres'][genre]
-            for movie in movies:
-                if movie not in genresMovieList:
-                    genresMovieList.append(movie)
-
-            for row in range(self.movieList.count()):
-                self.movieList.item(row).setHidden(True)
-
-            for (t, y) in genresMovieList:
-                for row in range(self.movieList.count()):
-                    listItem = self.movieList.item(row)
-                    title = listItem.data(QtCore.Qt.UserRole)['title']
-                    year = listItem.data(QtCore.Qt.UserRole)['year']
-                    if t == title and y == year:
-                        self.movieList.item(row).setHidden(False)
-
-    def actorsSelectionChanged(self):
-        if len(self.actorsList.selectedItems()) == 0:
-            for row in range(self.movieList.count()):
-                self.movieList.item(row).setHidden(False)
-            return
-
-        actorMovieList = []
-        for item in self.actorsList.selectedItems():
-            actor = item.text()
-            movies = self.smdbData['actors'][actor]
-            for movie in movies:
-                if movie not in actorMovieList:
-                    actorMovieList.append(movie)
-
-            for row in range(self.movieList.count()):
-                self.movieList.item(row).setHidden(True)
-
-            for (t, y) in actorMovieList:
+            for (t, y) in criteriaMovieList:
                 for row in range(self.movieList.count()):
                     listItem = self.movieList.item(row)
                     title = listItem.data(QtCore.Qt.UserRole)['title']
