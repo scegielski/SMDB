@@ -227,17 +227,17 @@ class MyWindow(QtWidgets.QMainWindow):
         self.directorsList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.directorsList, 'directors'))
         criteriaVSplitter.addWidget(directorsWidget)
 
+        # Actors ---------------------------------------------------------------------------------------
+        actorsWidget, self.actorsList, self.actorsListSearchBox = \
+            self.addCriteriaWidgets("Actors", self.searchActorsList)
+        self.actorsList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.actorsList, 'actors'))
+        criteriaVSplitter.addWidget(actorsWidget)
+
         # Genres ---------------------------------------------------------------------------------------
         genresWidget, self.genresList, self.genresListSearchBox = \
             self.addCriteriaWidgets("Genres", self.searchDirectorList)
         self.genresList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.genresList, 'genres'))
         criteriaVSplitter.addWidget(genresWidget)
-
-        # Actors ---------------------------------------------------------------------------------------
-        actorsWidget, self.actorsList, self.actorsListSearchBox = \
-            self.addCriteriaWidgets("Cast", self.searchActorsList)
-        self.actorsList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.actorsList, 'actors'))
-        criteriaVSplitter.addWidget(actorsWidget)
 
         # Movie List ---------------------------------------------------------------------------------------
         movieListWidget = QtWidgets.QWidget(self)
