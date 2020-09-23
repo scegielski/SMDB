@@ -2,6 +2,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtWidgets import QApplication, QMessageBox
 import sys
 import os
+from pathlib import Path
 import fnmatch
 from imdb import IMDb
 from imdb import Movie
@@ -71,8 +72,8 @@ class MyWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super(MyWindow, self).__init__()
 
-        self.moviesBaseDir = "J:/Movies"
-        self.smdbFile = os.path.join(self.moviesBaseDir, "smdbFile.json")
+        self.moviesFolder = "J:/Movies"
+        self.smdbFile = os.path.join(self.moviesFolder, "smdbFile.json")
         self.moviePlayer = "C:/Program Files/MPC-HC/mpc-hc64.exe"
 
         self.db = IMDb()
@@ -209,6 +210,28 @@ class MyWindow(QtWidgets.QMainWindow):
 
         return criteriaWidget, criteriaList, searchBox
 
+    def browseMoviesFolder(self):
+        browseDir = str(Path.home())
+        if os.path.exists('%s/Desktop' % browseDir):
+            browseDir = '%s/Desktop' % browseDir
+        self.moviesFolder = QtWidgets.QFileDialog.getExistingDirectory(
+            self,
+            "Select Movies Directory",
+            browseDir,
+            QtWidgets.QFileDialog.ShowDirsOnly |
+            QtWidgets.QFileDialog.DontResolveSymlinks)
+        self.moviesFolderEdit.setText(self.moviesFolder)
+
+    def browseMoviePlayer(self):
+        browseDir = str(Path.home())
+        if os.path.exists('%s/Desktop' % browseDir):
+            browseDir = '%s/Desktop' % browseDir
+        self.moviePlayer = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            "Select your movie player program",
+            browseDir)
+        self.moviePlayerEdit.setText(self.moviePlayer)
+
     def initUI(self):
         centralWidget = QtWidgets.QWidget()
         self.setCentralWidget(centralWidget)
@@ -216,6 +239,41 @@ class MyWindow(QtWidgets.QMainWindow):
         # Divides top h splitter and bottom progress bar
         mainVLayout = QtWidgets.QVBoxLayout(self)
         centralWidget.setLayout(mainVLayout)
+
+        # Settings
+        mainVLayout.addWidget(QtWidgets.QLabel("Settings"))
+
+        moviesFolderHLayout = QtWidgets.QHBoxLayout(self)
+        mainVLayout.addLayout(moviesFolderHLayout)
+
+        moviesFolderText = QtWidgets.QLabel("Movies Folder")
+        moviesFolderText.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
+        moviesFolderHLayout.addWidget(moviesFolderText)
+
+        self.moviesFolderEdit = QtWidgets.QLineEdit(self)
+        self.moviesFolderEdit.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
+        moviesFolderHLayout.addWidget(self.moviesFolderEdit)
+
+        moviesFolderBrowse = QtWidgets.QPushButton("Browse")
+        moviesFolderBrowse.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
+        moviesFolderBrowse.clicked.connect(lambda: self.browseMoviesFolder())
+        moviesFolderHLayout.addWidget(moviesFolderBrowse)
+
+        moviePlayerHLayout = QtWidgets.QHBoxLayout(self)
+        mainVLayout.addLayout(moviePlayerHLayout)
+
+        moviePlayerText = QtWidgets.QLabel("Movie Player")
+        moviePlayerText.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
+        moviePlayerHLayout.addWidget(moviePlayerText)
+
+        self.moviePlayerEdit = QtWidgets.QLineEdit(self)
+        self.moviePlayerEdit.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
+        moviePlayerHLayout.addWidget(self.moviePlayerEdit)
+
+        moviePlayerBrowse = QtWidgets.QPushButton("Browse")
+        moviePlayerBrowse.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
+        moviePlayerBrowse.clicked.connect(lambda: self.browseMoviePlayer())
+        moviePlayerHLayout.addWidget(moviePlayerBrowse)
 
         mainHSplitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
         mainHSplitter.setHandleWidth(10)
@@ -422,14 +480,14 @@ class MyWindow(QtWidgets.QMainWindow):
 
 
     def populateMovieList(self):
-        with os.scandir(self.moviesBaseDir) as files:
+        with os.scandir(self.moviesFolder) as files:
             for f in files:
                 if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
                     item = QtWidgets.QListWidgetItem(f.name)
                     userData = {}
                     userData['folder name'] = f.name
-                    userData['path'] = os.path.join(self.moviesBaseDir, f.name)
-                    jsonFile = os.path.join(self.moviesBaseDir, f.name, '%s.json' % f.name)
+                    userData['path'] = os.path.join(self.moviesFolder, f.name)
+                    jsonFile = os.path.join(self.moviesFolder, f.name, '%s.json' % f.name)
                     if os.path.exists(jsonFile):
                         with open(jsonFile) as f:
                             data = json.load(f)
