@@ -214,23 +214,29 @@ class MyWindow(QtWidgets.QMainWindow):
         browseDir = str(Path.home())
         if os.path.exists('%s/Desktop' % browseDir):
             browseDir = '%s/Desktop' % browseDir
-        self.moviesFolder = QtWidgets.QFileDialog.getExistingDirectory(
+        moviesFolder = QtWidgets.QFileDialog.getExistingDirectory(
             self,
             "Select Movies Directory",
             browseDir,
             QtWidgets.QFileDialog.ShowDirsOnly |
             QtWidgets.QFileDialog.DontResolveSymlinks)
-        self.moviesFolderEdit.setText(self.moviesFolder)
+        if os.path.exists(moviesFolder):
+            self.moviesFolder = moviesFolder
+            self.moviesFolderEdit.setText(self.moviesFolder)
+            self.moviesFolderEdit.setStyleSheet("color: black; background: white")
 
     def browseMoviePlayer(self):
         browseDir = str(Path.home())
         if os.path.exists('%s/Desktop' % browseDir):
             browseDir = '%s/Desktop' % browseDir
-        self.moviePlayer = QtWidgets.QFileDialog.getOpenFileName(
+        moviePlayer = QtWidgets.QFileDialog.getOpenFileName(
             self,
             "Select your movie player program",
-            browseDir)
-        self.moviePlayerEdit.setText(self.moviePlayer)
+            browseDir)[0]
+        if os.path.exists(moviePlayer):
+            self.moviePlayer = moviePlayer
+            self.moviePlayerEdit.setText(self.moviePlayer)
+            self.moviePlayerEdit.setStyleSheet("color: black; background: white")
 
     def initUI(self):
         centralWidget = QtWidgets.QWidget()
@@ -250,7 +256,8 @@ class MyWindow(QtWidgets.QMainWindow):
         moviesFolderText.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
         moviesFolderHLayout.addWidget(moviesFolderText)
 
-        self.moviesFolderEdit = QtWidgets.QLineEdit(self)
+        self.moviesFolderEdit = QtWidgets.QLineEdit("Click the browse button and select your movie folder")
+        self.moviesFolderEdit.setStyleSheet("color: red; background: black")
         self.moviesFolderEdit.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
         moviesFolderHLayout.addWidget(self.moviesFolderEdit)
 
@@ -266,7 +273,9 @@ class MyWindow(QtWidgets.QMainWindow):
         moviePlayerText.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
         moviePlayerHLayout.addWidget(moviePlayerText)
 
-        self.moviePlayerEdit = QtWidgets.QLineEdit(self)
+        self.moviePlayerEdit = QtWidgets.QLineEdit("Click the browse button and select your movie player program ")
+
+        self.moviePlayerEdit.setStyleSheet("color: red; background: black")
         self.moviePlayerEdit.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
         moviePlayerHLayout.addWidget(self.moviePlayerEdit)
 
