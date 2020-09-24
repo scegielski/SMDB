@@ -173,10 +173,6 @@ class MyWindow(QtWidgets.QMainWindow):
     def searchActorsList(self):
         searchListWidget(self.actorsListSearchBox, self.actorsList)
 
-    def clearSearchAndListBox(self, searchBox, listWidget):
-        searchBox.clear()
-        listWidget.clearSelection()
-
     def addCriteriaWidgets(self, criteriaName, searchMethod):
         criteriaWidget = QtWidgets.QWidget(self)
         criteriaVLayout = QtWidgets.QVBoxLayout(self)
@@ -201,12 +197,8 @@ class MyWindow(QtWidgets.QMainWindow):
         searchBox = QtWidgets.QLineEdit(self)
         searchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
         searchBox.textChanged.connect(searchMethod)
+        searchBox.setClearButtonEnabled(True)
         criteriaSearchHLayout.addWidget(searchBox)
-
-        clearCriteriaSearchButton = QtWidgets.QPushButton("Clear")
-        clearCriteriaSearchButton.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
-        clearCriteriaSearchButton.clicked.connect(lambda: self.clearSearchAndListBox(searchBox, criteriaList))
-        criteriaSearchHLayout.addWidget(clearCriteriaSearchButton)
 
         return criteriaWidget, criteriaList, searchBox
 
