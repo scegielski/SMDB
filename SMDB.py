@@ -71,33 +71,74 @@ def searchListWidget(searchBoxWidget, listWidget):
 class MyWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super(MyWindow, self).__init__()
-
-        self.moviesFolder = "J:/Movies"
-        self.smdbFile = os.path.join(self.moviesFolder, "smdbFile.json")
-        self.moviePlayer = "C:/Program Files/MPC-HC/mpc-hc64.exe"
-
+        self.setGeometry(0, 0, 1000, 700)
+        self.setWindowTitle("Scott's Movie Database")
         self.db = IMDb()
         self.initUI()
+        self.moviesFolder = "J:/Movies"
+        self.moviePlayer = "C:/Program Files/MPC-HC/mpc-hc64.exe"
+        self.configFile = os.path.join("smdb_config.json")
+        self.readConfigFile()
+        if not os.path.exists(self.moviesFolder):
+            return
+
+        self.smdbFile = None
+        self.readSmdbFile()
+        self.populateLists()
+
+    def populateLists(self):
         self.populateMovieList()
-        self.movieListDisplayStyleComboBoxChanged()
-        self.movieList.setCurrentItem(self.movieList.item(0))
-
-        if not os.path.exists(self.smdbFile):
-            self.generateSmdbFile()
-
-        if os.path.exists(self.smdbFile):
-            with open(self.smdbFile) as f:
-                self.smdbData = json.load(f)
-
         self.populateCriteriaList('directors', self.directorsList)
         self.populateCriteriaList('genres', self.genresList)
         self.populateCriteriaList('actors', self.actorsList)
 
-        self.setGeometry(0, 0, 1000, 700)
-        self.setWindowTitle("Scott's Movie Database")
+    def closeEvent(self, event):
+        self.saveConfig()
 
-    def generateSmdbFile(self):
-        smdbData = {}
+    def readConfigFile(self):
+        if not os.path.exists(self.configFile):
+            return
+
+        with open(self.configFile) as f:
+            configData = json.load(f)
+
+        if 'movies_folder' in configData:
+            if os.path.exists(configData['movies_folder']):
+                self.moviesFolder = configData['movies_folder']
+                self.moviesFolderEdit.setText(self.moviesFolder)
+                self.moviesFolderEdit.setStyleSheet("color: black; background: white")
+
+        if 'movie_player' in configData:
+            if os.path.exists(configData['movie_player']):
+                self.moviePlayer = configData['movie_player']
+                self.moviePlayerEdit.setText(self.moviePlayer)
+                self.moviePlayerEdit.setStyleSheet("color: black; background: white")
+
+    def saveConfig(self):
+        configData = {}
+        if not self.moviesFolder == self.moviesFolderEdit.text():
+            configData['movies_folder'] = self.moviesFolderEdit.text()
+        else:
+            configData['movies_folder'] = self.moviesFolder
+
+        if not self.moviePlayer == self.moviePlayerEdit.text():
+            configData['movie_player'] = self.moviePlayerEdit.text()
+        else:
+            configData['movie_player'] = self.moviePlayer
+        with open(self.configFile, "w") as f:
+            json.dump(configData, f, indent=4)
+
+    def readSmdbFile(self):
+        self.smdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
+        self.smdbData = None
+        if os.path.exists(self.smdbFile):
+            with open(self.smdbFile) as f:
+                self.smdbData = json.load(f)
+        else:
+            self.saveSmdbFile()
+
+    def saveSmdbFile(self):
+        self.smdbData = {}
         titles = {}
         directors = {}
         actors = {}
@@ -152,14 +193,14 @@ class MyWindow(QtWidgets.QMainWindow):
 
                     titles[jsonTitle] = { 'year': jsonYear, 'director': jsonDirector, 'genres': jsonGenres, 'actors': jsonActors}
 
-        smdbData['titles'] = collections.OrderedDict(sorted(titles.items()))
-        smdbData['years'] = collections.OrderedDict(sorted(years.items()))
-        smdbData['genres'] = collections.OrderedDict(sorted(genres.items()))
-        smdbData['directors'] = collections.OrderedDict(sorted(directors.items()))
-        smdbData['actors'] = collections.OrderedDict(sorted(actors.items()))
+        self.smdbData['titles'] = collections.OrderedDict(sorted(titles.items()))
+        self.smdbData['years'] = collections.OrderedDict(sorted(years.items()))
+        self.smdbData['genres'] = collections.OrderedDict(sorted(genres.items()))
+        self.smdbData['directors'] = collections.OrderedDict(sorted(directors.items()))
+        self.smdbData['actors'] = collections.OrderedDict(sorted(actors.items()))
 
         with open(self.smdbFile, "w") as f:
-            json.dump(smdbData, f, indent=4)
+            json.dump(self.smdbData, f, indent=4)
 
     def searchMovieList(self):
         searchListWidget(self.movieListSearchBox, self.movieList)
@@ -216,6 +257,8 @@ class MyWindow(QtWidgets.QMainWindow):
             self.moviesFolder = moviesFolder
             self.moviesFolderEdit.setText(self.moviesFolder)
             self.moviesFolderEdit.setStyleSheet("color: black; background: white")
+            self.readSmdbFile()
+            self.populateLists()
 
     def browseMoviePlayer(self):
         browseDir = str(Path.home())
@@ -266,7 +309,6 @@ class MyWindow(QtWidgets.QMainWindow):
         moviePlayerHLayout.addWidget(moviePlayerText)
 
         self.moviePlayerEdit = QtWidgets.QLineEdit("Click the browse button and select your movie player program ")
-
         self.moviePlayerEdit.setStyleSheet("color: red; background: black")
         self.moviePlayerEdit.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
         moviePlayerHLayout.addWidget(self.moviePlayerEdit)
@@ -472,11 +514,14 @@ class MyWindow(QtWidgets.QMainWindow):
             print("Error: '%s' not in smdbData" % criteriaKey)
             return
 
+        listWidget.clear()
         listWidget.addItems(self.smdbData[criteriaKey])
         listWidget.sortItems()
 
-
     def populateMovieList(self):
+        self.movieList.clear()
+        if not os.path.exists(self.moviesFolder):
+            return
         with os.scandir(self.moviesFolder) as files:
             for f in files:
                 if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
@@ -495,6 +540,8 @@ class MyWindow(QtWidgets.QMainWindow):
                     item.setData(QtCore.Qt.UserRole, userData)
                     self.movieList.addItem(item)
         self.setMovieListItemColors()
+        self.movieListDisplayStyleComboBoxChanged()
+        self.movieList.setCurrentItem(self.movieList.item(0))
 
     def cancelButtonClicked(self):
         self.isCanceled = True
@@ -666,9 +713,12 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def playMovie(self):
         selectedMovie = self.movieList.selectedItems()[0]
-        filePath = selectedMovie.data(QtCore.Qt.UserRole)['path']
+        movieFolder = selectedMovie.data(QtCore.Qt.UserRole)['path']
+        if not os.path.exists(movieFolder):
+            return
+
         movieFiles = []
-        for file in os.listdir(filePath):
+        for file in os.listdir(movieFolder):
             extension = os.path.splitext(file)[1]
             if extension == '.mkv' or \
                     extension == '.mp4' or \
@@ -677,14 +727,14 @@ class MyWindow(QtWidgets.QMainWindow):
                     extension == '.m4v':
                 movieFiles.append(file)
         if len(movieFiles) == 1:
-            fileToPlay = os.path.join(filePath, movieFiles[0])
-            print("Playing Movie: %s" % fileToPlay)
-            subprocess.Popen([self.moviePlayer, fileToPlay])
+            fileToPlay = os.path.join(movieFolder, movieFiles[0])
+            if os.path.exists(fileToPlay):
+                subprocess.Popen([self.moviePlayer, fileToPlay])
         else:
             # If there are more than one movie like files in the
             # folder, then just open the folder so the user can
             # play the desired file.
-            os.startfile(filePath)
+            os.startfile(movieFolder)
 
     def openMovieFolder(self):
         selectedMovie = self.movieList.selectedItems()[0]
