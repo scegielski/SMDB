@@ -529,8 +529,8 @@ class MyWindow(QtWidgets.QMainWindow):
         for row in range(self.movieList.count()):
             listItem = self.movieList.item(row)
             userData = listItem.data(QtCore.Qt.UserRole)
-            title = userData['title']
-            year = userData['year']
+            if 'title' in userData: title = userData['title']
+            if 'year' in userData: year = userData['year']
             for (t, y) in criteriaMovieList:
                 if t == title and y == year:
                     self.movieList.item(row).setHidden(False)
