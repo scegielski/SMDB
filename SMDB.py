@@ -344,12 +344,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.movieListSearchBox = QtWidgets.QLineEdit(self)
         self.movieListSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
         self.movieListSearchBox.textChanged.connect(self.searchMovieList)
+        self.movieListSearchBox.setClearButtonEnabled(True)
         movieListSearchHLayout.addWidget(self.movieListSearchBox)
-
-        clearSearchButton = QtWidgets.QPushButton("Clear")
-        clearSearchButton.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
-        clearSearchButton.clicked.connect(self.movieListSearchBox.clear)
-        movieListSearchHLayout.addWidget(clearSearchButton)
 
         # Cover and Summary ---------------------------------------------------------------------------------------
         movieSummaryVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
