@@ -71,7 +71,7 @@ def searchListWidget(searchBoxWidget, listWidget):
 class MyWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super(MyWindow, self).__init__()
-        self.setGeometry(0, 0, 1000, 700)
+        self.setGeometry(210, 75, 1500, 900)
         self.setWindowTitle("Scott's Movie Database")
         self.db = IMDb()
         self.initUI()
