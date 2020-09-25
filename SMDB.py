@@ -281,11 +281,22 @@ class MyWindow(QtWidgets.QMainWindow):
         mainVLayout = QtWidgets.QVBoxLayout(self)
         centralWidget.setLayout(mainVLayout)
 
+        # Top Horizontal layout
+        topHorizontalLayout = QtWidgets.QHBoxLayout(self)
+        mainVLayout.addLayout(topHorizontalLayout)
+
         # Settings
-        mainVLayout.addWidget(QtWidgets.QLabel("Settings"))
+        settingsGroupBox = QtWidgets.QGroupBox()
+        settingsGroupBox.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Maximum)
+        topHorizontalLayout.addWidget(settingsGroupBox)
+
+        settingsVLayout = QtWidgets.QVBoxLayout(self)
+        settingsGroupBox.setLayout(settingsVLayout)
+
+        settingsVLayout.addWidget(QtWidgets.QLabel("Settings"))
 
         moviesFolderHLayout = QtWidgets.QHBoxLayout(self)
-        mainVLayout.addLayout(moviesFolderHLayout)
+        settingsVLayout.addLayout(moviesFolderHLayout)
 
         moviesFolderText = QtWidgets.QLabel("Movies Folder")
         moviesFolderText.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
@@ -302,7 +313,7 @@ class MyWindow(QtWidgets.QMainWindow):
         moviesFolderHLayout.addWidget(moviesFolderBrowse)
 
         moviePlayerHLayout = QtWidgets.QHBoxLayout(self)
-        mainVLayout.addLayout(moviePlayerHLayout)
+        settingsVLayout.addLayout(moviePlayerHLayout)
 
         moviePlayerText = QtWidgets.QLabel("Movie Player")
         moviePlayerText.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
@@ -317,6 +328,21 @@ class MyWindow(QtWidgets.QMainWindow):
         moviePlayerBrowse.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
         moviePlayerBrowse.clicked.connect(lambda: self.browseMoviePlayer())
         moviePlayerHLayout.addWidget(moviePlayerBrowse)
+
+        actionsGroupBox = QtWidgets.QGroupBox()
+        actionsGroupBox.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
+        topHorizontalLayout.addWidget(actionsGroupBox)
+
+        actionsGridLayout = QtWidgets.QGridLayout(self)
+        actionsGroupBox.setLayout(actionsGridLayout)
+
+        actionsGridLayout.addWidget(QtWidgets.QLabel("Actions", alignment=QtCore.Qt.AlignTop), 0, 0)
+
+        rebuildSmdbButton = QtWidgets.QPushButton("Rebuild SMDB File")
+        actionsGridLayout.addWidget(rebuildSmdbButton, 1, 0)
+
+        button2 = QtWidgets.QPushButton("Button 2")
+        actionsGridLayout.addWidget(button2, 1, 1)
 
         mainHSplitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
         mainHSplitter.setHandleWidth(10)
