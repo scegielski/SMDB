@@ -134,8 +134,8 @@ class MyWindow(QtWidgets.QMainWindow):
         actors = {}
         genres = {}
         years = {}
-        for row in range(self.movieList.count()):
-            listItem = self.movieList.item(row)
+        for row in range(self.moviesList.count()):
+            listItem = self.moviesList.item(row)
             moviePath = listItem.data(QtCore.Qt.UserRole)['path']
             folderName = listItem.data(QtCore.Qt.UserRole)['folder name']
             jsonFile = os.path.join(moviePath, '%s.json' % folderName)
@@ -393,51 +393,14 @@ class MyWindow(QtWidgets.QMainWindow):
         self.yearsListSearchBox.textChanged.connect(lambda: searchListWidget(self.yearsListSearchBox, self.yearsList))
         criteriaVSplitter.addWidget(yearsWidget)
 
-        # Movie List ---------------------------------------------------------------------------------------
-        movieListWidget = QtWidgets.QWidget(self)
-        movieListVLayout = QtWidgets.QVBoxLayout(self)
-        movieListWidget.setLayout(movieListVLayout)
-
-        titlesText = QtWidgets.QLabel("Titles")
-        titlesText.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
-        titlesText.setAlignment(QtCore.Qt.AlignCenter)
-        movieListVLayout.addWidget(titlesText)
-
-        movieListDisplayStyleHLayout = QtWidgets.QHBoxLayout(self)
-        movieListVLayout.addLayout(movieListDisplayStyleHLayout)
-
-        displayStyleText = QtWidgets.QLabel("Title Display Style")
-        displayStyleText.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
-        movieListDisplayStyleHLayout.addWidget(displayStyleText)
-
-        self.movieListDisplayStyleComboBox = QtWidgets.QComboBox(self)
-        self.movieListDisplayStyleComboBox.addItem("Nice Names Year First")
-        self.movieListDisplayStyleComboBox.addItem("Nice Names")
-        self.movieListDisplayStyleComboBox.addItem("Folder Names")
-        self.movieListDisplayStyleComboBox.activated.connect(lambda: self.criteriaDisplayStyleChanged(self.movieListDisplayStyleComboBox, self.movieList))
-        movieListDisplayStyleHLayout.addWidget(self.movieListDisplayStyleComboBox)
-
-        self.movieList = QtWidgets.QListWidget(self)
-        self.movieList.itemSelectionChanged.connect(self.movieSelectionChanged)
-        self.movieList.doubleClicked.connect(self.playMovie)
-        self.movieList.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self.movieList.customContextMenuRequested[QtCore.QPoint].connect(self.rightMenuShow)
-        self.movieList.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
-        movieListVLayout.addWidget(self.movieList)
-
-        movieListSearchHLayout = QtWidgets.QHBoxLayout(self)
-        movieListVLayout.addLayout(movieListSearchHLayout)
-
-        searchText = QtWidgets.QLabel("Search")
-        searchText.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
-        movieListSearchHLayout.addWidget(searchText)
-
-        self.movieListSearchBox = QtWidgets.QLineEdit(self)
-        self.movieListSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
-        self.movieListSearchBox.textChanged.connect(lambda: searchListWidget(self.movieListSearchBox, self.movieList))
-
-        self.movieListSearchBox.setClearButtonEnabled(True)
-        movieListSearchHLayout.addWidget(self.movieListSearchBox)
+        moviesWidget, \
+        self.moviesList, \
+        self.moviesListSearchBox = self.addCriteriaWidgets("Movies",
+                                                           comboBoxEnum=["Nice Names Year First",
+                                                                         "Nice Names",
+                                                                         "Folder Names"])
+        self.moviesList.itemSelectionChanged.connect(lambda: self.movieSelectionChanged())
+        self.moviesListSearchBox.textChanged.connect(lambda: searchListWidget(self.moviesListSearchBox, self.moviesList))
 
         # Cover and Summary ---------------------------------------------------------------------------------------
         movieSummaryVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
@@ -453,7 +416,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Add the sub-layouts to the mainHSplitter
         mainHSplitter.addWidget(criteriaVSplitter)
-        mainHSplitter.addWidget(movieListWidget)
+        mainHSplitter.addWidget(moviesWidget)
         mainHSplitter.addWidget(movieSummaryVSplitter)
         mainHSplitter.setSizes([400, 400, 600])
 
@@ -511,11 +474,11 @@ class MyWindow(QtWidgets.QMainWindow):
             listWidget.sortItems(QtCore.Qt.AscendingOrder)
 
     def downloadDataMenu(self):
-        numSelectedItems = len(self.movieList.selectedItems())
+        numSelectedItems = len(self.moviesList.selectedItems())
         self.progressBar.setMaximum(numSelectedItems)
         progress = 0
         self.isCanceled = False
-        for item in self.movieList.selectedItems():
+        for item in self.moviesList.selectedItems():
             QtCore.QCoreApplication.processEvents()
             if self.isCanceled == True:
                 self.statusBar().showMessage('Cancelled')
@@ -541,7 +504,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def removeJsonFilesMenu(self):
         filesToDelete = []
-        for item in self.movieList.selectedItems():
+        for item in self.moviesList.selectedItems():
             moviePath = item.data(QtCore.Qt.UserRole)['path']
             movieFolder = item.data(QtCore.Qt.UserRole)['folder name']
             jsonFile = os.path.join(moviePath, '%s.json' % movieFolder)
@@ -552,7 +515,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def removeCoverFilesMenu(self):
         filesToDelete = []
-        for item in self.movieList.selectedItems():
+        for item in self.moviesList.selectedItems():
             moviePath = item.data(QtCore.Qt.UserRole)['path']
             movieFolder = item.data(QtCore.Qt.UserRole)['folder name']
 
@@ -567,8 +530,8 @@ class MyWindow(QtWidgets.QMainWindow):
         removeFiles(self, filesToDelete, '.jpg')
 
     def setMovieListItemColors(self):
-        for row in range(self.movieList.count()):
-            listItem = self.movieList.item(row)
+        for row in range(self.moviesList.count()):
+            listItem = self.moviesList.item(row)
             moviePath = listItem.data(QtCore.Qt.UserRole)['path']
             movieFolder = listItem.data(QtCore.Qt.UserRole)['folder name']
             jsonFile = os.path.join(moviePath, '%s.json' % movieFolder)
@@ -597,7 +560,7 @@ class MyWindow(QtWidgets.QMainWindow):
         listWidget.sortItems(QtCore.Qt.DescendingOrder)
 
     def populateMovieList(self):
-        self.movieList.clear()
+        self.moviesList.clear()
         if not os.path.exists(self.moviesFolder):
             return
         with os.scandir(self.moviesFolder) as files:
@@ -616,25 +579,25 @@ class MyWindow(QtWidgets.QMainWindow):
                             if 'year' in data:
                                 userData['year'] = data['year']
                     item.setData(QtCore.Qt.UserRole, userData)
-                    self.movieList.addItem(item)
+                    self.moviesList.addItem(item)
         self.setMovieListItemColors()
-        self.criteriaDisplayStyleChanged(self.movieListDisplayStyleComboBox, self.movieList)
-        self.movieList.setCurrentItem(self.movieList.item(0))
+        #self.criteriaDisplayStyleChanged(self.movieListDisplayStyleComboBox, self.moviesList)
+        self.moviesList.setCurrentItem(self.moviesList.item(0))
 
     def cancelButtonClicked(self):
         self.isCanceled = True
 
     def movieSelectionChanged(self):
-        numSelected = len(self.movieList.selectedItems())
-        total = self.movieList.count()
+        numSelected = len(self.moviesList.selectedItems())
+        total = self.moviesList.count()
         self.statusBar().showMessage('%s/%s' % (numSelected, total))
         if numSelected == 1:
-            self.clickedMovie(self.movieList.selectedItems()[0])
+            self.clickedMovie(self.moviesList.selectedItems()[0])
 
     def criteriaSelectionChanged(self, listWidget, smdbKey):
         if len(listWidget.selectedItems()) == 0:
-            for row in range(self.movieList.count()):
-                self.movieList.item(row).setHidden(False)
+            for row in range(listWidget.count()):
+                listWidget.item(row).setHidden(False)
             return
 
         criteriaMovieList = []
@@ -646,20 +609,20 @@ class MyWindow(QtWidgets.QMainWindow):
                 if movie not in criteriaMovieList:
                     criteriaMovieList.append(movie)
 
-        for row in range(self.movieList.count()):
-            self.movieList.item(row).setHidden(True)
+        for row in range(self.moviesList.count()):
+            self.moviesList.item(row).setHidden(True)
 
         # Movies are stored as ['Anchorman: The Legend of Ron Burgundy', 2004]
         self.progressBar.setMaximum(len(criteriaMovieList))
         progress = 0
-        for row in range(self.movieList.count()):
-            listItem = self.movieList.item(row)
+        for row in range(self.moviesList.count()):
+            listItem = self.moviesList.item(row)
             userData = listItem.data(QtCore.Qt.UserRole)
             if 'title' in userData: title = userData['title']
             if 'year' in userData: year = userData['year']
             for (t, y) in criteriaMovieList:
                 if t == title and y == year:
-                    self.movieList.item(row).setHidden(False)
+                    self.moviesList.item(row).setHidden(False)
             progress += 1
             self.progressBar.setValue(progress)
 
@@ -791,7 +754,7 @@ class MyWindow(QtWidgets.QMainWindow):
         return coverFile
 
     def playMovie(self):
-        selectedMovie = self.movieList.selectedItems()[0]
+        selectedMovie = self.moviesList.selectedItems()[0]
         movieFolder = selectedMovie.data(QtCore.Qt.UserRole)['path']
         if not os.path.exists(movieFolder):
             return
@@ -816,14 +779,14 @@ class MyWindow(QtWidgets.QMainWindow):
             os.startfile(movieFolder)
 
     def openMovieFolder(self):
-        selectedMovie = self.movieList.selectedItems()[0]
+        selectedMovie = self.moviesList.selectedItems()[0]
         filePath = selectedMovie.data(QtCore.Qt.UserRole)['path']
         os.startfile(filePath)
 
     def rightMenuShow(self, QPos):
-        self.rightMenu = QtWidgets.QMenu(self.movieList)
+        self.rightMenu = QtWidgets.QMenu(self.moviesList)
 
-        selectedMovie = self.movieList.selectedItems()[0]
+        selectedMovie = self.moviesList.selectedItems()[0]
         self.clickedMovie(selectedMovie)
 
         self.playAction = QtWidgets.QAction("Play", self)
