@@ -74,7 +74,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.setGeometry(210, 75, 1500, 900)
         self.setWindowTitle("Scott's Movie Database")
         self.db = IMDb()
-        self.initUI()
         self.moviesFolder = "J:/Movies"
         self.moviePlayer = "C:/Program Files/MPC-HC/mpc-hc64.exe"
         self.configFile = os.path.join("smdb_config.json")
@@ -84,14 +83,12 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.smdbFile = None
         self.readSmdbFile()
+
+        self.initUI()
         self.populateLists()
 
     def populateLists(self):
         self.populateMovieList()
-        self.populateCriteriaList('directors', self.directorsList)
-        self.populateCriteriaList('actors', self.actorsList)
-        self.populateCriteriaList('genres', self.genresList)
-        self.populateCriteriaList('years', self.yearsList)
 
     def closeEvent(self, event):
         self.saveConfig()
@@ -104,16 +101,10 @@ class MyWindow(QtWidgets.QMainWindow):
             configData = json.load(f)
 
         if 'movies_folder' in configData:
-            if os.path.exists(configData['movies_folder']):
-                self.moviesFolder = configData['movies_folder']
-                self.moviesFolderEdit.setText(self.moviesFolder)
-                self.moviesFolderEdit.setStyleSheet("color: black; background: white")
+            self.moviesFolder = configData['movies_folder']
 
         if 'movie_player' in configData:
-            if os.path.exists(configData['movie_player']):
-                self.moviePlayer = configData['movie_player']
-                self.moviePlayerEdit.setText(self.moviePlayer)
-                self.moviePlayerEdit.setStyleSheet("color: black; background: white")
+            self.moviePlayer = configData['movie_player']
 
     def saveConfig(self):
         configData = {}
@@ -218,7 +209,7 @@ class MyWindow(QtWidgets.QMainWindow):
     def searchActorsList(self):
         searchListWidget(self.actorsListSearchBox, self.actorsList)
 
-    def addCriteriaWidgets(self, criteriaName, searchMethod):
+    def addCriteriaWidgets(self, criteriaName, searchMethod, displayStyle=0):
         criteriaWidget = QtWidgets.QWidget(self)
         criteriaVLayout = QtWidgets.QVBoxLayout(self)
         criteriaWidget.setLayout(criteriaVLayout)
@@ -238,10 +229,13 @@ class MyWindow(QtWidgets.QMainWindow):
         criteriaDisplayStyleComboBox = QtWidgets.QComboBox(self)
         criteriaDisplayStyleComboBox.addItem("total - %s" % criteriaName)
         criteriaDisplayStyleComboBox.addItem("%s(total)" % criteriaName)
+        criteriaDisplayStyleComboBox.setCurrentIndex(displayStyle)
         criteriaDisplayStyleHLayout.addWidget(criteriaDisplayStyleComboBox)
 
         criteriaList = QtWidgets.QListWidget(self)
         criteriaList.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        self.populateCriteriaList(criteriaName.lower(), criteriaList)
+        self.criteriaDisplayStyleChanged(criteriaDisplayStyleComboBox, criteriaList)
         criteriaVLayout.addWidget(criteriaList)
 
         criteriaDisplayStyleComboBox.activated.connect(
@@ -322,8 +316,12 @@ class MyWindow(QtWidgets.QMainWindow):
         moviesFolderHLayout.addWidget(moviesFolderText)
 
         self.moviesFolderEdit = QtWidgets.QLineEdit("Click the browse button and select your movie folder")
-        self.moviesFolderEdit.setStyleSheet("color: red; background: black")
         self.moviesFolderEdit.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
+        self.moviesFolderEdit.setText(self.moviesFolder)
+        if os.path.exists(self.moviesFolder):
+            self.moviesFolderEdit.setStyleSheet("color: black; background: white")
+        else:
+            self.moviesFolderEdit.setStyleSheet("color: red; background: black")
         moviesFolderHLayout.addWidget(self.moviesFolderEdit)
 
         moviesFolderBrowse = QtWidgets.QPushButton("Browse")
@@ -339,8 +337,12 @@ class MyWindow(QtWidgets.QMainWindow):
         moviePlayerHLayout.addWidget(moviePlayerText)
 
         self.moviePlayerEdit = QtWidgets.QLineEdit("Click the browse button and select your movie player program ")
-        self.moviePlayerEdit.setStyleSheet("color: red; background: black")
         self.moviePlayerEdit.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
+        self.moviePlayerEdit.setText(self.moviePlayer)
+        if os.path.exists(self.moviePlayer):
+            self.moviesFolderEdit.setStyleSheet("color: black; background: white")
+        else:
+            self.moviePlayerEdit.setStyleSheet("color: red; background: black")
         moviePlayerHLayout.addWidget(self.moviePlayerEdit)
 
         moviePlayerBrowse = QtWidgets.QPushButton("Browse")
@@ -391,7 +393,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Years ---------------------------------------------------------------------------------------
         yearsWidget, self.yearsList, self.yearsListSearchBox = \
-            self.addCriteriaWidgets("Years", self.searchYearsList)
+            self.addCriteriaWidgets("Years", self.searchYearsList, displayStyle=1)
         self.yearsList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.yearsList, 'years'))
         criteriaVSplitter.addWidget(yearsWidget)
 
