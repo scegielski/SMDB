@@ -462,22 +462,18 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def criteriaDisplayStyleChanged(self, comboBoxWidget, listWidget):
         currentIndex = comboBoxWidget.currentIndex()
-
-        if currentIndex == 0:  # total - item
-            for row in range(listWidget.count()):
-                item = listWidget.item(row)
-                criteriaKey = item.data(QtCore.Qt.UserRole)['criteria key']
-                criteria = item.data(QtCore.Qt.UserRole)['criteria']
+        for row in range(listWidget.count()):
+            item = listWidget.item(row)
+            criteriaKey = item.data(QtCore.Qt.UserRole)['criteria key']
+            criteria = item.data(QtCore.Qt.UserRole)['criteria']
+            if currentIndex == 0:  # total - item
                 displayText = '%04d - %s' % (len(self.smdbData[criteriaKey][criteria]), criteria)
-                item.setText(displayText)
-            listWidget.sortItems(QtCore.Qt.DescendingOrder)
-        elif currentIndex == 1:  # item(total)
-            for row in range(listWidget.count()):
-                item = listWidget.item(row)
-                criteriaKey = item.data(QtCore.Qt.UserRole)['criteria key']
-                criteria = item.data(QtCore.Qt.UserRole)['criteria']
+            else:
                 displayText = '%s(%04d)' % (criteria, len(self.smdbData[criteriaKey][criteria]))
-                item.setText(displayText)
+            item.setText(displayText)
+        if currentIndex == 0:  # total - item
+            listWidget.sortItems(QtCore.Qt.DescendingOrder)
+        else:
             listWidget.sortItems(QtCore.Qt.AscendingOrder)
 
     def movieListDisplayStyleComboBoxChanged(self):
