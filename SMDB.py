@@ -192,7 +192,7 @@ class MyWindow(QtWidgets.QMainWindow):
         with open(self.smdbFile, "w") as f:
             json.dump(self.smdbData, f, indent=4)
 
-    def addCriteriaWidgets(self, criteriaName, displayStyle=0):
+    def addCriteriaWidgets(self, criteriaName, comboBoxEnum = [], displayStyle=0):
         criteriaWidget = QtWidgets.QWidget(self)
         criteriaVLayout = QtWidgets.QVBoxLayout(self)
         criteriaWidget.setLayout(criteriaVLayout)
@@ -210,8 +210,10 @@ class MyWindow(QtWidgets.QMainWindow):
         criteriaDisplayStyleHLayout.addWidget(displayStyleText)
 
         criteriaDisplayStyleComboBox = QtWidgets.QComboBox(self)
-        criteriaDisplayStyleComboBox.addItem("total - %s" % criteriaName)
-        criteriaDisplayStyleComboBox.addItem("%s(total)" % criteriaName)
+        #criteriaDisplayStyleComboBox.addItem("total - %s" % criteriaName)
+        #criteriaDisplayStyleComboBox.addItem("%s(total)" % criteriaName)
+        for i in comboBoxEnum:
+            criteriaDisplayStyleComboBox.addItem(i)
         criteriaDisplayStyleComboBox.setCurrentIndex(displayStyle)
         criteriaDisplayStyleHLayout.addWidget(criteriaDisplayStyleComboBox)
 
@@ -355,22 +357,38 @@ class MyWindow(QtWidgets.QMainWindow):
         criteriaVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
         criteriaVSplitter.setHandleWidth(20)
 
-        directorsWidget, self.directorsList, self.directorsListSearchBox = self.addCriteriaWidgets("Directors")
+        criteriaComboBoxEnum = ['total - item',
+                                'item(total)']
+
+        directorsWidget,\
+        self.directorsList,\
+        self.directorsListSearchBox = self.addCriteriaWidgets("Directors",
+                                                              comboBoxEnum=['(total)director', 'director(total)'])
         self.directorsList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.directorsList, 'directors'))
         self.directorsListSearchBox.textChanged.connect(lambda: searchListWidget(self.directorsListSearchBox, self.directorsList))
         criteriaVSplitter.addWidget(directorsWidget)
 
-        actorsWidget, self.actorsList, self.actorsListSearchBox = self.addCriteriaWidgets("Actors")
+        actorsWidget,\
+        self.actorsList,\
+        self.actorsListSearchBox = self.addCriteriaWidgets("Actors",
+                                                           comboBoxEnum=['(total)actor', 'actor(total)'])
         self.actorsList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.actorsList, 'actors'))
         self.actorsListSearchBox.textChanged.connect(lambda: searchListWidget(self.actorsListSearchBox, self.actorsList))
         criteriaVSplitter.addWidget(actorsWidget)
 
-        genresWidget, self.genresList, self.genresListSearchBox = self.addCriteriaWidgets("Genres")
+        genresWidget,\
+        self.genresList,\
+        self.genresListSearchBox = self.addCriteriaWidgets("Genres",
+                                                           comboBoxEnum=['(total)genre', 'genre(total)'])
         self.genresList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.genresList, 'genres'))
         self.genresListSearchBox.textChanged.connect(lambda: searchListWidget(self.genresListSearchBox, self.genresList))
         criteriaVSplitter.addWidget(genresWidget)
 
-        yearsWidget, self.yearsList, self.yearsListSearchBox = self.addCriteriaWidgets("Years", displayStyle=1)
+        yearsWidget,\
+        self.yearsList,\
+        self.yearsListSearchBox = self.addCriteriaWidgets("Years",
+                                                          comboBoxEnum=['(total)year', 'year(total)'],
+                                                          displayStyle=1)
         self.yearsList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.yearsList, 'years'))
         self.yearsListSearchBox.textChanged.connect(lambda: searchListWidget(self.yearsListSearchBox, self.yearsList))
         criteriaVSplitter.addWidget(yearsWidget)
@@ -452,17 +470,40 @@ class MyWindow(QtWidgets.QMainWindow):
         bottomLayout.addWidget(cancelButton)
 
     def criteriaDisplayStyleChanged(self, comboBoxWidget, listWidget):
-        currentIndex = comboBoxWidget.currentIndex()
+        comboBoxText = comboBoxWidget.currentText()
+        displayStyle = 0
+        if re.match(r'\((.*)\).*', comboBoxText):
+            displayStyle = 0
+        elif re.match(r'.*\((.*)\)', comboBoxText):
+            displayStyle = 1
+        elif comboBoxText == "Nice Names Year First":
+            displayStyle = 2
+        elif comboBoxText == "Nice Names":
+            displayStyle = 3
+        elif comboBoxText == "Folder Names":
+            displayStyle = 4
+
         for row in range(listWidget.count()):
             item = listWidget.item(row)
             criteriaKey = item.data(QtCore.Qt.UserRole)['criteria key']
             criteria = item.data(QtCore.Qt.UserRole)['criteria']
-            if currentIndex == 0:  # total - item
-                displayText = '%04d - %s' % (len(self.smdbData[criteriaKey][criteria]), criteria)
-            else:
+            if displayStyle == 0:  # total - item
+                displayText = '(%04d)%s' % (len(self.smdbData[criteriaKey][criteria]), criteria)
+            elif displayStyle == 1:
                 displayText = '%s(%04d)' % (criteria, len(self.smdbData[criteriaKey][criteria]))
+            elif displayStyle == 2:
+                folderName = item.data(QtCore.Qt.UserRole)['folder name']
+                niceTitle, year = getNiceTitleAndYear(folderName)
+                displayText = '%s - %s' % (year, niceTitle)
+            elif displayStyle == 3:
+                folderName = item.data(QtCore.Qt.UserRole)['folder name']
+                niceTitle, year = getNiceTitleAndYear(folderName)
+                displayText = '%s (%s)' % (niceTitle, year)
+            elif displayStyle == 4:
+                folderName = item.data(QtCore.Qt.UserRole)['folder name']
+                displayText = folderName
             item.setText(displayText)
-        if currentIndex == 0:  # total - item
+        if displayStyle == 0:
             listWidget.sortItems(QtCore.Qt.DescendingOrder)
         else:
             listWidget.sortItems(QtCore.Qt.AscendingOrder)
@@ -567,8 +608,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         listWidget.clear()
         for c in self.smdbData[criteriaKey].keys():
-            displayText = '%04d - %s' % (len(self.smdbData[criteriaKey][c]), c)
-            item = QtWidgets.QListWidgetItem(displayText)
+            item = QtWidgets.QListWidgetItem('')
             userData = {}
             userData['criteria'] = c
             userData['criteria key'] = criteriaKey
