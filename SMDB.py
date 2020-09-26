@@ -85,10 +85,10 @@ class MyWindow(QtWidgets.QMainWindow):
         self.readSmdbFile()
 
         self.initUI()
-        self.populateLists()
-
-    def populateLists(self):
         self.populateMovieList()
+
+        if not os.path.exists(self.smdbFile):
+            self.saveSmdbFile()
 
     def closeEvent(self, event):
         self.saveConfig()
@@ -126,8 +126,6 @@ class MyWindow(QtWidgets.QMainWindow):
         if os.path.exists(self.smdbFile):
             with open(self.smdbFile) as f:
                 self.smdbData = json.load(f)
-        else:
-            self.saveSmdbFile()
 
     def saveSmdbFile(self):
         self.smdbData = {}
@@ -579,6 +577,9 @@ class MyWindow(QtWidgets.QMainWindow):
                 listItem.setBackground(QtGui.QColor(255, 255, 255))
 
     def populateCriteriaList(self, criteriaKey, listWidget):
+        if not self.smdbData:
+            return
+
         if criteriaKey not in self.smdbData:
             print("Error: '%s' not in smdbData" % criteriaKey)
             return
