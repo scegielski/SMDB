@@ -192,22 +192,7 @@ class MyWindow(QtWidgets.QMainWindow):
         with open(self.smdbFile, "w") as f:
             json.dump(self.smdbData, f, indent=4)
 
-    def searchMovieList(self):
-        searchListWidget(self.movieListSearchBox, self.movieList)
-
-    def searchDirectorList(self):
-        searchListWidget(self.directorsListSearchBox, self.directorsList)
-
-    def searchGenresList(self):
-        searchListWidget(self.genresListSearchBox, self.genresList)
-
-    def searchYearsList(self):
-        searchListWidget(self.yearsListSearchBox, self.yearsList)
-
-    def searchActorsList(self):
-        searchListWidget(self.actorsListSearchBox, self.actorsList)
-
-    def addCriteriaWidgets(self, criteriaName, searchMethod, displayStyle=0):
+    def addCriteriaWidgets(self, criteriaName, displayStyle=0):
         criteriaWidget = QtWidgets.QWidget(self)
         criteriaVLayout = QtWidgets.QVBoxLayout(self)
         criteriaWidget.setLayout(criteriaVLayout)
@@ -248,7 +233,6 @@ class MyWindow(QtWidgets.QMainWindow):
 
         searchBox = QtWidgets.QLineEdit(self)
         searchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
-        searchBox.textChanged.connect(searchMethod)
         searchBox.setClearButtonEnabled(True)
         criteriaSearchHLayout.addWidget(searchBox)
 
@@ -371,28 +355,24 @@ class MyWindow(QtWidgets.QMainWindow):
         criteriaVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
         criteriaVSplitter.setHandleWidth(20)
 
-        # Directors
-        directorsWidget, self.directorsList, self.directorsListSearchBox =\
-            self.addCriteriaWidgets("Directors", self.searchDirectorList)
+        directorsWidget, self.directorsList, self.directorsListSearchBox = self.addCriteriaWidgets("Directors")
         self.directorsList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.directorsList, 'directors'))
+        self.directorsListSearchBox.textChanged.connect(lambda: searchListWidget(self.directorsListSearchBox, self.directorsList))
         criteriaVSplitter.addWidget(directorsWidget)
 
-        # Actors ---------------------------------------------------------------------------------------
-        actorsWidget, self.actorsList, self.actorsListSearchBox = \
-            self.addCriteriaWidgets("Actors", self.searchActorsList)
+        actorsWidget, self.actorsList, self.actorsListSearchBox = self.addCriteriaWidgets("Actors")
         self.actorsList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.actorsList, 'actors'))
+        self.actorsListSearchBox.textChanged.connect(lambda: searchListWidget(self.actorsListSearchBox, self.actorsList))
         criteriaVSplitter.addWidget(actorsWidget)
 
-        # Genres ---------------------------------------------------------------------------------------
-        genresWidget, self.genresList, self.genresListSearchBox = \
-            self.addCriteriaWidgets("Genres", self.searchGenresList)
+        genresWidget, self.genresList, self.genresListSearchBox = self.addCriteriaWidgets("Genres")
         self.genresList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.genresList, 'genres'))
+        self.genresListSearchBox.textChanged.connect(lambda: searchListWidget(self.genresListSearchBox, self.genresList))
         criteriaVSplitter.addWidget(genresWidget)
 
-        # Years ---------------------------------------------------------------------------------------
-        yearsWidget, self.yearsList, self.yearsListSearchBox = \
-            self.addCriteriaWidgets("Years", self.searchYearsList, displayStyle=1)
+        yearsWidget, self.yearsList, self.yearsListSearchBox = self.addCriteriaWidgets("Years", displayStyle=1)
         self.yearsList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.yearsList, 'years'))
+        self.yearsListSearchBox.textChanged.connect(lambda: searchListWidget(self.yearsListSearchBox, self.yearsList))
         criteriaVSplitter.addWidget(yearsWidget)
 
         # Movie List ---------------------------------------------------------------------------------------
@@ -436,7 +416,8 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.movieListSearchBox = QtWidgets.QLineEdit(self)
         self.movieListSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
-        self.movieListSearchBox.textChanged.connect(self.searchMovieList)
+        self.movieListSearchBox.textChanged.connect(lambda: searchListWidget(self.movieListSearchBox, self.movieList))
+
         self.movieListSearchBox.setClearButtonEnabled(True)
         movieListSearchHLayout.addWidget(self.movieListSearchBox)
 
