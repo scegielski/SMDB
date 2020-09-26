@@ -224,9 +224,24 @@ class MyWindow(QtWidgets.QMainWindow):
         criteriaText.setAlignment(QtCore.Qt.AlignCenter)
         criteriaVLayout.addWidget(criteriaText)
 
+        criteriaDisplayStyleHLayout = QtWidgets.QHBoxLayout(self)
+        criteriaVLayout.addLayout(criteriaDisplayStyleHLayout)
+
+        displayStyleText = QtWidgets.QLabel("%s Display Style" % criteriaName)
+        displayStyleText.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
+        criteriaDisplayStyleHLayout.addWidget(displayStyleText)
+
+        criteriaDisplayStyleComboBox = QtWidgets.QComboBox(self)
+        criteriaDisplayStyleComboBox.addItem("total - %s" % criteriaName)
+        criteriaDisplayStyleComboBox.addItem("%s(total)" % criteriaName)
+        criteriaDisplayStyleHLayout.addWidget(criteriaDisplayStyleComboBox)
+
         criteriaList = QtWidgets.QListWidget(self)
         criteriaList.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         criteriaVLayout.addWidget(criteriaList)
+
+        criteriaDisplayStyleComboBox.activated.connect(
+            lambda: self.criteriaDisplayStyleChanged(criteriaDisplayStyleComboBox, criteriaList))
 
         criteriaSearchHLayout = QtWidgets.QHBoxLayout(self)
         criteriaVLayout.addLayout(criteriaSearchHLayout)
@@ -445,6 +460,26 @@ class MyWindow(QtWidgets.QMainWindow):
         cancelButton.clicked.connect(self.cancelButtonClicked)
         bottomLayout.addWidget(cancelButton)
 
+    def criteriaDisplayStyleChanged(self, comboBoxWidget, listWidget):
+        currentIndex = comboBoxWidget.currentIndex()
+
+        if currentIndex == 0:  # total - item
+            for row in range(listWidget.count()):
+                item = listWidget.item(row)
+                criteriaKey = item.data(QtCore.Qt.UserRole)['criteria key']
+                criteria = item.data(QtCore.Qt.UserRole)['criteria']
+                displayText = '%04d - %s' % (len(self.smdbData[criteriaKey][criteria]), criteria)
+                item.setText(displayText)
+            listWidget.sortItems(QtCore.Qt.DescendingOrder)
+        elif currentIndex == 1:  # item(total)
+            for row in range(listWidget.count()):
+                item = listWidget.item(row)
+                criteriaKey = item.data(QtCore.Qt.UserRole)['criteria key']
+                criteria = item.data(QtCore.Qt.UserRole)['criteria']
+                displayText = '%s(%04d)' % (criteria, len(self.smdbData[criteriaKey][criteria]))
+                item.setText(displayText)
+            listWidget.sortItems(QtCore.Qt.AscendingOrder)
+
     def movieListDisplayStyleComboBoxChanged(self):
         currentIndex = self.movieListDisplayStyleComboBox.currentIndex()
 
@@ -542,14 +577,15 @@ class MyWindow(QtWidgets.QMainWindow):
 
         listWidget.clear()
         for c in self.smdbData[criteriaKey].keys():
-            displayText = '%s(%s)' % (c, len(self.smdbData[criteriaKey][c]))
+            displayText = '%04d - %s' % (len(self.smdbData[criteriaKey][c]), c)
             item = QtWidgets.QListWidgetItem(displayText)
             userData = {}
             userData['criteria'] = c
+            userData['criteria key'] = criteriaKey
+            userData['list widge'] = listWidget
             item.setData(QtCore.Qt.UserRole, userData)
             listWidget.addItem(item)
-        #listWidget.addItems(self.smdbData[criteriaKey])
-        listWidget.sortItems()
+        listWidget.sortItems(QtCore.Qt.DescendingOrder)
 
     def populateMovieList(self):
         self.movieList.clear()
