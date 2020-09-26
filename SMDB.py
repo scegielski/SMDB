@@ -89,8 +89,9 @@ class MyWindow(QtWidgets.QMainWindow):
     def populateLists(self):
         self.populateMovieList()
         self.populateCriteriaList('directors', self.directorsList)
-        self.populateCriteriaList('genres', self.genresList)
         self.populateCriteriaList('actors', self.actorsList)
+        self.populateCriteriaList('genres', self.genresList)
+        self.populateCriteriaList('years', self.yearsList)
 
     def closeEvent(self, event):
         self.saveConfig()
@@ -210,6 +211,9 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def searchGenresList(self):
         searchListWidget(self.genresListSearchBox, self.genresList)
+
+    def searchYearsList(self):
+        searchListWidget(self.yearsListSearchBox, self.yearsList)
 
     def searchActorsList(self):
         searchListWidget(self.actorsListSearchBox, self.actorsList)
@@ -384,6 +388,12 @@ class MyWindow(QtWidgets.QMainWindow):
             self.addCriteriaWidgets("Genres", self.searchGenresList)
         self.genresList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.genresList, 'genres'))
         criteriaVSplitter.addWidget(genresWidget)
+
+        # Years ---------------------------------------------------------------------------------------
+        yearsWidget, self.yearsList, self.yearsListSearchBox = \
+            self.addCriteriaWidgets("Years", self.searchYearsList)
+        self.yearsList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.yearsList, 'years'))
+        criteriaVSplitter.addWidget(yearsWidget)
 
         # Movie List ---------------------------------------------------------------------------------------
         movieListWidget = QtWidgets.QWidget(self)
