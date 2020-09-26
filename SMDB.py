@@ -414,7 +414,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.movieListDisplayStyleComboBox.addItem("Nice Names Year First")
         self.movieListDisplayStyleComboBox.addItem("Nice Names")
         self.movieListDisplayStyleComboBox.addItem("Folder Names")
-        self.movieListDisplayStyleComboBox.activated.connect(self.movieListDisplayStyleComboBoxChanged)
+        self.movieListDisplayStyleComboBox.activated.connect(lambda: self.criteriaDisplayStyleChanged(self.movieListDisplayStyleComboBox, self.movieList))
         movieListDisplayStyleHLayout.addWidget(self.movieListDisplayStyleComboBox)
 
         self.movieList = QtWidgets.QListWidget(self)
@@ -485,11 +485,13 @@ class MyWindow(QtWidgets.QMainWindow):
 
         for row in range(listWidget.count()):
             item = listWidget.item(row)
-            criteriaKey = item.data(QtCore.Qt.UserRole)['criteria key']
-            criteria = item.data(QtCore.Qt.UserRole)['criteria']
             if displayStyle == 0:  # total - item
+                criteriaKey = item.data(QtCore.Qt.UserRole)['criteria key']
+                criteria = item.data(QtCore.Qt.UserRole)['criteria']
                 displayText = '(%04d)%s' % (len(self.smdbData[criteriaKey][criteria]), criteria)
             elif displayStyle == 1:
+                criteriaKey = item.data(QtCore.Qt.UserRole)['criteria key']
+                criteria = item.data(QtCore.Qt.UserRole)['criteria']
                 displayText = '%s(%04d)' % (criteria, len(self.smdbData[criteriaKey][criteria]))
             elif displayStyle == 2:
                 folderName = item.data(QtCore.Qt.UserRole)['folder name']
@@ -507,29 +509,6 @@ class MyWindow(QtWidgets.QMainWindow):
             listWidget.sortItems(QtCore.Qt.DescendingOrder)
         else:
             listWidget.sortItems(QtCore.Qt.AscendingOrder)
-
-    def movieListDisplayStyleComboBoxChanged(self):
-        currentIndex = self.movieListDisplayStyleComboBox.currentIndex()
-
-        if currentIndex == 0:  # Nice Names Year First
-            for row in range(self.movieList.count()):
-                item = self.movieList.item(row)
-                folderName = item.data(QtCore.Qt.UserRole)['folder name']
-                niceTitle, year = getNiceTitleAndYear(folderName)
-                item.setText('%s - %s' % (year, niceTitle))
-        elif currentIndex == 1:  # Nice Names
-            for row in range(self.movieList.count()):
-                item = self.movieList.item(row)
-                folderName = item.data(QtCore.Qt.UserRole)['folder name']
-                niceTitle, year = getNiceTitleAndYear(folderName)
-                item.setText('%s (%s)' % (niceTitle, year))
-        elif currentIndex == 2:  # Folder Names
-            for row in range(self.movieList.count()):
-                item = self.movieList.item(row)
-                folderName = item.data(QtCore.Qt.UserRole)['folder name']
-                item.setText(folderName)
-        self.movieList.sortItems()
-
 
     def downloadDataMenu(self):
         numSelectedItems = len(self.movieList.selectedItems())
@@ -639,7 +618,7 @@ class MyWindow(QtWidgets.QMainWindow):
                     item.setData(QtCore.Qt.UserRole, userData)
                     self.movieList.addItem(item)
         self.setMovieListItemColors()
-        self.movieListDisplayStyleComboBoxChanged()
+        self.criteriaDisplayStyleChanged(self.movieListDisplayStyleComboBox, self.movieList)
         self.movieList.setCurrentItem(self.movieList.item(0))
 
     def cancelButtonClicked(self):
