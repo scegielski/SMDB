@@ -541,7 +541,14 @@ class MyWindow(QtWidgets.QMainWindow):
             return
 
         listWidget.clear()
-        listWidget.addItems(self.smdbData[criteriaKey])
+        for c in self.smdbData[criteriaKey].keys():
+            displayText = '%s(%s)' % (c, len(self.smdbData[criteriaKey][c]))
+            item = QtWidgets.QListWidgetItem(displayText)
+            userData = {}
+            userData['criteria'] = c
+            item.setData(QtCore.Qt.UserRole, userData)
+            listWidget.addItem(item)
+        #listWidget.addItems(self.smdbData[criteriaKey])
         listWidget.sortItems()
 
     def populateMovieList(self):
@@ -588,7 +595,8 @@ class MyWindow(QtWidgets.QMainWindow):
         criteriaMovieList = []
         for item in listWidget.selectedItems():
             criteria = item.text()
-            movies = self.smdbData[smdbKey][criteria]
+            userData = item.data(QtCore.Qt.UserRole)
+            movies = self.smdbData[smdbKey][userData['criteria']]
             for movie in movies:
                 if movie not in criteriaMovieList:
                     criteriaMovieList.append(movie)
