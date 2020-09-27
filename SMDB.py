@@ -192,7 +192,7 @@ class MyWindow(QtWidgets.QMainWindow):
         with open(self.smdbFile, "w") as f:
             json.dump(self.smdbData, f, indent=4)
 
-    def addCriteriaWidgets(self, criteriaName, comboBoxEnum = [], displayStyle=0):
+    def addCriteriaWidgets(self, criteriaName, populateList=True, comboBoxEnum = [], displayStyle=0):
         criteriaWidget = QtWidgets.QWidget(self)
         criteriaVLayout = QtWidgets.QVBoxLayout(self)
         criteriaWidget.setLayout(criteriaVLayout)
@@ -210,8 +210,6 @@ class MyWindow(QtWidgets.QMainWindow):
         criteriaDisplayStyleHLayout.addWidget(displayStyleText)
 
         criteriaDisplayStyleComboBox = QtWidgets.QComboBox(self)
-        #criteriaDisplayStyleComboBox.addItem("total - %s" % criteriaName)
-        #criteriaDisplayStyleComboBox.addItem("%s(total)" % criteriaName)
         for i in comboBoxEnum:
             criteriaDisplayStyleComboBox.addItem(i)
         criteriaDisplayStyleComboBox.setCurrentIndex(displayStyle)
@@ -219,8 +217,9 @@ class MyWindow(QtWidgets.QMainWindow):
 
         criteriaList = QtWidgets.QListWidget(self)
         criteriaList.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
-        self.populateCriteriaList(criteriaName.lower(), criteriaList)
-        self.criteriaDisplayStyleChanged(criteriaDisplayStyleComboBox, criteriaList)
+        if populateList:
+            self.populateCriteriaList(criteriaName.lower(), criteriaList)
+            self.criteriaDisplayStyleChanged(criteriaDisplayStyleComboBox, criteriaList)
         criteriaVLayout.addWidget(criteriaList)
 
         criteriaDisplayStyleComboBox.activated.connect(
@@ -238,7 +237,7 @@ class MyWindow(QtWidgets.QMainWindow):
         searchBox.setClearButtonEnabled(True)
         criteriaSearchHLayout.addWidget(searchBox)
 
-        return criteriaWidget, criteriaList, searchBox
+        return criteriaWidget, criteriaList, searchBox, criteriaDisplayStyleComboBox
 
     def browseMoviesFolder(self):
         browseDir = str(Path.home())
@@ -357,45 +356,48 @@ class MyWindow(QtWidgets.QMainWindow):
         criteriaVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
         criteriaVSplitter.setHandleWidth(20)
 
-        criteriaComboBoxEnum = ['total - item',
-                                'item(total)']
-
         directorsWidget,\
         self.directorsList,\
-        self.directorsListSearchBox = self.addCriteriaWidgets("Directors",
-                                                              comboBoxEnum=['(total)director', 'director(total)'])
+        self.directorsListSearchBox,\
+        comboBox = self.addCriteriaWidgets("Directors",
+                                           comboBoxEnum=['(total)director', 'director(total)'])
         self.directorsList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.directorsList, 'directors'))
         self.directorsListSearchBox.textChanged.connect(lambda: searchListWidget(self.directorsListSearchBox, self.directorsList))
         criteriaVSplitter.addWidget(directorsWidget)
 
         actorsWidget,\
         self.actorsList,\
-        self.actorsListSearchBox = self.addCriteriaWidgets("Actors",
-                                                           comboBoxEnum=['(total)actor', 'actor(total)'])
+        self.actorsListSearchBox,\
+        comboBox = self.addCriteriaWidgets("Actors",
+                                           comboBoxEnum=['(total)actor', 'actor(total)'])
         self.actorsList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.actorsList, 'actors'))
         self.actorsListSearchBox.textChanged.connect(lambda: searchListWidget(self.actorsListSearchBox, self.actorsList))
         criteriaVSplitter.addWidget(actorsWidget)
 
         genresWidget,\
         self.genresList,\
-        self.genresListSearchBox = self.addCriteriaWidgets("Genres",
-                                                           comboBoxEnum=['(total)genre', 'genre(total)'])
+        self.genresListSearchBox,\
+        comboBox = self.addCriteriaWidgets("Genres",
+                                           comboBoxEnum=['(total)genre', 'genre(total)'])
         self.genresList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.genresList, 'genres'))
         self.genresListSearchBox.textChanged.connect(lambda: searchListWidget(self.genresListSearchBox, self.genresList))
         criteriaVSplitter.addWidget(genresWidget)
 
         yearsWidget,\
         self.yearsList,\
-        self.yearsListSearchBox = self.addCriteriaWidgets("Years",
-                                                          comboBoxEnum=['(total)year', 'year(total)'],
-                                                          displayStyle=1)
+        self.yearsListSearchBox,\
+        comboBox = self.addCriteriaWidgets("Years",
+                                           comboBoxEnum=['(total)year', 'year(total)'],
+                                           displayStyle=1)
         self.yearsList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.yearsList, 'years'))
         self.yearsListSearchBox.textChanged.connect(lambda: searchListWidget(self.yearsListSearchBox, self.yearsList))
         criteriaVSplitter.addWidget(yearsWidget)
 
         moviesWidget, \
         self.moviesList, \
-        self.moviesListSearchBox = self.addCriteriaWidgets("Movies",
+        self.moviesListSearchBox, \
+        self.moviesListDisplayStyleComboBox = self.addCriteriaWidgets("Movies",
+                                                           populateList=False,
                                                            comboBoxEnum=["Nice Names Year First",
                                                                          "Nice Names",
                                                                          "Folder Names"])
@@ -581,7 +583,7 @@ class MyWindow(QtWidgets.QMainWindow):
                     item.setData(QtCore.Qt.UserRole, userData)
                     self.moviesList.addItem(item)
         self.setMovieListItemColors()
-        #self.criteriaDisplayStyleChanged(self.movieListDisplayStyleComboBox, self.moviesList)
+        self.criteriaDisplayStyleChanged(self.moviesListDisplayStyleComboBox, self.moviesList)
         self.moviesList.setCurrentItem(self.moviesList.item(0))
 
     def cancelButtonClicked(self):
