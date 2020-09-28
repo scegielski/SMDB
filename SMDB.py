@@ -403,6 +403,9 @@ class MyWindow(QtWidgets.QMainWindow):
                                                                          "Folder Names"])
         self.moviesList.itemSelectionChanged.connect(lambda: self.movieSelectionChanged())
         self.moviesListSearchBox.textChanged.connect(lambda: searchListWidget(self.moviesListSearchBox, self.moviesList))
+        self.moviesList.doubleClicked.connect(self.playMovie)
+        self.moviesList.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.moviesList.customContextMenuRequested[QtCore.QPoint].connect(self.rightMenuShow)
 
         # Cover and Summary ---------------------------------------------------------------------------------------
         movieSummaryVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
@@ -665,8 +668,8 @@ class MyWindow(QtWidgets.QMainWindow):
         movie = results[0]
         for res in results:
             if res.has_key('year') and res.has_key('kind'):
-                if res['year'] == year and res['kind'] == 'movie':
-                    print("Matched year: %s" % year)
+                print('kind = %s' % res['kind'])
+                if res['year'] == year and (res['kind'] == 'movie' or res['kind'] == 'tv movie'):
                     movie = res
                     break
 
