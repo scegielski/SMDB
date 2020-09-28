@@ -11,6 +11,15 @@ import urllib.request
 import subprocess
 import json
 import collections
+from enum import Enum, auto
+
+class displayStyles(Enum):
+    TOTAL_ITEM = auto(),
+    ITEM_TOTAL = auto(),
+    YEAR_TITLE = auto(),
+    RATING_TITLE_YEAR = auto(),
+    TITLE_YEAR = auto(),
+    FOLDER = auto()
 
 # TODO: Create separate derived class for movie list and move methods
 # TODO: Change colors to dark
@@ -219,11 +228,11 @@ class MyWindow(QtWidgets.QMainWindow):
         criteriaList.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         if populateList:
             self.populateCriteriaList(criteriaName.lower(), criteriaList)
-            self.criteriaDisplayStyleChanged(criteriaDisplayStyleComboBox, criteriaList)
+            self.listDisplayStyleChanged(criteriaDisplayStyleComboBox, criteriaList)
         criteriaVLayout.addWidget(criteriaList)
 
         criteriaDisplayStyleComboBox.activated.connect(
-            lambda: self.criteriaDisplayStyleChanged(criteriaDisplayStyleComboBox, criteriaList))
+            lambda: self.listDisplayStyleChanged(criteriaDisplayStyleComboBox, criteriaList))
 
         criteriaSearchHLayout = QtWidgets.QHBoxLayout(self)
         criteriaVLayout.addLayout(criteriaSearchHLayout)
@@ -398,9 +407,10 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesListSearchBox, \
         self.moviesListDisplayStyleComboBox = self.addCriteriaWidgets("Movies",
                                                            populateList=False,
-                                                           comboBoxEnum=["Nice Names Year First",
-                                                                         "Nice Names",
-                                                                         "Folder Names"])
+                                                           comboBoxEnum=["(year)title",
+                                                                         "(rating)title",
+                                                                         "title(year)",
+                                                                         "folder name"])
         self.moviesList.itemSelectionChanged.connect(lambda: self.movieSelectionChanged())
         self.moviesListSearchBox.textChanged.connect(lambda: searchListWidget(self.moviesListSearchBox, self.moviesList))
         self.moviesList.doubleClicked.connect(self.playMovie)
@@ -437,43 +447,51 @@ class MyWindow(QtWidgets.QMainWindow):
         cancelButton.clicked.connect(self.cancelButtonClicked)
         bottomLayout.addWidget(cancelButton)
 
-    def criteriaDisplayStyleChanged(self, comboBoxWidget, listWidget):
+    def listDisplayStyleChanged(self, comboBoxWidget, listWidget):
         comboBoxText = comboBoxWidget.currentText()
         displayStyle = 0
-        if re.match(r'\((.*)\).*', comboBoxText):
-            displayStyle = 0
+        if comboBoxText == "(year)title":
+            displayStyle = displayStyles.YEAR_TITLE
+        elif comboBoxText == "(rating)title":
+            displayStyle = displayStyles.RATING_TITLE_YEAR
+        elif comboBoxText == "title(year)":
+            displayStyle = displayStyles.TITLE
+        elif comboBoxText == "folder name":
+            displayStyle = displayStyles.FOLDER
+        elif re.match(r'\((.*)\).*', comboBoxText):
+            displayStyle = displayStyles.TOTAL_ITEM
         elif re.match(r'.*\((.*)\)', comboBoxText):
-            displayStyle = 1
-        elif comboBoxText == "Nice Names Year First":
-            displayStyle = 2
-        elif comboBoxText == "Nice Names":
-            displayStyle = 3
-        elif comboBoxText == "Folder Names":
-            displayStyle = 4
+            displayStyle = displayStyles.ITEM_TOTAL
 
         for row in range(listWidget.count()):
             item = listWidget.item(row)
-            if displayStyle == 0:  # total - item
+            if displayStyle == displayStyles.TOTAL_ITEM:
                 criteriaKey = item.data(QtCore.Qt.UserRole)['criteria key']
                 criteria = item.data(QtCore.Qt.UserRole)['criteria']
-                displayText = '(%04d)%s' % (len(self.smdbData[criteriaKey][criteria]), criteria)
-            elif displayStyle == 1:
+                displayText = '(%04d) %s' % (len(self.smdbData[criteriaKey][criteria]), criteria)
+            elif displayStyle == displayStyles.ITEM_TOTAL:
                 criteriaKey = item.data(QtCore.Qt.UserRole)['criteria key']
                 criteria = item.data(QtCore.Qt.UserRole)['criteria']
-                displayText = '%s(%04d)' % (criteria, len(self.smdbData[criteriaKey][criteria]))
-            elif displayStyle == 2:
+                displayText = '%s (%04d)' % (criteria, len(self.smdbData[criteriaKey][criteria]))
+            elif displayStyle == displayStyles.YEAR_TITLE:
                 folderName = item.data(QtCore.Qt.UserRole)['folder name']
                 niceTitle, year = getNiceTitleAndYear(folderName)
-                displayText = '%s - %s' % (year, niceTitle)
-            elif displayStyle == 3:
+                displayText = '(%s) %s' % (year, niceTitle)
+            elif displayStyle == displayStyles.RATING_TITLE_YEAR:
+                folderName = item.data(QtCore.Qt.UserRole)['folder name']
+                rating = item.data(QtCore.Qt.UserRole)['rating']
+                niceTitle, year = getNiceTitleAndYear(folderName)
+                displayText = '%s - (%s) %s' % (rating, year, niceTitle)
+            elif displayStyle == displayStyles.TITLE_YEAR:
                 folderName = item.data(QtCore.Qt.UserRole)['folder name']
                 niceTitle, year = getNiceTitleAndYear(folderName)
                 displayText = '%s (%s)' % (niceTitle, year)
-            elif displayStyle == 4:
+            elif displayStyle == displayStyles.FOLDER:
                 folderName = item.data(QtCore.Qt.UserRole)['folder name']
                 displayText = folderName
             item.setText(displayText)
-        if displayStyle == 0:
+
+        if displayStyle == displayStyles.TOTAL_ITEM or displayStyle == displayStyles.RATING_TITLE_YEAR:
             listWidget.sortItems(QtCore.Qt.DescendingOrder)
         else:
             listWidget.sortItems(QtCore.Qt.AscendingOrder)
@@ -575,6 +593,10 @@ class MyWindow(QtWidgets.QMainWindow):
                     userData = {}
                     userData['folder name'] = f.name
                     userData['path'] = os.path.join(self.moviesFolder, f.name)
+                    userData['title'] = ''
+                    userData['year'] = ''
+                    userData['rating'] = ''
+
                     jsonFile = os.path.join(self.moviesFolder, f.name, '%s.json' % f.name)
                     if os.path.exists(jsonFile):
                         with open(jsonFile) as f:
@@ -583,10 +605,12 @@ class MyWindow(QtWidgets.QMainWindow):
                                 userData['title'] = data['title']
                             if 'year' in data:
                                 userData['year'] = data['year']
+                            if 'rating' in data:
+                                userData['rating'] = data['rating']
                     item.setData(QtCore.Qt.UserRole, userData)
                     self.moviesList.addItem(item)
         self.setMovieListItemColors()
-        self.criteriaDisplayStyleChanged(self.moviesListDisplayStyleComboBox, self.moviesList)
+        self.listDisplayStyleChanged(self.moviesListDisplayStyleComboBox, self.moviesList)
         self.moviesList.setCurrentItem(self.moviesList.item(0))
 
     def cancelButtonClicked(self):
