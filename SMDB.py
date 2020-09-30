@@ -82,25 +82,38 @@ class MyWindow(QtWidgets.QMainWindow):
         super(MyWindow, self).__init__()
         self.setGeometry(210, 75, 1500, 900)
         self.setWindowTitle("Scott's Movie Database")
+
         self.db = IMDb()
+
         self.moviesFolder = "J:/Movies"
         self.moviePlayer = "C:/Program Files/MPC-HC/mpc-hc64.exe"
         self.configFile = os.path.join("smdb_config.json")
+
         self.readConfigFile()
         if not os.path.exists(self.moviesFolder):
             return
-
-        self.smdbFile = None
-        self.readSmdbFile()
+        self.smdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
 
         self.initUI()
-        self.populateMovieList()
+        self.refresh()
 
-        if not os.path.exists(self.smdbFile):
-            self.saveSmdbFile()
 
     def closeEvent(self, event):
         self.saveConfig()
+
+    def refresh(self):
+        self.populateMovieList()
+        if not os.path.exists(self.smdbFile):
+            self.saveSmdbFile()
+        self.readSmdbFile()
+        self.populateCriteriaList('directors', self.directorsList)
+        self.populateCriteriaList('actors', self.actorsList)
+        self.populateCriteriaList('genres', self.genresList)
+        self.populateCriteriaList('years', self.yearsList)
+        self.listDisplayStyleChanged(self.directorsComboBox, self.directorsList)
+        self.listDisplayStyleChanged(self.actorsComboBox, self.actorsList)
+        self.listDisplayStyleChanged(self.genresComboBox, self.genresList)
+        self.listDisplayStyleChanged(self.yearsComboBox, self.yearsList)
 
     def readConfigFile(self):
         if not os.path.exists(self.configFile):
@@ -130,7 +143,6 @@ class MyWindow(QtWidgets.QMainWindow):
             json.dump(configData, f, indent=4)
 
     def readSmdbFile(self):
-        self.smdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
         self.smdbData = None
         if os.path.exists(self.smdbFile):
             with open(self.smdbFile) as f:
@@ -201,7 +213,7 @@ class MyWindow(QtWidgets.QMainWindow):
         with open(self.smdbFile, "w") as f:
             json.dump(self.smdbData, f, indent=4)
 
-    def addCriteriaWidgets(self, criteriaName, populateList=True, comboBoxEnum = [], displayStyle=0):
+    def addCriteriaWidgets(self, criteriaName, comboBoxEnum = [], displayStyle=0):
         criteriaWidget = QtWidgets.QWidget(self)
         criteriaVLayout = QtWidgets.QVBoxLayout(self)
         criteriaWidget.setLayout(criteriaVLayout)
@@ -226,9 +238,6 @@ class MyWindow(QtWidgets.QMainWindow):
 
         criteriaList = QtWidgets.QListWidget(self)
         criteriaList.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
-        if populateList:
-            self.populateCriteriaList(criteriaName.lower(), criteriaList)
-            self.listDisplayStyleChanged(criteriaDisplayStyleComboBox, criteriaList)
         criteriaVLayout.addWidget(criteriaList)
 
         criteriaDisplayStyleComboBox.activated.connect(
@@ -353,9 +362,11 @@ class MyWindow(QtWidgets.QMainWindow):
 
         rebuildSmdbButton = QtWidgets.QPushButton("Rebuild SMDB File")
         actionsGridLayout.addWidget(rebuildSmdbButton, 1, 0)
+        rebuildSmdbButton.clicked.connect(self.saveSmdbFile)
 
-        button2 = QtWidgets.QPushButton("Button 2")
-        actionsGridLayout.addWidget(button2, 1, 1)
+        refreshButton = QtWidgets.QPushButton("Refresh")
+        actionsGridLayout.addWidget(refreshButton, 1, 1)
+        refreshButton.clicked.connect(self.refresh)
 
         mainHSplitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
         mainHSplitter.setHandleWidth(10)
@@ -368,8 +379,8 @@ class MyWindow(QtWidgets.QMainWindow):
         directorsWidget,\
         self.directorsList,\
         self.directorsListSearchBox,\
-        comboBox = self.addCriteriaWidgets("Directors",
-                                           comboBoxEnum=['(total)director', 'director(total)'])
+        self.directorsComboBox = self.addCriteriaWidgets("Directors",
+                                                         comboBoxEnum=['(total)director', 'director(total)'])
         self.directorsList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.directorsList, 'directors'))
         self.directorsListSearchBox.textChanged.connect(lambda: searchListWidget(self.directorsListSearchBox, self.directorsList))
         criteriaVSplitter.addWidget(directorsWidget)
@@ -377,8 +388,8 @@ class MyWindow(QtWidgets.QMainWindow):
         actorsWidget,\
         self.actorsList,\
         self.actorsListSearchBox,\
-        comboBox = self.addCriteriaWidgets("Actors",
-                                           comboBoxEnum=['(total)actor', 'actor(total)'])
+        self.actorsComboBox = self.addCriteriaWidgets("Actors",
+                                                      comboBoxEnum=['(total)actor', 'actor(total)'])
         self.actorsList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.actorsList, 'actors'))
         self.actorsListSearchBox.textChanged.connect(lambda: searchListWidget(self.actorsListSearchBox, self.actorsList))
         criteriaVSplitter.addWidget(actorsWidget)
@@ -386,8 +397,8 @@ class MyWindow(QtWidgets.QMainWindow):
         genresWidget,\
         self.genresList,\
         self.genresListSearchBox,\
-        comboBox = self.addCriteriaWidgets("Genres",
-                                           comboBoxEnum=['(total)genre', 'genre(total)'])
+        self.genresComboBox = self.addCriteriaWidgets("Genres",
+                                                      comboBoxEnum=['(total)genre', 'genre(total)'])
         self.genresList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.genresList, 'genres'))
         self.genresListSearchBox.textChanged.connect(lambda: searchListWidget(self.genresListSearchBox, self.genresList))
         criteriaVSplitter.addWidget(genresWidget)
@@ -395,9 +406,9 @@ class MyWindow(QtWidgets.QMainWindow):
         yearsWidget,\
         self.yearsList,\
         self.yearsListSearchBox,\
-        comboBox = self.addCriteriaWidgets("Years",
-                                           comboBoxEnum=['(total)year', 'year(total)'],
-                                           displayStyle=1)
+        self.yearsComboBox = self.addCriteriaWidgets("Years",
+                                                     comboBoxEnum=['(total)year', 'year(total)'],
+                                                     displayStyle=1)
         self.yearsList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.yearsList, 'years'))
         self.yearsListSearchBox.textChanged.connect(lambda: searchListWidget(self.yearsListSearchBox, self.yearsList))
         criteriaVSplitter.addWidget(yearsWidget)
@@ -405,12 +416,11 @@ class MyWindow(QtWidgets.QMainWindow):
         moviesWidget, \
         self.moviesList, \
         self.moviesListSearchBox, \
-        self.moviesListDisplayStyleComboBox = self.addCriteriaWidgets("Movies",
-                                                           populateList=False,
-                                                           comboBoxEnum=["(year)title",
-                                                                         "(rating)title",
-                                                                         "title(year)",
-                                                                         "folder name"])
+        self.moviesComboBox = self.addCriteriaWidgets("Movies",
+                                                      comboBoxEnum=["(year)title",
+                                                                    "(rating)title",
+                                                                    "title(year)",
+                                                                    "folder name"])
         self.moviesList.itemSelectionChanged.connect(lambda: self.movieSelectionChanged())
         self.moviesListSearchBox.textChanged.connect(lambda: searchListWidget(self.moviesListSearchBox, self.moviesList))
         self.moviesList.doubleClicked.connect(self.playMovie)
@@ -455,7 +465,7 @@ class MyWindow(QtWidgets.QMainWindow):
         elif comboBoxText == "(rating)title":
             displayStyle = displayStyles.RATING_TITLE_YEAR
         elif comboBoxText == "title(year)":
-            displayStyle = displayStyles.TITLE
+            displayStyle = displayStyles.TITLE_YEAR
         elif comboBoxText == "folder name":
             displayStyle = displayStyles.FOLDER
         elif re.match(r'\((.*)\).*', comboBoxText):
@@ -496,7 +506,7 @@ class MyWindow(QtWidgets.QMainWindow):
         else:
             listWidget.sortItems(QtCore.Qt.AscendingOrder)
 
-    def downloadDataMenu(self):
+    def downloadDataMenu(self, force=False):
         numSelectedItems = len(self.moviesList.selectedItems())
         self.progressBar.setMaximum(numSelectedItems)
         progress = 0
@@ -516,7 +526,7 @@ class MyWindow(QtWidgets.QMainWindow):
             self.statusBar().showMessage(message)
             QtCore.QCoreApplication.processEvents()
 
-            self.downloadMovieData(item)
+            self.downloadMovieData(item, force)
             self.clickedMovie(item)
 
             progress += 1
@@ -565,6 +575,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def populateCriteriaList(self, criteriaKey, listWidget):
         if not self.smdbData:
+            print("Error: No smbdData")
             return
 
         if criteriaKey not in self.smdbData:
@@ -610,7 +621,7 @@ class MyWindow(QtWidgets.QMainWindow):
                     item.setData(QtCore.Qt.UserRole, userData)
                     self.moviesList.addItem(item)
         self.setMovieListItemColors()
-        self.listDisplayStyleChanged(self.moviesListDisplayStyleComboBox, self.moviesList)
+        self.listDisplayStyleChanged(self.moviesComboBox, self.moviesList)
         self.moviesList.setCurrentItem(self.moviesList.item(0))
 
     def cancelButtonClicked(self):
@@ -692,8 +703,10 @@ class MyWindow(QtWidgets.QMainWindow):
         movie = results[0]
         for res in results:
             if res.has_key('year') and res.has_key('kind'):
-                print('kind = %s' % res['kind'])
-                if res['year'] == year and (res['kind'] == 'movie' or res['kind'] == 'tv movie'):
+                kind = res['kind']
+                print("kind = %s" % res['kind'])
+                print("year = %s" % res['year'])
+                if res['year'] == year and (kind == 'movie' or kind == 'tv movie' or kind == 'tv miniseries'):
                     movie = res
                     break
 
@@ -730,6 +743,7 @@ class MyWindow(QtWidgets.QMainWindow):
         d['kind'] = self.getMovieKey(movie, 'kind')
         d['year'] = self.getMovieKey(movie, 'year')
         d['rating'] = self.getMovieKey(movie, 'rating')
+        print("rating = %s" % d['rating'])
         runtimes = self.getMovieKey(movie, 'runtimes')
         if runtimes:
             d['runtime'] = runtimes[0]
@@ -754,11 +768,10 @@ class MyWindow(QtWidgets.QMainWindow):
         d['cover url'] = self.getMovieKey(movie, 'cover url')
         d['full-size cover url'] = self.getMovieKey(movie, 'full-size cover url')
 
-        if not os.path.exists(jsonFile):
-            with open(jsonFile, "w") as f:
-                json.dump(d, f, indent=4)
+        with open(jsonFile, "w") as f:
+            json.dump(d, f, indent=4)
 
-    def downloadMovieData(self, listItem):
+    def downloadMovieData(self, listItem, force=False):
         moviePath = listItem.data(QtCore.Qt.UserRole)['path']
         folderName = listItem.data(QtCore.Qt.UserRole)['folder name']
         jsonFile = os.path.join(moviePath, '%s.json' % folderName)
@@ -768,16 +781,12 @@ class MyWindow(QtWidgets.QMainWindow):
             if os.path.exists(coverFilePng):
                 coverFile = coverFilePng
 
-        if not os.path.exists(jsonFile) or not os.path.exists(coverFile):
+        if force is True or not os.path.exists(jsonFile) or not os.path.exists(coverFile):
             movie = self.getMovie(folderName)
             if not movie:
                 return coverFile
             self.db.update(movie)
-
-        if not os.path.exists(jsonFile):
             self.writeMovieJson(movie, jsonFile)
-
-        if not os.path.exists(coverFile):
             coverFile = copyCoverImage(movie, coverFile)
 
         return coverFile
@@ -828,6 +837,10 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.downloadDataAction = QtWidgets.QAction("Download Data", self)
         self.downloadDataAction.triggered.connect(lambda: self.downloadDataMenu())
+        self.rightMenu.addAction(self.downloadDataAction)
+
+        self.downloadDataAction = QtWidgets.QAction("Force Download Data", self)
+        self.downloadDataAction.triggered.connect(lambda: self.downloadDataMenu(force=True))
         self.rightMenu.addAction(self.downloadDataAction)
 
         self.removeMdbAction = QtWidgets.QAction("Remove .json files", self)
