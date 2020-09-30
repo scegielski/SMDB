@@ -12,6 +12,7 @@ import subprocess
 import json
 import collections
 from enum import Enum, auto
+import webbrowser
 
 class displayStyles(Enum):
     TOTAL_ITEM = auto(),
@@ -607,6 +608,7 @@ class MyWindow(QtWidgets.QMainWindow):
                     userData['title'] = ''
                     userData['year'] = ''
                     userData['rating'] = ''
+                    userData['id'] = ''
 
                     jsonFile = os.path.join(self.moviesFolder, f.name, '%s.json' % f.name)
                     if os.path.exists(jsonFile):
@@ -618,6 +620,8 @@ class MyWindow(QtWidgets.QMainWindow):
                                 userData['year'] = data['year']
                             if 'rating' in data:
                                 userData['rating'] = data['rating']
+                            if 'id' in data:
+                                userData['id'] = data['id']
                     item.setData(QtCore.Qt.UserRole, userData)
                     self.moviesList.addItem(item)
         self.setMovieListItemColors()
@@ -821,6 +825,11 @@ class MyWindow(QtWidgets.QMainWindow):
         filePath = selectedMovie.data(QtCore.Qt.UserRole)['path']
         os.startfile(filePath)
 
+    def openImdbPage(self):
+        selectedMovie = self.moviesList.selectedItems()[0]
+        id = selectedMovie.data(QtCore.Qt.UserRole)['id']
+        webbrowser.open('http://imdb.com/title/tt%s' % id, new=2)
+
     def rightMenuShow(self, QPos):
         self.rightMenu = QtWidgets.QMenu(self.moviesList)
 
@@ -834,6 +843,10 @@ class MyWindow(QtWidgets.QMainWindow):
         self.openFolderAction = QtWidgets.QAction("Open Folder", self)
         self.openFolderAction.triggered.connect(lambda: self.openMovieFolder())
         self.rightMenu.addAction(self.openFolderAction)
+
+        self.openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
+        self.openImdbAction.triggered.connect(lambda: self.openImdbPage())
+        self.rightMenu.addAction(self.openImdbAction)
 
         self.downloadDataAction = QtWidgets.QAction("Download Data", self)
         self.downloadDataAction.triggered.connect(lambda: self.downloadDataMenu())
