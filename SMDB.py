@@ -317,6 +317,21 @@ class MyWindow(QtWidgets.QMainWindow):
             self.populateLists()
 
     def initUI(self):
+        menuBar = self.menuBar()
+        fileMenu = menuBar.addMenu('Actions')
+
+        rebuildSmdbFileAction = QtWidgets.QAction("Rebuild SMDB file", self)
+        rebuildSmdbFileAction.triggered.connect(self.writeSmdbFile)
+        fileMenu.addAction(rebuildSmdbFileAction)
+
+        refreshAction = QtWidgets.QAction("Refresh", self)
+        refreshAction.triggered.connect(self.refresh)
+        fileMenu.addAction(refreshAction)
+
+        quitAction = QtWidgets.QAction("Quit", self)
+        quitAction.triggered.connect(QtCore.QCoreApplication.quit)
+        fileMenu.addAction(quitAction)
+
         centralWidget = QtWidgets.QWidget()
         self.setCentralWidget(centralWidget)
 
@@ -359,23 +374,7 @@ class MyWindow(QtWidgets.QMainWindow):
         moviesFolderBrowse.clicked.connect(lambda: self.browseMoviesFolder())
         moviesFolderHLayout.addWidget(moviesFolderBrowse)
 
-        actionsGroupBox = QtWidgets.QGroupBox()
-        actionsGroupBox.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
-        topHorizontalLayout.addWidget(actionsGroupBox)
-
-        actionsGridLayout = QtWidgets.QGridLayout(self)
-        actionsGroupBox.setLayout(actionsGridLayout)
-
-        actionsGridLayout.addWidget(QtWidgets.QLabel("Actions", alignment=QtCore.Qt.AlignTop), 0, 0)
-
-        rebuildSmdbButton = QtWidgets.QPushButton("Rebuild SMDB File")
-        actionsGridLayout.addWidget(rebuildSmdbButton, 1, 0)
-        rebuildSmdbButton.clicked.connect(self.writeSmdbFile)
-
-        refreshButton = QtWidgets.QPushButton("Refresh")
-        actionsGridLayout.addWidget(refreshButton, 1, 1)
-        refreshButton.clicked.connect(self.refresh)
-
+        # Main H Splitter for criteria, movies list, and cover/info
         mainHSplitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
         mainHSplitter.setHandleWidth(10)
         mainVLayout.addWidget(mainHSplitter)
