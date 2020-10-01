@@ -105,7 +105,7 @@ class MyWindow(QtWidgets.QMainWindow):
     def refresh(self):
         self.populateMovieList()
         if not os.path.exists(self.smdbFile):
-            self.saveSmdbFile()
+            self.writeSmdbFile()
         self.readSmdbFile()
         self.populateCriteriaList('directors', self.directorsList)
         self.populateCriteriaList('actors', self.actorsList)
@@ -149,15 +149,37 @@ class MyWindow(QtWidgets.QMainWindow):
             with open(self.smdbFile) as f:
                 self.smdbData = json.load(f)
 
-    def saveSmdbFile(self):
+    def writeSmdbFile(self):
         self.smdbData = {}
         titles = {}
         directors = {}
         actors = {}
         genres = {}
         years = {}
-        for row in range(self.moviesList.count()):
+
+        self.progressBar.setMaximum(self.moviesList.count())
+        progress = 0
+        self.isCanceled = False
+
+        count = self.moviesList.count()
+        for row in range(count):
+
             listItem = self.moviesList.item(row)
+
+            QtCore.QCoreApplication.processEvents()
+            if self.isCanceled == True:
+                self.statusBar().showMessage('Cancelled')
+                self.isCanceled = False
+                self.progressBar.setValue(0)
+                self.setMovieListItemColors()
+                return
+
+            message = "Downloading data (%d/%d): %s" % (progress + 1,
+                                                        count,
+                                                        listItem.text())
+            self.statusBar().showMessage(message)
+            QtCore.QCoreApplication.processEvents()
+
             moviePath = listItem.data(QtCore.Qt.UserRole)['path']
             folderName = listItem.data(QtCore.Qt.UserRole)['folder name']
             jsonFile = os.path.join(moviePath, '%s.json' % folderName)
@@ -173,37 +195,63 @@ class MyWindow(QtWidgets.QMainWindow):
                     if 'year' in jsonData and jsonData['year']:
                         jsonYear = jsonData['year']
                         if not jsonYear in years:
-                            years[jsonYear] = []
+                            years[jsonYear] = {}
+                            years[jsonYear]['movies'] = []
                         if titleYear not in years[jsonYear]:
-                            years[jsonYear].append(titleYear)
+                            years[jsonYear]['movies'].append(titleYear)
 
-                    jsonDirector = None
                     if 'director' in jsonData and jsonData['director']:
-                        jsonDirector = jsonData['director']
-                        if not jsonDirector in directors:
-                            directors[jsonDirector] = []
-                        if titleYear not in directors[jsonDirector]:
-                            directors[jsonDirector].append(titleYear)
+                        directorData = jsonData['director']
 
-                    jsonActors = None
+                        if isinstance(directorData, list):
+                            directorName = directorData[0]
+                            directorId = directorData[1]
+                        else:
+                            directorName = directorData
+                            directorId = ''
+
+                        if not directorName in directors:
+                            directors[directorName] = {}
+                            directors[directorName]['id'] = directorId
+                            directors[directorName]['movies'] = []
+                        if titleYear not in directors[directorName]:
+                            directors[directorName]['movies'].append(titleYear)
+
+                    movieActorsList = []
                     if 'cast' in jsonData and jsonData['cast']:
                         jsonActors = jsonData['cast']
-                        for actor in jsonActors:
-                            if actor not in actors:
-                                actors[actor] = []
-                            if titleYear not in actors[actor]:
-                                actors[actor].append(titleYear)
+                        for actorData in jsonActors:
+
+                            if isinstance(actorData, list):
+                                actorName = actorData[0]
+                                actorId = actorData[1]
+                            else:
+                                actorName = actorData
+                                actorId = ''
+
+                            if actorName not in actors:
+                                actors[actorName] = {}
+                                actors[actorName]['id'] = actorId
+                                actors[actorName]['movies'] = []
+                            if titleYear not in actors[actorName]:
+                                actors[actorName]['movies'].append(titleYear)
+
+                            movieActorsList.append(actorName)
 
                     jsonGenres = None
                     if 'genres' in jsonData and jsonData['genres']:
                         jsonGenres = jsonData['genres']
                         for genre in jsonGenres:
                             if genre not in genres:
-                                genres[genre] = []
+                                genres[genre] = {}
+                                genres[genre]['movies'] = []
                             if titleYear not in genres[genre]:
-                                genres[genre].append(titleYear)
+                                genres[genre]['movies'].append(titleYear)
 
-                    titles[jsonTitle] = { 'year': jsonYear, 'director': jsonDirector, 'genres': jsonGenres, 'actors': jsonActors}
+                    titles[jsonTitle] = { 'year': jsonYear, 'director': directorName, 'genres': jsonGenres, 'actors': movieActorsList }
+
+            progress += 1
+            self.progressBar.setValue(progress)
 
         self.smdbData['titles'] = collections.OrderedDict(sorted(titles.items()))
         self.smdbData['years'] = collections.OrderedDict(sorted(years.items()))
@@ -363,7 +411,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         rebuildSmdbButton = QtWidgets.QPushButton("Rebuild SMDB File")
         actionsGridLayout.addWidget(rebuildSmdbButton, 1, 0)
-        rebuildSmdbButton.clicked.connect(self.saveSmdbFile)
+        rebuildSmdbButton.clicked.connect(self.writeSmdbFile)
 
         refreshButton = QtWidgets.QPushButton("Refresh")
         actionsGridLayout.addWidget(refreshButton, 1, 1)
@@ -479,11 +527,11 @@ class MyWindow(QtWidgets.QMainWindow):
             if displayStyle == displayStyles.TOTAL_ITEM:
                 criteriaKey = item.data(QtCore.Qt.UserRole)['criteria key']
                 criteria = item.data(QtCore.Qt.UserRole)['criteria']
-                displayText = '(%04d) %s' % (len(self.smdbData[criteriaKey][criteria]), criteria)
+                displayText = '(%04d) %s' % (len(self.smdbData[criteriaKey][criteria]['movies']), criteria)
             elif displayStyle == displayStyles.ITEM_TOTAL:
                 criteriaKey = item.data(QtCore.Qt.UserRole)['criteria key']
                 criteria = item.data(QtCore.Qt.UserRole)['criteria']
-                displayText = '%s (%04d)' % (criteria, len(self.smdbData[criteriaKey][criteria]))
+                displayText = '%s (%04d)' % (criteria, len(self.smdbData[criteriaKey][criteria]['movies']))
             elif displayStyle == displayStyles.YEAR_TITLE:
                 folderName = item.data(QtCore.Qt.UserRole)['folder name']
                 niceTitle, year = getNiceTitleAndYear(folderName)
@@ -589,7 +637,7 @@ class MyWindow(QtWidgets.QMainWindow):
             userData = {}
             userData['criteria'] = c
             userData['criteria key'] = criteriaKey
-            userData['list widge'] = listWidget
+            userData['list widget'] = listWidget
             item.setData(QtCore.Qt.UserRole, userData)
             listWidget.addItem(item)
         listWidget.sortItems(QtCore.Qt.DescendingOrder)
@@ -648,7 +696,7 @@ class MyWindow(QtWidgets.QMainWindow):
         for item in listWidget.selectedItems():
             criteria = item.text()
             userData = item.data(QtCore.Qt.UserRole)
-            movies = self.smdbData[smdbKey][userData['criteria']]
+            movies = self.smdbData[smdbKey][userData['criteria']]['movies']
             for movie in movies:
                 if movie not in criteriaMovieList:
                     criteriaMovieList.append(movie)
@@ -758,7 +806,9 @@ class MyWindow(QtWidgets.QMainWindow):
         director = self.getMovieKey(movie, 'director')
         if (director):
             if isinstance(director, list):
-                d['director'] = str(director[0]['name'])
+                directorName = str(director[0]['name'])
+                directorId = self.db.name2imdbID(directorName)
+                d['director'] = [directorName, directorId]
         d['cast'] = []
         cast = self.getMovieKey(movie, 'cast')
         if (cast and isinstance(cast, list)):
