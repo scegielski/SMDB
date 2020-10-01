@@ -88,7 +88,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.db = IMDb()
 
         self.moviesFolder = "J:/Movies"
-        self.moviePlayer = "C:/Program Files/MPC-HC/mpc-hc64.exe"
         self.configFile = os.path.join("smdb_config.json")
 
         self.readConfigFile()
@@ -127,9 +126,6 @@ class MyWindow(QtWidgets.QMainWindow):
         if 'movies_folder' in configData:
             self.moviesFolder = configData['movies_folder']
 
-        if 'movie_player' in configData:
-            self.moviePlayer = configData['movie_player']
-
     def saveConfig(self):
         configData = {}
         if not self.moviesFolder == self.moviesFolderEdit.text():
@@ -137,10 +133,6 @@ class MyWindow(QtWidgets.QMainWindow):
         else:
             configData['movies_folder'] = self.moviesFolder
 
-        if not self.moviePlayer == self.moviePlayerEdit.text():
-            configData['movie_player'] = self.moviePlayerEdit.text()
-        else:
-            configData['movie_player'] = self.moviePlayer
         with open(self.configFile, "w") as f:
             json.dump(configData, f, indent=4)
 
@@ -324,19 +316,6 @@ class MyWindow(QtWidgets.QMainWindow):
             self.readSmdbFile()
             self.populateLists()
 
-    def browseMoviePlayer(self):
-        browseDir = str(Path.home())
-        if os.path.exists('%s/Desktop' % browseDir):
-            browseDir = '%s/Desktop' % browseDir
-        moviePlayer = QtWidgets.QFileDialog.getOpenFileName(
-            self,
-            "Select your movie player program",
-            browseDir)[0]
-        if os.path.exists(moviePlayer):
-            self.moviePlayer = moviePlayer
-            self.moviePlayerEdit.setText(self.moviePlayer)
-            self.moviePlayerEdit.setStyleSheet("color: black; background: white")
-
     def initUI(self):
         centralWidget = QtWidgets.QWidget()
         self.setCentralWidget(centralWidget)
@@ -379,27 +358,6 @@ class MyWindow(QtWidgets.QMainWindow):
         moviesFolderBrowse.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
         moviesFolderBrowse.clicked.connect(lambda: self.browseMoviesFolder())
         moviesFolderHLayout.addWidget(moviesFolderBrowse)
-
-        moviePlayerHLayout = QtWidgets.QHBoxLayout(self)
-        settingsVLayout.addLayout(moviePlayerHLayout)
-
-        moviePlayerText = QtWidgets.QLabel("Movie Player")
-        moviePlayerText.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
-        moviePlayerHLayout.addWidget(moviePlayerText)
-
-        self.moviePlayerEdit = QtWidgets.QLineEdit("Click the browse button and select your movie player program ")
-        self.moviePlayerEdit.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
-        self.moviePlayerEdit.setText(self.moviePlayer)
-        if os.path.exists(self.moviePlayer):
-            self.moviesFolderEdit.setStyleSheet("color: black; background: white")
-        else:
-            self.moviePlayerEdit.setStyleSheet("color: red; background: black")
-        moviePlayerHLayout.addWidget(self.moviePlayerEdit)
-
-        moviePlayerBrowse = QtWidgets.QPushButton("Browse")
-        moviePlayerBrowse.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
-        moviePlayerBrowse.clicked.connect(lambda: self.browseMoviePlayer())
-        moviePlayerHLayout.addWidget(moviePlayerBrowse)
 
         actionsGroupBox = QtWidgets.QGroupBox()
         actionsGroupBox.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
@@ -868,7 +826,7 @@ class MyWindow(QtWidgets.QMainWindow):
         if len(movieFiles) == 1:
             fileToPlay = os.path.join(movieFolder, movieFiles[0])
             if os.path.exists(fileToPlay):
-                subprocess.Popen([self.moviePlayer, fileToPlay])
+                os.startfile(fileToPlay)
         else:
             # If there are more than one movie like files in the
             # folder, then just open the folder so the user can
