@@ -4,6 +4,7 @@ import sys
 import os
 from pathlib import Path
 import fnmatch
+import imdb
 from imdb import IMDb
 from imdb import Movie
 import re
@@ -432,6 +433,8 @@ class MyWindow(QtWidgets.QMainWindow):
                                                          comboBoxEnum=['(total)director', 'director(total)'])
         self.directorsList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.directorsList, 'directors'))
         self.directorsListSearchBox.textChanged.connect(lambda: searchListWidget(self.directorsListSearchBox, self.directorsList))
+        self.directorsList.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.directorsList.customContextMenuRequested[QtCore.QPoint].connect(lambda: self.peopleListRightMenuShow(self.directorsList))
         criteriaVSplitter.addWidget(directorsWidget)
 
         actorsWidget,\
@@ -441,6 +444,8 @@ class MyWindow(QtWidgets.QMainWindow):
                                                       comboBoxEnum=['(total)actor', 'actor(total)'])
         self.actorsList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.actorsList, 'actors'))
         self.actorsListSearchBox.textChanged.connect(lambda: searchListWidget(self.actorsListSearchBox, self.actorsList))
+        self.actorsList.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.actorsList.customContextMenuRequested[QtCore.QPoint].connect(lambda: self.peopleListRightMenuShow(self.actorsList))
         criteriaVSplitter.addWidget(actorsWidget)
 
         genresWidget,\
@@ -474,7 +479,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesListSearchBox.textChanged.connect(lambda: searchListWidget(self.moviesListSearchBox, self.moviesList))
         self.moviesList.doubleClicked.connect(self.playMovie)
         self.moviesList.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self.moviesList.customContextMenuRequested[QtCore.QPoint].connect(self.rightMenuShow)
+        self.moviesList.customContextMenuRequested[QtCore.QPoint].connect(self.moviesListRightMenuShow)
 
         # Cover and Summary ---------------------------------------------------------------------------------------
         movieSummaryVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
@@ -875,12 +880,38 @@ class MyWindow(QtWidgets.QMainWindow):
         filePath = selectedMovie.data(QtCore.Qt.UserRole)['path']
         os.startfile(filePath)
 
-    def openImdbPage(self):
+    def openMovieImdbPage(self):
         selectedMovie = self.moviesList.selectedItems()[0]
-        id = selectedMovie.data(QtCore.Qt.UserRole)['id']
-        webbrowser.open('http://imdb.com/title/tt%s' % id, new=2)
+        movieId = selectedMovie.data(QtCore.Qt.UserRole)['id']
+        webbrowser.open('http://imdb.com/title/tt%s' % movieId, new=2)
 
-    def rightMenuShow(self, QPos):
+    def openPersonImdbPage(self, personName):
+        personId = self.db.name2imdbID(personName)
+        if not personId:
+            print("Searching for: %s" % personName)
+            results = self.db.search_person(personName)
+            if not results:
+                print('No matches for: %s' % personName)
+                return
+            person = results[0]
+            if isinstance(person, imdb.Person.Person):
+                personId = person.getID()
+
+        if (personId):
+            print("Opening IMDB page for: %s" % personName)
+            webbrowser.open('http://imdb.com/name/nm%s' % personId, new=2)
+
+    def peopleListRightMenuShow(self, peopleList):
+        rightMenu = QtWidgets.QMenu(peopleList)
+        selectedItem = peopleList.selectedItems()[0]
+        userData = selectedItem.data(QtCore.Qt.UserRole)
+        personName = userData['criteria']
+        openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
+        openImdbAction.triggered.connect(lambda: self.openPersonImdbPage(personName))
+        rightMenu.addAction(openImdbAction)
+        rightMenu.exec_(QtGui.QCursor.pos())
+
+    def moviesListRightMenuShow(self, QPos):
         self.rightMenu = QtWidgets.QMenu(self.moviesList)
 
         selectedMovie = self.moviesList.selectedItems()[0]
@@ -895,7 +926,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.rightMenu.addAction(self.openFolderAction)
 
         self.openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
-        self.openImdbAction.triggered.connect(lambda: self.openImdbPage())
+        self.openImdbAction.triggered.connect(lambda: self.openMovieImdbPage())
         self.rightMenu.addAction(self.openImdbAction)
 
         self.downloadDataAction = QtWidgets.QAction("Download Data", self)
