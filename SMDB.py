@@ -732,6 +732,10 @@ class MyWindow(QtWidgets.QMainWindow):
         self.showCoverFile(coverFile)
         self.showSummary(jsonFile)
 
+    def getMovieWithId(self, movieId):
+        movie = self.db.get_movie(movieId)
+        return movie
+
     def getMovie(self, folderName) -> object:
         m = re.match(r'(.*)\((.*)\)', folderName)
         title = m.group(1)
@@ -825,7 +829,7 @@ class MyWindow(QtWidgets.QMainWindow):
         with open(jsonFile, "w") as f:
             json.dump(d, f, indent=4)
 
-    def downloadMovieData(self, listItem, force=False):
+    def downloadMovieData(self, listItem, force=False, movieId=None):
         moviePath = listItem.data(QtCore.Qt.UserRole)['path']
         folderName = listItem.data(QtCore.Qt.UserRole)['folder name']
         jsonFile = os.path.join(moviePath, '%s.json' % folderName)
@@ -836,7 +840,10 @@ class MyWindow(QtWidgets.QMainWindow):
                 coverFile = coverFilePng
 
         if force is True or not os.path.exists(jsonFile) or not os.path.exists(coverFile):
-            movie = self.getMovie(folderName)
+            if movieId:
+                movie = self.getMovieWithId(movieId)
+            else:
+                movie = self.getMovie(folderName)
             if not movie:
                 return coverFile
             self.db.update(movie)
@@ -879,6 +886,17 @@ class MyWindow(QtWidgets.QMainWindow):
         selectedMovie = self.moviesList.selectedItems()[0]
         movieId = selectedMovie.data(QtCore.Qt.UserRole)['id']
         webbrowser.open('http://imdb.com/title/tt%s' % movieId, new=2)
+
+    def overrideID(self):
+        movieId, ok = QtWidgets.QInputDialog.getText(self,
+                                                     "Override ID",
+                                                     "Enter new ID",
+                                                     QtWidgets.QLineEdit.Normal,
+                                                     "")
+        if movieId and ok:
+            print("downloading movie id %s" % movieId)
+            listItem = self.moviesList.currentItem()
+            self.downloadMovieData(listItem, True, movieId)
 
     def openPersonImdbPage(self, personName):
         personId = self.db.name2imdbID(personName)
@@ -923,6 +941,10 @@ class MyWindow(QtWidgets.QMainWindow):
         self.openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
         self.openImdbAction.triggered.connect(lambda: self.openMovieImdbPage())
         self.rightMenu.addAction(self.openImdbAction)
+
+        self.overrideImdbAction = QtWidgets.QAction("Override IMDB ID", self)
+        self.overrideImdbAction.triggered.connect(lambda: self.overrideID())
+        self.rightMenu.addAction(self.overrideImdbAction)
 
         self.downloadDataAction = QtWidgets.QAction("Download Data", self)
         self.downloadDataAction.triggered.connect(lambda: self.downloadDataMenu())
