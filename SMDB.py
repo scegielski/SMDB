@@ -893,6 +893,9 @@ class MyWindow(QtWidgets.QMainWindow):
                                                      "Enter new ID",
                                                      QtWidgets.QLineEdit.Normal,
                                                      "")
+        if 'tt' in movieId:
+            movieId = movieId.replace('tt', '')
+            print('movieId = %s' % movieId)
         if movieId and ok:
             print("downloading movie id %s" % movieId)
             listItem = self.moviesList.currentItem()
