@@ -102,27 +102,17 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def refresh(self):
         self.populateMovieList()
-        QtCore.QCoreApplication.processEvents()
 
         if not os.path.exists(self.smdbFile):
             self.writeSmdbFile()
         self.readSmdbFile()
 
-        self.populateCriteriaList('directors', self.directorsList)
-        self.listDisplayStyleChanged(self.directorsComboBox, self.directorsList)
-        QtCore.QCoreApplication.processEvents()
-
-        self.populateCriteriaList('actors', self.actorsList)
-        self.listDisplayStyleChanged(self.actorsComboBox, self.actorsList)
-        QtCore.QCoreApplication.processEvents()
-
-        self.populateCriteriaList('genres', self.genresList)
-        self.listDisplayStyleChanged(self.genresComboBox, self.genresList)
-        QtCore.QCoreApplication.processEvents()
-
-        self.populateCriteriaList('years', self.yearsList)
-        self.listDisplayStyleChanged(self.yearsComboBox, self.yearsList)
-        QtCore.QCoreApplication.processEvents()
+        self.populateCriteriaList('directors', self.directorsList, self.directorsComboBox)
+        self.populateCriteriaList('actors', self.actorsList, self.actorsComboBox)
+        self.populateCriteriaList('genres', self.genresList, self.genresComboBox)
+        self.populateCriteriaList('years', self.yearsList, self.yearsComboBox)
+        self.moviesList.setCurrentItem(self.moviesList.item(0))
+        self.movieSelectionChanged()
 
     def readConfigFile(self):
         if not os.path.exists(self.configFile):
@@ -447,7 +437,7 @@ class MyWindow(QtWidgets.QMainWindow):
         cancelButton.clicked.connect(self.cancelButtonClicked)
         bottomLayout.addWidget(cancelButton)
 
-    def listDisplayStyleChanged(self, comboBoxWidget, listWidget):
+    def getDisplayStyle(self, comboBoxWidget):
         comboBoxText = comboBoxWidget.currentText()
         displayStyle = 0
         if comboBoxText == "(year)title":
@@ -462,6 +452,10 @@ class MyWindow(QtWidgets.QMainWindow):
             displayStyle = displayStyles.TOTAL_ITEM
         elif re.match(r'.*\((.*)\)', comboBoxText):
             displayStyle = displayStyles.ITEM_TOTAL
+        return displayStyle
+
+    def listDisplayStyleChanged(self, comboBoxWidget, listWidget):
+        displayStyle = self.getDisplayStyle(comboBoxWidget)
 
         self.progressBar.setMaximum(listWidget.count())
         progress = 0
@@ -571,7 +565,8 @@ class MyWindow(QtWidgets.QMainWindow):
             else:
                 listItem.setBackground(QtGui.QColor(255, 255, 255))
 
-    def populateCriteriaList(self, criteriaKey, listWidget):
+    def populateCriteriaList(self, criteriaKey, listWidget, comboBoxWidget):
+        """ criteriaKey is 'directors', 'actors', 'genres', 'years """
         if not self.smdbData:
             print("Error: No smbdData")
             return
@@ -588,10 +583,15 @@ class MyWindow(QtWidgets.QMainWindow):
         progress = 0
 
         listWidget.clear()
-        for c in self.smdbData[criteriaKey].keys():
-            item = QtWidgets.QListWidgetItem('')
+        for criteria in self.smdbData[criteriaKey].keys():
+            displayStyle = self.getDisplayStyle(comboBoxWidget)
+            if displayStyle == displayStyles.TOTAL_ITEM:
+                displayText = '(%04d) %s' % (len(self.smdbData[criteriaKey][criteria]['movies']), criteria)
+            elif displayStyle == displayStyles.ITEM_TOTAL:
+                displayText = '%s (%04d)' % (criteria, len(self.smdbData[criteriaKey][criteria]['movies']))
+            item = QtWidgets.QListWidgetItem(displayText)
             userData = {}
-            userData['criteria'] = c
+            userData['criteria'] = criteria
             userData['criteria key'] = criteriaKey
             userData['list widget'] = listWidget
             item.setData(QtCore.Qt.UserRole, userData)
@@ -643,7 +643,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.progressBar.setValue(0)
         self.setMovieListItemColors()
         self.listDisplayStyleChanged(self.moviesComboBox, self.moviesList)
-        self.moviesList.setCurrentItem(self.moviesList.item(0))
 
     def cancelButtonClicked(self):
         self.isCanceled = True
@@ -725,13 +724,14 @@ class MyWindow(QtWidgets.QMainWindow):
             print('No matches for: %s' % searchText)
             return
 
+        acceptableKinds = ('movie', 'short', 'tv movie', 'tv miniseries')
+
         movie = results[0]
         for res in results:
             if res.has_key('year') and res.has_key('kind'):
                 kind = res['kind']
-                print("kind = %s" % res['kind'])
-                print("year = %s" % res['year'])
-                if res['year'] == year and (kind == 'movie' or kind == 'tv movie' or kind == 'tv miniseries'):
+                if res['year'] == year and (kind in acceptableKinds):
+                    print('Found result: %s' % movie['title'])
                     movie = res
                     break
 
