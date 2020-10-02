@@ -601,6 +601,31 @@ class MyWindow(QtWidgets.QMainWindow):
         listWidget.sortItems(QtCore.Qt.DescendingOrder)
         self.progressBar.setValue(0)
 
+    def setMovieItemUserData(self, item, folderName, data):
+        userData = {}
+        userData['folder name'] = folderName
+        userData['path'] = os.path.join(self.moviesFolder, folderName)
+        if not data:
+            return
+
+        if 'title' in data:
+            userData['title'] = data['title']
+        else:
+            userData['title'] = ''
+        if 'year' in data:
+            userData['year'] = data['year']
+        else:
+            userData['year'] = ''
+        if 'rating' in data:
+            userData['rating'] = data['rating']
+        else:
+            userData['rating'] = ''
+        if 'id' in data:
+            userData['id'] = data['id']
+        else:
+            userData['id'] = ''
+        item.setData(QtCore.Qt.UserRole, userData)
+
     def populateMovieList(self):
         self.moviesList.clear()
         if not os.path.exists(self.moviesFolder):
@@ -614,29 +639,13 @@ class MyWindow(QtWidgets.QMainWindow):
 
         progress = 0
         self.progressBar.setMaximum(len(folderList))
-        for f in folderList:
-            item = QtWidgets.QListWidgetItem(f)
-            userData = {}
-            userData['folder name'] = f
-            userData['path'] = os.path.join(self.moviesFolder, f)
-            userData['title'] = ''
-            userData['year'] = ''
-            userData['rating'] = ''
-            userData['id'] = ''
-
-            jsonFile = os.path.join(self.moviesFolder, f, '%s.json' % f)
+        for folderName in folderList:
+            item = QtWidgets.QListWidgetItem(folderName)
+            jsonFile = os.path.join(self.moviesFolder, folderName, '%s.json' % folderName)
             if os.path.exists(jsonFile):
                 with open(jsonFile) as f:
                     data = json.load(f)
-                    if 'title' in data:
-                        userData['title'] = data['title']
-                    if 'year' in data:
-                        userData['year'] = data['year']
-                    if 'rating' in data:
-                        userData['rating'] = data['rating']
-                    if 'id' in data:
-                        userData['id'] = data['id']
-            item.setData(QtCore.Qt.UserRole, userData)
+            self.setMovieItemUserData(item, folderName, data)
             self.moviesList.addItem(item)
             progress += 1
             self.progressBar.setValue(progress)
@@ -817,6 +826,7 @@ class MyWindow(QtWidgets.QMainWindow):
                 return coverFile
             self.db.update(movie)
             self.writeMovieJson(movie, jsonFile)
+            self.setMovieItemUserData(listItem, folderName, movie)
             coverFile = copyCoverImage(movie, coverFile)
 
         return coverFile
