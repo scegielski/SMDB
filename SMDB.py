@@ -96,25 +96,33 @@ class MyWindow(QtWidgets.QMainWindow):
         self.smdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
 
         self.initUI()
-        self.refresh()
-
 
     def closeEvent(self, event):
         self.saveConfig()
 
     def refresh(self):
         self.populateMovieList()
+        QtCore.QCoreApplication.processEvents()
+
         if not os.path.exists(self.smdbFile):
             self.writeSmdbFile()
         self.readSmdbFile()
+
         self.populateCriteriaList('directors', self.directorsList)
-        self.populateCriteriaList('actors', self.actorsList)
-        self.populateCriteriaList('genres', self.genresList)
-        self.populateCriteriaList('years', self.yearsList)
         self.listDisplayStyleChanged(self.directorsComboBox, self.directorsList)
+        QtCore.QCoreApplication.processEvents()
+
+        self.populateCriteriaList('actors', self.actorsList)
         self.listDisplayStyleChanged(self.actorsComboBox, self.actorsList)
+        QtCore.QCoreApplication.processEvents()
+
+        self.populateCriteriaList('genres', self.genresList)
         self.listDisplayStyleChanged(self.genresComboBox, self.genresList)
+        QtCore.QCoreApplication.processEvents()
+
+        self.populateCriteriaList('years', self.yearsList)
         self.listDisplayStyleChanged(self.yearsComboBox, self.yearsList)
+        QtCore.QCoreApplication.processEvents()
 
     def readConfigFile(self):
         if not os.path.exists(self.configFile):
@@ -450,6 +458,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.summary = QtWidgets.QTextBrowser()
         movieSummaryVSplitter.addWidget(self.summary)
 
+        movieSummaryVSplitter.setSizes([600, 200])
+
         # Add the sub-layouts to the mainHSplitter
         mainHSplitter.addWidget(criteriaVSplitter)
         mainHSplitter.addWidget(moviesWidget)
@@ -484,6 +494,9 @@ class MyWindow(QtWidgets.QMainWindow):
         elif re.match(r'.*\((.*)\)', comboBoxText):
             displayStyle = displayStyles.ITEM_TOTAL
 
+        self.progressBar.setMaximum(listWidget.count())
+        progress = 0
+
         for row in range(listWidget.count()):
             item = listWidget.item(row)
             if displayStyle == displayStyles.TOTAL_ITEM:
@@ -511,6 +524,11 @@ class MyWindow(QtWidgets.QMainWindow):
                 folderName = item.data(QtCore.Qt.UserRole)['folder name']
                 displayText = folderName
             item.setText(displayText)
+            progress += 1
+            self.progressBar.setValue(progress)
+
+        self.statusBar().showMessage("Done")
+        self.progressBar.setValue(0)
 
         if displayStyle == displayStyles.TOTAL_ITEM or displayStyle == displayStyles.RATING_TITLE_YEAR:
             listWidget.sortItems(QtCore.Qt.DescendingOrder)
@@ -593,6 +611,13 @@ class MyWindow(QtWidgets.QMainWindow):
             print("Error: '%s' not in smdbData" % criteriaKey)
             return
 
+        message = "Populating list: %s" % criteriaKey
+        self.statusBar().showMessage(message)
+        QtCore.QCoreApplication.processEvents()
+
+        self.progressBar.setMaximum(len(self.smdbData[criteriaKey].keys()))
+        progress = 0
+
         listWidget.clear()
         for c in self.smdbData[criteriaKey].keys():
             item = QtWidgets.QListWidgetItem('')
@@ -602,38 +627,51 @@ class MyWindow(QtWidgets.QMainWindow):
             userData['list widget'] = listWidget
             item.setData(QtCore.Qt.UserRole, userData)
             listWidget.addItem(item)
+            progress += 1
+            self.progressBar.setValue(progress)
         listWidget.sortItems(QtCore.Qt.DescendingOrder)
+        self.progressBar.setValue(0)
 
     def populateMovieList(self):
         self.moviesList.clear()
         if not os.path.exists(self.moviesFolder):
             return
+
+        folderList = []
         with os.scandir(self.moviesFolder) as files:
             for f in files:
                 if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
-                    item = QtWidgets.QListWidgetItem(f.name)
-                    userData = {}
-                    userData['folder name'] = f.name
-                    userData['path'] = os.path.join(self.moviesFolder, f.name)
-                    userData['title'] = ''
-                    userData['year'] = ''
-                    userData['rating'] = ''
-                    userData['id'] = ''
+                    folderList.append(f.name)
 
-                    jsonFile = os.path.join(self.moviesFolder, f.name, '%s.json' % f.name)
-                    if os.path.exists(jsonFile):
-                        with open(jsonFile) as f:
-                            data = json.load(f)
-                            if 'title' in data:
-                                userData['title'] = data['title']
-                            if 'year' in data:
-                                userData['year'] = data['year']
-                            if 'rating' in data:
-                                userData['rating'] = data['rating']
-                            if 'id' in data:
-                                userData['id'] = data['id']
-                    item.setData(QtCore.Qt.UserRole, userData)
-                    self.moviesList.addItem(item)
+        progress = 0
+        self.progressBar.setMaximum(len(folderList))
+        for f in folderList:
+            item = QtWidgets.QListWidgetItem(f)
+            userData = {}
+            userData['folder name'] = f
+            userData['path'] = os.path.join(self.moviesFolder, f)
+            userData['title'] = ''
+            userData['year'] = ''
+            userData['rating'] = ''
+            userData['id'] = ''
+
+            jsonFile = os.path.join(self.moviesFolder, f, '%s.json' % f)
+            if os.path.exists(jsonFile):
+                with open(jsonFile) as f:
+                    data = json.load(f)
+                    if 'title' in data:
+                        userData['title'] = data['title']
+                    if 'year' in data:
+                        userData['year'] = data['year']
+                    if 'rating' in data:
+                        userData['rating'] = data['rating']
+                    if 'id' in data:
+                        userData['id'] = data['id']
+            item.setData(QtCore.Qt.UserRole, userData)
+            self.moviesList.addItem(item)
+            progress += 1
+            self.progressBar.setValue(progress)
+        self.progressBar.setValue(0)
         self.setMovieListItemColors()
         self.listDisplayStyleChanged(self.moviesComboBox, self.moviesList)
         self.moviesList.setCurrentItem(self.moviesList.item(0))
@@ -909,6 +947,8 @@ def window():
     app = QApplication(sys.argv)
     win = MyWindow()
     win.show()
+    QtCore.QCoreApplication.processEvents()
+    win.refresh()
     sys.exit(app.exec_())
 
 
