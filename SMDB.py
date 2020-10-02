@@ -322,15 +322,19 @@ class MyWindow(QtWidgets.QMainWindow):
             self.moviesFolderEdit.setText(self.moviesFolder)
             self.moviesFolderEdit.setStyleSheet("color: black; background: white")
             self.readSmdbFile()
-            self.populateLists()
+            self.refresh()
 
     def initUI(self):
         menuBar = self.menuBar()
-        fileMenu = menuBar.addMenu('Actions')
+        fileMenu = menuBar.addMenu('File')
 
         rebuildSmdbFileAction = QtWidgets.QAction("Rebuild SMDB file", self)
         rebuildSmdbFileAction.triggered.connect(self.writeSmdbFile)
         fileMenu.addAction(rebuildSmdbFileAction)
+
+        setMovieFolderAction = QtWidgets.QAction("Set movie folder", self)
+        setMovieFolderAction.triggered.connect(self.browseMoviesFolder)
+        fileMenu.addAction(setMovieFolderAction)
 
         refreshAction = QtWidgets.QAction("Refresh", self)
         refreshAction.triggered.connect(self.refresh)
@@ -346,41 +350,6 @@ class MyWindow(QtWidgets.QMainWindow):
         # Divides top h splitter and bottom progress bar
         mainVLayout = QtWidgets.QVBoxLayout(self)
         centralWidget.setLayout(mainVLayout)
-
-        # Top Horizontal layout
-        topHorizontalLayout = QtWidgets.QHBoxLayout(self)
-        mainVLayout.addLayout(topHorizontalLayout)
-
-        # Settings
-        settingsGroupBox = QtWidgets.QGroupBox()
-        settingsGroupBox.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Maximum)
-        topHorizontalLayout.addWidget(settingsGroupBox)
-
-        settingsVLayout = QtWidgets.QVBoxLayout(self)
-        settingsGroupBox.setLayout(settingsVLayout)
-
-        settingsVLayout.addWidget(QtWidgets.QLabel("Settings"))
-
-        moviesFolderHLayout = QtWidgets.QHBoxLayout(self)
-        settingsVLayout.addLayout(moviesFolderHLayout)
-
-        moviesFolderText = QtWidgets.QLabel("Movies Folder")
-        moviesFolderText.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
-        moviesFolderHLayout.addWidget(moviesFolderText)
-
-        self.moviesFolderEdit = QtWidgets.QLineEdit("Click the browse button and select your movie folder")
-        self.moviesFolderEdit.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
-        self.moviesFolderEdit.setText(self.moviesFolder)
-        if os.path.exists(self.moviesFolder):
-            self.moviesFolderEdit.setStyleSheet("color: black; background: white")
-        else:
-            self.moviesFolderEdit.setStyleSheet("color: red; background: black")
-        moviesFolderHLayout.addWidget(self.moviesFolderEdit)
-
-        moviesFolderBrowse = QtWidgets.QPushButton("Browse")
-        moviesFolderBrowse.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
-        moviesFolderBrowse.clicked.connect(lambda: self.browseMoviesFolder())
-        moviesFolderHLayout.addWidget(moviesFolderBrowse)
 
         # Main H Splitter for criteria, movies list, and cover/info
         mainHSplitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
