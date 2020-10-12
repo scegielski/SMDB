@@ -126,10 +126,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def saveConfig(self):
         configData = {}
-        if not self.moviesFolder == self.moviesFolderEdit.text():
-            configData['movies_folder'] = self.moviesFolderEdit.text()
-        else:
-            configData['movies_folder'] = self.moviesFolder
+        configData['movies_folder'] = self.moviesFolder
 
         with open(self.configFile, "w") as f:
             json.dump(configData, f, indent=4)
@@ -598,7 +595,10 @@ class MyWindow(QtWidgets.QMainWindow):
             listWidget.addItem(item)
             progress += 1
             self.progressBar.setValue(progress)
-        listWidget.sortItems(QtCore.Qt.DescendingOrder)
+        if displayStyle == displayStyles.TOTAL_ITEM or displayStyle == displayStyles.RATING_TITLE_YEAR:
+            listWidget.sortItems(QtCore.Qt.DescendingOrder)
+        else:
+            listWidget.sortItems(QtCore.Qt.AscendingOrder)
         self.progressBar.setValue(0)
 
     def setMovieItemUserData(self, item, folderName, data):
@@ -624,7 +624,9 @@ class MyWindow(QtWidgets.QMainWindow):
             userData['id'] = data['id']
         else:
             userData['id'] = ''
+
         item.setData(QtCore.Qt.UserRole, userData)
+        return userData
 
     def populateMovieList(self):
         self.moviesList.clear()
@@ -637,6 +639,7 @@ class MyWindow(QtWidgets.QMainWindow):
                 if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
                     folderList.append(f.name)
 
+        movieFolderData = {}
         progress = 0
         self.progressBar.setMaximum(len(folderList))
         for folderName in folderList:
@@ -645,7 +648,9 @@ class MyWindow(QtWidgets.QMainWindow):
             if os.path.exists(jsonFile):
                 with open(jsonFile) as f:
                     data = json.load(f)
-            self.setMovieItemUserData(item, folderName, data)
+            userData = self.setMovieItemUserData(item, folderName, data)
+            if folderName not in movieFolderData:
+                movieFolderData[folderName] = userData
             self.moviesList.addItem(item)
             progress += 1
             self.progressBar.setValue(progress)
@@ -771,13 +776,26 @@ class MyWindow(QtWidgets.QMainWindow):
             return None
 
     def writeMovieJson(self, movie, jsonFile):
+        for k in movie.keys():
+            print(k)
+
         d = {}
         d['title'] = self.getMovieKey(movie, 'title')
         d['id'] = movie.getID()
         d['kind'] = self.getMovieKey(movie, 'kind')
         d['year'] = self.getMovieKey(movie, 'year')
         d['rating'] = self.getMovieKey(movie, 'rating')
-        print("rating = %s" % d['rating'])
+
+        d['countries'] = []
+        countries = self.getMovieKey(movie, 'countries')
+        if countries and isinstance(countries, list):
+            for c in countries:
+                d['countries'].append(c)
+        d['companies'] = []
+        companies = self.getMovieKey(movie, 'production companies')
+        if companies and isinstance(companies, list):
+            for c in companies:
+                d['companies'].append(c['name'])
         runtimes = self.getMovieKey(movie, 'runtimes')
         if runtimes:
             d['runtime'] = runtimes[0]
@@ -793,7 +811,7 @@ class MyWindow(QtWidgets.QMainWindow):
                 d['director'] = [directorName, directorId]
         d['cast'] = []
         cast = self.getMovieKey(movie, 'cast')
-        if (cast and isinstance(cast, list)):
+        if cast and isinstance(cast, list):
             for c in movie['cast']:
                 d['cast'].append(c['name'])
         d['genres'] = self.getMovieKey(movie, 'genres')
