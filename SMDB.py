@@ -495,7 +495,7 @@ class MyWindow(QtWidgets.QMainWindow):
         else:
             listWidget.sortItems(QtCore.Qt.AscendingOrder)
 
-    def downloadDataMenu(self, force=False):
+    def downloadDataMenu(self, force=False, doJson=True, doCover=True):
         numSelectedItems = len(self.moviesList.selectedItems())
         self.progressBar.setMaximum(numSelectedItems)
         progress = 0
@@ -515,7 +515,7 @@ class MyWindow(QtWidgets.QMainWindow):
             self.statusBar().showMessage(message)
             QtCore.QCoreApplication.processEvents()
 
-            self.downloadMovieData(item, force)
+            self.downloadMovieData(item, force, doJson=doJson, doCover=doCover)
             self.clickedMovie(item)
 
             progress += 1
@@ -745,8 +745,8 @@ class MyWindow(QtWidgets.QMainWindow):
             if res.has_key('year') and res.has_key('kind'):
                 kind = res['kind']
                 if res['year'] == year and (kind in acceptableKinds):
-                    print('Found result: %s' % movie['title'])
                     movie = res
+                    print('Found result: %s (%s)' % (movie['title'], movie['year']))
                     break
 
         return movie
@@ -776,9 +776,6 @@ class MyWindow(QtWidgets.QMainWindow):
             return None
 
     def writeMovieJson(self, movie, jsonFile):
-        for k in movie.keys():
-            print(k)
-
         d = {}
         d['title'] = self.getMovieKey(movie, 'title')
         d['id'] = movie.getID()
@@ -825,7 +822,7 @@ class MyWindow(QtWidgets.QMainWindow):
         with open(jsonFile, "w") as f:
             json.dump(d, f, indent=4)
 
-    def downloadMovieData(self, listItem, force=False, movieId=None):
+    def downloadMovieData(self, listItem, force=False, movieId=None, doJson=True, doCover=True):
         moviePath = listItem.data(QtCore.Qt.UserRole)['path']
         folderName = listItem.data(QtCore.Qt.UserRole)['folder name']
         jsonFile = os.path.join(moviePath, '%s.json' % folderName)
@@ -843,9 +840,11 @@ class MyWindow(QtWidgets.QMainWindow):
             if not movie:
                 return coverFile
             self.db.update(movie)
-            self.writeMovieJson(movie, jsonFile)
+            if doJson:
+                self.writeMovieJson(movie, jsonFile)
+            if doCover:
+                coverFile = copyCoverImage(movie, coverFile)
             self.setMovieItemUserData(listItem, folderName, movie)
-            coverFile = copyCoverImage(movie, coverFile)
 
         return coverFile
 
@@ -952,6 +951,14 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.downloadDataAction = QtWidgets.QAction("Force Download Data", self)
         self.downloadDataAction.triggered.connect(lambda: self.downloadDataMenu(force=True))
+        self.rightMenu.addAction(self.downloadDataAction)
+
+        self.downloadDataAction = QtWidgets.QAction("Force Download Json only", self)
+        self.downloadDataAction.triggered.connect(lambda: self.downloadDataMenu(force=True, doJson=True, doCover=False))
+        self.rightMenu.addAction(self.downloadDataAction)
+
+        self.downloadDataAction = QtWidgets.QAction("Force Download Cover only", self)
+        self.downloadDataAction.triggered.connect(lambda: self.downloadDataMenu(force=True, doJson=False, doCover=True))
         self.rightMenu.addAction(self.downloadDataAction)
 
         self.removeMdbAction = QtWidgets.QAction("Remove .json files", self)
