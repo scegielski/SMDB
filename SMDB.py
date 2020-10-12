@@ -878,6 +878,13 @@ class MyWindow(QtWidgets.QMainWindow):
         filePath = selectedMovie.data(QtCore.Qt.UserRole)['path']
         os.startfile(filePath)
 
+    def openMovieJson(self):
+        selectedMovie = self.moviesList.selectedItems()[0]
+        moviePath = selectedMovie.data(QtCore.Qt.UserRole)['path']
+        folderName = selectedMovie.data(QtCore.Qt.UserRole)['folder name']
+        jsonFile = os.path.join(moviePath, '%s.json' % folderName)
+        os.startfile(jsonFile)
+
     def openMovieImdbPage(self):
         selectedMovie = self.moviesList.selectedItems()[0]
         movieId = selectedMovie.data(QtCore.Qt.UserRole)['id']
@@ -936,6 +943,10 @@ class MyWindow(QtWidgets.QMainWindow):
         self.openFolderAction = QtWidgets.QAction("Open Folder", self)
         self.openFolderAction.triggered.connect(lambda: self.openMovieFolder())
         self.rightMenu.addAction(self.openFolderAction)
+
+        self.openJsonAction = QtWidgets.QAction("Open Json File", self)
+        self.openJsonAction.triggered.connect(lambda: self.openMovieJson())
+        self.rightMenu.addAction(self.openJsonAction)
 
         self.openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
         self.openImdbAction.triggered.connect(lambda: self.openMovieImdbPage())
