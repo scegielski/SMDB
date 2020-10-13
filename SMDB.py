@@ -647,10 +647,14 @@ class MyWindow(QtWidgets.QMainWindow):
             jsonFile = os.path.join(self.moviesFolder, folderName, '%s.json' % folderName)
             if os.path.exists(jsonFile):
                 with open(jsonFile) as f:
-                    data = json.load(f)
-            userData = self.setMovieItemUserData(item, folderName, data)
-            if folderName not in movieFolderData:
-                movieFolderData[folderName] = userData
+                    try:
+                        data = json.load(f)
+                        #if folderName not in movieFolderData:
+                        #    movieFolderData[folderName] = userData
+                    except UnicodeDecodeError:
+                        item.setForeground(QtGui.QColor(255, 0, 0))
+                        print("Error reading %s" % jsonFile)
+            self.setMovieItemUserData(item, folderName, data)
             self.moviesList.addItem(item)
             progress += 1
             self.progressBar.setValue(progress)
@@ -763,9 +767,12 @@ class MyWindow(QtWidgets.QMainWindow):
     def showSummary(self, jsonFile):
         if os.path.exists(jsonFile):
             with open(jsonFile) as f:
-                data = json.load(f)
-                summary = data['summary']
-                self.summary.setText(summary)
+                try:
+                    data = json.load(f)
+                    summary = data['summary']
+                    self.summary.setText(summary)
+                except UnicodeDecodeError:
+                    print("Error reading %s" % jsonFile)
         else:
             self.summary.clear()
 
