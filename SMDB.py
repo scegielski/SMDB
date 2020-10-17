@@ -88,6 +88,7 @@ class MyWindow(QtWidgets.QMainWindow):
         super(MyWindow, self).__init__()
         self.setGeometry(210, 75, 1500, 900)
         self.setWindowTitle("Scott's Movie Database")
+        self.numVisibleMovies = 0
 
         self.db = IMDb()
 
@@ -714,6 +715,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def populateMovieList(self, forceScan=False):
         self.moviesList.clear()
+        self.numVisibleMovies = 0
         if not os.path.exists(self.moviesFolder):
             return
 
@@ -730,7 +732,6 @@ class MyWindow(QtWidgets.QMainWindow):
                     if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
                         movieList.append(f.name)
 
-        movieFolderData = {}
         progress = 0
         self.progressBar.setMaximum(len(movieList))
         for folderName in movieList:
@@ -749,9 +750,8 @@ class MyWindow(QtWidgets.QMainWindow):
                             print("Error reading %s" % jsonFile)
 
             self.setMovieItemUserData(item, folderName, data)
-            # if folderName not in movieFolderData:
-            #    movieFolderData[folderName] = userData
             self.moviesList.addItem(item)
+            self.numVisibleMovies += 1
             progress += 1
             self.progressBar.setValue(progress)
         self.progressBar.setValue(0)
@@ -761,10 +761,13 @@ class MyWindow(QtWidgets.QMainWindow):
     def cancelButtonClicked(self):
         self.isCanceled = True
 
-    def movieSelectionChanged(self):
+    def showMovieSelectionStatus(self):
         numSelected = len(self.moviesList.selectedItems())
-        total = self.moviesList.count()
-        self.statusBar().showMessage('%s/%s' % (numSelected, total))
+        self.statusBar().showMessage('%s/%s' % (numSelected, self.numVisibleMovies))
+
+    def movieSelectionChanged(self):
+        self.showMovieSelectionStatus()
+        numSelected = len(self.moviesList.selectedItems())
         if numSelected == 1:
             self.clickedMovie(self.moviesList.selectedItems()[0])
 
@@ -783,12 +786,14 @@ class MyWindow(QtWidgets.QMainWindow):
                 if movie not in criteriaMovieList:
                     criteriaMovieList.append(movie)
 
+        self.numVisibleMovies = 0
         for row in range(self.moviesList.count()):
             self.moviesList.item(row).setHidden(True)
 
         # Movies are stored as ['Anchorman: The Legend of Ron Burgundy', 2004]
         self.progressBar.setMaximum(len(criteriaMovieList))
         progress = 0
+
         for row in range(self.moviesList.count()):
             listItem = self.moviesList.item(row)
             userData = listItem.data(QtCore.Qt.UserRole)
@@ -796,9 +801,14 @@ class MyWindow(QtWidgets.QMainWindow):
             if 'year' in userData: year = userData['year']
             for (t, y) in criteriaMovieList:
                 if t == title and y == year:
+                    self.numVisibleMovies += 1
                     self.moviesList.item(row).setHidden(False)
             progress += 1
             self.progressBar.setValue(progress)
+
+        self.progressBar.setValue(0)
+        self.showMovieSelectionStatus()
+
 
 
     def clickedMovie(self, listItem):
