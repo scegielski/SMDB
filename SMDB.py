@@ -21,6 +21,7 @@ class displayStyles(Enum):
     YEAR_TITLE = auto(),
     RATING_TITLE_YEAR = auto(),
     TITLE_YEAR = auto(),
+    BOX_OFFICE_YEAR_TITLE = auto(),
     FOLDER = auto()
 
 # TODO: Create separate derived class for movie list and move methods
@@ -429,6 +430,7 @@ class MyWindow(QtWidgets.QMainWindow):
                                                       comboBoxEnum=["(year)title",
                                                                     "(rating)title",
                                                                     "title(year)",
+                                                                    "box office - (year)title",
                                                                     "folder name"])
         self.moviesList.itemSelectionChanged.connect(lambda: self.movieSelectionChanged())
         self.moviesListSearchBox.textChanged.connect(lambda: searchListWidget(self.moviesListSearchBox, self.moviesList))
@@ -477,6 +479,8 @@ class MyWindow(QtWidgets.QMainWindow):
             displayStyle = displayStyles.RATING_TITLE_YEAR
         elif comboBoxText == "title(year)":
             displayStyle = displayStyles.TITLE_YEAR
+        elif comboBoxText == "box office - (year)title":
+            displayStyle = displayStyles.BOX_OFFICE_YEAR_TITLE
         elif comboBoxText == "folder name":
             displayStyle = displayStyles.FOLDER
         elif re.match(r'\((.*)\).*', comboBoxText):
@@ -490,6 +494,9 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.progressBar.setMaximum(listWidget.count())
         progress = 0
+
+        reMoneyValue = re.compile(r'(\d+(?:,\d+)*(?:\.\d+)?)')
+        reCountry = re.compile(r'^([A-Z][A-Z][A-Z])(.*)')
 
         for row in range(listWidget.count()):
             item = listWidget.item(row)
@@ -514,6 +521,26 @@ class MyWindow(QtWidgets.QMainWindow):
                 folderName = item.data(QtCore.Qt.UserRole)['folder name']
                 niceTitle, year = getNiceTitleAndYear(folderName)
                 displayText = '%s (%s)' % (niceTitle, year)
+            elif displayStyle == displayStyles.BOX_OFFICE_YEAR_TITLE:
+                folderName = item.data(QtCore.Qt.UserRole)['folder name']
+                boxOffice = item.data(QtCore.Qt.UserRole)['box office']
+                currency = 'USD'
+                if boxOffice:
+                    boxOffice = boxOffice.replace(' (estimated)', '')
+                    match = re.match(reCountry, boxOffice)
+                    if match:
+                        currency = match.group(1)
+                        boxOffice = '$%s' % match.group(2)
+                    results = re.findall(reMoneyValue, boxOffice)
+                    if currency == 'USD':
+                        amount = '$%s' % results[0]
+                    else:
+                        amount = '%s' % results[0]
+                else:
+                    amount = '$0'
+                niceTitle, year = getNiceTitleAndYear(folderName)
+                displayText = '%3s %15s - (%s) %s' % (currency, amount, year, niceTitle)
+
             elif displayStyle == displayStyles.FOLDER:
                 folderName = item.data(QtCore.Qt.UserRole)['folder name']
                 displayText = folderName
@@ -524,7 +551,10 @@ class MyWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage("Done")
         self.progressBar.setValue(0)
 
-        if displayStyle == displayStyles.TOTAL_ITEM or displayStyle == displayStyles.RATING_TITLE_YEAR:
+        if  displayStyle == displayStyles.TOTAL_ITEM or \
+            displayStyle == displayStyles.RATING_TITLE_YEAR or \
+            displayStyle == displayStyles.BOX_OFFICE_YEAR_TITLE:
+
             listWidget.sortItems(QtCore.Qt.DescendingOrder)
         else:
             listWidget.sortItems(QtCore.Qt.AscendingOrder)
@@ -614,8 +644,8 @@ class MyWindow(QtWidgets.QMainWindow):
         progress = 0
 
         listWidget.clear()
+        displayStyle = self.getDisplayStyle(comboBoxWidget)
         for criteria in self.smdbData[criteriaKey].keys():
-            displayStyle = self.getDisplayStyle(comboBoxWidget)
             if displayStyle == displayStyles.TOTAL_ITEM:
                 displayText = '(%04d) %s' % (len(self.smdbData[criteriaKey][criteria]['movies']), criteria)
             elif displayStyle == displayStyles.ITEM_TOTAL:
