@@ -40,7 +40,10 @@ def copyCoverImage(movie, coverFile):
     extension = os.path.splitext(movieCoverUrl)[1]
     if extension == '.png':
         coverFile = coverFile.replace('.jpg', '.png')
-    urllib.request.urlretrieve(movieCoverUrl, coverFile)
+    try:
+        urllib.request.urlretrieve(movieCoverUrl, coverFile)
+    except:
+        print("Problem downloading cover file: %s" % coverFile)
     return coverFile
 
 def removeFiles(parent, filesToDelete, extension):
@@ -100,14 +103,14 @@ class MyWindow(QtWidgets.QMainWindow):
     def closeEvent(self, event):
         self.saveConfig()
 
-    def refresh(self):
+    def refresh(self, forceScan=False):
 
-        if not os.path.exists(self.smdbFile):
-            self.populateMovieList()
-            self.writeSmdbFile()
-        else:
+        if os.path.exists(self.smdbFile):
             self.readSmdbFile()
-            self.populateMovieList()
+            self.populateMovieList(forceScan)
+        else:
+            self.populateMovieList(forceScan)
+            self.writeSmdbFile()
 
         self.populateCriteriaList('directors', self.directorsList, self.directorsComboBox)
         self.populateCriteriaList('actors', self.actorsList, self.actorsComboBox)
@@ -263,14 +266,18 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.progressBar.setValue(0)
 
+        self.statusBar().showMessage('Sorting Data...')
         self.smdbData['titles'] = collections.OrderedDict(sorted(titles.items()))
         self.smdbData['years'] = collections.OrderedDict(sorted(years.items()))
         self.smdbData['genres'] = collections.OrderedDict(sorted(genres.items()))
         self.smdbData['directors'] = collections.OrderedDict(sorted(directors.items()))
         self.smdbData['actors'] = collections.OrderedDict(sorted(actors.items()))
 
+        self.statusBar().showMessage('Writing %s' % self.smdbFile)
         with open(self.smdbFile, "w") as f:
             json.dump(self.smdbData, f, indent=4)
+
+        self.statusBar().showMessage('Done')
 
     def addCriteriaWidgets(self, criteriaName, comboBoxEnum = [], displayStyle=0):
         criteriaWidget = QtWidgets.QWidget(self)
@@ -346,7 +353,7 @@ class MyWindow(QtWidgets.QMainWindow):
         fileMenu.addAction(setMovieFolderAction)
 
         refreshAction = QtWidgets.QAction("Refresh", self)
-        refreshAction.triggered.connect(self.refresh)
+        refreshAction.triggered.connect(lambda: self.refresh(forceScan=True))
         fileMenu.addAction(refreshAction)
 
         quitAction = QtWidgets.QAction("Quit", self)
@@ -628,7 +635,8 @@ class MyWindow(QtWidgets.QMainWindow):
         userData['folder name'] = folderName
         userData['path'] = os.path.join(self.moviesFolder, folderName)
         if not data:
-            return
+            item.setData(QtCore.Qt.UserRole, userData)
+            return userData
 
         if 'title' in data:
             userData['title'] = data['title']
@@ -650,7 +658,7 @@ class MyWindow(QtWidgets.QMainWindow):
         item.setData(QtCore.Qt.UserRole, userData)
         return userData
 
-    def populateMovieList(self):
+    def populateMovieList(self, forceScan=False):
         self.moviesList.clear()
         if not os.path.exists(self.moviesFolder):
             return
@@ -658,7 +666,7 @@ class MyWindow(QtWidgets.QMainWindow):
         movieList = []
 
         useSmdbData = False
-        if self.smdbData and 'titles' in self.smdbData:
+        if not forceScan and  self.smdbData and 'titles' in self.smdbData:
             useSmdbData = True
             for title in self.smdbData['titles']:
                 movieList.append(title)
@@ -771,10 +779,15 @@ class MyWindow(QtWidgets.QMainWindow):
         searchText = ' '.join(splitTitle)
         print('Searching for: %s' % searchText)
 
-        results = self.db.search_movie(searchText)
+        try:
+            results = self.db.search_movie(searchText)
+        except:
+            print("Error accessing imdb")
+            return None
+
         if not results:
             print('No matches for: %s' % searchText)
-            return
+            return None
 
         acceptableKinds = ('movie', 'short', 'tv movie', 'tv miniseries')
 
@@ -860,8 +873,11 @@ class MyWindow(QtWidgets.QMainWindow):
         d['cover url'] = self.getMovieKey(movie, 'cover url')
         d['full-size cover url'] = self.getMovieKey(movie, 'full-size cover url')
 
-        with open(jsonFile, "w") as f:
-            json.dump(d, f, indent=4)
+        try:
+            with open(jsonFile, "w") as f:
+                json.dump(d, f, indent=4)
+        except:
+            print("Error writing json file: %s" % jsonFile)
 
     def downloadMovieData(self, listItem, force=False, movieId=None, doJson=True, doCover=True):
         moviePath = listItem.data(QtCore.Qt.UserRole)['path']
