@@ -496,7 +496,7 @@ class MyWindow(QtWidgets.QMainWindow):
         progress = 0
 
         reMoneyValue = re.compile(r'(\d+(?:,\d+)*(?:\.\d+)?)')
-        reCountry = re.compile(r'^([A-Z][A-Z][A-Z])(.*)')
+        reCurrency = re.compile(r'^([A-Z][A-Z][A-Z])(.*)')
 
         for row in range(listWidget.count()):
             item = listWidget.item(row)
@@ -527,7 +527,7 @@ class MyWindow(QtWidgets.QMainWindow):
                 currency = 'USD'
                 if boxOffice:
                     boxOffice = boxOffice.replace(' (estimated)', '')
-                    match = re.match(reCountry, boxOffice)
+                    match = re.match(reCurrency, boxOffice)
                     if match:
                         currency = match.group(1)
                         boxOffice = '$%s' % match.group(2)
