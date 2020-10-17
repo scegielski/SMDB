@@ -253,10 +253,15 @@ class MyWindow(QtWidgets.QMainWindow):
                     if 'rating' in jsonData and jsonData['rating']:
                         jsonRating = jsonData['rating']
 
+                    jsonBoxOffice = None
+                    if 'box office' in jsonData and jsonData['box office']:
+                        jsonBoxOffice = jsonData['box office']
+
                     titles[folderName] = { 'id': jsonId,
                                           'title': jsonTitle,
                                           'year': jsonYear,
                                           'rating': jsonRating,
+                                          'box office': jsonBoxOffice,
                                           'director': directorName,
                                           'genres': jsonGenres,
                                           'actors': movieActorsList }
@@ -642,14 +647,22 @@ class MyWindow(QtWidgets.QMainWindow):
             userData['title'] = data['title']
         else:
             userData['title'] = ''
+
         if 'year' in data:
             userData['year'] = data['year']
         else:
             userData['year'] = ''
+
         if 'rating' in data:
             userData['rating'] = data['rating']
         else:
             userData['rating'] = ''
+
+        if 'box office' in data:
+            userData['box office'] = data['box office']
+        else:
+            userData['box office'] = ''
+
         if 'id' in data:
             userData['id'] = data['id']
         else:
