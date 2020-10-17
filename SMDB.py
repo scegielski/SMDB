@@ -250,8 +250,8 @@ class MyWindow(QtWidgets.QMainWindow):
                     if 'rating' in jsonData and jsonData['rating']:
                         jsonRating = jsonData['rating']
 
-                    titles[jsonTitle] = { 'id': jsonId,
-                                          'folder': folderName,
+                    titles[folderName] = { 'id': jsonId,
+                                          'title': jsonTitle,
                                           'year': jsonYear,
                                           'rating': jsonRating,
                                           'director': directorName,
@@ -655,27 +655,37 @@ class MyWindow(QtWidgets.QMainWindow):
         if not os.path.exists(self.moviesFolder):
             return
 
-        #if not self.smdbData:
-
         movieList = []
-        with os.scandir(self.moviesFolder) as files:
-            for f in files:
-                if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
-                    movieList.append(f.name)
+
+        useSmdbData = False
+        if self.smdbData and 'titles' in self.smdbData:
+            useSmdbData = True
+            for title in self.smdbData['titles']:
+                movieList.append(title)
+        else:
+            with os.scandir(self.moviesFolder) as files:
+                for f in files:
+                    if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
+                        movieList.append(f.name)
 
         movieFolderData = {}
         progress = 0
         self.progressBar.setMaximum(len(movieList))
         for folderName in movieList:
             item = QtWidgets.QListWidgetItem(folderName)
-            jsonFile = os.path.join(self.moviesFolder, folderName, '%s.json' % folderName)
-            if os.path.exists(jsonFile):
-                with open(jsonFile) as f:
-                    try:
-                        data = json.load(f)
-                    except UnicodeDecodeError:
-                        item.setForeground(QtGui.QColor(255, 0, 0))
-                        print("Error reading %s" % jsonFile)
+            data = {}
+            if useSmdbData:
+                data = self.smdbData['titles'][folderName]
+            else:
+                jsonFile = os.path.join(self.moviesFolder, folderName, '%s.json' % folderName)
+                if os.path.exists(jsonFile):
+                    with open(jsonFile) as f:
+                        try:
+                            data = json.load(f)
+                        except UnicodeDecodeError:
+                            item.setForeground(QtGui.QColor(255, 0, 0))
+                            print("Error reading %s" % jsonFile)
+
             self.setMovieItemUserData(item, folderName, data)
             # if folderName not in movieFolderData:
             #    movieFolderData[folderName] = userData
