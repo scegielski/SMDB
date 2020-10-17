@@ -195,9 +195,11 @@ class MyWindow(QtWidgets.QMainWindow):
                         jsonYear = jsonData['year']
                         if not jsonYear in years:
                             years[jsonYear] = {}
+                            years[jsonYear]['num movies'] = 0
                             years[jsonYear]['movies'] = []
                         if titleYear not in years[jsonYear]:
                             years[jsonYear]['movies'].append(titleYear)
+                            years[jsonYear]['num movies'] += 1
 
                     if 'director' in jsonData and jsonData['director']:
                         directorData = jsonData['director']
@@ -212,9 +214,11 @@ class MyWindow(QtWidgets.QMainWindow):
                         if not directorName in directors:
                             directors[directorName] = {}
                             directors[directorName]['id'] = directorId
+                            directors[directorName]['num movies'] = 0
                             directors[directorName]['movies'] = []
                         if titleYear not in directors[directorName]['movies']:
                             directors[directorName]['movies'].append(titleYear)
+                            directors[directorName]['num movies'] += 1
 
                     movieActorsList = []
                     if 'cast' in jsonData and jsonData['cast']:
@@ -230,9 +234,11 @@ class MyWindow(QtWidgets.QMainWindow):
                             if actorName not in actors:
                                 actors[actorName] = {}
                                 actors[actorName]['id'] = actorId
+                                actors[actorName]['num movies'] = 0
                                 actors[actorName]['movies'] = []
                             if titleYear not in actors[actorName]['movies']:
                                 actors[actorName]['movies'].append(titleYear)
+                                actors[actorName]['num movies'] += 1
 
                             movieActorsList.append(actorName)
 
@@ -242,9 +248,11 @@ class MyWindow(QtWidgets.QMainWindow):
                         for genre in jsonGenres:
                             if genre not in genres:
                                 genres[genre] = {}
+                                genres[genre]['num movies'] = 0
                                 genres[genre]['movies'] = []
                             if titleYear not in genres[genre]['movies']:
                                 genres[genre]['movies'].append(titleYear)
+                                genres[genre]['num movies'] += 1
 
                     jsonId = None
                     if 'id' in jsonData and jsonData['id']:
@@ -636,7 +644,8 @@ class MyWindow(QtWidgets.QMainWindow):
             print("Error: '%s' not in smdbData" % criteriaKey)
             return
 
-        message = "Populating list: %s" % criteriaKey
+        numEntries = len(self.smdbData[criteriaKey].keys())
+        message = "Populating list: %s with %s entries" % (criteriaKey, numEntries)
         self.statusBar().showMessage(message)
         QtCore.QCoreApplication.processEvents()
 
@@ -646,10 +655,12 @@ class MyWindow(QtWidgets.QMainWindow):
         listWidget.clear()
         displayStyle = self.getDisplayStyle(comboBoxWidget)
         for criteria in self.smdbData[criteriaKey].keys():
+            numMovies = self.smdbData[criteriaKey][criteria]['num movies']
+
             if displayStyle == displayStyles.TOTAL_ITEM:
-                displayText = '(%04d) %s' % (len(self.smdbData[criteriaKey][criteria]['movies']), criteria)
+                displayText = '(%04d) %s' % (numMovies, criteria)
             elif displayStyle == displayStyles.ITEM_TOTAL:
-                displayText = '%s (%04d)' % (criteria, len(self.smdbData[criteriaKey][criteria]['movies']))
+                displayText = '%s (%04d)' % (criteria, numMovies)
             item = QtWidgets.QListWidgetItem(displayText)
             userData = {}
             userData['criteria'] = criteria
