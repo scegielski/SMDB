@@ -101,11 +101,13 @@ class MyWindow(QtWidgets.QMainWindow):
         self.saveConfig()
 
     def refresh(self):
-        self.populateMovieList()
 
         if not os.path.exists(self.smdbFile):
+            self.populateMovieList()
             self.writeSmdbFile()
-        self.readSmdbFile()
+        else:
+            self.readSmdbFile()
+            self.populateMovieList()
 
         self.populateCriteriaList('directors', self.directorsList, self.directorsComboBox)
         self.populateCriteriaList('actors', self.actorsList, self.actorsComboBox)
@@ -249,6 +251,7 @@ class MyWindow(QtWidgets.QMainWindow):
                         jsonRating = jsonData['rating']
 
                     titles[jsonTitle] = { 'id': jsonId,
+                                          'folder': folderName,
                                           'year': jsonYear,
                                           'rating': jsonRating,
                                           'director': directorName,
@@ -652,16 +655,18 @@ class MyWindow(QtWidgets.QMainWindow):
         if not os.path.exists(self.moviesFolder):
             return
 
-        folderList = []
+        #if not self.smdbData:
+
+        movieList = []
         with os.scandir(self.moviesFolder) as files:
             for f in files:
                 if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
-                    folderList.append(f.name)
+                    movieList.append(f.name)
 
         movieFolderData = {}
         progress = 0
-        self.progressBar.setMaximum(len(folderList))
-        for folderName in folderList:
+        self.progressBar.setMaximum(len(movieList))
+        for folderName in movieList:
             item = QtWidgets.QListWidgetItem(folderName)
             jsonFile = os.path.join(self.moviesFolder, folderName, '%s.json' % folderName)
             if os.path.exists(jsonFile):
