@@ -773,8 +773,8 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def criteriaSelectionChanged(self, listWidget, smdbKey):
         if len(listWidget.selectedItems()) == 0:
-            for row in range(listWidget.count()):
-                listWidget.item(row).setHidden(False)
+            for row in range(self.moviesList.count()):
+                self.moviesList.item(row).setHidden(False)
             return
 
         criteriaMovieList = []
