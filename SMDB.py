@@ -162,7 +162,7 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.setMovieListItemColors()
                 return
 
-            message = "Downloading data (%d/%d): %s" % (progress + 1,
+            message = "Processing item (%d/%d): %s" % (progress + 1,
                                                         count,
                                                         listItem.text())
             self.statusBar().showMessage(message)
@@ -173,7 +173,12 @@ class MyWindow(QtWidgets.QMainWindow):
             jsonFile = os.path.join(moviePath, '%s.json' % folderName)
             if os.path.exists(jsonFile):
                 with open(jsonFile) as f:
-                    jsonData = json.load(f)
+                    try:
+                        jsonData = json.load(f)
+                    except UnicodeDecodeError:
+                        print("Error reading %s" % jsonFile)
+                        continue
+
                 if 'title' in jsonData and 'year' in jsonData:
                     jsonTitle = jsonData['title']
                     jsonYear = jsonData['year']
@@ -202,14 +207,13 @@ class MyWindow(QtWidgets.QMainWindow):
                             directors[directorName] = {}
                             directors[directorName]['id'] = directorId
                             directors[directorName]['movies'] = []
-                        if titleYear not in directors[directorName]:
+                        if titleYear not in directors[directorName]['movies']:
                             directors[directorName]['movies'].append(titleYear)
 
                     movieActorsList = []
                     if 'cast' in jsonData and jsonData['cast']:
                         jsonActors = jsonData['cast']
                         for actorData in jsonActors:
-
                             if isinstance(actorData, list):
                                 actorName = actorData[0]
                                 actorId = actorData[1]
@@ -221,7 +225,7 @@ class MyWindow(QtWidgets.QMainWindow):
                                 actors[actorName] = {}
                                 actors[actorName]['id'] = actorId
                                 actors[actorName]['movies'] = []
-                            if titleYear not in actors[actorName]:
+                            if titleYear not in actors[actorName]['movies']:
                                 actors[actorName]['movies'].append(titleYear)
 
                             movieActorsList.append(actorName)
@@ -233,13 +237,28 @@ class MyWindow(QtWidgets.QMainWindow):
                             if genre not in genres:
                                 genres[genre] = {}
                                 genres[genre]['movies'] = []
-                            if titleYear not in genres[genre]:
+                            if titleYear not in genres[genre]['movies']:
                                 genres[genre]['movies'].append(titleYear)
 
-                    titles[jsonTitle] = { 'year': jsonYear, 'director': directorName, 'genres': jsonGenres, 'actors': movieActorsList }
+                    jsonId = None
+                    if 'id' in jsonData and jsonData['id']:
+                        jsonId = jsonData['id']
+
+                    jsonRating = None
+                    if 'rating' in jsonData and jsonData['rating']:
+                        jsonRating = jsonData['rating']
+
+                    titles[jsonTitle] = { 'id': jsonId,
+                                          'year': jsonYear,
+                                          'rating': jsonRating,
+                                          'director': directorName,
+                                          'genres': jsonGenres,
+                                          'actors': movieActorsList }
 
             progress += 1
             self.progressBar.setValue(progress)
+
+        self.progressBar.setValue(0)
 
         self.smdbData['titles'] = collections.OrderedDict(sorted(titles.items()))
         self.smdbData['years'] = collections.OrderedDict(sorted(years.items()))
@@ -649,12 +668,12 @@ class MyWindow(QtWidgets.QMainWindow):
                 with open(jsonFile) as f:
                     try:
                         data = json.load(f)
-                        #if folderName not in movieFolderData:
-                        #    movieFolderData[folderName] = userData
                     except UnicodeDecodeError:
                         item.setForeground(QtGui.QColor(255, 0, 0))
                         print("Error reading %s" % jsonFile)
             self.setMovieItemUserData(item, folderName, data)
+            # if folderName not in movieFolderData:
+            #    movieFolderData[folderName] = userData
             self.moviesList.addItem(item)
             progress += 1
             self.progressBar.setValue(progress)
