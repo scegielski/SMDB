@@ -87,7 +87,7 @@ def searchListWidget(searchBoxWidget, listWidget):
 class MyWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super(MyWindow, self).__init__()
-        self.setGeometry(210, 75, 1500, 900)
+        self.setGeometry(200, 75, 1600, 900)
         self.setWindowTitle("Scott's Movie Database")
         self.numVisibleMovies = 0
 
@@ -343,7 +343,7 @@ class MyWindow(QtWidgets.QMainWindow):
         criteriaDisplayStyleHLayout = QtWidgets.QHBoxLayout(self)
         criteriaVLayout.addLayout(criteriaDisplayStyleHLayout)
 
-        displayStyleText = QtWidgets.QLabel("%s Display Style" % criteriaName)
+        displayStyleText = QtWidgets.QLabel("Display Style")
         displayStyleText.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
         criteriaDisplayStyleHLayout.addWidget(displayStyleText)
 
@@ -424,8 +424,8 @@ class MyWindow(QtWidgets.QMainWindow):
         mainVLayout.addWidget(mainHSplitter)
 
         # V Splitter on the left dividing Directors, etc.
-        criteriaVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
-        criteriaVSplitter.setHandleWidth(20)
+        criteriaVSplitter1 = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
+        criteriaVSplitter1.setHandleWidth(20)
 
         directorsWidget,\
         self.directorsList,\
@@ -436,7 +436,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.directorsListSearchBox.textChanged.connect(lambda: searchListWidget(self.directorsListSearchBox, self.directorsList))
         self.directorsList.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.directorsList.customContextMenuRequested[QtCore.QPoint].connect(lambda: self.peopleListRightMenuShow(self.directorsList))
-        criteriaVSplitter.addWidget(directorsWidget)
+        criteriaVSplitter1.addWidget(directorsWidget)
 
         actorsWidget,\
         self.actorsList,\
@@ -447,7 +447,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.actorsListSearchBox.textChanged.connect(lambda: searchListWidget(self.actorsListSearchBox, self.actorsList))
         self.actorsList.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.actorsList.customContextMenuRequested[QtCore.QPoint].connect(lambda: self.peopleListRightMenuShow(self.actorsList))
-        criteriaVSplitter.addWidget(actorsWidget)
+        criteriaVSplitter1.addWidget(actorsWidget)
 
         genresWidget,\
         self.genresList,\
@@ -456,7 +456,10 @@ class MyWindow(QtWidgets.QMainWindow):
                                                       comboBoxEnum=['(total)genre', 'genre(total)'])
         self.genresList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.genresList, 'genres'))
         self.genresListSearchBox.textChanged.connect(lambda: searchListWidget(self.genresListSearchBox, self.genresList))
-        criteriaVSplitter.addWidget(genresWidget)
+        criteriaVSplitter1.addWidget(genresWidget)
+
+        criteriaVSplitter2 = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
+        criteriaVSplitter2.setHandleWidth(20)
 
         yearsWidget,\
         self.yearsList,\
@@ -466,7 +469,7 @@ class MyWindow(QtWidgets.QMainWindow):
                                                      displayStyle=1)
         self.yearsList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.yearsList, 'years'))
         self.yearsListSearchBox.textChanged.connect(lambda: searchListWidget(self.yearsListSearchBox, self.yearsList))
-        criteriaVSplitter.addWidget(yearsWidget)
+        criteriaVSplitter2.addWidget(yearsWidget)
 
         companiesWidget, \
         self.companiesList, \
@@ -476,7 +479,7 @@ class MyWindow(QtWidgets.QMainWindow):
                                                      displayStyle=0)
         self.companiesList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.companiesList, 'companies'))
         self.companiesListSearchBox.textChanged.connect(lambda: searchListWidget(self.companiesListSearchBox, self.companiesList))
-        criteriaVSplitter.addWidget(companiesWidget)
+        criteriaVSplitter2.addWidget(companiesWidget)
 
         countriesWidget, \
         self.countriesList, \
@@ -486,7 +489,7 @@ class MyWindow(QtWidgets.QMainWindow):
                                                          displayStyle=0)
         self.countriesList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.countriesList, 'countries'))
         self.countriesListSearchBox.textChanged.connect(lambda: searchListWidget(self.countriesListSearchBox, self.countriesList))
-        criteriaVSplitter.addWidget(countriesWidget)
+        criteriaVSplitter2.addWidget(countriesWidget)
 
         moviesWidget, \
         self.moviesList, \
@@ -542,10 +545,11 @@ class MyWindow(QtWidgets.QMainWindow):
         movieSummaryVSplitter.setSizes([600, 200])
 
         # Add the sub-layouts to the mainHSplitter
-        mainHSplitter.addWidget(criteriaVSplitter)
+        mainHSplitter.addWidget(criteriaVSplitter1)
+        mainHSplitter.addWidget(criteriaVSplitter2)
         mainHSplitter.addWidget(moviesWidget)
         mainHSplitter.addWidget(movieSummaryVSplitter)
-        mainHSplitter.setSizes([400, 400, 600])
+        mainHSplitter.setSizes([200, 200, 300, 500])
 
         # Bottom ---------------------------------------------------------------------------------------
         bottomLayout = QtWidgets.QHBoxLayout(self)
