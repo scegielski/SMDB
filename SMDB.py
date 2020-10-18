@@ -115,12 +115,12 @@ class MyWindow(QtWidgets.QMainWindow):
             self.populateMovieList(forceScan)
             self.writeSmdbFile()
 
-        self.populateCriteriaList('directors', self.directorsList, self.directorsComboBox)
-        self.populateCriteriaList('actors', self.actorsList, self.actorsComboBox)
-        self.populateCriteriaList('genres', self.genresList, self.genresComboBox)
-        self.populateCriteriaList('years', self.yearsList, self.yearsComboBox)
-        self.populateCriteriaList('companies', self.companiesList, self.companiesComboBox)
-        self.populateCriteriaList('countries', self.countriesList, self.countriesComboBox)
+        #self.populateCriteriaList('directors', self.directorsList, self.directorsComboBox)
+        #self.populateCriteriaList('actors', self.actorsList, self.actorsComboBox)
+        #self.populateCriteriaList('genres', self.genresList, self.genresComboBox)
+        #self.populateCriteriaList('years', self.yearsList, self.yearsComboBox)
+        #self.populateCriteriaList('companies', self.companiesList, self.companiesComboBox)
+        #self.populateCriteriaList('countries', self.countriesList, self.countriesComboBox)
         self.moviesList.setCurrentItem(self.moviesList.item(0))
         self.movieSelectionChanged()
 
@@ -513,6 +513,7 @@ class MyWindow(QtWidgets.QMainWindow):
         movieSummaryVSplitter.splitterMoved.connect(self.resizeCoverFile)
 
         movieWidget = QtWidgets.QWidget()
+        movieWidget.setStyleSheet("background-color: black;")
         movieVLayout = QtWidgets.QVBoxLayout()
         movieWidget.setLayout(movieVLayout)
 
@@ -527,19 +528,22 @@ class MyWindow(QtWidgets.QMainWindow):
         self.movieTitle = QtWidgets.QLabel('')
         self.movieTitle.setFont(QtGui.QFont('TimesNew Roman', 15))
         self.movieTitle.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
-        #self.movieTitle.setBaseSize(10,10)
+        self.movieTitle.setStyleSheet("color: white;")
         movieVLayout.addWidget(self.movieTitle)
 
         self.movieCover = QtWidgets.QLabel(self)
         self.movieCover.setScaledContents(False)
         self.movieCover.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored)
 
+        self.movieCover.setStyleSheet("background-color: black;")
+
         movieVLayout.addWidget(self.movieCover)
 
         movieSummaryVSplitter.addWidget(movieWidget)
 
         self.summary = QtWidgets.QTextBrowser()
-        self.summary.setFontPointSize(10)
+        self.summary.setStyleSheet("background-color: black;")
+        #self.summary.setFontPointSize(20)
         movieSummaryVSplitter.addWidget(self.summary)
 
         movieSummaryVSplitter.setSizes([600, 200])
@@ -996,28 +1000,29 @@ class MyWindow(QtWidgets.QMainWindow):
                     data = json.load(f)
                     summary = ''
                     if 'rating' in data and data['rating']:
-                        summary += 'Rating: %s\n' % data['rating']
+                        summary += 'Rating: %s<br>' % data['rating']
                     if 'runtime' in data and data['runtime']:
-                        summary += 'Runtime: %s minutes\n' % data['runtime']
+                        summary += 'Runtime: %s minutes<br>' % data['runtime']
                     if 'genres' in data and data['genres']:
                         summary += 'Genres: '
                         for genre in data['genres']:
                             summary += '%s, ' % genre
-                        summary += '\n'
+                        summary += '<br>'
                     if 'box office' in data and data['box office']:
-                        summary += 'Box Office: %s\n' % data['box office']
+                        summary += 'Box Office: %s<br>' % data['box office']
                     if 'director' in data and data['director']:
-                        summary += '\nDirected by: %s\n' % data['director'][0]
+                        summary += '<br>Directed by: %s<br>' % data['director'][0]
                     if 'plot' in data and data['plot']:
-                        summary += '\nPlot:\n'
+                        summary += '<br>Plot:<br>'
                         if isinstance(data['plot'], list):
                             summary += data['plot'][0]
                     if 'cast' in data and data['cast']:
-                        summary += '\n\nCast:\n'
+                        summary += '<br><br>Cast:<br>'
                         for c in data['cast']:
-                            summary += '%s\n' % c
+                            summary += '%s<br>' % c
                     else:
                         summary = data['summary']
+                    summary = '<span style=\" color: #ffffff; font-size: 12pt\">%s</span>' % summary
                     self.summary.setText(summary)
                 except UnicodeDecodeError:
                     print("Error reading %s" % jsonFile)
