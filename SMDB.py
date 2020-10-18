@@ -114,10 +114,10 @@ class MyWindow(QtWidgets.QMainWindow):
             self.populateMovieList(forceScan)
             self.writeSmdbFile()
 
-        self.populateCriteriaList('directors', self.directorsList, self.directorsComboBox)
-        self.populateCriteriaList('actors', self.actorsList, self.actorsComboBox)
-        self.populateCriteriaList('genres', self.genresList, self.genresComboBox)
-        self.populateCriteriaList('years', self.yearsList, self.yearsComboBox)
+        #self.populateCriteriaList('directors', self.directorsList, self.directorsComboBox)
+        #self.populateCriteriaList('actors', self.actorsList, self.actorsComboBox)
+        #self.populateCriteriaList('genres', self.genresList, self.genresComboBox)
+        #self.populateCriteriaList('years', self.yearsList, self.yearsComboBox)
         self.moviesList.setCurrentItem(self.moviesList.item(0))
         self.movieSelectionChanged()
 
@@ -450,13 +450,36 @@ class MyWindow(QtWidgets.QMainWindow):
         # Cover and Summary ---------------------------------------------------------------------------------------
         movieSummaryVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
         movieSummaryVSplitter.setHandleWidth(20)
+        movieSummaryVSplitter.splitterMoved.connect(self.resizeCoverFile)
+
+        movieWidget = QtWidgets.QWidget()
+        movieVLayout = QtWidgets.QVBoxLayout()
+        movieWidget.setLayout(movieVLayout)
+
+
+        # Get a list of available fonts
+        #dataBase = QtGui.QFontDatabase()
+        #for family in dataBase.families():
+        #    print('%s' % family)
+        #    for style in dataBase.styles(family):
+        #        print('\t%s' % style)
+
+        self.movieTitle = QtWidgets.QLabel('')
+        self.movieTitle.setFont(QtGui.QFont('TimesNew Roman', 15))
+        self.movieTitle.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        #self.movieTitle.setBaseSize(10,10)
+        movieVLayout.addWidget(self.movieTitle)
 
         self.movieCover = QtWidgets.QLabel(self)
         self.movieCover.setScaledContents(False)
         self.movieCover.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored)
-        movieSummaryVSplitter.addWidget(self.movieCover)
+
+        movieVLayout.addWidget(self.movieCover)
+
+        movieSummaryVSplitter.addWidget(movieWidget)
 
         self.summary = QtWidgets.QTextBrowser()
+        self.summary.setFontPointSize(10)
         movieSummaryVSplitter.addWidget(self.summary)
 
         movieSummaryVSplitter.setSizes([600, 200])
@@ -809,11 +832,11 @@ class MyWindow(QtWidgets.QMainWindow):
         self.progressBar.setValue(0)
         self.showMovieSelectionStatus()
 
-
-
     def clickedMovie(self, listItem):
         moviePath = listItem.data(QtCore.Qt.UserRole)['path']
         folderName = listItem.data(QtCore.Qt.UserRole)['folder name']
+        title = listItem.data(QtCore.Qt.UserRole)['title']
+        year = listItem.data(QtCore.Qt.UserRole)['year']
         jsonFile = os.path.join(moviePath, '%s.json' % folderName)
         coverFile = os.path.join(moviePath, '%s.jpg' % folderName)
         if not os.path.exists(coverFile):
@@ -823,6 +846,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.showCoverFile(coverFile)
         self.showSummary(jsonFile)
+        self.movieTitle.setText('%s (%s)' % (title, year))
 
     def getMovieWithId(self, movieId):
         movie = self.db.get_movie(movieId)
@@ -866,12 +890,25 @@ class MyWindow(QtWidgets.QMainWindow):
 
         return movie
 
+    def resizeCoverFile(self):
+        sz = self.movieCover.size()
+        coverFile = self.movieCover.property('cover file')
+        pixMap = QtGui.QPixmap(coverFile)
+        self.movieCover.setPixmap(pixMap.scaled(sz.width(), sz.height(),
+                                                QtCore.Qt.KeepAspectRatio,
+                                                QtCore.Qt.SmoothTransformation))
+
+    def resizeEvent(self, a0: QtGui.QResizeEvent) -> None:
+        self.resizeCoverFile()
+
     def showCoverFile(self, coverFile):
         if os.path.exists(coverFile):
             pixMap = QtGui.QPixmap(coverFile)
-            self.movieCover.setPixmap(pixMap.scaled(500, 500,
+            sz = self.movieCover.size()
+            self.movieCover.setPixmap(pixMap.scaled(sz.width(), sz.height(),
                                                     QtCore.Qt.KeepAspectRatio,
                                                     QtCore.Qt.SmoothTransformation))
+            self.movieCover.setProperty('cover file', coverFile)
         else:
             self.movieCover.setPixmap(QtGui.QPixmap(0,0))
 
@@ -880,7 +917,30 @@ class MyWindow(QtWidgets.QMainWindow):
             with open(jsonFile) as f:
                 try:
                     data = json.load(f)
-                    summary = data['summary']
+                    summary = ''
+                    if 'rating' in data:
+                        summary += 'Rating: %s\n' % data['rating']
+                    if 'runtime' in data:
+                        summary += 'Runtime: %s minutes\n' % data['runtime']
+                    if 'genres' in data:
+                        summary += 'Genres: '
+                        for genre in data['genres']:
+                            summary += '%s, ' % genre
+                        summary += '\n'
+                    if 'box office' in data:
+                        summary += 'Box Office: %s\n' % data['box office']
+                    if 'director' in data:
+                        summary += '\nDirected by: %s\n' % data['director'][0]
+                    if 'plot' in data:
+                        summary += '\nPlot:\n'
+                        if isinstance(data['plot'], list):
+                            summary += data['plot'][0]
+                    if 'cast' in data:
+                        summary += '\n\nCast:\n'
+                        for c in data['cast']:
+                            summary += '%s\n' % c
+                    else:
+                        summary = data['summary']
                     self.summary.setText(summary)
                 except UnicodeDecodeError:
                     print("Error reading %s" % jsonFile)
