@@ -115,12 +115,12 @@ class MyWindow(QtWidgets.QMainWindow):
             self.populateMovieList(forceScan)
             self.writeSmdbFile()
 
-        #self.populateCriteriaList('directors', self.directorsList, self.directorsComboBox)
-        #self.populateCriteriaList('actors', self.actorsList, self.actorsComboBox)
-        #self.populateCriteriaList('genres', self.genresList, self.genresComboBox)
-        #self.populateCriteriaList('years', self.yearsList, self.yearsComboBox)
-        #self.populateCriteriaList('companies', self.companiesList, self.companiesComboBox)
-        #self.populateCriteriaList('countries', self.countriesList, self.countriesComboBox)
+        self.populateCriteriaList('directors', self.directorsList, self.directorsComboBox)
+        self.populateCriteriaList('actors', self.actorsList, self.actorsComboBox)
+        self.populateCriteriaList('genres', self.genresList, self.genresComboBox)
+        self.populateCriteriaList('years', self.yearsList, self.yearsComboBox)
+        self.populateCriteriaList('companies', self.companiesList, self.companiesComboBox)
+        self.populateCriteriaList('countries', self.countriesList, self.countriesComboBox)
         self.moviesList.setCurrentItem(self.moviesList.item(0))
         self.movieSelectionChanged()
 
@@ -417,6 +417,7 @@ class MyWindow(QtWidgets.QMainWindow):
         # Divides top h splitter and bottom progress bar
         mainVLayout = QtWidgets.QVBoxLayout(self)
         centralWidget.setLayout(mainVLayout)
+        #centralWidget.setStyleSheet("background-color: black;")
 
         # Main H Splitter for criteria, movies list, and cover/info
         mainHSplitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
@@ -426,6 +427,15 @@ class MyWindow(QtWidgets.QMainWindow):
         # V Splitter on the left dividing Directors, etc.
         criteriaVSplitter1 = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
         criteriaVSplitter1.setHandleWidth(20)
+
+        self.setStyleSheet("""QListWidget{
+                            background: black;
+                            color: white;
+                        }
+                        """
+                           )
+
+        self.setStyleSheet("QLabel { background: red; }")
 
         directorsWidget,\
         self.directorsList,\
@@ -496,8 +506,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesListSearchBox, \
         self.moviesComboBox = self.addCriteriaWidgets("Movies",
                                                       comboBoxEnum=["(year)title",
-                                                                    "(rating)title",
                                                                     "title(year)",
+                                                                    "rating - (year)title",
                                                                     "box office - (year)title",
                                                                     "runtime - (year)title",
                                                                     "folder name"])
@@ -516,7 +526,6 @@ class MyWindow(QtWidgets.QMainWindow):
         movieWidget.setStyleSheet("background-color: black;")
         movieVLayout = QtWidgets.QVBoxLayout()
         movieWidget.setLayout(movieVLayout)
-
 
         # Get a list of available fonts
         #dataBase = QtGui.QFontDatabase()
@@ -572,10 +581,10 @@ class MyWindow(QtWidgets.QMainWindow):
         displayStyle = 0
         if comboBoxText == "(year)title":
             displayStyle = displayStyles.YEAR_TITLE
-        elif comboBoxText == "(rating)title":
-            displayStyle = displayStyles.RATING_TITLE_YEAR
         elif comboBoxText == "title(year)":
             displayStyle = displayStyles.TITLE_YEAR
+        elif comboBoxText == "rating - (year)title":
+            displayStyle = displayStyles.RATING_TITLE_YEAR
         elif comboBoxText == "box office - (year)title":
             displayStyle = displayStyles.BOX_OFFICE_YEAR_TITLE
         elif comboBoxText == "runtime - (year)title":
@@ -729,7 +738,7 @@ class MyWindow(QtWidgets.QMainWindow):
             if not os.path.exists(jsonFile):
                 listItem.setBackground(QtGui.QColor(220, 220, 220))
             else:
-                listItem.setBackground(QtGui.QColor(255, 255, 255))
+                listItem.setBackground(QtGui.QColor(0, 0, 0))
 
     def populateCriteriaList(self, criteriaKey, listWidget, comboBoxWidget):
         """ criteriaKey is 'directors', 'actors', 'genres', 'years """
