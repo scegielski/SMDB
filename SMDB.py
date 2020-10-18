@@ -152,6 +152,8 @@ class MyWindow(QtWidgets.QMainWindow):
         actors = {}
         genres = {}
         years = {}
+        companies = {}
+        countries = {}
 
         self.progressBar.setMaximum(self.moviesList.count())
         progress = 0
@@ -256,6 +258,30 @@ class MyWindow(QtWidgets.QMainWindow):
                                 genres[genre]['movies'].append(titleYear)
                                 genres[genre]['num movies'] += 1
 
+                    jsonCompanies = None
+                    if 'companies' in jsonData and jsonData['companies']:
+                        jsonCompanies = jsonData['companies']
+                        for company in jsonCompanies:
+                            if company not in companies:
+                                companies[company] = {}
+                                companies[company]['num movies'] = 0
+                                companies[company]['movies'] = []
+                            if titleYear not in companies[company]['movies']:
+                                companies[company]['movies'].append(titleYear)
+                                companies[company]['num movies'] += 1
+
+                    jsonCountries = None
+                    if 'countries' in jsonData and jsonData['countries']:
+                        jsonCompanies = jsonData['countries']
+                        for country in jsonCompanies:
+                            if country not in countries:
+                                countries[country] = {}
+                                countries[country]['num movies'] = 0
+                                countries[country]['movies'] = []
+                            if titleYear not in countries[country]['movies']:
+                                countries[country]['movies'].append(titleYear)
+                                countries[country]['num movies'] += 1
+
                     jsonId = None
                     if 'id' in jsonData and jsonData['id']:
                         jsonId = jsonData['id']
@@ -293,6 +319,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.smdbData['genres'] = collections.OrderedDict(sorted(genres.items()))
         self.smdbData['directors'] = collections.OrderedDict(sorted(directors.items()))
         self.smdbData['actors'] = collections.OrderedDict(sorted(actors.items()))
+        self.smdbData['companies'] = collections.OrderedDict(sorted(companies.items()))
+        self.smdbData['countries'] = collections.OrderedDict(sorted(countries.items()))
 
         self.statusBar().showMessage('Writing %s' % self.smdbFile)
         with open(self.smdbFile, "w") as f:
