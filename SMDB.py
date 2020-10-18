@@ -115,10 +115,12 @@ class MyWindow(QtWidgets.QMainWindow):
             self.populateMovieList(forceScan)
             self.writeSmdbFile()
 
-        #self.populateCriteriaList('directors', self.directorsList, self.directorsComboBox)
-        #self.populateCriteriaList('actors', self.actorsList, self.actorsComboBox)
-        #self.populateCriteriaList('genres', self.genresList, self.genresComboBox)
-        #self.populateCriteriaList('years', self.yearsList, self.yearsComboBox)
+        self.populateCriteriaList('directors', self.directorsList, self.directorsComboBox)
+        self.populateCriteriaList('actors', self.actorsList, self.actorsComboBox)
+        self.populateCriteriaList('genres', self.genresList, self.genresComboBox)
+        self.populateCriteriaList('years', self.yearsList, self.yearsComboBox)
+        self.populateCriteriaList('companies', self.companiesList, self.companiesComboBox)
+        self.populateCriteriaList('countries', self.countriesList, self.countriesComboBox)
         self.moviesList.setCurrentItem(self.moviesList.item(0))
         self.movieSelectionChanged()
 
@@ -465,6 +467,26 @@ class MyWindow(QtWidgets.QMainWindow):
         self.yearsList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.yearsList, 'years'))
         self.yearsListSearchBox.textChanged.connect(lambda: searchListWidget(self.yearsListSearchBox, self.yearsList))
         criteriaVSplitter.addWidget(yearsWidget)
+
+        companiesWidget, \
+        self.companiesList, \
+        self.companiesListSearchBox, \
+        self.companiesComboBox = self.addCriteriaWidgets("Companies",
+                                                     comboBoxEnum=['(total)company', 'company(total)'],
+                                                     displayStyle=0)
+        self.companiesList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.companiesList, 'companies'))
+        self.companiesListSearchBox.textChanged.connect(lambda: searchListWidget(self.companiesListSearchBox, self.companiesList))
+        criteriaVSplitter.addWidget(companiesWidget)
+
+        countriesWidget, \
+        self.countriesList, \
+        self.countriesListSearchBox, \
+        self.countriesComboBox = self.addCriteriaWidgets("Countries",
+                                                         comboBoxEnum=['(total)country', 'country(total)'],
+                                                         displayStyle=0)
+        self.countriesList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.countriesList, 'countries'))
+        self.countriesListSearchBox.textChanged.connect(lambda: searchListWidget(self.countriesListSearchBox, self.countriesList))
+        criteriaVSplitter.addWidget(countriesWidget)
 
         moviesWidget, \
         self.moviesList, \
