@@ -22,6 +22,7 @@ class displayStyles(Enum):
     RATING_TITLE_YEAR = auto(),
     TITLE_YEAR = auto(),
     BOX_OFFICE_YEAR_TITLE = auto(),
+    RUNTIME_YEAR_TITLE = auto(),
     FOLDER = auto()
 
 # TODO: Create separate derived class for movie list and move methods
@@ -267,10 +268,15 @@ class MyWindow(QtWidgets.QMainWindow):
                     if 'box office' in jsonData and jsonData['box office']:
                         jsonBoxOffice = jsonData['box office']
 
+                    jsonRuntime = None
+                    if 'runtime' in jsonData and jsonData['runtime']:
+                        jsonRuntime = jsonData['runtime']
+
                     titles[folderName] = { 'id': jsonId,
                                           'title': jsonTitle,
                                           'year': jsonYear,
                                           'rating': jsonRating,
+                                          'runtime': jsonRuntime,
                                           'box office': jsonBoxOffice,
                                           'director': directorName,
                                           'genres': jsonGenres,
@@ -440,6 +446,7 @@ class MyWindow(QtWidgets.QMainWindow):
                                                                     "(rating)title",
                                                                     "title(year)",
                                                                     "box office - (year)title",
+                                                                    "runtime - (year)title",
                                                                     "folder name"])
         self.moviesList.itemSelectionChanged.connect(lambda: self.movieSelectionChanged())
         self.moviesListSearchBox.textChanged.connect(lambda: searchListWidget(self.moviesListSearchBox, self.moviesList))
@@ -513,6 +520,8 @@ class MyWindow(QtWidgets.QMainWindow):
             displayStyle = displayStyles.TITLE_YEAR
         elif comboBoxText == "box office - (year)title":
             displayStyle = displayStyles.BOX_OFFICE_YEAR_TITLE
+        elif comboBoxText == "runtime - (year)title":
+            displayStyle = displayStyles.RUNTIME_YEAR_TITLE
         elif comboBoxText == "folder name":
             displayStyle = displayStyles.FOLDER
         elif re.match(r'\((.*)\).*', comboBoxText):
@@ -572,6 +581,11 @@ class MyWindow(QtWidgets.QMainWindow):
                     amount = '$0'
                 niceTitle, year = getNiceTitleAndYear(folderName)
                 displayText = '%3s %15s - (%s) %s' % (currency, amount, year, niceTitle)
+            elif displayStyle == displayStyles.RUNTIME_YEAR_TITLE:
+                folderName = item.data(QtCore.Qt.UserRole)['folder name']
+                runtime = item.data(QtCore.Qt.UserRole)['runtime']
+                niceTitle, year = getNiceTitleAndYear(folderName)
+                displayText = '%4s - %s (%s)' % (runtime, niceTitle, year)
 
             elif displayStyle == displayStyles.FOLDER:
                 folderName = item.data(QtCore.Qt.UserRole)['folder name']
@@ -585,7 +599,8 @@ class MyWindow(QtWidgets.QMainWindow):
 
         if  displayStyle == displayStyles.TOTAL_ITEM or \
             displayStyle == displayStyles.RATING_TITLE_YEAR or \
-            displayStyle == displayStyles.BOX_OFFICE_YEAR_TITLE:
+            displayStyle == displayStyles.BOX_OFFICE_YEAR_TITLE or \
+            displayStyle == displayStyles.RUNTIME_YEAR_TITLE:
 
             listWidget.sortItems(QtCore.Qt.DescendingOrder)
         else:
@@ -733,6 +748,11 @@ class MyWindow(QtWidgets.QMainWindow):
         else:
             userData['id'] = ''
 
+        if 'runtime' in data:
+            userData['runtime'] = data['runtime']
+        else:
+            userData['runtime'] = ''
+
         item.setData(QtCore.Qt.UserRole, userData)
         return userData
 
@@ -833,20 +853,23 @@ class MyWindow(QtWidgets.QMainWindow):
         self.showMovieSelectionStatus()
 
     def clickedMovie(self, listItem):
-        moviePath = listItem.data(QtCore.Qt.UserRole)['path']
-        folderName = listItem.data(QtCore.Qt.UserRole)['folder name']
-        title = listItem.data(QtCore.Qt.UserRole)['title']
-        year = listItem.data(QtCore.Qt.UserRole)['year']
-        jsonFile = os.path.join(moviePath, '%s.json' % folderName)
-        coverFile = os.path.join(moviePath, '%s.jpg' % folderName)
-        if not os.path.exists(coverFile):
-            coverFilePng = os.path.join(moviePath, '%s.png' % folderName)
-            if os.path.exists(coverFilePng):
-                coverFile = coverFilePng
+        try:
+            moviePath = listItem.data(QtCore.Qt.UserRole)['path']
+            folderName = listItem.data(QtCore.Qt.UserRole)['folder name']
+            title = listItem.data(QtCore.Qt.UserRole)['title']
+            year = listItem.data(QtCore.Qt.UserRole)['year']
+            jsonFile = os.path.join(moviePath, '%s.json' % folderName)
+            coverFile = os.path.join(moviePath, '%s.jpg' % folderName)
+            if not os.path.exists(coverFile):
+                coverFilePng = os.path.join(moviePath, '%s.png' % folderName)
+                if os.path.exists(coverFilePng):
+                    coverFile = coverFilePng
 
-        self.showCoverFile(coverFile)
-        self.showSummary(jsonFile)
-        self.movieTitle.setText('%s (%s)' % (title, year))
+            self.showCoverFile(coverFile)
+            self.showSummary(jsonFile)
+            self.movieTitle.setText('%s (%s)' % (title, year))
+        except:
+            print("Error with movie %s" % listItem.text())
 
     def getMovieWithId(self, movieId):
         movie = self.db.get_movie(movieId)
@@ -918,24 +941,24 @@ class MyWindow(QtWidgets.QMainWindow):
                 try:
                     data = json.load(f)
                     summary = ''
-                    if 'rating' in data:
+                    if 'rating' in data and data['rating']:
                         summary += 'Rating: %s\n' % data['rating']
-                    if 'runtime' in data:
+                    if 'runtime' in data and data['runtime']:
                         summary += 'Runtime: %s minutes\n' % data['runtime']
-                    if 'genres' in data:
+                    if 'genres' in data and data['genres']:
                         summary += 'Genres: '
                         for genre in data['genres']:
                             summary += '%s, ' % genre
                         summary += '\n'
-                    if 'box office' in data:
+                    if 'box office' in data and data['box office']:
                         summary += 'Box Office: %s\n' % data['box office']
-                    if 'director' in data:
+                    if 'director' in data and data['director']:
                         summary += '\nDirected by: %s\n' % data['director'][0]
-                    if 'plot' in data:
+                    if 'plot' in data and data['plot']:
                         summary += '\nPlot:\n'
                         if isinstance(data['plot'], list):
                             summary += data['plot'][0]
-                    if 'cast' in data:
+                    if 'cast' in data and data['cast']:
                         summary += '\n\nCast:\n'
                         for c in data['cast']:
                             summary += '%s\n' % c
