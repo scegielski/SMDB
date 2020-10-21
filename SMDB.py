@@ -93,19 +93,15 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.db = IMDb()
 
-        self.moviesFolder = "J:/Movies"
-        self.configFile = os.path.join("smdb_config.json")
+        self.settings = QtCore.QSettings("STC", "SMDB")
+        self.moviesFolder = self.settings.value('movies_folder', "J:/Movies", type=str)
 
-        self.readConfigFile()
         if not os.path.exists(self.moviesFolder):
             return
         self.smdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
 
         self.initUI()
         print("Done with init")
-
-    def closeEvent(self, event):
-        self.saveConfig()
 
     def refresh(self, forceScan=False):
 
@@ -130,23 +126,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesList.setCurrentItem(self.moviesList.item(0))
         self.movieSelectionChanged()
         print ("Done")
-
-    def readConfigFile(self):
-        if not os.path.exists(self.configFile):
-            return
-
-        with open(self.configFile) as f:
-            configData = json.load(f)
-
-        if 'movies_folder' in configData:
-            self.moviesFolder = configData['movies_folder']
-
-    def saveConfig(self):
-        configData = {}
-        configData['movies_folder'] = self.moviesFolder
-
-        with open(self.configFile, "w") as f:
-            json.dump(configData, f, indent=4)
 
     def readSmdbFile(self):
         self.smdbData = None
@@ -393,8 +372,7 @@ class MyWindow(QtWidgets.QMainWindow):
             QtWidgets.QFileDialog.DontResolveSymlinks)
         if os.path.exists(moviesFolder):
             self.moviesFolder = moviesFolder
-            self.moviesFolderEdit.setText(self.moviesFolder)
-            self.moviesFolderEdit.setStyleSheet("color: black; background: white")
+            self.settings.setValue('movies_folder', self.moviesFolder)
             self.readSmdbFile()
             self.refresh()
 
