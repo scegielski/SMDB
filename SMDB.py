@@ -83,6 +83,36 @@ def searchListWidget(searchBoxWidget, listWidget):
         for foundItem in listWidget.findItems(searchText, QtCore.Qt.MatchContains):
             foundItem.setHidden(False)
 
+class MovieTableModel(QtCore.QAbstractTableModel):
+    def __init__(self):
+        super().__init__()
+        self._headers = ['year', 'title', 'rating', 'box office', 'run time']
+        self._data = []
+        self._data.append(['(1980)', 'The Thing', '7.0', '$2,000,000', '90'])
+        self._data.append(['(1981)', 'The Shining', '8.0', '$3,000,000', '120'])
+
+    def rowCount(self, parent):
+        return len(self._data)
+
+    def columnCount(self, parent):
+        return len(self._headers)
+
+    def data(self, index, role):
+        if role == QtCore.Qt.DisplayRole:
+            return self._data[index.row()][index.column()]
+
+    def setHeaderData(self, section, orientation, role):
+        if (orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole):
+            return self._headers[section]
+        else:
+            return super().headerData(section, orientation, role)
+
+    def sort(self, column, order):
+        self.layoutAboutToBeChanged().emit()
+        self._data.sort(key=lambda x: x[column])
+        if order == QtCore.Qt.DescendingOrder:
+            self._data.reverse()
+        self.layoutChanged().emit()
 
 class MyWindow(QtWidgets.QMainWindow):
     def __init__(self):
