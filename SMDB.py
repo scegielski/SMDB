@@ -83,7 +83,7 @@ def searchListWidget(searchBoxWidget, listWidget):
         for foundItem in listWidget.findItems(searchText, QtCore.Qt.MatchContains):
             foundItem.setHidden(False)
 
-class MovieTableModel(QtCore.QAbstractTableModel):
+class MoviesTableModel(QtCore.QAbstractTableModel):
     def __init__(self):
         super().__init__()
         self._headers = ['year', 'title', 'rating', 'box office', 'run time']
@@ -101,18 +101,18 @@ class MovieTableModel(QtCore.QAbstractTableModel):
         if role == QtCore.Qt.DisplayRole:
             return self._data[index.row()][index.column()]
 
-    def setHeaderData(self, section, orientation, role):
-        if (orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole):
+    def headerData(self, section, orientation, role):
+        if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
             return self._headers[section]
         else:
             return super().headerData(section, orientation, role)
 
     def sort(self, column, order):
-        self.layoutAboutToBeChanged().emit()
+        self.layoutAboutToBeChanged.emit()
         self._data.sort(key=lambda x: x[column])
         if order == QtCore.Qt.DescendingOrder:
             self._data.reverse()
-        self.layoutChanged().emit()
+        self.layoutChanged.emit()
 
 class MyWindow(QtWidgets.QMainWindow):
     def __init__(self):
@@ -532,6 +532,15 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesList.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.moviesList.customContextMenuRequested[QtCore.QPoint].connect(self.moviesListRightMenuShow)
 
+        moviesTableViewWidget = QtWidgets.QWidget()
+        moviesTableViewWidget.setLayout(QtWidgets.QVBoxLayout())
+        self.moviesTable = QtWidgets.QTableView()
+        self.moviesTable .setSortingEnabled(True)
+        self.moviesTableModel = MoviesTableModel()
+        self.moviesTable.setModel(self.moviesTableModel)
+        moviesTableViewWidget.layout().addWidget(QtWidgets.QLabel("Movies Table"))
+        moviesTableViewWidget.layout().addWidget(self.moviesTable)
+
         # Cover and Summary ---------------------------------------------------------------------------------------
         movieSummaryVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
         movieSummaryVSplitter.setHandleWidth(20)
@@ -576,8 +585,9 @@ class MyWindow(QtWidgets.QMainWindow):
         mainHSplitter.addWidget(criteriaVSplitter1)
         mainHSplitter.addWidget(criteriaVSplitter2)
         mainHSplitter.addWidget(moviesWidget)
+        mainHSplitter.addWidget(moviesTableViewWidget)
         mainHSplitter.addWidget(movieSummaryVSplitter)
-        mainHSplitter.setSizes([200, 200, 300, 500])
+        mainHSplitter.setSizes([200, 200, 300, 300, 200])
 
         # Bottom ---------------------------------------------------------------------------------------
         bottomLayout = QtWidgets.QHBoxLayout(self)
@@ -1287,7 +1297,7 @@ def window():
     win = MyWindow()
     win.show()
     QtCore.QCoreApplication.processEvents()
-    win.refresh()
+    #win.refresh()
     sys.exit(app.exec_())
 
 
