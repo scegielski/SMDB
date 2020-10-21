@@ -102,6 +102,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.smdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
 
         self.initUI()
+        print("Done with init")
 
     def closeEvent(self, event):
         self.saveConfig()
@@ -109,20 +110,26 @@ class MyWindow(QtWidgets.QMainWindow):
     def refresh(self, forceScan=False):
 
         if os.path.exists(self.smdbFile):
+            print("Reading smdb file")
             self.readSmdbFile()
+            print("Populating movie list")
             self.populateMovieList(forceScan)
+            print("Done populating movie list")
         else:
             self.populateMovieList(forceScan)
             self.writeSmdbFile()
 
+        print("Populating criteria lists")
         self.populateCriteriaList('directors', self.directorsList, self.directorsComboBox)
         self.populateCriteriaList('actors', self.actorsList, self.actorsComboBox)
         self.populateCriteriaList('genres', self.genresList, self.genresComboBox)
         self.populateCriteriaList('years', self.yearsList, self.yearsComboBox)
         self.populateCriteriaList('companies', self.companiesList, self.companiesComboBox)
         self.populateCriteriaList('countries', self.countriesList, self.countriesComboBox)
+        print("Done populating criteria lists")
         self.moviesList.setCurrentItem(self.moviesList.item(0))
         self.movieSelectionChanged()
+        print ("Done")
 
     def readConfigFile(self):
         if not os.path.exists(self.configFile):
@@ -834,9 +841,11 @@ class MyWindow(QtWidgets.QMainWindow):
         useSmdbData = False
         if not forceScan and  self.smdbData and 'titles' in self.smdbData:
             useSmdbData = True
+            print("Appending title from smdb file")
             for title in self.smdbData['titles']:
                 movieList.append(title)
         else:
+            print("Scanning movie dir")
             with os.scandir(self.moviesFolder) as files:
                 for f in files:
                     if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
@@ -844,12 +853,17 @@ class MyWindow(QtWidgets.QMainWindow):
 
         progress = 0
         self.progressBar.setMaximum(len(movieList))
+        numMovies = len(movieList)
         for folderName in movieList:
+            print("Adding folder (%d/%d)" % (progress, numMovies))
+            print("folderName = %s" % folderName)
             item = QtWidgets.QListWidgetItem(folderName)
             data = {}
             if useSmdbData:
                 data = self.smdbData['titles'][folderName]
+                print("Got data for %s " % folderName)
             else:
+                print("Reading json file for %s" % folderName)
                 jsonFile = os.path.join(self.moviesFolder, folderName, '%s.json' % folderName)
                 if os.path.exists(jsonFile):
                     with open(jsonFile) as f:
@@ -859,14 +873,19 @@ class MyWindow(QtWidgets.QMainWindow):
                             item.setForeground(QtGui.QColor(255, 0, 0))
                             print("Error reading %s" % jsonFile)
 
+            print("Setting user data")
             self.setMovieItemUserData(item, folderName, data)
+            print("Adding item")
             self.moviesList.addItem(item)
             self.numVisibleMovies += 1
             progress += 1
             self.progressBar.setValue(progress)
+        print("Done adding items")
         self.progressBar.setValue(0)
         self.setMovieListItemColors()
+        print("listDisplayStyleChanged")
         self.listDisplayStyleChanged(self.moviesComboBox, self.moviesList)
+        print("Done listDisplayStyleChanged")
 
     def cancelButtonClicked(self):
         self.isCanceled = True
