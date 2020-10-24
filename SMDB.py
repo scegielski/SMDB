@@ -84,12 +84,98 @@ def searchListWidget(searchBoxWidget, listWidget):
             foundItem.setHidden(False)
 
 class MoviesTableModel(QtCore.QAbstractTableModel):
-    def __init__(self):
+    def __init__(self, smdbData, moviesFolder, forceScan=False):
         super().__init__()
-        self._headers = ['year', 'title', 'rating', 'box office', 'run time']
+        self.numVisibleMovies = 0
+        if not os.path.exists(moviesFolder):
+            return
+
+        reMoneyValue = re.compile(r'(\d+(?:,\d+)*(?:\.\d+)?)')
+        reCurrency = re.compile(r'^([A-Z][A-Z][A-Z])(.*)')
+
+        movieList = []
+        useSmdbData = False
+        if not forceScan and smdbData and 'titles' in smdbData:
+            useSmdbData = True
+            for title in smdbData['titles']:
+                movieList.append(title)
+        else:
+            with os.scandir(moviesFolder) as files:
+                for f in files:
+                    if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
+                        movieList.append(f.name)
+
         self._data = []
-        self._data.append(['(1980)', 'The Thing', '7.0', '$2,000,000', '90'])
-        self._data.append(['(1981)', 'The Shining', '8.0', '$3,000,000', '120'])
+        for folderName in movieList:
+            data = {}
+            if useSmdbData:
+                data = smdbData['titles'][folderName]
+            else:
+                jsonFile = os.path.join(moviesFolder, folderName, '%s.json' % folderName)
+                if os.path.exists(jsonFile):
+                    with open(jsonFile) as f:
+                        try:
+                            data = json.load(f)
+                        except UnicodeDecodeError:
+                            print("Error reading %s" % jsonFile)
+
+            self._headers = ['year',
+                             'title',
+                             'rating',
+                             'box office',
+                             'runtime',
+                             'id',
+                             'folder name',
+                             'path']
+            movieData = []
+            for header in self._headers:
+                if header == 'path':
+                    movieData.append(os.path.join(moviesFolder, folderName))
+                if header == 'folder name':
+                    movieData.append(folderName)
+                else:
+                    if header in data:
+                        if header == 'runtime':
+                            runtime = data[header]
+                            if runtime == None:
+                                runtime = '000'
+                            else:
+                                runtime = '%03d' % int(runtime)
+                            movieData.append(runtime)
+                        elif header == 'rating':
+                            rating = data[header]
+                            if rating == None:
+                                rating = '0.0'
+                            else:
+                                rating = str(rating)
+                                if len(rating) == 1:
+                                    rating = '%s.0' % rating
+                            movieData.append(rating)
+                        elif header == 'box office':
+                            boxOffice = data[header]
+                            currency = 'USD'
+                            if boxOffice:
+                                boxOffice = boxOffice.replace(' (estimated)', '')
+                                match = re.match(reCurrency, boxOffice)
+                                if match:
+                                    currency = match.group(1)
+                                    boxOffice = '$%s' % match.group(2)
+                                results = re.findall(reMoneyValue, boxOffice)
+                                if currency == 'USD':
+                                    amount = '$%s' % results[0]
+                                else:
+                                    amount = '%s' % results[0]
+                            else:
+                                amount = '$0'
+                            displayText = '%3s %15s' % (currency, amount)
+                            movieData.append(displayText)
+                        else:
+                            movieData.append(data[header])
+                    else:
+                        movieData.append('')
+            self._data.append(movieData)
+
+        self.sort(0, QtCore.Qt.AscendingOrder)
 
     def rowCount(self, parent):
         return len(self._data)
@@ -109,7 +195,9 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
     def sort(self, column, order):
         self.layoutAboutToBeChanged.emit()
-        self._data.sort(key=lambda x: x[column])
+        #self._data.sort(key=lambda x: x[column] if x[column] else '')
+        self._data.sort(key=lambda x: x[column] if x[column] else '')
+        #self._data.sort(key=cmp_to_key(myCompare))
         if order == QtCore.Qt.DescendingOrder:
             self._data.reverse()
         self.layoutChanged.emit()
@@ -144,6 +232,11 @@ class MyWindow(QtWidgets.QMainWindow):
         else:
             self.populateMovieList(forceScan)
             self.writeSmdbFile()
+
+        self.moviesTableModel = MoviesTableModel(self.smdbData, self.moviesFolder, forceScan)
+        self.moviesTable.setModel(self.moviesTableModel)
+
+        return
 
         print("Populating criteria lists")
         self.populateCriteriaList('directors', self.directorsList, self.directorsComboBox)
@@ -535,9 +628,7 @@ class MyWindow(QtWidgets.QMainWindow):
         moviesTableViewWidget = QtWidgets.QWidget()
         moviesTableViewWidget.setLayout(QtWidgets.QVBoxLayout())
         self.moviesTable = QtWidgets.QTableView()
-        self.moviesTable .setSortingEnabled(True)
-        self.moviesTableModel = MoviesTableModel()
-        self.moviesTable.setModel(self.moviesTableModel)
+        self.moviesTable.setSortingEnabled(True)
         moviesTableViewWidget.layout().addWidget(QtWidgets.QLabel("Movies Table"))
         moviesTableViewWidget.layout().addWidget(self.moviesTable)
 
@@ -857,13 +948,11 @@ class MyWindow(QtWidgets.QMainWindow):
         movieList = []
 
         useSmdbData = False
-        if not forceScan and  self.smdbData and 'titles' in self.smdbData:
+        if not forceScan and self.smdbData and 'titles' in self.smdbData:
             useSmdbData = True
-            print("Appending title from smdb file")
             for title in self.smdbData['titles']:
                 movieList.append(title)
         else:
-            print("Scanning movie dir")
             with os.scandir(self.moviesFolder) as files:
                 for f in files:
                     if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
@@ -873,15 +962,11 @@ class MyWindow(QtWidgets.QMainWindow):
         self.progressBar.setMaximum(len(movieList))
         numMovies = len(movieList)
         for folderName in movieList:
-            print("Adding folder (%d/%d)" % (progress, numMovies))
-            print("folderName = %s" % folderName)
             item = QtWidgets.QListWidgetItem(folderName)
             data = {}
             if useSmdbData:
                 data = self.smdbData['titles'][folderName]
-                print("Got data for %s " % folderName)
             else:
-                print("Reading json file for %s" % folderName)
                 jsonFile = os.path.join(self.moviesFolder, folderName, '%s.json' % folderName)
                 if os.path.exists(jsonFile):
                     with open(jsonFile) as f:
@@ -891,19 +976,15 @@ class MyWindow(QtWidgets.QMainWindow):
                             item.setForeground(QtGui.QColor(255, 0, 0))
                             print("Error reading %s" % jsonFile)
 
-            print("Setting user data")
             self.setMovieItemUserData(item, folderName, data)
-            print("Adding item")
             self.moviesList.addItem(item)
             self.numVisibleMovies += 1
             progress += 1
             self.progressBar.setValue(progress)
-        print("Done adding items")
         self.progressBar.setValue(0)
-        self.setMovieListItemColors()
-        print("listDisplayStyleChanged")
+        if forceScan:
+            self.setMovieListItemColors()
         self.listDisplayStyleChanged(self.moviesComboBox, self.moviesList)
-        print("Done listDisplayStyleChanged")
 
     def cancelButtonClicked(self):
         self.isCanceled = True
@@ -1297,7 +1378,7 @@ def window():
     win = MyWindow()
     win.show()
     QtCore.QCoreApplication.processEvents()
-    #win.refresh()
+    win.refresh()
     sys.exit(app.exec_())
 
 
