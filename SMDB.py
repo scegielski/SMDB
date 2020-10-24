@@ -236,8 +236,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableModel = MoviesTableModel(self.smdbData, self.moviesFolder, forceScan)
         self.moviesTable.setModel(self.moviesTableModel)
 
-        return
-
         print("Populating criteria lists")
         self.populateCriteriaList('directors', self.directorsList, self.directorsComboBox)
         self.populateCriteriaList('actors', self.actorsList, self.actorsComboBox)
