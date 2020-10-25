@@ -196,7 +196,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
     def sort(self, column, order):
         self.layoutAboutToBeChanged.emit()
         #self._data.sort(key=lambda x: x[column] if x[column] else '')
-        self._data.sort(key=lambda x: x[column] if x[column] else '')
+        self._data.sort(key=lambda x: str(x[column]) if x[column] else '')
         #self._data.sort(key=cmp_to_key(myCompare))
         if order == QtCore.Qt.DescendingOrder:
             self._data.reverse()
@@ -1264,14 +1264,20 @@ class MyWindow(QtWidgets.QMainWindow):
     def openMovieFolder(self):
         selectedMovie = self.moviesList.selectedItems()[0]
         filePath = selectedMovie.data(QtCore.Qt.UserRole)['path']
-        os.startfile(filePath)
+        if os.path.exists(filePath):
+            os.startfile(filePath)
+        else:
+            print("Folder doens't exist")
 
     def openMovieJson(self):
         selectedMovie = self.moviesList.selectedItems()[0]
         moviePath = selectedMovie.data(QtCore.Qt.UserRole)['path']
         folderName = selectedMovie.data(QtCore.Qt.UserRole)['folder name']
         jsonFile = os.path.join(moviePath, '%s.json' % folderName)
-        os.startfile(jsonFile)
+        if os.path.exists(jsonFile):
+            os.startfile(jsonFile)
+        else:
+            print("jsonFile: %s doesn't exist" % jsonFile)
 
     def openMovieImdbPage(self):
         selectedMovie = self.moviesList.selectedItems()[0]
