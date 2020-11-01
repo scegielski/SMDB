@@ -167,7 +167,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                     amount = '%s' % results[0]
                             else:
                                 amount = '$0'
-                            displayText = '%3s %15s' % (currency, amount)
+                            displayText = '%-3s %15s' % (currency, amount)
                             movieData.append(displayText)
                         else:
                             movieData.append(data[header])
@@ -186,6 +186,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
     def data(self, index, role):
         if role == QtCore.Qt.DisplayRole:
             return self._data[index.row()][index.column()]
+        elif role == QtCore.Qt.TextAlignmentRole:
+            return QtCore.Qt.AlignLeft
 
     def headerData(self, section, orientation, role):
         if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
@@ -231,6 +233,18 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.moviesTableModel = MoviesTableModel(self.smdbData, self.moviesFolder, forceScan)
         self.moviesTable.setModel(self.moviesTableModel)
+        self.moviesTable.setColumnWidth(0, 15)  # year
+        self.moviesTable.setColumnWidth(1, 200) # title
+        self.moviesTable.setColumnWidth(2, 60)  # rating
+        self.moviesTable.setColumnWidth(3, 150) # box office
+        self.moviesTable.setColumnWidth(4, 60) # runtime
+        self.moviesTable.setColumnWidth(5, 60) # id
+        self.moviesTable.setColumnWidth(6, 200) # folder
+        self.moviesTable.setColumnWidth(7, 1000) # path
+        self.moviesTable.verticalHeader().setMinimumSectionSize(10)
+        for row in range(self.moviesTableModel.rowCount(self.moviesTable.rootIndex())):
+            self.moviesTable.verticalHeader().resizeSection(row, 18)
+        self.moviesTable.setWordWrap(False)
 
         if forceScan:
             return
@@ -530,14 +544,15 @@ class MyWindow(QtWidgets.QMainWindow):
         criteriaVSplitter1 = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
         criteriaVSplitter1.setHandleWidth(20)
 
-        self.setStyleSheet("""QListWidget{
+        self.setStyleSheet("""
+                        QAbstractItemView{
                             background: black;
                             color: white;
-                        }
+                        };
                         """
                            )
 
-        self.setStyleSheet("QLabel { background: red; }")
+        #self.setStyleSheet("QLabel { background: red; }")
 
         directorsWidget,\
         self.directorsList,\
@@ -623,6 +638,15 @@ class MyWindow(QtWidgets.QMainWindow):
         moviesTableViewWidget.setLayout(QtWidgets.QVBoxLayout())
         self.moviesTable = QtWidgets.QTableView()
         self.moviesTable.setSortingEnabled(True)
+        self.moviesTable.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
+        self.moviesTable.verticalHeader().hide()
+        self.moviesTable.setAlternatingRowColors(True)
+
+        style = "::section {""background-color: darkgrey; }"
+        self.moviesTable.horizontalHeader().setStyleSheet(style)
+        self.moviesTable.setShowGrid(False)
+        self.moviesTable.setStyleSheet("alternate-background-color: #151515;background-color: black;");
+
         moviesTableViewWidget.layout().addWidget(QtWidgets.QLabel("Movies Table"))
         moviesTableViewWidget.layout().addWidget(self.moviesTable)
 
