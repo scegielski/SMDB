@@ -219,16 +219,12 @@ class MyWindow(QtWidgets.QMainWindow):
         self.smdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
 
         self.initUI()
-        print("Done with init")
 
     def refresh(self, forceScan=False):
 
         if os.path.exists(self.smdbFile):
-            print("Reading smdb file")
             self.readSmdbFile()
-            print("Populating movie list")
             self.populateMovieList(forceScan)
-            print("Done populating movie list")
         else:
             self.populateMovieList(forceScan)
             self.writeSmdbFile()
@@ -236,17 +232,17 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableModel = MoviesTableModel(self.smdbData, self.moviesFolder, forceScan)
         self.moviesTable.setModel(self.moviesTableModel)
 
-        print("Populating criteria lists")
+        if forceScan:
+            return
+
         self.populateCriteriaList('directors', self.directorsList, self.directorsComboBox)
         self.populateCriteriaList('actors', self.actorsList, self.actorsComboBox)
         self.populateCriteriaList('genres', self.genresList, self.genresComboBox)
         self.populateCriteriaList('years', self.yearsList, self.yearsComboBox)
         self.populateCriteriaList('companies', self.companiesList, self.companiesComboBox)
         self.populateCriteriaList('countries', self.countriesList, self.countriesComboBox)
-        print("Done populating criteria lists")
         self.moviesList.setCurrentItem(self.moviesList.item(0))
         self.movieSelectionChanged()
-        print ("Done")
 
     def readSmdbFile(self):
         self.smdbData = None
@@ -509,7 +505,7 @@ class MyWindow(QtWidgets.QMainWindow):
         setMovieFolderAction.triggered.connect(self.browseMoviesFolder)
         fileMenu.addAction(setMovieFolderAction)
 
-        refreshAction = QtWidgets.QAction("Refresh", self)
+        refreshAction = QtWidgets.QAction("Rescan movies dir", self)
         refreshAction.triggered.connect(lambda: self.refresh(forceScan=True))
         fileMenu.addAction(refreshAction)
 
@@ -876,6 +872,7 @@ class MyWindow(QtWidgets.QMainWindow):
         displayStyle = self.getDisplayStyle(comboBoxWidget)
         for criteria in self.smdbData[criteriaKey].keys():
             numMovies = self.smdbData[criteriaKey][criteria]['num movies']
+            #print("criteria = %s numMovies = %s" % (criteria, numMovies))
 
             if displayStyle == displayStyles.TOTAL_ITEM:
                 displayText = '(%04d) %s' % (numMovies, criteria)
@@ -955,10 +952,12 @@ class MyWindow(QtWidgets.QMainWindow):
                 for f in files:
                     if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
                         movieList.append(f.name)
+                    else:
+                        print("Not adding folder: %s" % f.name)
 
         progress = 0
         self.progressBar.setMaximum(len(movieList))
-        numMovies = len(movieList)
+
         for folderName in movieList:
             item = QtWidgets.QListWidgetItem(folderName)
             data = {}
@@ -979,6 +978,7 @@ class MyWindow(QtWidgets.QMainWindow):
             self.numVisibleMovies += 1
             progress += 1
             self.progressBar.setValue(progress)
+        print("numVisibleMovies = %s" % self.numVisibleMovies)
         self.progressBar.setValue(0)
         if forceScan:
             self.setMovieListItemColors()
@@ -1267,7 +1267,7 @@ class MyWindow(QtWidgets.QMainWindow):
         if os.path.exists(filePath):
             os.startfile(filePath)
         else:
-            print("Folder doens't exist")
+            print("Folder doesn't exist")
 
     def openMovieJson(self):
         selectedMovie = self.moviesList.selectedItems()[0]
@@ -1292,16 +1292,13 @@ class MyWindow(QtWidgets.QMainWindow):
                                                      "")
         if 'tt' in movieId:
             movieId = movieId.replace('tt', '')
-            print('movieId = %s' % movieId)
         if movieId and ok:
-            print("downloading movie id %s" % movieId)
             listItem = self.moviesList.currentItem()
             self.downloadMovieData(listItem, True, movieId)
 
     def openPersonImdbPage(self, personName):
         personId = self.db.name2imdbID(personName)
         if not personId:
-            print("Searching for: %s" % personName)
             results = self.db.search_person(personName)
             if not results:
                 print('No matches for: %s' % personName)
@@ -1311,7 +1308,6 @@ class MyWindow(QtWidgets.QMainWindow):
                 personId = person.getID()
 
         if (personId):
-            print("Opening IMDB page for: %s" % personName)
             webbrowser.open('http://imdb.com/name/nm%s' % personId, new=2)
 
     def peopleListRightMenuShow(self, peopleList):
