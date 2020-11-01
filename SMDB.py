@@ -999,13 +999,14 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def criteriaSelectionChanged(self, listWidget, smdbKey):
         if len(listWidget.selectedItems()) == 0:
+            self.numVisibleMovies = self.moviesList.count()
+            self.showMovieSelectionStatus()
             for row in range(self.moviesList.count()):
                 self.moviesList.item(row).setHidden(False)
             return
 
         criteriaMovieList = []
         for item in listWidget.selectedItems():
-            criteria = item.text()
             userData = item.data(QtCore.Qt.UserRole)
             movies = self.smdbData[smdbKey][userData['criteria']]['movies']
             for movie in movies:
