@@ -1246,6 +1246,7 @@ class MyWindow(QtWidgets.QMainWindow):
         for file in os.listdir(movieFolder):
             extension = os.path.splitext(file)[1]
             if extension == '.mkv' or \
+                    extension == '.mpg' or \
                     extension == '.mp4' or \
                     extension == '.avi' or \
                     extension == '.avi' or \
