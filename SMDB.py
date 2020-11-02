@@ -266,7 +266,6 @@ class MyWindow(QtWidgets.QMainWindow):
         if forceScan:
             return
 
-        return
         self.populateCriteriaList('directors', self.directorsList, self.directorsComboBox)
         self.populateCriteriaList('actors', self.actorsList, self.actorsComboBox)
         self.populateCriteriaList('genres', self.genresList, self.genresComboBox)
