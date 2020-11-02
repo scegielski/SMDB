@@ -72,6 +72,8 @@ def getNiceTitleAndYear(folderName):
     niceTitle = ' '.join(splitTitle)
     return niceTitle, year
 
+
+
 def searchListWidget(searchBoxWidget, listWidget):
     searchText = searchBoxWidget.text()
     if searchText == "":
@@ -82,6 +84,21 @@ def searchListWidget(searchBoxWidget, listWidget):
             listWidget.item(row).setHidden(True)
         for foundItem in listWidget.findItems(searchText, QtCore.Qt.MatchContains):
             foundItem.setHidden(False)
+
+def searchTableView(searchBoxWidget, tableView):
+    model = tableView.model()
+    for row in range(model.rowCount(None)):
+        tableView.hideRow(row)
+
+    searchText = searchBoxWidget.text()
+    if searchText != "":
+        matches = model.match(model.index(0, 1),
+                              QtCore.Qt.DisplayRole,
+                              searchText,
+                              hits=-1,
+                              flags=QtCore.Qt.MatchContains)
+        for index in matches:
+            tableView.showRow(index.row())
 
 class MoviesTableModel(QtCore.QAbstractTableModel):
     def __init__(self, smdbData, moviesFolder, forceScan=False):
@@ -249,6 +266,7 @@ class MyWindow(QtWidgets.QMainWindow):
         if forceScan:
             return
 
+        return
         self.populateCriteriaList('directors', self.directorsList, self.directorsComboBox)
         self.populateCriteriaList('actors', self.actorsList, self.actorsComboBox)
         self.populateCriteriaList('genres', self.genresList, self.genresComboBox)
@@ -649,6 +667,12 @@ class MyWindow(QtWidgets.QMainWindow):
 
         moviesTableViewWidget.layout().addWidget(QtWidgets.QLabel("Movies Table"))
         moviesTableViewWidget.layout().addWidget(self.moviesTable)
+
+        moviesTableSearchBox = QtWidgets.QLineEdit(self)
+        moviesTableSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
+        moviesTableSearchBox.setClearButtonEnabled(True)
+        moviesTableViewWidget.layout().addWidget(moviesTableSearchBox)
+        moviesTableSearchBox.textChanged.connect(lambda: searchTableView(moviesTableSearchBox, self.moviesTable))
 
         # Cover and Summary ---------------------------------------------------------------------------------------
         movieSummaryVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
