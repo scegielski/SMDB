@@ -665,6 +665,9 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTable.setShowGrid(False)
         self.moviesTable.setStyleSheet("alternate-background-color: #151515;background-color: black;");
 
+        self.moviesTable.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.moviesTable.customContextMenuRequested[QtCore.QPoint].connect(self.moviesListRightMenuShow)
+
         moviesTableViewWidget.layout().addWidget(QtWidgets.QLabel("Movies Table"))
         moviesTableViewWidget.layout().addWidget(self.moviesTable)
 
