@@ -992,9 +992,6 @@ class MyWindow(QtWidgets.QMainWindow):
         return userData
 
     def populateMovieList(self, forceScan=False):
-        if not self.movieList:
-            return
-
         self.moviesList.clear()
         self.numVisibleMovies = 0
         if not os.path.exists(self.moviesFolder):
