@@ -235,6 +235,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.settings = QtCore.QSettings("STC", "SMDB")
         self.moviesFolder = self.settings.value('movies_folder', "J:/Movies", type=str)
+        print ("Read moviesFolder = %s" % self.moviesFolder)
 
         self.smdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
 
@@ -528,6 +529,7 @@ class MyWindow(QtWidgets.QMainWindow):
         if os.path.exists(moviesFolder):
             self.moviesFolder = moviesFolder
             self.settings.setValue('movies_folder', self.moviesFolder)
+            print("Saved: moviesFolder = %s" % self.moviesFolder)
             self.readSmdbFile()
             self.smdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
             self.refresh()
