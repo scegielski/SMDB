@@ -529,6 +529,7 @@ class MyWindow(QtWidgets.QMainWindow):
             self.moviesFolder = moviesFolder
             self.settings.setValue('movies_folder', self.moviesFolder)
             self.readSmdbFile()
+            self.smdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
             self.refresh()
 
     def initUI(self):
