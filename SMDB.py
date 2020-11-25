@@ -224,6 +224,9 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 class MyWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super(MyWindow, self).__init__()
+        self.movieCover = None
+        self.movieList = None
+        self.smdbFile = ""
         self.setGeometry(200, 75, 1600, 900)
         self.setWindowTitle("Scott's Movie Database")
         self.numVisibleMovies = 0
@@ -233,13 +236,17 @@ class MyWindow(QtWidgets.QMainWindow):
         self.settings = QtCore.QSettings("STC", "SMDB")
         self.moviesFolder = self.settings.value('movies_folder', "J:/Movies", type=str)
 
-        if not os.path.exists(self.moviesFolder):
-            return
         self.smdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
 
         self.initUI()
 
+        if not os.path.exists(self.moviesFolder):
+            return
+
     def refresh(self, forceScan=False):
+
+        if not os.path.exists(self.moviesFolder):
+            return
 
         if os.path.exists(self.smdbFile):
             self.readSmdbFile()
@@ -985,6 +992,9 @@ class MyWindow(QtWidgets.QMainWindow):
         return userData
 
     def populateMovieList(self, forceScan=False):
+        if not self.movieList:
+            return
+
         self.moviesList.clear()
         self.numVisibleMovies = 0
         if not os.path.exists(self.moviesFolder):
@@ -1148,12 +1158,13 @@ class MyWindow(QtWidgets.QMainWindow):
         return movie
 
     def resizeCoverFile(self):
-        sz = self.movieCover.size()
-        coverFile = self.movieCover.property('cover file')
-        pixMap = QtGui.QPixmap(coverFile)
-        self.movieCover.setPixmap(pixMap.scaled(sz.width(), sz.height(),
-                                                QtCore.Qt.KeepAspectRatio,
-                                                QtCore.Qt.SmoothTransformation))
+        if self.movieCover:
+            sz = self.movieCover.size()
+            coverFile = self.movieCover.property('cover file')
+            pixMap = QtGui.QPixmap(coverFile)
+            self.movieCover.setPixmap(pixMap.scaled(sz.width(), sz.height(),
+                                                    QtCore.Qt.KeepAspectRatio,
+                                                    QtCore.Qt.SmoothTransformation))
 
     def resizeEvent(self, a0: QtGui.QResizeEvent) -> None:
         self.resizeCoverFile()
