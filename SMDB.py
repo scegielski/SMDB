@@ -1315,7 +1315,11 @@ class MyWindow(QtWidgets.QMainWindow):
         if len(movieFiles) == 1:
             fileToPlay = os.path.join(movieFolder, movieFiles[0])
             if os.path.exists(fileToPlay):
-                os.startfile(fileToPlay)
+                if sys.platform == "win32":
+                    os.startfile(fileToPlay)
+                else:
+                    opener = "open" if sys.platform == "darwin" else "xdg-open"
+                    subprocess.call([opener, fileToPlay])
         else:
             # If there are more than one movie like files in the
             # folder, then just open the folder so the user can
