@@ -1326,13 +1326,21 @@ class MyWindow(QtWidgets.QMainWindow):
             # If there are more than one movie like files in the
             # folder, then just open the folder so the user can
             # play the desired file.
-            os.startfile(movieFolder)
+            if sys.platform == "win32":
+                os.startfile(movieFolder)
+            else:
+                opener = "open" if sys.platform == "darwin" else "xdg-open"
+                subprocess.call([opener, movieFolder])
 
     def openMovieFolder(self):
         selectedMovie = self.moviesList.selectedItems()[0]
         filePath = selectedMovie.data(QtCore.Qt.UserRole)['path']
         if os.path.exists(filePath):
-            os.startfile(filePath)
+            if sys.platform == "win32":
+                os.startfile(filePath)
+            else:
+                opener = "open" if sys.platform == "darwin" else "xdg-open"
+                subprocess.call([opener, filePath])
         else:
             print("Folder doesn't exist")
 
