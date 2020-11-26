@@ -48,6 +48,14 @@ def copyCoverImage(movie, coverFile):
         print("Problem downloading cover file: %s" % coverFile)
     return coverFile
 
+def runFile(file):
+    if sys.platform == "win32":
+        os.startfile(file)
+    else:
+        opener = "open" if sys.platform == "darwin" else "xdg-open"
+        subprocess.call([opener, file])
+
+
 def removeFiles(parent, filesToDelete, extension):
     if len(filesToDelete) > 0:
         ret = QMessageBox.question(parent,
@@ -1317,30 +1325,18 @@ class MyWindow(QtWidgets.QMainWindow):
         if len(movieFiles) == 1:
             fileToPlay = os.path.join(movieFolder, movieFiles[0])
             if os.path.exists(fileToPlay):
-                if sys.platform == "win32":
-                    os.startfile(fileToPlay)
-                else:
-                    opener = "open" if sys.platform == "darwin" else "xdg-open"
-                    subprocess.call([opener, fileToPlay])
+                runFile(fileToPlay)
         else:
             # If there are more than one movie like files in the
             # folder, then just open the folder so the user can
             # play the desired file.
-            if sys.platform == "win32":
-                os.startfile(movieFolder)
-            else:
-                opener = "open" if sys.platform == "darwin" else "xdg-open"
-                subprocess.call([opener, movieFolder])
+            runFile(movieFolder)
 
     def openMovieFolder(self):
         selectedMovie = self.moviesList.selectedItems()[0]
         filePath = selectedMovie.data(QtCore.Qt.UserRole)['path']
         if os.path.exists(filePath):
-            if sys.platform == "win32":
-                os.startfile(filePath)
-            else:
-                opener = "open" if sys.platform == "darwin" else "xdg-open"
-                subprocess.call([opener, filePath])
+            runFile(filePath)
         else:
             print("Folder doesn't exist")
 
@@ -1350,7 +1346,7 @@ class MyWindow(QtWidgets.QMainWindow):
         folderName = selectedMovie.data(QtCore.Qt.UserRole)['folder name']
         jsonFile = os.path.join(moviePath, '%s.json' % folderName)
         if os.path.exists(jsonFile):
-            os.startfile(jsonFile)
+            runFile(jsonFile)
         else:
             print("jsonFile: %s doesn't exist" % jsonFile)
 
