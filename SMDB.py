@@ -131,6 +131,15 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                         movieList.append(f.name)
 
         self._data = []
+        self._headers = ['year',
+                         'title',
+                         'rating',
+                         'box office',
+                         'runtime',
+                         'id',
+                         'folder name',
+                         'path',
+                         'exists']
         for folderName in movieList:
             data = {}
             if useSmdbData:
@@ -144,19 +153,17 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                         except UnicodeDecodeError:
                             print("Error reading %s" % jsonFile)
 
-            self._headers = ['year',
-                             'title',
-                             'rating',
-                             'box office',
-                             'runtime',
-                             'id',
-                             'folder name',
-                             'path']
             movieData = []
             for header in self._headers:
                 if header == 'path':
                     movieData.append(os.path.join(moviesFolder, folderName))
-                if header == 'folder name':
+                elif header == 'exists':
+                    jsonFile = os.path.join(moviesFolder, folderName, '%s.json' % folderName)
+                    if os.path.exists(jsonFile):
+                        movieData.append("True")
+                    else:
+                        movieData.append("False")
+                elif header == 'folder name':
                     movieData.append(folderName)
                 else:
                     if header in data:
@@ -207,6 +214,12 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
     def columnCount(self, parent):
         return len(self._headers)
+
+    def setData(self, index, value, role=QtCore.Qt.EditRole):
+        if role == QtCore.Qt.EditRole:
+            self._data[index.row()][index.column()] = value
+            self.dataChanged.emit(index, index)
+        return True
 
     def data(self, index, role):
         if role == QtCore.Qt.DisplayRole:
@@ -882,7 +895,6 @@ class MyWindow(QtWidgets.QMainWindow):
             self.progressBar.setValue(progress)
         self.statusBar().showMessage("Done")
         self.progressBar.setValue(0)
-        print ("Setting movie list colors")
         self.setMovieListItemColors()
 
     def downloadDataMenu2(self, force=False, doJson=True, doCover=True):
@@ -1436,7 +1448,8 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.writeMovieJson(movie, jsonFile)
             if doCover:
                 coverFile = copyCoverImage(movie, coverFile)
-            #self.setMovieItemUserData(listItem, folderName, movie)
+            index = self.moviesTableModel.createIndex(modelIndex.row(), 8)
+            self.moviesTableModel.setData(index, "True")
 
         return coverFile
 
