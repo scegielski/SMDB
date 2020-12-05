@@ -276,12 +276,13 @@ class MyWindow(QtWidgets.QMainWindow):
 
         if os.path.exists(self.smdbFile):
             self.readSmdbFile()
-            self.populateMovieList(forceScan)
+            #self.populateMovieList(forceScan)
+            self.moviesTableModel = MoviesTableModel(self.smdbData, self.moviesFolder, forceScan)
         else:
-            self.populateMovieList(forceScan)
+            #self.populateMovieList(forceScan)
+            self.moviesTableModel = MoviesTableModel(self.smdbData, self.moviesFolder, forceScan)
             self.writeSmdbFile()
 
-        self.moviesTableModel = MoviesTableModel(self.smdbData, self.moviesFolder, forceScan)
         self.moviesTable.setModel(self.moviesTableModel)
         self.moviesTable.setColumnWidth(0, 15)  # year
         self.moviesTable.setColumnWidth(1, 200) # title
@@ -298,6 +299,9 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.moviesTable.selectionModel().selectionChanged.connect(lambda: self.moviesTableSelectionChanged())
         self.moviesTable.doubleClicked.connect(lambda: self.playMovie2())
+
+        self.numVisibleMovies = self.moviesTableModel.rowCount()
+        self.showMoviesTableSelectionStatus()
 
         if forceScan:
             return
