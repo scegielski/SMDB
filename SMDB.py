@@ -202,7 +202,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
         self.sort(0, QtCore.Qt.AscendingOrder)
 
-    def rowCount(self, parent):
+    def rowCount(self, parent=None):
         return len(self._data)
 
     def columnCount(self, parent):
@@ -286,13 +286,13 @@ class MyWindow(QtWidgets.QMainWindow):
         if forceScan:
             return
 
-        #self.populateCriteriaList('directors', self.directorsList, self.directorsComboBox)
-        #self.populateCriteriaList('actors', self.actorsList, self.actorsComboBox)
-        #self.populateCriteriaList('genres', self.genresList, self.genresComboBox)
-        #self.populateCriteriaList('years', self.yearsList, self.yearsComboBox)
-        #self.populateCriteriaList('companies', self.companiesList, self.companiesComboBox)
-        #self.populateCriteriaList('countries', self.countriesList, self.countriesComboBox)
-        #self.moviesList.setCurrentItem(self.moviesList.item(0))
+        self.populateCriteriaList('directors', self.directorsList, self.directorsComboBox)
+        self.populateCriteriaList('actors', self.actorsList, self.actorsComboBox)
+        self.populateCriteriaList('genres', self.genresList, self.genresComboBox)
+        self.populateCriteriaList('years', self.yearsList, self.yearsComboBox)
+        self.populateCriteriaList('companies', self.companiesList, self.companiesComboBox)
+        self.populateCriteriaList('countries', self.countriesList, self.countriesComboBox)
+        self.moviesList.setCurrentItem(self.moviesList.item(0))
         self.movieSelectionChanged()
 
     def readSmdbFile(self):
@@ -882,6 +882,7 @@ class MyWindow(QtWidgets.QMainWindow):
             self.progressBar.setValue(progress)
         self.statusBar().showMessage("Done")
         self.progressBar.setValue(0)
+        print ("Setting movie list colors")
         self.setMovieListItemColors()
 
     def downloadDataMenu2(self, force=False, doJson=True, doCover=True):
@@ -1142,6 +1143,8 @@ class MyWindow(QtWidgets.QMainWindow):
             self.showMovieSelectionStatus()
             for row in range(self.moviesList.count()):
                 self.moviesList.item(row).setHidden(False)
+            for row in range(self.moviesTableModel.rowCount()):
+                self.moviesTable.setRowHidden(row, False)
             return
 
         criteriaMovieList = []
@@ -1156,6 +1159,9 @@ class MyWindow(QtWidgets.QMainWindow):
         for row in range(self.moviesList.count()):
             self.moviesList.item(row).setHidden(True)
 
+        for row in range(self.moviesTableModel.rowCount()):
+            self.moviesTable.setRowHidden(row, True)
+
         # Movies are stored as ['Anchorman: The Legend of Ron Burgundy', 2004]
         self.progressBar.setMaximum(len(criteriaMovieList))
         progress = 0
@@ -1169,6 +1175,18 @@ class MyWindow(QtWidgets.QMainWindow):
                 if t == title and y == year:
                     self.numVisibleMovies += 1
                     self.moviesList.item(row).setHidden(False)
+            progress += 1
+            self.progressBar.setValue(progress)
+
+        progress = 0
+        self.numVisibleMovies = 0
+        for row in range(self.moviesTableModel.rowCount()):
+            title = self.moviesTableModel.index(row, 1).data(QtCore.Qt.DisplayRole)
+            year = self.moviesTableModel.index(row, 0).data(QtCore.Qt.DisplayRole)
+            for (t, y) in criteriaMovieList:
+                if t == title and y == year:
+                    self.numVisibleMovies += 1
+                    self.moviesTable.setRowHidden(row, False)
             progress += 1
             self.progressBar.setValue(progress)
 
