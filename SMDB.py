@@ -99,7 +99,10 @@ def searchTableView(searchBoxWidget, tableView):
         tableView.hideRow(row)
 
     searchText = searchBoxWidget.text()
-    if searchText != "":
+    if searchText == "":
+        for row in range(model.rowCount(None)):
+            tableView.showRow(row)
+    else:
         matches = model.match(model.index(0, 1),
                               QtCore.Qt.DisplayRole,
                               searchText,
