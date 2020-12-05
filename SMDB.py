@@ -315,10 +315,8 @@ class MyWindow(QtWidgets.QMainWindow):
         progress = 0
         self.isCanceled = False
 
-        count = self.moviesList.count()
+        count = self.moviesTableModel.rowCount()
         for row in range(count):
-
-            listItem = self.moviesList.item(row)
 
             QtCore.QCoreApplication.processEvents()
             if self.isCanceled == True:
@@ -328,14 +326,16 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.setMovieListItemColors()
                 return
 
+            title = self.moviesTableModel.index(row, 1).data(QtCore.Qt.DisplayRole)
+
             message = "Processing item (%d/%d): %s" % (progress + 1,
-                                                        count,
-                                                        listItem.text())
+                                                       count,
+                                                       title)
             self.statusBar().showMessage(message)
             QtCore.QCoreApplication.processEvents()
 
-            moviePath = listItem.data(QtCore.Qt.UserRole)['path']
-            folderName = listItem.data(QtCore.Qt.UserRole)['folder name']
+            moviePath = self.moviesTableModel.index(row, 7).data(QtCore.Qt.DisplayRole)
+            folderName = self.moviesTableModel.index(row, 6).data(QtCore.Qt.DisplayRole)
             jsonFile = os.path.join(moviePath, '%s.json' % folderName)
             if os.path.exists(jsonFile):
                 with open(jsonFile) as f:
