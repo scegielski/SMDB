@@ -291,7 +291,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTable.setColumnWidth(4, 60) # runtime
         self.moviesTable.setColumnWidth(5, 60) # id
         self.moviesTable.setColumnWidth(6, 200) # folder
-        self.moviesTable.setColumnWidth(7, 1000) # path
+        self.moviesTable.setColumnWidth(7, 300) # path
+        self.moviesTable.setColumnWidth(8, 30) # exists
         self.moviesTable.verticalHeader().setMinimumSectionSize(10)
         for row in range(self.moviesTableModel.rowCount(self.moviesTable.rootIndex())):
             self.moviesTable.verticalHeader().resizeSection(row, 18)
@@ -312,8 +313,11 @@ class MyWindow(QtWidgets.QMainWindow):
         self.populateCriteriaList('years', self.yearsList, self.yearsComboBox)
         self.populateCriteriaList('companies', self.companiesList, self.companiesComboBox)
         self.populateCriteriaList('countries', self.countriesList, self.countriesComboBox)
-        self.moviesList.setCurrentItem(self.moviesList.item(0))
-        self.movieSelectionChanged()
+
+        #self.moviesList.setCurrentItem(self.moviesList.item(0))
+        #self.movieSelectionChanged()
+        self.moviesTable.selectRow(0)
+        self.moviesTableSelectionChanged()
 
     def readSmdbFile(self):
         self.smdbData = None
@@ -677,21 +681,21 @@ class MyWindow(QtWidgets.QMainWindow):
         self.countriesListSearchBox.textChanged.connect(lambda: searchListWidget(self.countriesListSearchBox, self.countriesList))
         criteriaVSplitter2.addWidget(countriesWidget)
 
-        moviesWidget, \
-        self.moviesList, \
-        self.moviesListSearchBox, \
-        self.moviesComboBox = self.addCriteriaWidgets("Movies",
-                                                      comboBoxEnum=["(year)title",
-                                                                    "title(year)",
-                                                                    "rating - (year)title",
-                                                                    "box office - (year)title",
-                                                                    "runtime - (year)title",
-                                                                    "folder name"])
-        self.moviesList.itemSelectionChanged.connect(lambda: self.movieSelectionChanged())
-        self.moviesListSearchBox.textChanged.connect(lambda: searchListWidget(self.moviesListSearchBox, self.moviesList))
-        self.moviesList.doubleClicked.connect(self.playMovie)
-        self.moviesList.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self.moviesList.customContextMenuRequested[QtCore.QPoint].connect(self.moviesListRightMenuShow)
+        #moviesWidget, \
+        #self.moviesList, \
+        #self.moviesListSearchBox, \
+        #self.moviesComboBox = self.addCriteriaWidgets("Movies",
+        #                                              comboBoxEnum=["(year)title",
+        #                                                            "title(year)",
+        #                                                            "rating - (year)title",
+        #                                                            "box office - (year)title",
+        #                                                            "runtime - (year)title",
+        #                                                            "folder name"])
+        #self.moviesList.itemSelectionChanged.connect(lambda: self.movieSelectionChanged())
+        #self.moviesListSearchBox.textChanged.connect(lambda: searchListWidget(self.moviesListSearchBox, self.moviesList))
+        #self.moviesList.doubleClicked.connect(self.playMovie)
+        #self.moviesList.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        #self.moviesList.customContextMenuRequested[QtCore.QPoint].connect(self.moviesListRightMenuShow)
 
         moviesTableViewWidget = QtWidgets.QWidget()
         moviesTableViewWidget.setLayout(QtWidgets.QVBoxLayout())
@@ -761,10 +765,10 @@ class MyWindow(QtWidgets.QMainWindow):
         # Add the sub-layouts to the mainHSplitter
         mainHSplitter.addWidget(criteriaVSplitter1)
         mainHSplitter.addWidget(criteriaVSplitter2)
-        mainHSplitter.addWidget(moviesWidget)
+        #mainHSplitter.addWidget(moviesWidget)
         mainHSplitter.addWidget(moviesTableViewWidget)
         mainHSplitter.addWidget(movieSummaryVSplitter)
-        mainHSplitter.setSizes([200, 200, 300, 300, 200])
+        mainHSplitter.setSizes([100, 100, 1000, 400])
 
         # Bottom ---------------------------------------------------------------------------------------
         bottomLayout = QtWidgets.QHBoxLayout(self)
