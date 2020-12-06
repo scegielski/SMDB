@@ -300,7 +300,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTable.hideColumn(7)
 
         self.moviesTable.selectionModel().selectionChanged.connect(lambda: self.moviesTableSelectionChanged())
-        self.moviesTable.doubleClicked.connect(lambda: self.playMovie2())
+        self.moviesTable.doubleClicked.connect(lambda: self.playMovie())
 
         self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
         self.showMoviesTableSelectionStatus()
@@ -862,7 +862,7 @@ class MyWindow(QtWidgets.QMainWindow):
         else:
             listWidget.sortItems(QtCore.Qt.AscendingOrder)
 
-    def downloadDataMenu2(self, force=False, doJson=True, doCover=True):
+    def downloadDataMenu(self, force=False, doJson=True, doCover=True):
         numSelectedItems = len(self.moviesTable.selectionModel().selectedRows())
         self.progressBar.setMaximum(numSelectedItems)
         progress = 0
@@ -883,7 +883,7 @@ class MyWindow(QtWidgets.QMainWindow):
             self.statusBar().showMessage(message)
             QtCore.QCoreApplication.processEvents()
 
-            self.downloadMovieData2(modelIndex, force, doJson=doJson, doCover=doCover)
+            self.downloadMovieData(modelIndex, force, doJson=doJson, doCover=doCover)
             self.clickedMovieTable(modelIndex)
 
             progress += 1
@@ -1055,25 +1055,6 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.progressBar.setValue(0)
         self.showMoviesTableSelectionStatus()
-
-    def clickedMovie(self, listItem):
-        try:
-            moviePath = listItem.data(QtCore.Qt.UserRole)['path']
-            folderName = listItem.data(QtCore.Qt.UserRole)['folder name']
-            title = listItem.data(QtCore.Qt.UserRole)['title']
-            year = listItem.data(QtCore.Qt.UserRole)['year']
-            jsonFile = os.path.join(moviePath, '%s.json' % folderName)
-            coverFile = os.path.join(moviePath, '%s.jpg' % folderName)
-            if not os.path.exists(coverFile):
-                coverFilePng = os.path.join(moviePath, '%s.png' % folderName)
-                if os.path.exists(coverFilePng):
-                    coverFile = coverFilePng
-
-            self.showCoverFile(coverFile)
-            self.showSummary(jsonFile)
-            self.movieTitle.setText('%s (%s)' % (title, year))
-        except:
-            print("Error with movie %s" % listItem.text())
 
     def clickedMovieTable(self, modelIndex):
         title = self.moviesTableProxyModel.index(modelIndex.row(), 1).data(QtCore.Qt.DisplayRole)
@@ -1251,33 +1232,7 @@ class MyWindow(QtWidgets.QMainWindow):
         except:
             print("Error writing json file: %s" % jsonFile)
 
-    def downloadMovieData(self, listItem, force=False, movieId=None, doJson=True, doCover=True):
-        moviePath = listItem.data(QtCore.Qt.UserRole)['path']
-        folderName = listItem.data(QtCore.Qt.UserRole)['folder name']
-        jsonFile = os.path.join(moviePath, '%s.json' % folderName)
-        coverFile = os.path.join(moviePath, '%s.jpg' % folderName)
-        if not os.path.exists(coverFile):
-            coverFilePng = os.path.join(moviePath, '%s.png' % folderName)
-            if os.path.exists(coverFilePng):
-                coverFile = coverFilePng
-
-        if force is True or not os.path.exists(jsonFile) or not os.path.exists(coverFile):
-            if movieId:
-                movie = self.getMovieWithId(movieId)
-            else:
-                movie = self.getMovie(folderName)
-            if not movie:
-                return coverFile
-            self.db.update(movie)
-            if doJson:
-                self.writeMovieJson(movie, jsonFile)
-            if doCover:
-                coverFile = copyCoverImage(movie, coverFile)
-            self.setMovieItemUserData(listItem, folderName, movie)
-
-        return coverFile
-
-    def downloadMovieData2(self, modelIndex, force=False, movieId=None, doJson=True, doCover=True):
+    def downloadMovieData(self, modelIndex, force=False, movieId=None, doJson=True, doCover=True):
         moviePath = self.moviesTableProxyModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
         folderName = self.moviesTableProxyModel.index(modelIndex.row(), 6).data(QtCore.Qt.DisplayRole)
         jsonFile = os.path.join(moviePath, '%s.json' % folderName)
@@ -1304,7 +1259,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         return coverFile
 
-    def playMovie2(self):
+    def playMovie(self):
         modelIndex = self.moviesTable.selectionModel().selectedRows()[0]
         moviePath = self.moviesTableProxyModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
         if not os.path.exists(moviePath):
@@ -1330,7 +1285,7 @@ class MyWindow(QtWidgets.QMainWindow):
             # play the desired file.
             runFile(moviePath)
 
-    def openMovieFolder2(self):
+    def openMovieFolder(self):
         modelIndex = self.moviesTable.selectionModel().selectedRows()[0]
         moviePath = self.moviesTableProxyModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
         if os.path.exists(moviePath):
@@ -1338,7 +1293,7 @@ class MyWindow(QtWidgets.QMainWindow):
         else:
             print("Folder doesn't exist")
 
-    def openMovieJson2(self):
+    def openMovieJson(self):
         modelIndex = self.moviesTable.selectionModel().selectedRows()[0]
         moviePath = self.moviesTableProxyModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
         folderName = self.moviesTableProxyModel.index(modelIndex.row(), 6).data(QtCore.Qt.DisplayRole)
@@ -1348,12 +1303,12 @@ class MyWindow(QtWidgets.QMainWindow):
         else:
             print("jsonFile: %s doesn't exist" % jsonFile)
 
-    def openMovieImdbPage2(self):
+    def openMovieImdbPage(self):
         modelIndex = self.moviesTable.selectionModel().selectedRows()[0]
         movieId = self.moviesTableProxyModel.index(modelIndex.row(), 5).data(QtCore.Qt.DisplayRole)
         webbrowser.open('http://imdb.com/title/tt%s' % movieId, new=2)
 
-    def overrideID2(self):
+    def overrideID(self):
         movieId, ok = QtWidgets.QInputDialog.getText(self,
                                                      "Override ID",
                                                      "Enter new ID",
@@ -1363,7 +1318,7 @@ class MyWindow(QtWidgets.QMainWindow):
             movieId = movieId.replace('tt', '')
         if movieId and ok:
             modelIndex = self.moviesTable.selectionModel().selectedRows()[0]
-            self.downloadMovieData2(modelIndex, True, movieId)
+            self.downloadMovieData(modelIndex, True, movieId)
 
     def openPersonImdbPage(self, personName):
         personId = self.db.name2imdbID(personName)
@@ -1395,39 +1350,39 @@ class MyWindow(QtWidgets.QMainWindow):
         self.clickedMovieTable(self.moviesTable.selectionModel().selectedRows()[0])
 
         self.playAction = QtWidgets.QAction("Play", self)
-        self.playAction.triggered.connect(lambda: self.playMovie2())
+        self.playAction.triggered.connect(lambda: self.playMovie())
         self.rightMenu.addAction(self.playAction)
 
         self.openFolderAction = QtWidgets.QAction("Open Folder", self)
-        self.openFolderAction.triggered.connect(lambda: self.openMovieFolder2())
+        self.openFolderAction.triggered.connect(lambda: self.openMovieFolder())
         self.rightMenu.addAction(self.openFolderAction)
 
         self.openJsonAction = QtWidgets.QAction("Open Json File", self)
-        self.openJsonAction.triggered.connect(lambda: self.openMovieJson2())
+        self.openJsonAction.triggered.connect(lambda: self.openMovieJson())
         self.rightMenu.addAction(self.openJsonAction)
 
         self.openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
-        self.openImdbAction.triggered.connect(lambda: self.openMovieImdbPage2())
+        self.openImdbAction.triggered.connect(lambda: self.openMovieImdbPage())
         self.rightMenu.addAction(self.openImdbAction)
 
         self.overrideImdbAction = QtWidgets.QAction("Override IMDB ID", self)
-        self.overrideImdbAction.triggered.connect(lambda: self.overrideID2())
+        self.overrideImdbAction.triggered.connect(lambda: self.overrideID())
         self.rightMenu.addAction(self.overrideImdbAction)
 
         self.downloadDataAction = QtWidgets.QAction("Download Data", self)
-        self.downloadDataAction.triggered.connect(lambda: self.downloadDataMenu2())
+        self.downloadDataAction.triggered.connect(lambda: self.downloadDataMenu())
         self.rightMenu.addAction(self.downloadDataAction)
 
         self.downloadDataAction = QtWidgets.QAction("Force Download Data", self)
-        self.downloadDataAction.triggered.connect(lambda: self.downloadDataMenu2(force=True))
+        self.downloadDataAction.triggered.connect(lambda: self.downloadDataMenu(force=True))
         self.rightMenu.addAction(self.downloadDataAction)
 
         self.downloadDataAction = QtWidgets.QAction("Force Download Json only", self)
-        self.downloadDataAction.triggered.connect(lambda: self.downloadDataMenu2(force=True, doJson=True, doCover=False))
+        self.downloadDataAction.triggered.connect(lambda: self.downloadDataMenu(force=True, doJson=True, doCover=False))
         self.rightMenu.addAction(self.downloadDataAction)
 
         self.downloadDataAction = QtWidgets.QAction("Force Download Cover only", self)
-        self.downloadDataAction.triggered.connect(lambda: self.downloadDataMenu2(force=True, doJson=False, doCover=True))
+        self.downloadDataAction.triggered.connect(lambda: self.downloadDataMenu(force=True, doJson=False, doCover=True))
         self.rightMenu.addAction(self.downloadDataAction)
 
         self.removeMdbAction = QtWidgets.QAction("Remove .json files", self)
