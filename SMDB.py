@@ -277,6 +277,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.moviesTableProxyModel = QtCore.QSortFilterProxyModel()
         self.moviesTableProxyModel.setSourceModel(self.moviesTableModel)
+        self.moviesTableProxyModel.sort(0)
         self.moviesTable.setModel(self.moviesTableProxyModel)
 
         self.moviesTable.setColumnWidth(0, 15)  # year
