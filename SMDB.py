@@ -128,15 +128,15 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                         movieList.append(f.name)
 
         self._data = []
-        self._headers = ['year',
-                         'title',
-                         'rating',
-                         'box office',
-                         'runtime',
-                         'id',
-                         'folder name',
-                         'path',
-                         'exists']
+        self._headers = ['Year',
+                         'Title',
+                         'Rating',
+                         'Box office',
+                         'Runtime',
+                         'Id',
+                         'Folder name',
+                         'Path',
+                         'Exists']
         for folderName in movieList:
             data = {}
             if useSmdbData:
@@ -152,27 +152,28 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
             movieData = []
             for header in self._headers:
-                if header == 'path':
+                headerLower = header.lower()
+                if headerLower == 'path':
                     movieData.append(os.path.join(moviesFolder, folderName))
-                elif header == 'exists':
+                elif headerLower == 'exists':
                     jsonFile = os.path.join(moviesFolder, folderName, '%s.json' % folderName)
                     if os.path.exists(jsonFile):
                         movieData.append("True")
                     else:
                         movieData.append("False")
-                elif header == 'folder name':
+                elif headerLower == 'folder name':
                     movieData.append(folderName)
                 else:
-                    if header in data:
-                        if header == 'runtime':
-                            runtime = data[header]
+                    if headerLower in data:
+                        if headerLower == 'runtime':
+                            runtime = data[headerLower]
                             if runtime == None:
                                 runtime = '000'
                             else:
                                 runtime = '%03d' % int(runtime)
                             movieData.append(runtime)
-                        elif header == 'rating':
-                            rating = data[header]
+                        elif headerLower == 'rating':
+                            rating = data[headerLower]
                             if rating == None:
                                 rating = '0.0'
                             else:
@@ -180,8 +181,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                 if len(rating) == 1:
                                     rating = '%s.0' % rating
                             movieData.append(rating)
-                        elif header == 'box office':
-                            boxOffice = data[header]
+                        elif headerLower == 'box office':
+                            boxOffice = data[headerLower]
                             currency = 'USD'
                             if boxOffice:
                                 boxOffice = boxOffice.replace(' (estimated)', '')
@@ -199,7 +200,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                             displayText = '%-3s %15s' % (currency, amount)
                             movieData.append(displayText)
                         else:
-                            movieData.append(data[header])
+                            movieData.append(data[headerLower])
                     else:
                         movieData.append('')
             self._data.append(movieData)
@@ -288,11 +289,15 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTable.setColumnWidth(5, 60) # id
         self.moviesTable.setColumnWidth(6, 200) # folder
         self.moviesTable.setColumnWidth(7, 300) # path
-        self.moviesTable.setColumnWidth(8, 30) # exists
+        self.moviesTable.setColumnWidth(8, 40) # exists
         self.moviesTable.verticalHeader().setMinimumSectionSize(10)
         for row in range(self.moviesTableProxyModel.rowCount(self.moviesTable.rootIndex())):
             self.moviesTable.verticalHeader().resizeSection(row, 18)
         self.moviesTable.setWordWrap(False)
+
+        self.moviesTable.hideColumn(5)
+        self.moviesTable.hideColumn(6)
+        self.moviesTable.hideColumn(7)
 
         self.moviesTable.selectionModel().selectionChanged.connect(lambda: self.moviesTableSelectionChanged())
         self.moviesTable.doubleClicked.connect(lambda: self.playMovie2())
@@ -746,7 +751,7 @@ class MyWindow(QtWidgets.QMainWindow):
         #mainHSplitter.addWidget(moviesWidget)
         mainHSplitter.addWidget(moviesTableViewWidget)
         mainHSplitter.addWidget(movieSummaryVSplitter)
-        mainHSplitter.setSizes([100, 100, 1000, 400])
+        mainHSplitter.setSizes([100, 100, 700, 700])
 
         # Bottom ---------------------------------------------------------------------------------------
         bottomLayout = QtWidgets.QHBoxLayout(self)
