@@ -94,22 +94,16 @@ def searchListWidget(searchBoxWidget, listWidget):
             foundItem.setHidden(False)
 
 def searchTableView(searchBoxWidget, tableView):
-    model = tableView.model()
-    for row in range(model.rowCount(None)):
-        tableView.hideRow(row)
-
     searchText = searchBoxWidget.text()
-    if searchText == "":
-        for row in range(model.rowCount(None)):
-            tableView.showRow(row)
-    else:
-        matches = model.match(model.index(0, 1),
-                              QtCore.Qt.DisplayRole,
-                              searchText,
-                              hits=-1,
-                              flags=QtCore.Qt.MatchContains)
-        for index in matches:
-            tableView.showRow(index.row())
+    proxyModel = tableView.model()
+    proxyModel.setFilterKeyColumn(1)
+    proxyModel.setFilterRegExp(QtCore.QRegExp(searchText,
+                               QtCore.Qt.CaseInsensitive,
+                               QtCore.QRegExp.FixedString))
+
+    for row in range(proxyModel.rowCount(tableView.rootIndex())):
+        tableView.verticalHeader().resizeSection(row, 18)
+
 
 class MoviesTableModel(QtCore.QAbstractTableModel):
     def __init__(self, smdbData, moviesFolder, forceScan=False):
@@ -236,14 +230,14 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
         else:
             return super().headerData(section, orientation, role)
 
-    def sort(self, column, order):
-        self.layoutAboutToBeChanged.emit()
-        #self._data.sort(key=lambda x: x[column] if x[column] else '')
-        self._data.sort(key=lambda x: str(x[column]) if x[column] else '')
-        #self._data.sort(key=cmp_to_key(myCompare))
-        if order == QtCore.Qt.DescendingOrder:
-            self._data.reverse()
-        self.layoutChanged.emit()
+    #def sort(self, column, order):
+    #    self.layoutAboutToBeChanged.emit()
+    #    #self._data.sort(key=lambda x: x[column] if x[column] else '')
+    #    self._data.sort(key=lambda x: str(x[column]) if x[column] else '')
+    #    #self._data.sort(key=cmp_to_key(myCompare))
+    #    if order == QtCore.Qt.DescendingOrder:
+    #        self._data.reverse()
+    #    self.layoutChanged.emit()
 
 class MyWindow(QtWidgets.QMainWindow):
     def __init__(self):
@@ -276,14 +270,15 @@ class MyWindow(QtWidgets.QMainWindow):
 
         if os.path.exists(self.smdbFile):
             self.readSmdbFile()
-            #self.populateMovieList(forceScan)
             self.moviesTableModel = MoviesTableModel(self.smdbData, self.moviesFolder, forceScan)
         else:
-            #self.populateMovieList(forceScan)
             self.moviesTableModel = MoviesTableModel(self.smdbData, self.moviesFolder, forceScan)
             self.writeSmdbFile()
 
-        self.moviesTable.setModel(self.moviesTableModel)
+        self.moviesTableProxyModel = QtCore.QSortFilterProxyModel()
+        self.moviesTableProxyModel.setSourceModel(self.moviesTableModel)
+        self.moviesTable.setModel(self.moviesTableProxyModel)
+
         self.moviesTable.setColumnWidth(0, 15)  # year
         self.moviesTable.setColumnWidth(1, 200) # title
         self.moviesTable.setColumnWidth(2, 60)  # rating
@@ -294,14 +289,14 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTable.setColumnWidth(7, 300) # path
         self.moviesTable.setColumnWidth(8, 30) # exists
         self.moviesTable.verticalHeader().setMinimumSectionSize(10)
-        for row in range(self.moviesTableModel.rowCount(self.moviesTable.rootIndex())):
+        for row in range(self.moviesTableProxyModel.rowCount(self.moviesTable.rootIndex())):
             self.moviesTable.verticalHeader().resizeSection(row, 18)
         self.moviesTable.setWordWrap(False)
 
         self.moviesTable.selectionModel().selectionChanged.connect(lambda: self.moviesTableSelectionChanged())
         self.moviesTable.doubleClicked.connect(lambda: self.playMovie2())
 
-        self.numVisibleMovies = self.moviesTableModel.rowCount()
+        self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
         self.showMoviesTableSelectionStatus()
 
         if forceScan:
@@ -333,11 +328,11 @@ class MyWindow(QtWidgets.QMainWindow):
         companies = {}
         countries = {}
 
-        self.progressBar.setMaximum(self.moviesTableModel.rowCount())
+        count = self.moviesTableModel.rowCount()
+        self.progressBar.setMaximum(count)
         progress = 0
         self.isCanceled = False
 
-        count = self.moviesTableModel.rowCount()
         for row in range(count):
 
             QtCore.QCoreApplication.processEvents()
@@ -875,7 +870,7 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.setMovieListItemColors()
                 return
 
-            title = self.moviesTableModel.index(modelIndex.row(), 1).data(QtCore.Qt.DisplayRole)
+            title = self.moviesTableProxyModel.index(modelIndex.row(), 1).data(QtCore.Qt.DisplayRole)
             message = "Downloading data (%d/%d): %s" % (progress + 1,
                                                         numSelectedItems,
                                                         title)
@@ -894,8 +889,8 @@ class MyWindow(QtWidgets.QMainWindow):
     def removeJsonFilesMenu2(self):
         filesToDelete = []
         for modelIndex in self.moviesTable.selectionModel().selectedRows():
-            moviePath = self.moviesTableModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
-            movieFolder = self.moviesTableModel.index(modelIndex.row(), 6).data(QtCore.Qt.DisplayRole)
+            moviePath = self.moviesTableProxyModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
+            movieFolder = self.moviesTableProxyModel.index(modelIndex.row(), 6).data(QtCore.Qt.DisplayRole)
             jsonFile = os.path.join(moviePath, '%s.json' % movieFolder)
             if (os.path.exists(jsonFile)):
                 filesToDelete.append(os.path.join(moviePath, jsonFile))
@@ -905,8 +900,8 @@ class MyWindow(QtWidgets.QMainWindow):
     def removeCoverFilesMenu2(self):
         filesToDelete = []
         for modelIndex in self.moviesTable.selectionModel().selectedRows():
-            moviePath = self.moviesTableModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
-            movieFolder = self.moviesTableModel.index(modelIndex.row(), 6).data(QtCore.Qt.DisplayRole)
+            moviePath = self.moviesTableProxyModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
+            movieFolder = self.moviesTableProxyModel.index(modelIndex.row(), 6).data(QtCore.Qt.DisplayRole)
 
             coverFile = os.path.join(moviePath, '%s.jpg' % movieFolder)
             if os.path.exists(coverFile):
@@ -1017,9 +1012,9 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def criteriaSelectionChanged(self, listWidget, smdbKey):
         if len(listWidget.selectedItems()) == 0:
-            self.numVisibleMovies = self.moviesTableModel.rowCount()
+            self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
             self.showMoviesTableSelectionStatus()
-            for row in range(self.moviesTableModel.rowCount()):
+            for row in range(self.moviesTableProxyModel.rowCount()):
                 self.moviesTable.setRowHidden(row, False)
             return
 
@@ -1033,7 +1028,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.numVisibleMovies = 0
 
-        for row in range(self.moviesTableModel.rowCount()):
+        for row in range(self.moviesTableProxyModel.rowCount()):
             self.moviesTable.setRowHidden(row, True)
 
         # Movies are stored as ['Anchorman: The Legend of Ron Burgundy', 2004]
@@ -1042,9 +1037,9 @@ class MyWindow(QtWidgets.QMainWindow):
 
         progress = 0
         self.numVisibleMovies = 0
-        for row in range(self.moviesTableModel.rowCount()):
-            title = self.moviesTableModel.index(row, 1).data(QtCore.Qt.DisplayRole)
-            year = self.moviesTableModel.index(row, 0).data(QtCore.Qt.DisplayRole)
+        for row in range(self.moviesTableProxyModel.rowCount()):
+            title = self.moviesTableProxyModel.index(row, 1).data(QtCore.Qt.DisplayRole)
+            year = self.moviesTableProxyModel.index(row, 0).data(QtCore.Qt.DisplayRole)
             for (t, y) in criteriaMovieList:
                 if t == title and y == year:
                     self.numVisibleMovies += 1
@@ -1053,6 +1048,7 @@ class MyWindow(QtWidgets.QMainWindow):
             self.progressBar.setValue(progress)
 
         self.progressBar.setValue(0)
+        self.showMoviesTableSelectionStatus()
 
     def clickedMovie(self, listItem):
         try:
@@ -1074,11 +1070,11 @@ class MyWindow(QtWidgets.QMainWindow):
             print("Error with movie %s" % listItem.text())
 
     def clickedMovieTable(self, modelIndex):
-        title = self.moviesTableModel.index(modelIndex.row(), 1).data(QtCore.Qt.DisplayRole)
+        title = self.moviesTableProxyModel.index(modelIndex.row(), 1).data(QtCore.Qt.DisplayRole)
         try:
-            moviePath = self.moviesTableModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
-            folderName = self.moviesTableModel.index(modelIndex.row(), 6).data(QtCore.Qt.DisplayRole)
-            year = self.moviesTableModel.index(modelIndex.row(), 0).data(QtCore.Qt.DisplayRole)
+            moviePath = self.moviesTableProxyModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
+            folderName = self.moviesTableProxyModel.index(modelIndex.row(), 6).data(QtCore.Qt.DisplayRole)
+            year = self.moviesTableProxyModel.index(modelIndex.row(), 0).data(QtCore.Qt.DisplayRole)
             jsonFile = os.path.join(moviePath, '%s.json' % folderName)
             coverFile = os.path.join(moviePath, '%s.jpg' % folderName)
             if not os.path.exists(coverFile):
@@ -1276,8 +1272,8 @@ class MyWindow(QtWidgets.QMainWindow):
         return coverFile
 
     def downloadMovieData2(self, modelIndex, force=False, movieId=None, doJson=True, doCover=True):
-        moviePath = self.moviesTableModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
-        folderName = self.moviesTableModel.index(modelIndex.row(), 6).data(QtCore.Qt.DisplayRole)
+        moviePath = self.moviesTableProxyModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
+        folderName = self.moviesTableProxyModel.index(modelIndex.row(), 6).data(QtCore.Qt.DisplayRole)
         jsonFile = os.path.join(moviePath, '%s.json' % folderName)
         coverFile = os.path.join(moviePath, '%s.jpg' % folderName)
         if not os.path.exists(coverFile):
@@ -1297,14 +1293,14 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.writeMovieJson(movie, jsonFile)
             if doCover:
                 coverFile = copyCoverImage(movie, coverFile)
-            index = self.moviesTableModel.createIndex(modelIndex.row(), 8)
-            self.moviesTableModel.setData(index, "True")
+            index = self.moviesTableProxyModel.createIndex(modelIndex.row(), 8)
+            self.moviesTableProxyModel.setData(index, "True")
 
         return coverFile
 
     def playMovie2(self):
         modelIndex = self.moviesTable.selectionModel().selectedRows()[0]
-        moviePath = self.moviesTableModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
+        moviePath = self.moviesTableProxyModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
         if not os.path.exists(moviePath):
             return
 
@@ -1330,7 +1326,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def openMovieFolder2(self):
         modelIndex = self.moviesTable.selectionModel().selectedRows()[0]
-        moviePath = self.moviesTableModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
+        moviePath = self.moviesTableProxyModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
         if os.path.exists(moviePath):
             runFile(moviePath)
         else:
@@ -1338,8 +1334,8 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def openMovieJson2(self):
         modelIndex = self.moviesTable.selectionModel().selectedRows()[0]
-        moviePath = self.moviesTableModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
-        folderName = self.moviesTableModel.index(modelIndex.row(), 6).data(QtCore.Qt.DisplayRole)
+        moviePath = self.moviesTableProxyModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
+        folderName = self.moviesTableProxyModel.index(modelIndex.row(), 6).data(QtCore.Qt.DisplayRole)
         jsonFile = os.path.join(moviePath, '%s.json' % folderName)
         if os.path.exists(jsonFile):
             runFile(jsonFile)
@@ -1348,7 +1344,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def openMovieImdbPage2(self):
         modelIndex = self.moviesTable.selectionModel().selectedRows()[0]
-        movieId = self.moviesTableModel.index(modelIndex.row(), 5).data(QtCore.Qt.DisplayRole)
+        movieId = self.moviesTableProxyModel.index(modelIndex.row(), 5).data(QtCore.Qt.DisplayRole)
         webbrowser.open('http://imdb.com/title/tt%s' % movieId, new=2)
 
     def overrideID2(self):
