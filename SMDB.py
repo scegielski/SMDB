@@ -307,7 +307,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTable.hideColumn(7)
 
         self.moviesTable.selectionModel().selectionChanged.connect(lambda: self.moviesTableSelectionChanged())
-        self.moviesTable.doubleClicked.connect(lambda: self.playMovie())
 
         self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
         self.showMoviesTableSelectionStatus()
@@ -694,6 +693,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTable.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.moviesTable.verticalHeader().hide()
         self.moviesTable.setAlternatingRowColors(True)
+        self.moviesTable.doubleClicked.connect(self.playMovie)
 
         style = "::section {""background-color: darkgrey; }"
         self.moviesTable.horizontalHeader().setStyleSheet(style)
