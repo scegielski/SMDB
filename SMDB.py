@@ -133,7 +133,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                          'Id',
                          'Folder name',
                          'Path',
-                         'Exists']
+                         'Json Exists']
         for movieFolderName in movieList:
             data = {}
             if useSmdbData:
@@ -179,7 +179,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
             headerLower = header.lower()
             if headerLower == 'path':
                 movieData.append(moviePath)
-            elif headerLower == 'exists':
+            elif headerLower == 'json exists':
                 jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
                 if os.path.exists(jsonFile):
                     movieData.append("True")
@@ -324,7 +324,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTable.setColumnWidth(5, 60) # id
         self.moviesTable.setColumnWidth(6, 200) # folder
         self.moviesTable.setColumnWidth(7, 300) # path
-        self.moviesTable.setColumnWidth(8, 40) # exists
+        self.moviesTable.setColumnWidth(8, 65) # json exists
         self.moviesTable.verticalHeader().setMinimumSectionSize(10)
         for row in range(self.moviesTableProxyModel.rowCount(self.moviesTable.rootIndex())):
             self.moviesTable.verticalHeader().resizeSection(row, 18)
@@ -791,7 +791,7 @@ class MyWindow(QtWidgets.QMainWindow):
         #mainHSplitter.addWidget(moviesWidget)
         mainHSplitter.addWidget(moviesTableViewWidget)
         mainHSplitter.addWidget(movieSummaryVSplitter)
-        mainHSplitter.setSizes([100, 100, 700, 700])
+        mainHSplitter.setSizes([100, 100, 750, 650])
 
         # Bottom ---------------------------------------------------------------------------------------
         bottomLayout = QtWidgets.QHBoxLayout(self)
