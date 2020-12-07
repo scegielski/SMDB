@@ -1266,8 +1266,9 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.writeMovieJson(movie, jsonFile)
             if doCover:
                 coverFile = copyCoverImage(movie, coverFile)
-            index = self.moviesTableProxyModel.createIndex(modelIndex.row(), 8)
-            self.moviesTableProxyModel.setData(index, "True")
+            proxyIndex = self.moviesTableProxyModel.index(modelIndex.row(), 8)
+            sourceIndex = self.moviesTableProxyModel.mapToSource(proxyIndex)
+            self.moviesTableModel.setData(sourceIndex, "True")
 
         return coverFile
 
