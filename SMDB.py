@@ -587,7 +587,7 @@ class MyWindow(QtWidgets.QMainWindow):
         setMovieFolderAction.triggered.connect(self.browseMoviesFolder)
         fileMenu.addAction(setMovieFolderAction)
 
-        refreshAction = QtWidgets.QAction("Rescan movies dir", self)
+        refreshAction = QtWidgets.QAction("Refresh movies dir", self)
         refreshAction.triggered.connect(lambda: self.refresh(forceScan=True))
         fileMenu.addAction(refreshAction)
 
