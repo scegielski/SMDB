@@ -692,13 +692,18 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTable.setSortingEnabled(True)
         self.moviesTable.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.moviesTable.verticalHeader().hide()
-        self.moviesTable.setAlternatingRowColors(True)
         self.moviesTable.doubleClicked.connect(self.playMovie)
 
         style = "::section {""background-color: darkgrey; }"
         self.moviesTable.horizontalHeader().setStyleSheet(style)
         self.moviesTable.setShowGrid(False)
-        self.moviesTable.setStyleSheet("alternate-background-color: #151515;background-color: black;");
+
+        # TODO: Need to find a better way to set the alternating colors
+        # Setting alternate colors to true makes them black and white.
+        # Changing the color using a stylesheet looks better but makes
+        # the right click menu background also black.
+        #self.moviesTable.setAlternatingRowColors(True)
+        #self.moviesTable.setStyleSheet("alternate-background-color: #151515;background-color: black;");
 
         self.moviesTable.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.moviesTable.customContextMenuRequested[QtCore.QPoint].connect(self.moviesTableRightMenuShow)
