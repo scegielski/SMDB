@@ -694,7 +694,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTable.verticalHeader().hide()
         self.moviesTable.doubleClicked.connect(self.playMovie)
 
-        style = "::section {""background-color: darkgrey; }"
+        style = "::section {""color: black; }"
         self.moviesTable.horizontalHeader().setStyleSheet(style)
         self.moviesTable.setShowGrid(False)
 
