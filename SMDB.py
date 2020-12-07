@@ -763,7 +763,7 @@ class MyWindow(QtWidgets.QMainWindow):
         #        print('\t%s' % style)
 
         self.movieTitle = QtWidgets.QLabel('')
-        self.movieTitle.setFont(QtGui.QFont('TimesNew Roman', 15))
+        self.movieTitle.setFont(QtGui.QFont('TimesNew Roman', 20))
         self.movieTitle.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
         self.movieTitle.setStyleSheet("color: white;")
         movieVLayout.addWidget(self.movieTitle)
@@ -779,8 +779,8 @@ class MyWindow(QtWidgets.QMainWindow):
         movieSummaryVSplitter.addWidget(movieWidget)
 
         self.summary = QtWidgets.QTextBrowser()
-        self.summary.setStyleSheet("background-color: black;")
-        #self.summary.setFontPointSize(20)
+        self.summary.setFont(QtGui.QFont('TimesNew Roman', 12))
+        self.summary.setStyleSheet("color:white; background-color: black;")
         movieSummaryVSplitter.addWidget(self.summary)
 
         movieSummaryVSplitter.setSizes([600, 200])
@@ -1110,7 +1110,7 @@ class MyWindow(QtWidgets.QMainWindow):
                     coverFile = coverFilePng
 
             self.showCoverFile(coverFile)
-            self.showSummary(jsonFile)
+            self.showMovieInfo(jsonFile)
             self.movieTitle.setText('%s (%s)' % (title, year))
         except:
             print("Error with movie %s" % title)
@@ -1180,37 +1180,51 @@ class MyWindow(QtWidgets.QMainWindow):
         else:
             self.movieCover.setPixmap(QtGui.QPixmap(0,0))
 
-    def showSummary(self, jsonFile):
+    def showMovieInfo(self, jsonFile):
         if os.path.exists(jsonFile):
             with open(jsonFile) as f:
                 try:
                     data = json.load(f)
-                    summary = ''
-                    if 'rating' in data and data['rating']:
-                        summary += 'Rating: %s<br>' % data['rating']
-                    if 'runtime' in data and data['runtime']:
-                        summary += 'Runtime: %s minutes<br>' % data['runtime']
-                    if 'genres' in data and data['genres']:
-                        summary += 'Genres: '
-                        for genre in data['genres']:
-                            summary += '%s, ' % genre
-                        summary += '<br>'
-                    if 'box office' in data and data['box office']:
-                        summary += 'Box Office: %s<br>' % data['box office']
+                    infoText = ''
                     if 'director' in data and data['director']:
-                        summary += '<br>Directed by: %s<br>' % data['director'][0]
-                    if 'plot' in data and data['plot']:
-                        summary += '<br>Plot:<br>'
-                        if isinstance(data['plot'], list):
-                            summary += data['plot'][0]
+                        infoText += 'Directed by: %s<br>' % data['director'][0]
+                    if 'rating' in data and data['rating']:
+                        infoText += '<br>Rating: %s<br>' % data['rating']
+                    if 'runtime' in data and data['runtime']:
+                        infoText += 'Runtime: %s minutes<br>' % data['runtime']
+                    if 'genres' in data and data['genres']:
+                        infoText += 'Genres: '
+                        for genre in data['genres']:
+                            infoText += '%s, ' % genre
+                        infoText += '<br>'
+                    if 'box office' in data and data['box office']:
+                        infoText += 'Box Office: %s<br>' % data['box office']
                     if 'cast' in data and data['cast']:
-                        summary += '<br><br>Cast:<br>'
+                        infoText += '<br>Cast:<br>'
                         for c in data['cast']:
-                            summary += '%s<br>' % c
-                    else:
-                        summary = data['summary']
-                    summary = '<span style=\" color: #ffffff; font-size: 12pt\">%s</span>' % summary
-                    self.summary.setText(summary)
+                            infoText += '%s<br>' % c
+                    if 'plot' in data and data['plot']:
+                        infoText += '<br>Plot:<br>'
+                        plot = ''
+                        if isinstance(data['plot'], list):
+                            plot = data['plot'][0]
+                        else:
+                            plot = data['plot']
+                        # Remove the author of the plot's name
+                        plot = plot.split('::')[0]
+                        infoText += '%s<br>' % plot
+                    if 'synopsis' in data and data['synopsis']:
+                        infoText += '<br>Synopsis:<br>'
+                        synopsis = ''
+                        if isinstance(data['synopsis'], list):
+                            synopsis = data['synopsis'][0]
+                        else:
+                            synopsis = data['synopsis']
+                        # Remove the author of the synopsis's name
+                        synopsis = synopsis.split('::')[0]
+                        infoText += '%s<br>' % synopsis
+                    #infoText = '<span style=\" color: #ffffff; font-size: 8pt\">%s</span>' % infoText
+                    self.summary.setText(infoText)
                 except UnicodeDecodeError:
                     print("Error reading %s" % jsonFile)
         else:
