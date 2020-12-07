@@ -112,9 +112,6 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
         if not os.path.exists(moviesFolder):
             return
 
-        reMoneyValue = re.compile(r'(\d+(?:,\d+)*(?:\.\d+)?)')
-        reCurrency = re.compile(r'^([A-Z][A-Z][A-Z])(.*)')
-
         movieList = []
         useSmdbData = False
         if not forceScan and smdbData and 'titles' in smdbData:
@@ -137,12 +134,14 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                          'Folder name',
                          'Path',
                          'Exists']
-        for folderName in movieList:
+        for movieFolderName in movieList:
             data = {}
             if useSmdbData:
-                data = smdbData['titles'][folderName]
+                data = smdbData['titles'][movieFolderName]
             else:
-                jsonFile = os.path.join(moviesFolder, folderName, '%s.json' % folderName)
+                jsonFile = os.path.join(moviesFolder,
+                                        movieFolderName,
+                                        '%s.json' % movieFolderName)
                 if os.path.exists(jsonFile):
                     with open(jsonFile) as f:
                         try:
@@ -150,69 +149,92 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                         except UnicodeDecodeError:
                             print("Error reading %s" % jsonFile)
 
-            movieData = []
-            for header in self._headers:
-                headerLower = header.lower()
-                if headerLower == 'path':
-                    movieData.append(os.path.join(moviesFolder, folderName))
-                elif headerLower == 'exists':
-                    jsonFile = os.path.join(moviesFolder, folderName, '%s.json' % folderName)
-                    if os.path.exists(jsonFile):
-                        movieData.append("True")
-                    else:
-                        movieData.append("False")
-                elif headerLower == 'folder name':
-                    movieData.append(folderName)
-                else:
-                    if not headerLower in data:
-                        if headerLower == 'title':
-                            title, year = getNiceTitleAndYear(folderName)
-                            movieData.append(title)
-                        elif headerLower == 'year':
-                            title, year = getNiceTitleAndYear(folderName)
-                            movieData.append(year)
-                        else:
-                            movieData.append('')
-                    else:
-                        if headerLower == 'runtime':
-                            runtime = data[headerLower]
-                            if runtime == None:
-                                runtime = '000'
-                            else:
-                                runtime = '%03d' % int(runtime)
-                            movieData.append(runtime)
-                        elif headerLower == 'rating':
-                            rating = data[headerLower]
-                            if rating == None:
-                                rating = '0.0'
-                            else:
-                                rating = str(rating)
-                                if len(rating) == 1:
-                                    rating = '%s.0' % rating
-                            movieData.append(rating)
-                        elif headerLower == 'box office':
-                            boxOffice = data[headerLower]
-                            currency = 'USD'
-                            if boxOffice:
-                                boxOffice = boxOffice.replace(' (estimated)', '')
-                                match = re.match(reCurrency, boxOffice)
-                                if match:
-                                    currency = match.group(1)
-                                    boxOffice = '$%s' % match.group(2)
-                                results = re.findall(reMoneyValue, boxOffice)
-                                if currency == 'USD':
-                                    amount = '$%s' % results[0]
-                                else:
-                                    amount = '%s' % results[0]
-                            else:
-                                amount = '$0'
-                            displayText = '%-3s %15s' % (currency, amount)
-                            movieData.append(displayText)
-                        else:
-                            movieData.append(data[headerLower])
+            moviePath = os.path.join(moviesFolder, movieFolderName)
+            movieData = self.createMovieData(data, moviePath, movieFolderName)
             self._data.append(movieData)
 
         self.sort(0, QtCore.Qt.AscendingOrder)
+
+    def setMovieDataWithJson(self, row, jsonFile, moviePath, movieFolderName):
+        if os.path.exists(jsonFile):
+            with open(jsonFile) as f:
+                try:
+                    data = json.load(f)
+                except UnicodeDecodeError:
+                    print("Error reading %s" % jsonFile)
+        self.setMovieData(row, data, moviePath, movieFolderName)
+
+    def setMovieData(self, row, data, moviePath, movieFolderName):
+        movieData = self.createMovieData(data, moviePath, movieFolderName)
+        self._data[row] = movieData
+        minIndex = self.index(row, 0)
+        maxIndex = self.index(row, 8)
+        self.dataChanged.emit(minIndex, maxIndex)
+
+    def createMovieData(self, data, moviePath, movieFolderName):
+        reMoneyValue = re.compile(r'(\d+(?:,\d+)*(?:\.\d+)?)')
+        reCurrency = re.compile(r'^([A-Z][A-Z][A-Z])(.*)')
+        movieData = []
+        for header in self._headers:
+            headerLower = header.lower()
+            if headerLower == 'path':
+                movieData.append(moviePath)
+            elif headerLower == 'exists':
+                jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
+                if os.path.exists(jsonFile):
+                    movieData.append("True")
+                else:
+                    movieData.append("False")
+            elif headerLower == 'folder name':
+                movieData.append(movieFolderName)
+            else:
+                if not headerLower in data:
+                    if headerLower == 'title':
+                        title, year = getNiceTitleAndYear(movieFolderName)
+                        movieData.append(title)
+                    elif headerLower == 'year':
+                        title, year = getNiceTitleAndYear(movieFolderName)
+                        movieData.append(year)
+                    else:
+                        movieData.append('')
+                else:
+                    if headerLower == 'runtime':
+                        runtime = data[headerLower]
+                        if not runtime:
+                            runtime = '000'
+                        else:
+                            runtime = '%03d' % int(runtime)
+                        movieData.append(runtime)
+                    elif headerLower == 'rating':
+                        rating = data[headerLower]
+                        if not rating:
+                            rating = '0.0'
+                        else:
+                            rating = str(rating)
+                            if len(rating) == 1:
+                                rating = '%s.0' % rating
+                        movieData.append(rating)
+                    elif headerLower == 'box office':
+                        boxOffice = data[headerLower]
+                        currency = 'USD'
+                        if boxOffice:
+                            boxOffice = boxOffice.replace(' (estimated)', '')
+                            match = re.match(reCurrency, boxOffice)
+                            if match:
+                                currency = match.group(1)
+                                boxOffice = '$%s' % match.group(2)
+                            results = re.findall(reMoneyValue, boxOffice)
+                            if currency == 'USD':
+                                amount = '$%s' % results[0]
+                            else:
+                                amount = '%s' % results[0]
+                        else:
+                            amount = '$0'
+                        displayText = '%-3s %15s' % (currency, amount)
+                        movieData.append(displayText)
+                    else:
+                        movieData.append(data[headerLower])
+        return movieData
 
     def rowCount(self, parent=None):
         return len(self._data)
@@ -285,8 +307,14 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.moviesTableProxyModel = QtCore.QSortFilterProxyModel()
         self.moviesTableProxyModel.setSourceModel(self.moviesTableModel)
-        self.moviesTableProxyModel.sort(0)
+        if forceScan:
+            # If forScan, sort by exists otherwise title
+            self.moviesTableProxyModel.sort(8)
+        else:
+            self.moviesTableProxyModel.sort(0)
+
         self.moviesTable.setModel(self.moviesTableProxyModel)
+        self.moviesTableProxyModel.setDynamicSortFilter(False)
 
         self.moviesTable.setColumnWidth(0, 15)  # year
         self.moviesTable.setColumnWidth(1, 200) # title
@@ -314,12 +342,12 @@ class MyWindow(QtWidgets.QMainWindow):
         if forceScan:
             return
 
-        #self.populateCriteriaList('directors', self.directorsList, self.directorsComboBox)
-        #self.populateCriteriaList('actors', self.actorsList, self.actorsComboBox)
-        #self.populateCriteriaList('genres', self.genresList, self.genresComboBox)
-        #self.populateCriteriaList('years', self.yearsList, self.yearsComboBox)
-        #self.populateCriteriaList('companies', self.companiesList, self.companiesComboBox)
-        #self.populateCriteriaList('countries', self.countriesList, self.countriesComboBox)
+        self.populateCriteriaList('directors', self.directorsList, self.directorsComboBox)
+        self.populateCriteriaList('actors', self.actorsList, self.actorsComboBox)
+        self.populateCriteriaList('genres', self.genresList, self.genresComboBox)
+        self.populateCriteriaList('years', self.yearsList, self.yearsComboBox)
+        self.populateCriteriaList('companies', self.companiesList, self.companiesComboBox)
+        self.populateCriteriaList('countries', self.countriesList, self.countriesComboBox)
 
         self.moviesTable.selectRow(0)
         self.moviesTableSelectionChanged()
@@ -896,13 +924,13 @@ class MyWindow(QtWidgets.QMainWindow):
             QtCore.QCoreApplication.processEvents()
 
             self.downloadMovieData(modelIndex, force, doJson=doJson, doCover=doCover)
+            self.moviesTable.selectRow(modelIndex.row())
             self.clickedMovieTable(modelIndex)
 
             progress += 1
             self.progressBar.setValue(progress)
         self.statusBar().showMessage("Done")
         self.progressBar.setValue(0)
-        #self.setMovieListItemColors()
 
     def removeJsonFilesMenu2(self):
         filesToDelete = []
@@ -1246,11 +1274,11 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def downloadMovieData(self, modelIndex, force=False, movieId=None, doJson=True, doCover=True):
         moviePath = self.moviesTableProxyModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
-        folderName = self.moviesTableProxyModel.index(modelIndex.row(), 6).data(QtCore.Qt.DisplayRole)
-        jsonFile = os.path.join(moviePath, '%s.json' % folderName)
-        coverFile = os.path.join(moviePath, '%s.jpg' % folderName)
+        movieFolderName = self.moviesTableProxyModel.index(modelIndex.row(), 6).data(QtCore.Qt.DisplayRole)
+        jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
+        coverFile = os.path.join(moviePath, '%s.jpg' % movieFolderName)
         if not os.path.exists(coverFile):
-            coverFilePng = os.path.join(moviePath, '%s.png' % folderName)
+            coverFilePng = os.path.join(moviePath, '%s.png' % movieFolderName)
             if os.path.exists(coverFilePng):
                 coverFile = coverFilePng
 
@@ -1258,7 +1286,7 @@ class MyWindow(QtWidgets.QMainWindow):
             if movieId:
                 movie = self.getMovieWithId(movieId)
             else:
-                movie = self.getMovie(folderName)
+                movie = self.getMovie(movieFolderName)
             if not movie:
                 return coverFile
             self.db.update(movie)
@@ -1266,9 +1294,13 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.writeMovieJson(movie, jsonFile)
             if doCover:
                 coverFile = copyCoverImage(movie, coverFile)
-            proxyIndex = self.moviesTableProxyModel.index(modelIndex.row(), 8)
+            proxyIndex = self.moviesTableProxyModel.index(modelIndex.row(), 0)
             sourceIndex = self.moviesTableProxyModel.mapToSource(proxyIndex)
-            self.moviesTableModel.setData(sourceIndex, "True")
+            #self.moviesTableModel.setData(sourceIndex, "True")
+            self.moviesTableModel.setMovieDataWithJson(sourceIndex.row(),
+                                                       jsonFile,
+                                                       moviePath,
+                                                       movieFolderName)
 
         return coverFile
 
