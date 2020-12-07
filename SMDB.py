@@ -164,7 +164,16 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                 elif headerLower == 'folder name':
                     movieData.append(folderName)
                 else:
-                    if headerLower in data:
+                    if not headerLower in data:
+                        if headerLower == 'title':
+                            title, year = getNiceTitleAndYear(folderName)
+                            movieData.append(title)
+                        elif headerLower == 'year':
+                            title, year = getNiceTitleAndYear(folderName)
+                            movieData.append(year)
+                        else:
+                            movieData.append('')
+                    else:
                         if headerLower == 'runtime':
                             runtime = data[headerLower]
                             if runtime == None:
@@ -201,8 +210,6 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                             movieData.append(displayText)
                         else:
                             movieData.append(data[headerLower])
-                    else:
-                        movieData.append('')
             self._data.append(movieData)
 
         self.sort(0, QtCore.Qt.AscendingOrder)
@@ -308,12 +315,12 @@ class MyWindow(QtWidgets.QMainWindow):
         if forceScan:
             return
 
-        self.populateCriteriaList('directors', self.directorsList, self.directorsComboBox)
-        self.populateCriteriaList('actors', self.actorsList, self.actorsComboBox)
-        self.populateCriteriaList('genres', self.genresList, self.genresComboBox)
-        self.populateCriteriaList('years', self.yearsList, self.yearsComboBox)
-        self.populateCriteriaList('companies', self.companiesList, self.companiesComboBox)
-        self.populateCriteriaList('countries', self.countriesList, self.countriesComboBox)
+        #self.populateCriteriaList('directors', self.directorsList, self.directorsComboBox)
+        #self.populateCriteriaList('actors', self.actorsList, self.actorsComboBox)
+        #self.populateCriteriaList('genres', self.genresList, self.genresComboBox)
+        #self.populateCriteriaList('years', self.yearsList, self.yearsComboBox)
+        #self.populateCriteriaList('companies', self.companiesList, self.companiesComboBox)
+        #self.populateCriteriaList('countries', self.countriesList, self.countriesComboBox)
 
         self.moviesTable.selectRow(0)
         self.moviesTableSelectionChanged()
