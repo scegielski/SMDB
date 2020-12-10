@@ -93,6 +93,22 @@ def searchListWidget(searchBoxWidget, listWidget):
         for foundItem in listWidget.findItems(searchText, QtCore.Qt.MatchContains):
             foundItem.setHidden(False)
 
+def searchTableWidget(searchBoxWidget, tableWidget, searchColumn):
+    searchText = searchBoxWidget.text()
+    if searchText == "":
+        for row in range(tableWidget.rowCount()):
+            for col in range(tableWidget.columnCount()):
+                tableWidget.item(row, col).setHidden(False)
+    else:
+        for row in range(tableWidget.rowCount()):
+            for col in range(tableWidget.columnCount()):
+                tableWidget.item(row, col).setHidden(False)
+        for foundItem in tableWidget.findItems(searchText, QtCore.Qt.MatchContains):
+            if foundItem.column() == searchColumn:
+                for col in range(tableWidget.columnCount()):
+                    tableWidget.item(foundItem.row(), col).setHidden(False)
+                foundItem.setHidden(False)
+
 def searchTableView(searchBoxWidget, tableView):
     searchText = searchBoxWidget.text()
     proxyModel = tableView.model()
@@ -315,6 +331,9 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.moviesTable.setModel(self.moviesTableProxyModel)
         self.moviesTableProxyModel.setDynamicSortFilter(False)
+
+        self.filtersTable.setColumnWidth(0, 109)  # name
+        self.filtersTable.setColumnWidth(1, 40) # count
 
         self.moviesTable.setColumnWidth(0, 15)  # year
         self.moviesTable.setColumnWidth(1, 200) # title
@@ -714,36 +733,88 @@ class MyWindow(QtWidgets.QMainWindow):
         self.countriesListSearchBox.textChanged.connect(lambda: searchListWidget(self.countriesListSearchBox, self.countriesList))
         criteriaVSplitter2.addWidget(countriesWidget)
 
+        # Filters Table ---------------------------------------------------------------------------------------
+        filtersWidget = QtWidgets.QWidget()
+        filtersVLayout = QtWidgets.QVBoxLayout()
+        filtersWidget.setLayout(filtersVLayout)
+
+        filterByHLayout = QtWidgets.QHBoxLayout()
+        filtersWidget.layout().addLayout(filterByHLayout)
+
+        filterByLabel = QtWidgets.QLabel("Filter By")
+        filterByLabel.setSizePolicy(QtWidgets.QSizePolicy.Maximum,
+                                    QtWidgets.QSizePolicy.Maximum)
+        filterByHLayout.addWidget(filterByLabel)
+
+        filterByEnum = ['Director', 'Actor', 'Genre', 'Year', 'Company', 'Country']
+        self.filterByComboBox = QtWidgets.QComboBox()
+        for i in filterByEnum:
+            self.filterByComboBox.addItem(i)
+        self.filterByComboBox.setCurrentIndex(0)
+        filterByHLayout.addWidget(self.filterByComboBox)
+
+        self.filtersTable = QtWidgets.QTableWidget()
+        self.filtersTable.setColumnCount(2)
+        self.filtersTable.setRowCount(20)
+        self.filtersTable.verticalHeader().hide()
+        self.filtersTable.setHorizontalHeaderLabels(['Name', 'Count'])
+        style = "::section {""color: black; }"
+        self.filtersTable.horizontalHeader().setStyleSheet(style)
+        filtersVLayout.addWidget(self.filtersTable)
+
+        filtersSearchHLayout = QtWidgets.QHBoxLayout()
+        filtersVLayout.addLayout(filtersSearchHLayout)
+
+        searchText = QtWidgets.QLabel("Search")
+        searchText.setSizePolicy(QtWidgets.QSizePolicy.Maximum,
+                                 QtWidgets.QSizePolicy.Maximum)
+        filtersSearchHLayout.addWidget(searchText)
+
+        filtersTableSearchBox = QtWidgets.QLineEdit(self)
+        filtersTableSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
+        filtersTableSearchBox.setClearButtonEnabled(True)
+        filtersSearchHLayout.addWidget(filtersTableSearchBox)
+        filtersTableSearchBox.textChanged.connect(lambda: searchTableWidget(moviesTableSearchBox,
+                                                  self.filtersTable, 0))
+
+        # Movies Table ---------------------------------------------------------------------------------------
         moviesTableViewWidget = QtWidgets.QWidget()
-        moviesTableViewWidget.setLayout(QtWidgets.QVBoxLayout())
+        moviesTableViewVLayout = QtWidgets.QVBoxLayout()
+        moviesTableViewWidget.setLayout(moviesTableViewVLayout)
+
+        moviesTableViewVLayout.addWidget(QtWidgets.QLabel("Movies Table"))
+
         self.moviesTable = QtWidgets.QTableView()
         self.moviesTable.setSortingEnabled(True)
         self.moviesTable.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.moviesTable.verticalHeader().hide()
         self.moviesTable.doubleClicked.connect(self.playMovie)
-
         style = "::section {""color: black; }"
         self.moviesTable.horizontalHeader().setStyleSheet(style)
         self.moviesTable.setShowGrid(False)
-
         # TODO: Need to find a better way to set the alternating colors
         # Setting alternate colors to true makes them black and white.
         # Changing the color using a stylesheet looks better but makes
         # the right click menu background also black.
         #self.moviesTable.setAlternatingRowColors(True)
         #self.moviesTable.setStyleSheet("alternate-background-color: #151515;background-color: black;");
-
         self.moviesTable.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.moviesTable.customContextMenuRequested[QtCore.QPoint].connect(self.moviesTableRightMenuShow)
+        moviesTableViewVLayout.addWidget(self.moviesTable)
 
-        moviesTableViewWidget.layout().addWidget(QtWidgets.QLabel("Movies Table"))
-        moviesTableViewWidget.layout().addWidget(self.moviesTable)
+        moviesTableSearchHLayout = QtWidgets.QHBoxLayout()
+        moviesTableViewVLayout.addLayout(moviesTableSearchHLayout)
+
+        searchText = QtWidgets.QLabel("Search")
+        searchText.setSizePolicy(QtWidgets.QSizePolicy.Maximum,
+                                 QtWidgets.QSizePolicy.Maximum)
+        moviesTableSearchHLayout.addWidget(searchText)
 
         moviesTableSearchBox = QtWidgets.QLineEdit(self)
         moviesTableSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
         moviesTableSearchBox.setClearButtonEnabled(True)
-        moviesTableViewWidget.layout().addWidget(moviesTableSearchBox)
         moviesTableSearchBox.textChanged.connect(lambda: searchTableView(moviesTableSearchBox, self.moviesTable))
+        moviesTableSearchHLayout.addWidget(moviesTableSearchBox)
 
         # Cover and Summary ---------------------------------------------------------------------------------------
         movieSummaryVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
@@ -788,10 +859,10 @@ class MyWindow(QtWidgets.QMainWindow):
         # Add the sub-layouts to the mainHSplitter
         mainHSplitter.addWidget(criteriaVSplitter1)
         mainHSplitter.addWidget(criteriaVSplitter2)
-        #mainHSplitter.addWidget(moviesWidget)
+        mainHSplitter.addWidget(filtersWidget)
         mainHSplitter.addWidget(moviesTableViewWidget)
         mainHSplitter.addWidget(movieSummaryVSplitter)
-        mainHSplitter.setSizes([100, 100, 750, 650])
+        mainHSplitter.setSizes([100, 100, 200, 750, 450])
 
         # Bottom ---------------------------------------------------------------------------------------
         bottomLayout = QtWidgets.QHBoxLayout(self)
