@@ -764,6 +764,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.filterTable.setWordWrap(False)
         style = "::section {""color: black; }"
         self.filterTable.horizontalHeader().setStyleSheet(style)
+        self.filterTable.itemSelectionChanged.connect(self.filterTableSelectionChanged)
+        self.countriesList.itemSelectionChanged.connect(lambda: self.criteriaSelectionChanged(self.countriesList, 'countries'))
         filtersVLayout.addWidget(self.filterTable)
 
         filtersSearchHLayout = QtWidgets.QHBoxLayout()
@@ -1171,6 +1173,49 @@ class MyWindow(QtWidgets.QMainWindow):
         numSelected = len(self.moviesTable.selectionModel().selectedRows())
         if numSelected == 1:
             self.clickedMovieTable(self.moviesTable.selectionModel().selectedRows()[0])
+
+    def filterTableSelectionChanged(self):
+        if len(self.filterTable.selectedItems()) == 0:
+            self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
+            self.showMoviesTableSelectionStatus()
+            for row in range(self.moviesTableProxyModel.rowCount()):
+                self.moviesTable.setRowHidden(row, False)
+            return
+
+        filterByText = self.filterByComboBox.currentText()
+        filterByKey = self.filterByDict[filterByText]
+
+        movieList = []
+        for item in self.filterTable.selectedItems():
+            row = item.row()
+            name = self.filterTable.item(row, 0).text()
+            movies = self.smdbData[filterByKey][name]['movies']
+            for movie in movies:
+                movieList.append(movie)
+
+        self.numVisibleMovies = 0
+
+        for row in range(self.moviesTableProxyModel.rowCount()):
+            self.moviesTable.setRowHidden(row, True)
+
+        # Movies are stored as ['Anchorman: The Legend of Ron Burgundy', 2004]
+        self.progressBar.setMaximum(len(movieList))
+        progress = 0
+
+        progress = 0
+        self.numVisibleMovies = 0
+        for row in range(self.moviesTableProxyModel.rowCount()):
+            title = self.moviesTableProxyModel.index(row, 1).data(QtCore.Qt.DisplayRole)
+            year = self.moviesTableProxyModel.index(row, 0).data(QtCore.Qt.DisplayRole)
+            for (t, y) in movieList:
+                if t == title and y == year:
+                    self.numVisibleMovies += 1
+                    self.moviesTable.setRowHidden(row, False)
+            progress += 1
+            self.progressBar.setValue(progress)
+
+        self.progressBar.setValue(0)
+        self.showMoviesTableSelectionStatus()
 
     def criteriaSelectionChanged(self, listWidget, smdbKey):
         if len(listWidget.selectedItems()) == 0:
