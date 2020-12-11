@@ -473,8 +473,9 @@ class MyWindow(QtWidgets.QMainWindow):
         #        print('\t%s' % style)
 
         self.movieTitle = QtWidgets.QLabel('')
+        self.movieTitle.setWordWrap(True)
         self.movieTitle.setFont(QtGui.QFont('TimesNew Roman', 20))
-        self.movieTitle.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        self.movieTitle.setSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Fixed)
         self.movieTitle.setStyleSheet("color: white;")
         movieVLayout.addWidget(self.movieTitle)
 
@@ -573,8 +574,6 @@ class MyWindow(QtWidgets.QMainWindow):
     def clickedMovieTable(self, modelIndex):
         title = self.moviesTableProxyModel.index(modelIndex.row(), 1).data(QtCore.Qt.DisplayRole)
         proxyIndex = self.moviesTableProxyModel.index(modelIndex.row(), 1)
-        print("proxyIndex.row() = %s" % proxyIndex.row())
-        print("modelIndex.row() = %s" % modelIndex.row())
         try:
             moviePath = self.moviesTableProxyModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
             folderName = self.moviesTableProxyModel.index(modelIndex.row(), 6).data(QtCore.Qt.DisplayRole)
@@ -586,9 +585,9 @@ class MyWindow(QtWidgets.QMainWindow):
                 if os.path.exists(coverFilePng):
                     coverFile = coverFilePng
 
+            self.movieTitle.setText('%s (%s)' % (title, year))
             self.showCoverFile(coverFile)
             self.showMovieInfo(jsonFile)
-            self.movieTitle.setText('%s (%s)' % (title, year))
         except:
             print("Error with movie %s" % title)
 
