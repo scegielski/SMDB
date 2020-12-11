@@ -276,7 +276,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.movieCover = None
         self.movieList = None
         self.smdbFile = ""
-        self.setGeometry(200, 75, 1600, 900)
+        self.setGeometry(200, 75, 1275, 700)
         self.setWindowTitle("Scott's Movie Database")
         self.numVisibleMovies = 0
 
@@ -392,8 +392,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.filterTable.setColumnCount(2)
         self.filterTable.verticalHeader().hide()
         self.filterTable.setHorizontalHeaderLabels(['Name', 'Count'])
-        self.filterTable.setColumnWidth(0, 150)
-        self.filterTable.setColumnWidth(1, 40)
+        self.filterTable.setColumnWidth(0, 170)
+        self.filterTable.setColumnWidth(1, 45)
         self.filterTable.verticalHeader().setMinimumSectionSize(10)
         self.filterTable.verticalHeader().setDefaultSectionSize(18)
         self.filterTable.setWordWrap(False)
@@ -501,7 +501,7 @@ class MyWindow(QtWidgets.QMainWindow):
         mainHSplitter.addWidget(filtersWidget)
         mainHSplitter.addWidget(moviesTableViewWidget)
         mainHSplitter.addWidget(movieSummaryVSplitter)
-        mainHSplitter.setSizes([300, 700, 450])
+        mainHSplitter.setSizes([250, 625, 400])
 
         # Bottom ---------------------------------------------------------------------------------------
         bottomLayout = QtWidgets.QHBoxLayout(self)
