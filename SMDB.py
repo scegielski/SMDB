@@ -1185,6 +1185,13 @@ class MyWindow(QtWidgets.QMainWindow):
         filterByText = self.filterByComboBox.currentText()
         filterByKey = self.filterByDict[filterByText]
 
+        if filterByText == 'Director' or filterByText == 'Actor':
+            self.filterTable.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+            self.filterTable.customContextMenuRequested[QtCore.QPoint].connect(
+                self.filterTablePeopleListRightMenuShow)
+        else:
+            self.filterTable.setContextMenuPolicy(QtCore.Qt.NoContextMenu)
+
         movieList = []
         for item in self.filterTable.selectedItems():
             row = item.row()
@@ -1553,6 +1560,16 @@ class MyWindow(QtWidgets.QMainWindow):
 
         if (personId):
             webbrowser.open('http://imdb.com/name/nm%s' % personId, new=2)
+
+    def filterTablePeopleListRightMenuShow(self):
+        rightMenu = QtWidgets.QMenu(self.filterTable)
+        selectedItem = self.filterTable.selectedItems()[0]
+        row = selectedItem.row()
+        personName = self.filterTable.item(row, 0).text()
+        openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
+        openImdbAction.triggered.connect(lambda: self.openPersonImdbPage(personName))
+        rightMenu.addAction(openImdbAction)
+        rightMenu.exec_(QtGui.QCursor.pos())
 
     def peopleListRightMenuShow(self, peopleList):
         rightMenu = QtWidgets.QMenu(peopleList)
