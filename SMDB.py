@@ -93,21 +93,16 @@ def searchListWidget(searchBoxWidget, listWidget):
         for foundItem in listWidget.findItems(searchText, QtCore.Qt.MatchContains):
             foundItem.setHidden(False)
 
-def searchTableWidget(searchBoxWidget, tableWidget, searchColumn):
+def searchTableWidget(searchBoxWidget, tableWidget):
     searchText = searchBoxWidget.text()
     if searchText == "":
         for row in range(tableWidget.rowCount()):
-            for col in range(tableWidget.columnCount()):
-                tableWidget.item(row, col).setHidden(False)
+            tableWidget.showRow(row)
     else:
         for row in range(tableWidget.rowCount()):
-            for col in range(tableWidget.columnCount()):
-                tableWidget.item(row, col).setHidden(False)
+            tableWidget.hideRow(row)
         for foundItem in tableWidget.findItems(searchText, QtCore.Qt.MatchContains):
-            if foundItem.column() == searchColumn:
-                for col in range(tableWidget.columnCount()):
-                    tableWidget.item(foundItem.row(), col).setHidden(False)
-                foundItem.setHidden(False)
+            tableWidget.showRow(foundItem.row())
 
 def searchTableView(searchBoxWidget, tableView):
     searchText = searchBoxWidget.text()
@@ -332,9 +327,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTable.setModel(self.moviesTableProxyModel)
         self.moviesTableProxyModel.setDynamicSortFilter(False)
 
-        self.filtersTable.setColumnWidth(0, 109)  # name
-        self.filtersTable.setColumnWidth(1, 40) # count
-
         self.moviesTable.setColumnWidth(0, 15)  # year
         self.moviesTable.setColumnWidth(1, 200) # title
         self.moviesTable.setColumnWidth(2, 60)  # rating
@@ -361,12 +353,14 @@ class MyWindow(QtWidgets.QMainWindow):
         if forceScan:
             return
 
-        self.populateCriteriaList('directors', self.directorsList, self.directorsComboBox)
-        self.populateCriteriaList('actors', self.actorsList, self.actorsComboBox)
-        self.populateCriteriaList('genres', self.genresList, self.genresComboBox)
-        self.populateCriteriaList('years', self.yearsList, self.yearsComboBox)
-        self.populateCriteriaList('companies', self.companiesList, self.companiesComboBox)
-        self.populateCriteriaList('countries', self.countriesList, self.countriesComboBox)
+        #self.populateCriteriaList('directors', self.directorsList, self.directorsComboBox)
+        #self.populateCriteriaList('actors', self.actorsList, self.actorsComboBox)
+        #self.populateCriteriaList('genres', self.genresList, self.genresComboBox)
+        #self.populateCriteriaList('years', self.yearsList, self.yearsComboBox)
+        #self.populateCriteriaList('companies', self.companiesList, self.companiesComboBox)
+        #self.populateCriteriaList('countries', self.countriesList, self.countriesComboBox)
+
+        self.populateFiltersTable()
 
         self.moviesTable.selectRow(0)
         self.moviesTableSelectionChanged()
@@ -746,21 +740,29 @@ class MyWindow(QtWidgets.QMainWindow):
                                     QtWidgets.QSizePolicy.Maximum)
         filterByHLayout.addWidget(filterByLabel)
 
-        filterByEnum = ['Director', 'Actor', 'Genre', 'Year', 'Company', 'Country']
+        self.filterByDict = {
+            'Director': 'directors',
+            'Actor': 'actors',
+            'Genre': 'genres',
+            'Year': 'years',
+            'Company': 'companies',
+            'Country': 'countries'
+        }
+
         self.filterByComboBox = QtWidgets.QComboBox()
-        for i in filterByEnum:
+        for i in self.filterByDict.keys():
             self.filterByComboBox.addItem(i)
         self.filterByComboBox.setCurrentIndex(0)
+        self.filterByComboBox.activated.connect(self.populateFiltersTable)
         filterByHLayout.addWidget(self.filterByComboBox)
 
-        self.filtersTable = QtWidgets.QTableWidget()
-        self.filtersTable.setColumnCount(2)
-        self.filtersTable.setRowCount(20)
-        self.filtersTable.verticalHeader().hide()
-        self.filtersTable.setHorizontalHeaderLabels(['Name', 'Count'])
+        self.filterTable = QtWidgets.QTableWidget()
+        self.filterTable.setColumnCount(2)
+        self.filterTable.verticalHeader().hide()
+        self.filterTable.setHorizontalHeaderLabels(['Name', 'Count'])
         style = "::section {""color: black; }"
-        self.filtersTable.horizontalHeader().setStyleSheet(style)
-        filtersVLayout.addWidget(self.filtersTable)
+        self.filterTable.horizontalHeader().setStyleSheet(style)
+        filtersVLayout.addWidget(self.filterTable)
 
         filtersSearchHLayout = QtWidgets.QHBoxLayout()
         filtersVLayout.addLayout(filtersSearchHLayout)
@@ -770,12 +772,11 @@ class MyWindow(QtWidgets.QMainWindow):
                                  QtWidgets.QSizePolicy.Maximum)
         filtersSearchHLayout.addWidget(searchText)
 
-        filtersTableSearchBox = QtWidgets.QLineEdit(self)
-        filtersTableSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
-        filtersTableSearchBox.setClearButtonEnabled(True)
-        filtersSearchHLayout.addWidget(filtersTableSearchBox)
-        filtersTableSearchBox.textChanged.connect(lambda: searchTableWidget(moviesTableSearchBox,
-                                                  self.filtersTable, 0))
+        filterTableSearchBox = QtWidgets.QLineEdit(self)
+        filterTableSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
+        filterTableSearchBox.setClearButtonEnabled(True)
+        filtersSearchHLayout.addWidget(filterTableSearchBox)
+        filterTableSearchBox.textChanged.connect(lambda: searchTableWidget(filterTableSearchBox, self.filterTable))
 
         # Movies Table ---------------------------------------------------------------------------------------
         moviesTableViewWidget = QtWidgets.QWidget()
@@ -862,7 +863,7 @@ class MyWindow(QtWidgets.QMainWindow):
         mainHSplitter.addWidget(filtersWidget)
         mainHSplitter.addWidget(moviesTableViewWidget)
         mainHSplitter.addWidget(movieSummaryVSplitter)
-        mainHSplitter.setSizes([100, 100, 200, 750, 450])
+        mainHSplitter.setSizes([100, 100, 300, 700, 450])
 
         # Bottom ---------------------------------------------------------------------------------------
         bottomLayout = QtWidgets.QHBoxLayout(self)
@@ -1029,6 +1030,55 @@ class MyWindow(QtWidgets.QMainWindow):
                     filesToDelete.append(coverFile)
 
         removeFiles(self, filesToDelete, '.jpg')
+
+    def populateFiltersTable(self):
+        if not self.smdbData:
+            print("Error: No smbdData")
+            return
+
+        filterByText = self.filterByComboBox.currentText()
+        filterByKey = self.filterByDict[filterByText]
+
+        if filterByKey not in self.smdbData:
+            print("Error: '%s' not in smdbData" % filterByKey)
+            return
+
+        numEntries = len(self.smdbData[filterByKey].keys())
+        message = "Populating list: %s with %s entries" % (filterByKey, numEntries)
+        self.statusBar().showMessage(message)
+        QtCore.QCoreApplication.processEvents()
+
+        self.progressBar.setMaximum(len(self.smdbData[filterByKey].keys()))
+        progress = 0
+
+        self.filterTable.clear()
+        self.filterTable.setHorizontalHeaderLabels(['Name', 'Count'])
+
+        self.filterTable.verticalHeader().setMinimumSectionSize(10)
+
+        row = 0
+        numRows = len(self.smdbData[filterByKey].keys())
+        self.filterTable.setRowCount(numRows)
+        self.filterTable.setSortingEnabled(False)
+        for name in self.smdbData[filterByKey].keys():
+            count = self.smdbData[filterByKey][name]['num movies']
+            nameItem = QtWidgets.QTableWidgetItem(name)
+            self.filterTable.setItem(row, 0, nameItem)
+            countItem = QtWidgets.QTableWidgetItem('%04d' % count)
+            self.filterTable.setItem(row, 1, countItem)
+            self.filterTable.verticalHeader().resizeSection(row, 18)
+            row += 1
+            progress += 1
+            self.progressBar.setValue(progress)
+
+        self.filterTable.setColumnWidth(0, 150)  # name
+        self.filterTable.setColumnWidth(1, 40) # count
+        self.filterTable.setWordWrap(False)
+
+        self.filterTable.sortItems(1, QtCore.Qt.DescendingOrder)
+        self.filterTable.setSortingEnabled(True)
+
+        self.progressBar.setValue(0)
 
     def populateCriteriaList(self, criteriaKey, listWidget, comboBoxWidget):
         """ criteriaKey is 'directors', 'actors', 'genres', 'years """
