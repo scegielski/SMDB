@@ -337,9 +337,12 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTable.setColumnWidth(7, 300) # path
         self.moviesTable.setColumnWidth(8, 65) # json exists
         self.moviesTable.verticalHeader().setMinimumSectionSize(10)
-        for row in range(self.moviesTableProxyModel.rowCount(self.moviesTable.rootIndex())):
-            self.moviesTable.verticalHeader().resizeSection(row, 18)
+        self.moviesTable.verticalHeader().setDefaultSectionSize(18)
         self.moviesTable.setWordWrap(False)
+
+        self.filterTable.setColumnWidth(0, 150)  # name
+        self.filterTable.setColumnWidth(1, 40) # count
+        self.filterTable.setWordWrap(False)
 
         self.moviesTable.hideColumn(5)
         self.moviesTable.hideColumn(6)
@@ -1055,6 +1058,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.filterTable.setHorizontalHeaderLabels(['Name', 'Count'])
 
         self.filterTable.verticalHeader().setMinimumSectionSize(10)
+        self.filterTable.verticalHeader().setDefaultSectionSize(18)
 
         row = 0
         numRows = len(self.smdbData[filterByKey].keys())
@@ -1066,14 +1070,10 @@ class MyWindow(QtWidgets.QMainWindow):
             self.filterTable.setItem(row, 0, nameItem)
             countItem = QtWidgets.QTableWidgetItem('%04d' % count)
             self.filterTable.setItem(row, 1, countItem)
-            self.filterTable.verticalHeader().resizeSection(row, 18)
             row += 1
             progress += 1
             self.progressBar.setValue(progress)
 
-        self.filterTable.setColumnWidth(0, 150)  # name
-        self.filterTable.setColumnWidth(1, 40) # count
-        self.filterTable.setWordWrap(False)
 
         self.filterTable.sortItems(1, QtCore.Qt.DescendingOrder)
         self.filterTable.setSortingEnabled(True)
