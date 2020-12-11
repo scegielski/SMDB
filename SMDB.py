@@ -572,6 +572,9 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def clickedMovieTable(self, modelIndex):
         title = self.moviesTableProxyModel.index(modelIndex.row(), 1).data(QtCore.Qt.DisplayRole)
+        proxyIndex = self.moviesTableProxyModel.index(modelIndex.row(), 1)
+        print("proxyIndex.row() = %s" % proxyIndex.row())
+        print("modelIndex.row() = %s" % modelIndex.row())
         try:
             moviePath = self.moviesTableProxyModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
             folderName = self.moviesTableProxyModel.index(modelIndex.row(), 6).data(QtCore.Qt.DisplayRole)
@@ -623,6 +626,7 @@ class MyWindow(QtWidgets.QMainWindow):
         progress = 0
 
         progress = 0
+        firstRow = -1
         self.numVisibleMovies = 0
         for row in range(self.moviesTableProxyModel.rowCount()):
             title = self.moviesTableProxyModel.index(row, 1).data(QtCore.Qt.DisplayRole)
@@ -630,10 +634,13 @@ class MyWindow(QtWidgets.QMainWindow):
             for (t, y) in movieList:
                 if t == title and y == year:
                     self.numVisibleMovies += 1
+                    if firstRow == -1:
+                        firstRow = row
                     self.moviesTable.setRowHidden(row, False)
             progress += 1
             self.progressBar.setValue(progress)
 
+        self.moviesTable.selectRow(firstRow)
         self.progressBar.setValue(0)
         self.showMoviesTableSelectionStatus()
 
