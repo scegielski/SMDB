@@ -325,8 +325,8 @@ class MyWindow(QtWidgets.QMainWindow):
             self.moviesTableProxyModel.sort(0)
 
         self.moviesTable.setModel(self.moviesTableProxyModel)
+        self.moviesTable.selectionModel().selectionChanged.connect(lambda: self.moviesTableSelectionChanged())
         self.moviesTableProxyModel.setDynamicSortFilter(False)
-
         self.moviesTable.setColumnWidth(0, 15)  # year
         self.moviesTable.setColumnWidth(1, 200) # title
         self.moviesTable.setColumnWidth(2, 60)  # rating
@@ -339,16 +339,10 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTable.verticalHeader().setMinimumSectionSize(10)
         self.moviesTable.verticalHeader().setDefaultSectionSize(18)
         self.moviesTable.setWordWrap(False)
-
-        self.filterTable.setColumnWidth(0, 150)  # name
-        self.filterTable.setColumnWidth(1, 40) # count
-        self.filterTable.setWordWrap(False)
-
         self.moviesTable.hideColumn(5)
         self.moviesTable.hideColumn(6)
         self.moviesTable.hideColumn(7)
 
-        self.moviesTable.selectionModel().selectionChanged.connect(lambda: self.moviesTableSelectionChanged())
 
         self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
         self.showMoviesTableSelectionStatus()
@@ -763,6 +757,11 @@ class MyWindow(QtWidgets.QMainWindow):
         self.filterTable.setColumnCount(2)
         self.filterTable.verticalHeader().hide()
         self.filterTable.setHorizontalHeaderLabels(['Name', 'Count'])
+        self.filterTable.setColumnWidth(0, 150)
+        self.filterTable.setColumnWidth(1, 40)
+        self.filterTable.verticalHeader().setMinimumSectionSize(10)
+        self.filterTable.verticalHeader().setDefaultSectionSize(18)
+        self.filterTable.setWordWrap(False)
         style = "::section {""color: black; }"
         self.filterTable.horizontalHeader().setStyleSheet(style)
         filtersVLayout.addWidget(self.filterTable)
@@ -1057,9 +1056,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.filterTable.clear()
         self.filterTable.setHorizontalHeaderLabels(['Name', 'Count'])
 
-        self.filterTable.verticalHeader().setMinimumSectionSize(10)
-        self.filterTable.verticalHeader().setDefaultSectionSize(18)
-
         row = 0
         numRows = len(self.smdbData[filterByKey].keys())
         self.filterTable.setRowCount(numRows)
@@ -1073,7 +1069,6 @@ class MyWindow(QtWidgets.QMainWindow):
             row += 1
             progress += 1
             self.progressBar.setValue(progress)
-
 
         self.filterTable.sortItems(1, QtCore.Qt.DescendingOrder)
         self.filterTable.setSortingEnabled(True)
