@@ -279,6 +279,12 @@ class MyWindow(QtWidgets.QMainWindow):
         self.setGeometry(200, 75, 1275, 700)
         self.setWindowTitle("Scott's Movie Database")
         self.numVisibleMovies = 0
+        self.moviesTableWidget = None
+        self.filterWidget = None
+        self.showFilters = True
+        self.showMoviesTable = True
+        self.showCover = True
+        self.showSummary = True
 
         self.db = IMDb()
 
@@ -320,6 +326,8 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def initUI(self):
         menuBar = self.menuBar()
+
+        # File Menu ---------------------------------------------------------------------------------------
         fileMenu = menuBar.addMenu('File')
 
         rebuildSmdbFileAction = QtWidgets.QAction("Rebuild SMDB file", self)
@@ -337,6 +345,35 @@ class MyWindow(QtWidgets.QMainWindow):
         quitAction = QtWidgets.QAction("Quit", self)
         quitAction.triggered.connect(QtCore.QCoreApplication.quit)
         fileMenu.addAction(quitAction)
+
+        # View Menu ---------------------------------------------------------------------------------------
+        viewMenu = menuBar.addMenu('View')
+
+        showFiltersAction = QtWidgets.QAction("Show Filters", self)
+        showFiltersAction.setCheckable(True)
+        showFiltersAction.setChecked(self.showFilters)
+        showFiltersAction.triggered.connect(self.showFiltersMenu)
+        viewMenu.addAction(showFiltersAction)
+
+        showMoviesTableAction = QtWidgets.QAction("Show Movies", self)
+        showMoviesTableAction.setCheckable(True)
+        showMoviesTableAction.setChecked(self.showMoviesTable)
+        showMoviesTableAction.triggered.connect(self.showMoviesTableMenu)
+        viewMenu.addAction(showMoviesTableAction)
+
+        showCoverAction = QtWidgets.QAction("Show Cover", self)
+        showCoverAction.setCheckable(True)
+        showCoverAction.setChecked(self.showCover)
+        showCoverAction.triggered.connect(self.showCoverMenu)
+        viewMenu.addAction(showCoverAction)
+
+        showSummaryAction = QtWidgets.QAction("Show Summary", self)
+        showSummaryAction.setCheckable(True)
+        showSummaryAction.setChecked(self.showSummary)
+        showSummaryAction.triggered.connect(self.showSummaryMenu)
+        viewMenu.addAction(showSummaryAction)
+
+        # Central Widget ---------------------------------------------------------------------------------------
 
         centralWidget = QtWidgets.QWidget()
         self.setCentralWidget(centralWidget)
@@ -360,12 +397,12 @@ class MyWindow(QtWidgets.QMainWindow):
                            )
 
         # Filters Table ---------------------------------------------------------------------------------------
-        filtersWidget = QtWidgets.QWidget()
+        self.filterWidget = QtWidgets.QWidget()
         filtersVLayout = QtWidgets.QVBoxLayout()
-        filtersWidget.setLayout(filtersVLayout)
+        self.filterWidget.setLayout(filtersVLayout)
 
         filterByHLayout = QtWidgets.QHBoxLayout()
-        filtersWidget.layout().addLayout(filterByHLayout)
+        self.filterWidget.layout().addLayout(filterByHLayout)
 
         filterByLabel = QtWidgets.QLabel("Filter By")
         filterByLabel.setSizePolicy(QtWidgets.QSizePolicy.Maximum,
@@ -417,9 +454,9 @@ class MyWindow(QtWidgets.QMainWindow):
         filterTableSearchBox.textChanged.connect(lambda: searchTableWidget(filterTableSearchBox, self.filterTable))
 
         # Movies Table ---------------------------------------------------------------------------------------
-        moviesTableViewWidget = QtWidgets.QWidget()
+        self.moviesTableWidget = QtWidgets.QWidget()
         moviesTableViewVLayout = QtWidgets.QVBoxLayout()
-        moviesTableViewWidget.setLayout(moviesTableViewVLayout)
+        self.moviesTableWidget.setLayout(moviesTableViewVLayout)
 
         moviesTableViewVLayout.addWidget(QtWidgets.QLabel("Movies Table"))
 
@@ -460,10 +497,10 @@ class MyWindow(QtWidgets.QMainWindow):
         movieSummaryVSplitter.setHandleWidth(20)
         movieSummaryVSplitter.splitterMoved.connect(self.resizeCoverFile)
 
-        movieWidget = QtWidgets.QWidget()
-        movieWidget.setStyleSheet("background-color: black;")
+        self.coverWidget = QtWidgets.QWidget()
+        self.coverWidget.setStyleSheet("background-color: black;")
         movieVLayout = QtWidgets.QVBoxLayout()
-        movieWidget.setLayout(movieVLayout)
+        self.coverWidget.setLayout(movieVLayout)
 
         # Get a list of available fonts
         #dataBase = QtGui.QFontDatabase()
@@ -487,7 +524,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         movieVLayout.addWidget(self.movieCover)
 
-        movieSummaryVSplitter.addWidget(movieWidget)
+        movieSummaryVSplitter.addWidget(self.coverWidget)
 
         self.summary = QtWidgets.QTextBrowser()
         self.summary.setFont(QtGui.QFont('TimesNew Roman', 12))
@@ -499,8 +536,8 @@ class MyWindow(QtWidgets.QMainWindow):
         # ---------------------------------------------------------------------------------------
 
         # Add the sub-layouts to the mainHSplitter
-        mainHSplitter.addWidget(filtersWidget)
-        mainHSplitter.addWidget(moviesTableViewWidget)
+        mainHSplitter.addWidget(self.filterWidget)
+        mainHSplitter.addWidget(self.moviesTableWidget)
         mainHSplitter.addWidget(movieSummaryVSplitter)
         mainHSplitter.setSizes([250, 625, 400])
 
@@ -590,6 +627,38 @@ class MyWindow(QtWidgets.QMainWindow):
             self.showMovieInfo(jsonFile)
         except:
             print("Error with movie %s" % title)
+
+    def showFiltersMenu(self):
+        if self.filterWidget:
+            self.showFilters = not self.showFilters
+            if not self.showFilters:
+                self.filterWidget.hide()
+            else:
+                self.filterWidget.show()
+
+    def showMoviesTableMenu(self):
+        if self.moviesTableWidget:
+            self.showMoviesTable = not self.showMoviesTable
+            if not self.showMoviesTable:
+                self.moviesTableWidget.hide()
+            else:
+                self.moviesTableWidget.show()
+
+    def showCoverMenu(self):
+        if self.movieCover:
+            self.showCover = not self.showCover
+            if not self.showCover:
+                self.coverWidget.hide()
+            else:
+                self.coverWidget.show()
+
+    def showSummaryMenu(self):
+        if self.summary:
+            self.showSummary = not self.showSummary
+            if not self.showSummary:
+                self.summary.hide()
+            else:
+                self.summary.show()
 
     def filterTableSelectionChanged(self):
         if len(self.filterTable.selectedItems()) == 0:
