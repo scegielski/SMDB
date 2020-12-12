@@ -160,4 +160,3 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
             return self._headers[section]
         else:
             return super().headerData(section, orientation, role)
-

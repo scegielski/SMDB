@@ -1,108 +1,29 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtWidgets import QApplication, QMessageBox
 import sys
 import os
 from pathlib import Path
-import fnmatch
 import imdb
 from imdb import IMDb
-from imdb import Movie
-import re
-import urllib.request
-import subprocess
 import json
 import collections
-from enum import Enum, auto
 import webbrowser
 
 from .utilities import *
 from .moviemodel import MoviesTableModel
 
-class displayStyles(Enum):
-    TOTAL_ITEM = auto(),
-    ITEM_TOTAL = auto(),
-    YEAR_TITLE = auto(),
-    RATING_TITLE_YEAR = auto(),
-    TITLE_YEAR = auto(),
-    BOX_OFFICE_YEAR_TITLE = auto(),
-    RUNTIME_YEAR_TITLE = auto(),
-    FOLDER = auto()
 
-# TODO: Create separate derived class for movie list and move methods
-# TODO: Change colors to dark
+def readSmdbFile(fileName):
+    if os.path.exists(fileName):
+        with open(fileName) as f:
+            return json.load(f)
 
-def copyCoverImage(movie, coverFile):
-    if movie.has_key('full-size cover url'):
-        movieCoverUrl = movie['full-size cover url']
-    elif movie.has_key('cover'):
-        movieCoverUrl = movie['cover']
+
+def getMovieKey(movie, key):
+    if movie.has_key(key):
+        return movie[key]
     else:
-        print("Error: No cover image available")
-        return ""
-    extension = os.path.splitext(movieCoverUrl)[1]
-    if extension == '.png':
-        coverFile = coverFile.replace('.jpg', '.png')
-    try:
-        urllib.request.urlretrieve(movieCoverUrl, coverFile)
-    except:
-        print("Problem downloading cover file: %s" % coverFile)
-    return coverFile
+        return None
 
-def runFile(file):
-    if sys.platform == "win32":
-        os.startfile(file)
-    else:
-        opener = "open" if sys.platform == "darwin" else "xdg-open"
-        subprocess.call([opener, file])
-
-
-def removeFiles(parent, filesToDelete, extension):
-    if len(filesToDelete) > 0:
-        ret = QMessageBox.question(parent,
-                                   'Confirm Delete',
-                                   'Really remove %d %s files?' % (len(filesToDelete), extension),
-                                   QMessageBox.Yes | QMessageBox.No,
-                                   QMessageBox.No)
-
-        if ret == QMessageBox.Yes:
-            for f in filesToDelete:
-                print('Deleting file: %s' % f)
-                os.remove(f)
-
-
-
-def searchListWidget(searchBoxWidget, listWidget):
-    searchText = searchBoxWidget.text()
-    if searchText == "":
-        for row in range(listWidget.count()):
-            listWidget.item(row).setHidden(False)
-    else:
-        for row in range(listWidget.count()):
-            listWidget.item(row).setHidden(True)
-        for foundItem in listWidget.findItems(searchText, QtCore.Qt.MatchContains):
-            foundItem.setHidden(False)
-
-def searchTableWidget(searchBoxWidget, tableWidget):
-    searchText = searchBoxWidget.text()
-    if searchText == "":
-        for row in range(tableWidget.rowCount()):
-            tableWidget.showRow(row)
-    else:
-        for row in range(tableWidget.rowCount()):
-            tableWidget.hideRow(row)
-        for foundItem in tableWidget.findItems(searchText, QtCore.Qt.MatchContains):
-            tableWidget.showRow(foundItem.row())
-
-def searchTableView(searchBoxWidget, tableView):
-    searchText = searchBoxWidget.text()
-    proxyModel = tableView.model()
-    proxyModel.setFilterKeyColumn(1)
-    proxyModel.setFilterRegExp(QtCore.QRegExp(searchText,
-                                              QtCore.Qt.CaseInsensitive,
-                                              QtCore.QRegExp.FixedString))
-
-    for row in range(proxyModel.rowCount(tableView.rootIndex())):
-        tableView.verticalHeader().resizeSection(row, 18)
 
 class MyWindow(QtWidgets.QMainWindow):
     def __init__(self):
@@ -119,6 +40,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.showCover = True
         self.showSummary = True
         self.showWatchList = True
+        self.isCanceled = False
 
         self.db = IMDb()
 
@@ -132,38 +54,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.watchListSmdbData = None
 
         self.initUI()
-
-        if not os.path.exists(self.moviesFolder):
-            return
-
-    def readSmdbFile(self, fileName):
-        if os.path.exists(fileName):
-            with open(fileName) as f:
-                return json.load(f)
-
-    def backupMoviesFolder(self):
-        pass
-
-    def preferences(self):
-        pass
-
-    def browseMoviesFolder(self):
-        browseDir = str(Path.home())
-        if os.path.exists('%s/Desktop' % browseDir):
-            browseDir = '%s/Desktop' % browseDir
-        moviesFolder = QtWidgets.QFileDialog.getExistingDirectory(
-            self,
-            "Select Movies Directory",
-            browseDir,
-            QtWidgets.QFileDialog.ShowDirsOnly |
-            QtWidgets.QFileDialog.DontResolveSymlinks)
-        if os.path.exists(moviesFolder):
-            self.moviesFolder = moviesFolder
-            self.settings.setValue('movies_folder', self.moviesFolder)
-            print("Saved: moviesFolder = %s" % self.moviesFolder)
-            self.readSmdbFile()
-            self.smdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
-            self.refresh()
+        self.show()
+        self.refresh()
 
     def initUI(self):
         menuBar = self.menuBar()
@@ -236,7 +128,7 @@ class MyWindow(QtWidgets.QMainWindow):
         # Divides top h splitter and bottom progress bar
         mainVLayout = QtWidgets.QVBoxLayout(self)
         centralWidget.setLayout(mainVLayout)
-        #centralWidget.setStyleSheet("background-color: black;")
+        # centralWidget.setStyleSheet("background-color: black;")
 
         # Main H Splitter for criteria, movies list, and cover/info
         mainHSplitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
@@ -330,8 +222,8 @@ class MyWindow(QtWidgets.QMainWindow):
         # Setting alternate colors to true makes them black and white.
         # Changing the color using a stylesheet looks better but makes
         # the right click menu background also black.
-        #self.moviesTable.setAlternatingRowColors(True)
-        #self.moviesTable.setStyleSheet("alternate-background-color: #151515;background-color: black;");
+        # self.moviesTable.setAlternatingRowColors(True)
+        # self.moviesTable.setStyleSheet("alternate-background-color: #151515;background-color: black;");
         self.moviesTable.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.moviesTable.customContextMenuRequested[QtCore.QPoint].connect(self.moviesTableRightMenuShow)
         moviesTableViewVLayout.addWidget(self.moviesTable)
@@ -351,7 +243,6 @@ class MyWindow(QtWidgets.QMainWindow):
         moviesTableSearchHLayout.addWidget(moviesTableSearchBox)
 
         moviesWatchlistVSplitter.addWidget(self.moviesTableWidget)
-
 
         # Watch List ---------------------------------------------------------------------------------------
         self.watchListWidget = QtWidgets.QWidget()
@@ -399,8 +290,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.coverWidget.setLayout(movieVLayout)
 
         # Get a list of available fonts
-        #dataBase = QtGui.QFontDatabase()
-        #for family in dataBase.families():
+        # dataBase = QtGui.QFontDatabase()
+        # for family in dataBase.families():
         #    print('%s' % family)
         #    for style in dataBase.styles(family):
         #        print('\t%s' % style)
@@ -448,6 +339,76 @@ class MyWindow(QtWidgets.QMainWindow):
         cancelButton = QtWidgets.QPushButton("Cancel", self)
         cancelButton.clicked.connect(self.cancelButtonClicked)
         bottomLayout.addWidget(cancelButton)
+
+    def refresh(self, forceScan=False):
+        if not os.path.exists(self.moviesFolder):
+            return
+
+        if os.path.exists(self.smdbFile):
+            self.smdbData = readSmdbFile(self.smdbFile)
+            self.moviesTableModel = MoviesTableModel(self.smdbData, self.moviesFolder, forceScan)
+        else:
+            self.moviesTableModel = MoviesTableModel(self.smdbData, self.moviesFolder, forceScan)
+            self.smdbData = self.writeSmdbFile(self.smdbFile, self.moviesTableModel)
+
+        self.moviesTableProxyModel = QtCore.QSortFilterProxyModel()
+        self.moviesTableProxyModel.setSourceModel(self.moviesTableModel)
+        if forceScan:
+            # If forScan, sort by exists otherwise title
+            self.moviesTableProxyModel.sort(8)
+        else:
+            self.moviesTableProxyModel.sort(0)
+
+        self.moviesTable.setModel(self.moviesTableProxyModel)
+        self.moviesTable.selectionModel().selectionChanged.connect(self.moviesTableSelectionChanged)
+        self.moviesTableProxyModel.setDynamicSortFilter(False)
+        self.moviesTable.setColumnWidth(0, 15)  # year
+        self.moviesTable.setColumnWidth(1, 200)  # title
+        self.moviesTable.setColumnWidth(2, 60)  # rating
+        self.moviesTable.setColumnWidth(3, 150)  # box office
+        self.moviesTable.setColumnWidth(4, 60)  # runtime
+        self.moviesTable.setColumnWidth(5, 60)  # id
+        self.moviesTable.setColumnWidth(6, 200)  # folder
+        self.moviesTable.setColumnWidth(7, 300)  # path
+        self.moviesTable.setColumnWidth(8, 65)  # json exists
+        self.moviesTable.verticalHeader().setMinimumSectionSize(10)
+        self.moviesTable.verticalHeader().setDefaultSectionSize(18)
+        self.moviesTable.setWordWrap(False)
+        self.moviesTable.hideColumn(5)
+        self.moviesTable.hideColumn(6)
+        self.moviesTable.hideColumn(7)
+
+        self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
+        self.showMoviesTableSelectionStatus()
+
+        self.populateFiltersTable()
+
+        self.moviesTable.selectRow(0)
+        self.moviesTableSelectionChanged()
+
+    def backupMoviesFolder(self):
+        pass
+
+    def preferences(self):
+        pass
+
+    def browseMoviesFolder(self):
+        browseDir = str(Path.home())
+        if os.path.exists('%s/Desktop' % browseDir):
+            browseDir = '%s/Desktop' % browseDir
+        moviesFolder = QtWidgets.QFileDialog.getExistingDirectory(
+            self,
+            "Select Movies Directory",
+            browseDir,
+            QtWidgets.QFileDialog.ShowDirsOnly |
+            QtWidgets.QFileDialog.DontResolveSymlinks)
+        if os.path.exists(moviesFolder):
+            self.moviesFolder = moviesFolder
+            self.settings.setValue('movies_folder', self.moviesFolder)
+            print("Saved: moviesFolder = %s" % self.moviesFolder)
+            readSmdbFile()
+            self.smdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
+            self.refresh()
 
     def populateFiltersTable(self):
         if not self.smdbData:
@@ -506,7 +467,6 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def clickedMovieTable(self, modelIndex):
         title = self.moviesTableProxyModel.index(modelIndex.row(), 1).data(QtCore.Qt.DisplayRole)
-        proxyIndex = self.moviesTableProxyModel.index(modelIndex.row(), 1)
         try:
             moviePath = self.moviesTableProxyModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
             folderName = self.moviesTableProxyModel.index(modelIndex.row(), 6).data(QtCore.Qt.DisplayRole)
@@ -641,7 +601,7 @@ class MyWindow(QtWidgets.QMainWindow):
                                                     QtCore.Qt.SmoothTransformation))
             self.movieCover.setProperty('cover file', coverFile)
         else:
-            self.movieCover.setPixmap(QtGui.QPixmap(0,0))
+            self.movieCover.setPixmap(QtGui.QPixmap(0, 0))
 
     def showMovieInfo(self, jsonFile):
         if os.path.exists(jsonFile):
@@ -686,62 +646,56 @@ class MyWindow(QtWidgets.QMainWindow):
                         # Remove the author of the synopsis's name
                         synopsis = synopsis.split('::')[0]
                         infoText += '%s<br>' % synopsis
-                    #infoText = '<span style=\" color: #ffffff; font-size: 8pt\">%s</span>' % infoText
+                    # infoText = '<span style=\" color: #ffffff; font-size: 8pt\">%s</span>' % infoText
                     self.summary.setText(infoText)
                 except UnicodeDecodeError:
                     print("Error reading %s" % jsonFile)
         else:
             self.summary.clear()
 
-    def getMovieKey(self, movie, key):
-        if movie.has_key(key):
-            return movie[key]
-        else:
-            return None
-
     def writeMovieJson(self, movie, jsonFile):
         d = {}
-        d['title'] = self.getMovieKey(movie, 'title')
+        d['title'] = getMovieKey(movie, 'title')
         d['id'] = movie.getID()
-        d['kind'] = self.getMovieKey(movie, 'kind')
-        d['year'] = self.getMovieKey(movie, 'year')
-        d['rating'] = self.getMovieKey(movie, 'rating')
+        d['kind'] = getMovieKey(movie, 'kind')
+        d['year'] = getMovieKey(movie, 'year')
+        d['rating'] = getMovieKey(movie, 'rating')
 
         d['countries'] = []
-        countries = self.getMovieKey(movie, 'countries')
+        countries = getMovieKey(movie, 'countries')
         if countries and isinstance(countries, list):
             for c in countries:
                 d['countries'].append(c)
         d['companies'] = []
-        companies = self.getMovieKey(movie, 'production companies')
+        companies = getMovieKey(movie, 'production companies')
         if companies and isinstance(companies, list):
             for c in companies:
                 d['companies'].append(c['name'])
-        runtimes = self.getMovieKey(movie, 'runtimes')
+        runtimes = getMovieKey(movie, 'runtimes')
         if runtimes:
             d['runtime'] = runtimes[0]
-        boxOffice = self.getMovieKey(movie, 'box office')
+        boxOffice = getMovieKey(movie, 'box office')
         if boxOffice:
             for k in boxOffice.keys():
                 d['box office'] = boxOffice[k]
-        director = self.getMovieKey(movie, 'director')
+        director = getMovieKey(movie, 'director')
         if (director):
             if isinstance(director, list):
                 directorName = str(director[0]['name'])
                 directorId = self.db.name2imdbID(directorName)
                 d['director'] = [directorName, directorId]
         d['cast'] = []
-        cast = self.getMovieKey(movie, 'cast')
+        cast = getMovieKey(movie, 'cast')
         if cast and isinstance(cast, list):
             for c in movie['cast']:
                 d['cast'].append(c['name'])
-        d['genres'] = self.getMovieKey(movie, 'genres')
-        d['plot'] = self.getMovieKey(movie, 'plot')
-        d['plot outline'] = self.getMovieKey(movie, 'plot outline')
-        d['synopsis'] = self.getMovieKey(movie, 'synopsis')
+        d['genres'] = getMovieKey(movie, 'genres')
+        d['plot'] = getMovieKey(movie, 'plot')
+        d['plot outline'] = getMovieKey(movie, 'plot outline')
+        d['synopsis'] = getMovieKey(movie, 'synopsis')
         d['summary'] = movie.summary()
-        d['cover url'] = self.getMovieKey(movie, 'cover url')
-        d['full-size cover url'] = self.getMovieKey(movie, 'full-size cover url')
+        d['cover url'] = getMovieKey(movie, 'cover url')
+        d['full-size cover url'] = getMovieKey(movie, 'full-size cover url')
 
         try:
             with open(jsonFile, "w") as f:
@@ -899,15 +853,15 @@ class MyWindow(QtWidgets.QMainWindow):
                     if 'runtime' in jsonData and jsonData['runtime']:
                         jsonRuntime = jsonData['runtime']
 
-                    titles[folderName] = { 'id': jsonId,
-                                           'title': jsonTitle,
-                                           'year': jsonYear,
-                                           'rating': jsonRating,
-                                           'runtime': jsonRuntime,
-                                           'box office': jsonBoxOffice,
-                                           'director': directorName,
-                                           'genres': jsonGenres,
-                                           'actors': movieActorsList }
+                    titles[folderName] = {'id': jsonId,
+                                          'title': jsonTitle,
+                                          'year': jsonYear,
+                                          'rating': jsonRating,
+                                          'runtime': jsonRuntime,
+                                          'box office': jsonBoxOffice,
+                                          'director': directorName,
+                                          'genres': jsonGenres,
+                                          'actors': movieActorsList}
 
             progress += 1
             self.progressBar.setValue(progress)
@@ -1133,7 +1087,7 @@ class MyWindow(QtWidgets.QMainWindow):
     def addToWatchList(self):
         modelIndex = self.moviesTable.selectionModel().selectedRows()[0]
         movieName = self.moviesTableProxyModel.index(modelIndex.row(), 1).data(QtCore.Qt.DisplayRole)
-        print ("Adding movie: %s to watch list" % movieName)
+        print("Adding movie: %s to watch list" % movieName)
 
     def openMovieFolder(self):
         modelIndex = self.moviesTable.selectionModel().selectedRows()[0]
@@ -1209,7 +1163,7 @@ class MyWindow(QtWidgets.QMainWindow):
             if (os.path.exists(jsonFile)):
                 filesToDelete.append(os.path.join(moviePath, jsonFile))
         removeFiles(self, filesToDelete, '.json')
-        #self.setMovieListItemColors()
+        # self.setMovieListItemColors()
 
     def removeCoverFilesMenu(self):
         filesToDelete = []
@@ -1221,54 +1175,8 @@ class MyWindow(QtWidgets.QMainWindow):
             if os.path.exists(coverFile):
                 filesToDelete.append(coverFile)
             else:
-                coverFile = os.path.join(moviePath, '%s.png' % item.text())
+                coverFile = os.path.join(moviePath, '%s.png' % movieFolder)
                 if os.path.exists(coverFile):
                     filesToDelete.append(coverFile)
 
         removeFiles(self, filesToDelete, '.jpg')
-
-    def refresh(self, forceScan=False):
-        if not os.path.exists(self.moviesFolder):
-            return
-
-        if os.path.exists(self.smdbFile):
-            self.smdbData = self.readSmdbFile(self.smdbFile)
-            self.moviesTableModel = MoviesTableModel(self.smdbData, self.moviesFolder, forceScan)
-        else:
-            self.moviesTableModel = MoviesTableModel(self.smdbData, self.moviesFolder, forceScan)
-            self.smdbData = self.writeSmdbFile(self.smdbFile, self.moviesTableModel)
-
-        self.moviesTableProxyModel = QtCore.QSortFilterProxyModel()
-        self.moviesTableProxyModel.setSourceModel(self.moviesTableModel)
-        if forceScan:
-            # If forScan, sort by exists otherwise title
-            self.moviesTableProxyModel.sort(8)
-        else:
-            self.moviesTableProxyModel.sort(0)
-
-        self.moviesTable.setModel(self.moviesTableProxyModel)
-        self.moviesTable.selectionModel().selectionChanged.connect(lambda: self.moviesTableSelectionChanged())
-        self.moviesTableProxyModel.setDynamicSortFilter(False)
-        self.moviesTable.setColumnWidth(0, 15)  # year
-        self.moviesTable.setColumnWidth(1, 200) # title
-        self.moviesTable.setColumnWidth(2, 60)  # rating
-        self.moviesTable.setColumnWidth(3, 150) # box office
-        self.moviesTable.setColumnWidth(4, 60) # runtime
-        self.moviesTable.setColumnWidth(5, 60) # id
-        self.moviesTable.setColumnWidth(6, 200) # folder
-        self.moviesTable.setColumnWidth(7, 300) # path
-        self.moviesTable.setColumnWidth(8, 65) # json exists
-        self.moviesTable.verticalHeader().setMinimumSectionSize(10)
-        self.moviesTable.verticalHeader().setDefaultSectionSize(18)
-        self.moviesTable.setWordWrap(False)
-        self.moviesTable.hideColumn(5)
-        self.moviesTable.hideColumn(6)
-        self.moviesTable.hideColumn(7)
-
-        self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
-        self.showMoviesTableSelectionStatus()
-
-        self.populateFiltersTable()
-
-        self.moviesTable.selectRow(0)
-        self.moviesTableSelectionChanged()
