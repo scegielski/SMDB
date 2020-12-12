@@ -307,6 +307,12 @@ class MyWindow(QtWidgets.QMainWindow):
             with open(self.smdbFile) as f:
                 self.smdbData = json.load(f)
 
+    def backupMoviesFolder(self):
+        pass
+
+    def preferences(self):
+        pass
+
     def browseMoviesFolder(self):
         browseDir = str(Path.home())
         if os.path.exists('%s/Desktop' % browseDir):
@@ -335,13 +341,21 @@ class MyWindow(QtWidgets.QMainWindow):
         rebuildSmdbFileAction.triggered.connect(self.writeSmdbFile)
         fileMenu.addAction(rebuildSmdbFileAction)
 
-        setMovieFolderAction = QtWidgets.QAction("Set movie folder", self)
+        setMovieFolderAction = QtWidgets.QAction("Set movies folder", self)
         setMovieFolderAction.triggered.connect(self.browseMoviesFolder)
         fileMenu.addAction(setMovieFolderAction)
+
+        backupMoviesFolderAction = QtWidgets.QAction("Backup movie folder", self)
+        backupMoviesFolderAction.triggered.connect(self.backupMoviesFolder)
+        fileMenu.addAction(backupMoviesFolderAction)
 
         refreshAction = QtWidgets.QAction("Refresh movies dir", self)
         refreshAction.triggered.connect(lambda: self.refresh(forceScan=True))
         fileMenu.addAction(refreshAction)
+
+        preferencesAction = QtWidgets.QAction("Preferences", self)
+        preferencesAction.triggered.connect(self.preferences)
+        fileMenu.addAction(preferencesAction)
 
         quitAction = QtWidgets.QAction("Quit", self)
         quitAction.triggered.connect(QtCore.QCoreApplication.quit)
@@ -1202,27 +1216,31 @@ class MyWindow(QtWidgets.QMainWindow):
         self.clickedMovieTable(self.moviesTable.selectionModel().selectedRows()[0])
 
         self.playAction = QtWidgets.QAction("Play", self)
-        self.playAction.triggered.connect(lambda: self.playMovie())
+        self.playAction.triggered.connect(self.playMovie)
         self.rightMenu.addAction(self.playAction)
 
+        self.addToWatchListAction = QtWidgets.QAction("Add To Watch List", self)
+        self.addToWatchListAction.triggered.connect(self.addToWatchList)
+        self.rightMenu.addAction(self.addToWatchListAction)
+
         self.openFolderAction = QtWidgets.QAction("Open Folder", self)
-        self.openFolderAction.triggered.connect(lambda: self.openMovieFolder())
+        self.openFolderAction.triggered.connect(self.openMovieFolder)
         self.rightMenu.addAction(self.openFolderAction)
 
         self.openJsonAction = QtWidgets.QAction("Open Json File", self)
-        self.openJsonAction.triggered.connect(lambda: self.openMovieJson())
+        self.openJsonAction.triggered.connect(self.openMovieJson)
         self.rightMenu.addAction(self.openJsonAction)
 
         self.openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
-        self.openImdbAction.triggered.connect(lambda: self.openMovieImdbPage())
+        self.openImdbAction.triggered.connect(self.openMovieImdbPage)
         self.rightMenu.addAction(self.openImdbAction)
 
         self.overrideImdbAction = QtWidgets.QAction("Override IMDB ID", self)
-        self.overrideImdbAction.triggered.connect(lambda: self.overrideID())
+        self.overrideImdbAction.triggered.connect(self.overrideID)
         self.rightMenu.addAction(self.overrideImdbAction)
 
         self.downloadDataAction = QtWidgets.QAction("Download Data", self)
-        self.downloadDataAction.triggered.connect(lambda: self.downloadDataMenu())
+        self.downloadDataAction.triggered.connect(self.downloadDataMenu)
         self.rightMenu.addAction(self.downloadDataAction)
 
         self.downloadDataAction = QtWidgets.QAction("Force Download Data", self)
@@ -1238,11 +1256,11 @@ class MyWindow(QtWidgets.QMainWindow):
         self.rightMenu.addAction(self.downloadDataAction)
 
         self.removeMdbAction = QtWidgets.QAction("Remove .json files", self)
-        self.removeMdbAction.triggered.connect(lambda: self.removeJsonFilesMenu())
+        self.removeMdbAction.triggered.connect(self.removeJsonFilesMenu)
         self.rightMenu.addAction(self.removeMdbAction)
 
         self.removeCoversAction = QtWidgets.QAction("Remove cover files", self)
-        self.removeCoversAction.triggered.connect(lambda: self.removeCoverFilesMenu())
+        self.removeCoversAction.triggered.connect(self.removeCoverFilesMenu)
         self.rightMenu.addAction(self.removeCoversAction)
 
         self.rightMenu.exec_(QtGui.QCursor.pos())
@@ -1272,6 +1290,11 @@ class MyWindow(QtWidgets.QMainWindow):
             # folder, then just open the folder so the user can
             # play the desired file.
             runFile(moviePath)
+
+    def addToWatchList(self):
+        modelIndex = self.moviesTable.selectionModel().selectedRows()[0]
+        movieName = self.moviesTableProxyModel.index(modelIndex.row(), 1).data(QtCore.Qt.DisplayRole)
+        print ("Adding movie: %s to watch list" % movieName)
 
     def openMovieFolder(self):
         modelIndex = self.moviesTable.selectionModel().selectedRows()[0]
