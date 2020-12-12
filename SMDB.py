@@ -275,7 +275,6 @@ class MyWindow(QtWidgets.QMainWindow):
         super(MyWindow, self).__init__()
         self.movieCover = None
         self.movieList = None
-        self.smdbFile = ""
         self.setGeometry(200, 75, 1275, 700)
         self.setWindowTitle("Scott's Movie Database")
         self.numVisibleMovies = 0
@@ -291,21 +290,22 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.settings = QtCore.QSettings("STC", "SMDB")
         self.moviesFolder = self.settings.value('movies_folder', "J:/Movies", type=str)
-        print ("Read moviesFolder = %s" % self.moviesFolder)
 
         self.smdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
         self.smdbData = None
+
+        self.watchListFile = os.path.join(self.moviesFolder, "smdb_data_watch_list.json")
+        self.watchListSmdbData = None
 
         self.initUI()
 
         if not os.path.exists(self.moviesFolder):
             return
 
-    def readSmdbFile(self):
-        self.smdbData = None
-        if os.path.exists(self.smdbFile):
-            with open(self.smdbFile) as f:
-                self.smdbData = json.load(f)
+    def readSmdbFile(self, fileName):
+        if os.path.exists(fileName):
+            with open(fileName) as f:
+                return json.load(f)
 
     def backupMoviesFolder(self):
         pass
@@ -338,7 +338,7 @@ class MyWindow(QtWidgets.QMainWindow):
         fileMenu = menuBar.addMenu('File')
 
         rebuildSmdbFileAction = QtWidgets.QAction("Rebuild SMDB file", self)
-        rebuildSmdbFileAction.triggered.connect(self.writeSmdbFile)
+        rebuildSmdbFileAction.triggered.connect(lambda: self.writeSmdbFile(self.smdbFile, self.moviesTableModel))
         fileMenu.addAction(rebuildSmdbFileAction)
 
         setMovieFolderAction = QtWidgets.QAction("Set movies folder", self)
@@ -915,8 +915,7 @@ class MyWindow(QtWidgets.QMainWindow):
         except:
             print("Error writing json file: %s" % jsonFile)
 
-    def writeSmdbFile(self):
-        self.smdbData = {}
+    def writeSmdbFile(self, fileName, model):
         titles = {}
         directors = {}
         actors = {}
@@ -925,7 +924,7 @@ class MyWindow(QtWidgets.QMainWindow):
         companies = {}
         countries = {}
 
-        count = self.moviesTableModel.rowCount()
+        count = model.rowCount()
         self.progressBar.setMaximum(count)
         progress = 0
         self.isCanceled = False
@@ -940,7 +939,7 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.setMovieListItemColors()
                 return
 
-            title = self.moviesTableModel.index(row, 1).data(QtCore.Qt.DisplayRole)
+            title = model.index(row, 1).data(QtCore.Qt.DisplayRole)
 
             message = "Processing item (%d/%d): %s" % (progress + 1,
                                                        count,
@@ -948,8 +947,8 @@ class MyWindow(QtWidgets.QMainWindow):
             self.statusBar().showMessage(message)
             QtCore.QCoreApplication.processEvents()
 
-            moviePath = self.moviesTableModel.index(row, 7).data(QtCore.Qt.DisplayRole)
-            folderName = self.moviesTableModel.index(row, 6).data(QtCore.Qt.DisplayRole)
+            moviePath = model.index(row, 7).data(QtCore.Qt.DisplayRole)
+            folderName = model.index(row, 6).data(QtCore.Qt.DisplayRole)
             jsonFile = os.path.join(moviePath, '%s.json' % folderName)
             if os.path.exists(jsonFile):
                 with open(jsonFile) as f:
@@ -1028,7 +1027,6 @@ class MyWindow(QtWidgets.QMainWindow):
                                 genres[genre]['movies'].append(titleYear)
                                 genres[genre]['num movies'] += 1
 
-                    jsonCompanies = None
                     if 'companies' in jsonData and jsonData['companies']:
                         jsonCompanies = jsonData['companies']
                         for company in jsonCompanies:
@@ -1040,7 +1038,6 @@ class MyWindow(QtWidgets.QMainWindow):
                                 companies[company]['movies'].append(titleYear)
                                 companies[company]['num movies'] += 1
 
-                    jsonCountries = None
                     if 'countries' in jsonData and jsonData['countries']:
                         jsonCompanies = jsonData['countries']
                         for country in jsonCompanies:
@@ -1084,19 +1081,27 @@ class MyWindow(QtWidgets.QMainWindow):
         self.progressBar.setValue(0)
 
         self.statusBar().showMessage('Sorting Data...')
-        self.smdbData['titles'] = collections.OrderedDict(sorted(titles.items()))
-        self.smdbData['years'] = collections.OrderedDict(sorted(years.items()))
-        self.smdbData['genres'] = collections.OrderedDict(sorted(genres.items()))
-        self.smdbData['directors'] = collections.OrderedDict(sorted(directors.items()))
-        self.smdbData['actors'] = collections.OrderedDict(sorted(actors.items()))
-        self.smdbData['companies'] = collections.OrderedDict(sorted(companies.items()))
-        self.smdbData['countries'] = collections.OrderedDict(sorted(countries.items()))
+        QtCore.QCoreApplication.processEvents()
 
-        self.statusBar().showMessage('Writing %s' % self.smdbFile)
-        with open(self.smdbFile, "w") as f:
-            json.dump(self.smdbData, f, indent=4)
+        data = {}
+        data['titles'] = collections.OrderedDict(sorted(titles.items()))
+        data['years'] = collections.OrderedDict(sorted(years.items()))
+        data['genres'] = collections.OrderedDict(sorted(genres.items()))
+        data['directors'] = collections.OrderedDict(sorted(directors.items()))
+        data['actors'] = collections.OrderedDict(sorted(actors.items()))
+        data['companies'] = collections.OrderedDict(sorted(companies.items()))
+        data['countries'] = collections.OrderedDict(sorted(countries.items()))
+
+        self.statusBar().showMessage('Writing %s' % fileName)
+        QtCore.QCoreApplication.processEvents()
+
+        with open(fileName, "w") as f:
+            json.dump(data, f, indent=4)
 
         self.statusBar().showMessage('Done')
+        QtCore.QCoreApplication.processEvents()
+
+        return data
 
     def downloadMovieData(self, modelIndex, force=False, movieId=None, doJson=True, doCover=True):
         moviePath = self.moviesTableProxyModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
@@ -1393,11 +1398,11 @@ class MyWindow(QtWidgets.QMainWindow):
             return
 
         if os.path.exists(self.smdbFile):
-            self.readSmdbFile()
+            self.smdbData = self.readSmdbFile(self.smdbFile)
             self.moviesTableModel = MoviesTableModel(self.smdbData, self.moviesFolder, forceScan)
         else:
             self.moviesTableModel = MoviesTableModel(self.smdbData, self.moviesFolder, forceScan)
-            self.writeSmdbFile()
+            self.smdbData = self.writeSmdbFile(self.smdbFile, self.moviesTableModel)
 
         self.moviesTableProxyModel = QtCore.QSortFilterProxyModel()
         self.moviesTableProxyModel.setSourceModel(self.moviesTableModel)
