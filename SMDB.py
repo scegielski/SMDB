@@ -285,6 +285,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.showMoviesTable = True
         self.showCover = True
         self.showSummary = True
+        self.showWatchList = True
 
         self.db = IMDb()
 
@@ -360,6 +361,12 @@ class MyWindow(QtWidgets.QMainWindow):
         showMoviesTableAction.setChecked(self.showMoviesTable)
         showMoviesTableAction.triggered.connect(self.showMoviesTableMenu)
         viewMenu.addAction(showMoviesTableAction)
+
+        showWatchListAction = QtWidgets.QAction("Show Watch List", self)
+        showWatchListAction.setCheckable(True)
+        showWatchListAction.setChecked(self.showWatchList)
+        showWatchListAction.triggered.connect(self.showWatchListMenu)
+        viewMenu.addAction(showWatchListAction)
 
         showCoverAction = QtWidgets.QAction("Show Cover", self)
         showCoverAction.setCheckable(True)
@@ -454,11 +461,14 @@ class MyWindow(QtWidgets.QMainWindow):
         filterTableSearchBox.textChanged.connect(lambda: searchTableWidget(filterTableSearchBox, self.filterTable))
 
         # Movies Table ---------------------------------------------------------------------------------------
+        moviesWatchlistVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
+        moviesWatchlistVSplitter.setHandleWidth(20)
+
         self.moviesTableWidget = QtWidgets.QWidget()
         moviesTableViewVLayout = QtWidgets.QVBoxLayout()
         self.moviesTableWidget.setLayout(moviesTableViewVLayout)
 
-        moviesTableViewVLayout.addWidget(QtWidgets.QLabel("Movies Table"))
+        moviesTableViewVLayout.addWidget(QtWidgets.QLabel("Movies"))
 
         self.moviesTable = QtWidgets.QTableView()
         self.moviesTable.setSortingEnabled(True)
@@ -492,10 +502,48 @@ class MyWindow(QtWidgets.QMainWindow):
         moviesTableSearchBox.textChanged.connect(lambda: searchTableView(moviesTableSearchBox, self.moviesTable))
         moviesTableSearchHLayout.addWidget(moviesTableSearchBox)
 
+        moviesWatchlistVSplitter.addWidget(self.moviesTableWidget)
+
+
+        # Watch List ---------------------------------------------------------------------------------------
+        self.watchListWidget = QtWidgets.QWidget()
+        watchListVLayout = QtWidgets.QVBoxLayout()
+        self.watchListWidget.setLayout(watchListVLayout)
+
+        watchListVLayout.addWidget(QtWidgets.QLabel("Watch List"))
+
+        self.watchListTable = QtWidgets.QTableView()
+        self.watchListTable.setSortingEnabled(True)
+        self.watchListTable.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
+        self.watchListTable.verticalHeader().hide()
+        self.watchListTable.doubleClicked.connect(self.playMovie)
+        style = "::section {""color: black; }"
+        self.watchListTable.horizontalHeader().setStyleSheet(style)
+        self.watchListTable.setShowGrid(False)
+        watchListVLayout.addWidget(self.watchListTable)
+
+        watchListSearchHLayout = QtWidgets.QHBoxLayout()
+        watchListVLayout.addLayout(watchListSearchHLayout)
+
+        searchText = QtWidgets.QLabel("Search")
+        searchText.setSizePolicy(QtWidgets.QSizePolicy.Maximum,
+                                 QtWidgets.QSizePolicy.Maximum)
+        watchListSearchHLayout.addWidget(searchText)
+
+        watchListSearchBox = QtWidgets.QLineEdit(self)
+        watchListSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
+        watchListSearchBox.setClearButtonEnabled(True)
+        watchListSearchBox.textChanged.connect(lambda: searchTableView(watchListSearchBox, self.moviesTable))
+        watchListSearchHLayout.addWidget(watchListSearchBox)
+
+        moviesWatchlistVSplitter.addWidget(self.watchListWidget)
+
+        moviesWatchlistVSplitter.setSizes([600, 200])
+
         # Cover and Summary ---------------------------------------------------------------------------------------
-        movieSummaryVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
-        movieSummaryVSplitter.setHandleWidth(20)
-        movieSummaryVSplitter.splitterMoved.connect(self.resizeCoverFile)
+        coverSummaryVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
+        coverSummaryVSplitter.setHandleWidth(20)
+        coverSummaryVSplitter.splitterMoved.connect(self.resizeCoverFile)
 
         self.coverWidget = QtWidgets.QWidget()
         self.coverWidget.setStyleSheet("background-color: black;")
@@ -524,21 +572,21 @@ class MyWindow(QtWidgets.QMainWindow):
 
         movieVLayout.addWidget(self.movieCover)
 
-        movieSummaryVSplitter.addWidget(self.coverWidget)
+        coverSummaryVSplitter.addWidget(self.coverWidget)
 
         self.summary = QtWidgets.QTextBrowser()
         self.summary.setFont(QtGui.QFont('TimesNew Roman', 12))
         self.summary.setStyleSheet("color:white; background-color: black;")
-        movieSummaryVSplitter.addWidget(self.summary)
+        coverSummaryVSplitter.addWidget(self.summary)
 
-        movieSummaryVSplitter.setSizes([600, 200])
+        coverSummaryVSplitter.setSizes([600, 200])
 
         # ---------------------------------------------------------------------------------------
 
         # Add the sub-layouts to the mainHSplitter
         mainHSplitter.addWidget(self.filterWidget)
-        mainHSplitter.addWidget(self.moviesTableWidget)
-        mainHSplitter.addWidget(movieSummaryVSplitter)
+        mainHSplitter.addWidget(moviesWatchlistVSplitter)
+        mainHSplitter.addWidget(coverSummaryVSplitter)
         mainHSplitter.setSizes([250, 625, 400])
 
         # Bottom ---------------------------------------------------------------------------------------
@@ -643,6 +691,14 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.moviesTableWidget.hide()
             else:
                 self.moviesTableWidget.show()
+
+    def showWatchListMenu(self):
+        if self.watchListWidget:
+            self.showWatchList = not self.showWatchList
+            if not self.showWatchList:
+                self.watchListWidget.hide()
+            else:
+                self.watchListWidget.show()
 
     def showCoverMenu(self):
         if self.movieCover:
@@ -1139,7 +1195,6 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def openYearImdbPage(self, year):
         webbrowser.open('https://www.imdb.com/search/title/?release_date=%s-01-01,%s-12-31' % (year, year), new=2)
-
 
     def moviesTableRightMenuShow(self, QPos):
         self.rightMenu = QtWidgets.QMenu(self.moviesTable)
