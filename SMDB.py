@@ -674,7 +674,11 @@ class MyWindow(QtWidgets.QMainWindow):
         if filterByText == 'Director' or filterByText == 'Actor':
             self.filterTable.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
             self.filterTable.customContextMenuRequested[QtCore.QPoint].connect(
-                self.filterTableRightMenuShow)
+                self.filterRightMenuShowPeople)
+        elif filterByText == 'Year':
+            self.filterTable.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+            self.filterTable.customContextMenuRequested[QtCore.QPoint].connect(
+                self.filterRightMenuShowYear)
         else:
             self.filterTable.setContextMenuPolicy(QtCore.Qt.NoContextMenu)
 
@@ -1099,7 +1103,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
     # Context Menus -----------------------------------------------------------
 
-    def filterTableRightMenuShow(self):
+    def filterRightMenuShowPeople(self):
         rightMenu = QtWidgets.QMenu(self.filterTable)
         selectedItem = self.filterTable.selectedItems()[0]
         row = selectedItem.row()
@@ -1122,6 +1126,20 @@ class MyWindow(QtWidgets.QMainWindow):
 
         if (personId):
             webbrowser.open('http://imdb.com/name/nm%s' % personId, new=2)
+
+    def filterRightMenuShowYear(self):
+        rightMenu = QtWidgets.QMenu(self.filterTable)
+        selectedItem = self.filterTable.selectedItems()[0]
+        row = selectedItem.row()
+        year = self.filterTable.item(row, 0).text()
+        openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
+        openImdbAction.triggered.connect(lambda: self.openYearImdbPage(year))
+        rightMenu.addAction(openImdbAction)
+        rightMenu.exec_(QtGui.QCursor.pos())
+
+    def openYearImdbPage(self, year):
+        webbrowser.open('https://www.imdb.com/search/title/?release_date=%s-01-01,%s-12-31' % (year, year), new=2)
+
 
     def moviesTableRightMenuShow(self, QPos):
         self.rightMenu = QtWidgets.QMenu(self.moviesTable)
