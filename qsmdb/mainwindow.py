@@ -28,13 +28,37 @@ def getMovieKey(movie, key):
 class MyWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super(MyWindow, self).__init__()
-        self.movieCover = None
-        self.movieList = None
-        self.setGeometry(200, 75, 1275, 700)
+
         self.setWindowTitle("Scott's Movie Database")
-        self.numVisibleMovies = 0
-        self.moviesTableWidget = None
+        self.setGeometry(200, 75, 1275, 700)
+
+        # Widgets
         self.filterWidget = None
+        self.moviesTableWidget = None
+        self.moviesTable = None
+        self.movieCover = None
+        self.filterTable = None
+        self.filterByComboBox = None
+        self.watchListWidget = None
+        self.watchListTable = None
+        self.coverWidget = None
+        self.movieTitle = None
+        self.summary = None
+        self.progressBar = None
+
+        self.filterByDict = {
+            'Director': 'directors',
+            'Actor': 'actors',
+            'Genre': 'genres',
+            'Year': 'years',
+            'Company': 'companies',
+            'Country': 'countries'
+        }
+
+
+        self.numVisibleMovies = 0
+
+        # Default view state of panels
         self.showFilters = True
         self.showMoviesTable = True
         self.showCover = True
@@ -42,6 +66,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.showWatchList = True
         self.isCanceled = False
 
+        # Create IMDB database
         self.db = IMDb()
 
         self.settings = QtCore.QSettings("STC", "SMDB")
@@ -52,6 +77,9 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.watchListFile = os.path.join(self.moviesFolder, "smdb_data_watch_list.json")
         self.watchListSmdbData = None
+
+        self.moviesTableModel = None
+        self.moviesTableProxyModel = None
 
         self.initUI()
         self.show()
@@ -155,15 +183,6 @@ class MyWindow(QtWidgets.QMainWindow):
         filterByLabel.setSizePolicy(QtWidgets.QSizePolicy.Maximum,
                                     QtWidgets.QSizePolicy.Maximum)
         filterByHLayout.addWidget(filterByLabel)
-
-        self.filterByDict = {
-            'Director': 'directors',
-            'Actor': 'actors',
-            'Genre': 'genres',
-            'Year': 'years',
-            'Company': 'companies',
-            'Country': 'countries'
-        }
 
         self.filterByComboBox = QtWidgets.QComboBox()
         for i in self.filterByDict.keys():
