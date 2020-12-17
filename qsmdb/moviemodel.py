@@ -7,23 +7,9 @@ import re
 from .utilities import *
 
 class MoviesTableModel(QtCore.QAbstractTableModel):
-    def __init__(self, smdbData, moviesFolder, forceScan=False):
+    def __init__(self, smdbData, moviesFolder, forceScan=False, neverScan=False):
         super().__init__()
         self.numVisibleMovies = 0
-        if not os.path.exists(moviesFolder):
-            return
-
-        movieList = []
-        useSmdbData = False
-        if not forceScan and smdbData and 'titles' in smdbData:
-            useSmdbData = True
-            for title in smdbData['titles']:
-                movieList.append(title)
-        else:
-            with os.scandir(moviesFolder) as files:
-                for f in files:
-                    if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
-                        movieList.append(f.name)
 
         self._data = []
         self._headers = ['Year',
@@ -35,6 +21,24 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                          'Folder name',
                          'Path',
                          'Json Exists']
+
+        if not os.path.exists(moviesFolder):
+            return
+
+        movieList = []
+        useSmdbData = False
+        if neverScan and (not smdbData or not 'titles' in smdbData):
+            return
+        elif not forceScan and smdbData and 'titles' in smdbData:
+            useSmdbData = True
+            for title in smdbData['titles']:
+                movieList.append(title)
+        else:
+            with os.scandir(moviesFolder) as files:
+                for f in files:
+                    if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
+                        movieList.append(f.name)
+
         for movieFolderName in movieList:
             data = {}
             if useSmdbData:
@@ -55,6 +59,21 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
             self._data.append(movieData)
 
         self.sort(0, QtCore.Qt.AscendingOrder)
+
+    def addMovie(self, smdbData, moviePath, movieFolderName):
+        #self.layoutAboutToBeChanged()
+        data = smdbData['titles'][movieFolderName]
+        movieData = self.createMovieData(data, moviePath, movieFolderName)
+        self._data.append(movieData)
+        rowCount = self.rowCount()
+        print("A rowCount = %s" % rowCount)
+        minIndex = self.index(0, 0)
+        maxIndex = self.index(1, 8)
+        print("minIndex = %s" % minIndex.row())
+        print("maxIndex = %s" % maxIndex.row())
+        self.dataChanged.emit(minIndex, maxIndex)
+        print("B rowCount = %s" % rowCount)
+        #self.layoutChanged()
 
     def setMovieDataWithJson(self, row, jsonFile, moviePath, movieFolderName):
         if os.path.exists(jsonFile):
@@ -89,7 +108,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
             elif headerLower == 'folder name':
                 movieData.append(movieFolderName)
             else:
-                if not headerLower in data:
+                if headerLower not in data:
                     if headerLower == 'title':
                         title, year = getNiceTitleAndYear(movieFolderName)
                         movieData.append(title)

@@ -32,6 +32,20 @@ class MyWindow(QtWidgets.QMainWindow):
         self.setWindowTitle("Scott's Movie Database")
         self.setGeometry(200, 75, 1275, 700)
 
+        # Menus and Actions
+        self.rightMenu = None
+        self.playAction = None
+        self.addToWatchListAction = None
+        self.openFolderAction = None
+        self.openJsonAction = None
+        self.overrideImdbAction = None
+        self.downloadDataAction = None
+        self.removeJsonFilesAction = None
+        self.removeCoversAction = None
+
+        self.peopleRightMenu = None
+        self.openImdbAction = None
+
         # Widgets
         self.filterWidget = None
         self.moviesTableWidget = None
@@ -72,14 +86,15 @@ class MyWindow(QtWidgets.QMainWindow):
         self.settings = QtCore.QSettings("STC", "SMDB")
         self.moviesFolder = self.settings.value('movies_folder', "J:/Movies", type=str)
 
-        self.smdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
-        self.smdbData = None
-
-        self.watchListFile = os.path.join(self.moviesFolder, "smdb_data_watch_list.json")
-        self.watchListSmdbData = None
-
+        self.moviesSmdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
+        self.moviesSmdbData = None
         self.moviesTableModel = None
         self.moviesTableProxyModel = None
+
+        self.watchListSmdbFile = os.path.join(self.moviesFolder, "smdb_data_watch_list.json")
+        self.watchListSmdbData = None
+        self.watchListTableModel = None
+        self.watchListTableProxyModel = None
 
         self.initUI()
         self.show()
@@ -92,7 +107,7 @@ class MyWindow(QtWidgets.QMainWindow):
         fileMenu = menuBar.addMenu('File')
 
         rebuildSmdbFileAction = QtWidgets.QAction("Rebuild SMDB file", self)
-        rebuildSmdbFileAction.triggered.connect(lambda: self.writeSmdbFile(self.smdbFile, self.moviesTableModel))
+        rebuildSmdbFileAction.triggered.connect(lambda: self.writeSmdbFile(self.moviesSmdbFile, self.moviesTableModel))
         fileMenu.addAction(rebuildSmdbFileAction)
 
         setMovieFolderAction = QtWidgets.QAction("Set movies folder", self)
@@ -363,12 +378,12 @@ class MyWindow(QtWidgets.QMainWindow):
         if not os.path.exists(self.moviesFolder):
             return
 
-        if os.path.exists(self.smdbFile):
-            self.smdbData = readSmdbFile(self.smdbFile)
-            self.moviesTableModel = MoviesTableModel(self.smdbData, self.moviesFolder, forceScan)
+        if os.path.exists(self.moviesSmdbFile):
+            self.moviesSmdbData = readSmdbFile(self.moviesSmdbFile)
+            self.moviesTableModel = MoviesTableModel(self.moviesSmdbData, self.moviesFolder, forceScan)
         else:
-            self.moviesTableModel = MoviesTableModel(self.smdbData, self.moviesFolder, forceScan)
-            self.smdbData = self.writeSmdbFile(self.smdbFile, self.moviesTableModel)
+            self.moviesTableModel = MoviesTableModel(self.moviesSmdbData, self.moviesFolder, forceScan)
+            self.moviesSmdbData = self.writeSmdbFile(self.moviesSmdbFile, self.moviesTableModel)
 
         self.moviesTableProxyModel = QtCore.QSortFilterProxyModel()
         self.moviesTableProxyModel.setSourceModel(self.moviesTableModel)
@@ -405,6 +420,20 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTable.selectRow(0)
         self.moviesTableSelectionChanged()
 
+        # Watch List
+        if os.path.exists(self.watchListSmdbFile):
+            self.watchListSmdbData = readSmdbFile(self.watchListSmdbFile)
+        self.watchListTableModel = MoviesTableModel(self.watchListSmdbData,
+                                                    self.moviesFolder,
+                                                    False,
+                                                    True) # dont scan the movies folder for the watch list
+        self.watchListTableProxyModel = QtCore.QSortFilterProxyModel()
+        self.watchListTableProxyModel.setSourceModel(self.watchListTableModel)
+        self.watchListTableProxyModel.sort(0)
+
+        self.watchListTable.setModel(self.watchListTableProxyModel)
+
+
     def backupMoviesFolder(self):
         pass
 
@@ -426,38 +455,49 @@ class MyWindow(QtWidgets.QMainWindow):
             self.settings.setValue('movies_folder', self.moviesFolder)
             print("Saved: moviesFolder = %s" % self.moviesFolder)
             readSmdbFile()
-            self.smdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
+            self.moviesSmdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
             self.refresh()
 
     def populateFiltersTable(self):
-        if not self.smdbData:
+        if not self.moviesSmdbData:
             print("Error: No smbdData")
             return
 
         filterByText = self.filterByComboBox.currentText()
         filterByKey = self.filterByDict[filterByText]
 
-        if filterByKey not in self.smdbData:
+        if filterByText == 'Director' or filterByText == 'Actor':
+            self.filterTable.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+            self.filterTable.customContextMenuRequested[QtCore.QPoint].connect(
+                self.filterRightMenuShowPeople)
+        elif filterByText == 'Year':
+            self.filterTable.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+            self.filterTable.customContextMenuRequested[QtCore.QPoint].connect(
+                self.filterRightMenuShowYear)
+        else:
+            self.filterTable.setContextMenuPolicy(QtCore.Qt.NoContextMenu)
+
+        if filterByKey not in self.moviesSmdbData:
             print("Error: '%s' not in smdbData" % filterByKey)
             return
 
-        numEntries = len(self.smdbData[filterByKey].keys())
+        numEntries = len(self.moviesSmdbData[filterByKey].keys())
         message = "Populating list: %s with %s entries" % (filterByKey, numEntries)
         self.statusBar().showMessage(message)
         QtCore.QCoreApplication.processEvents()
 
-        self.progressBar.setMaximum(len(self.smdbData[filterByKey].keys()))
+        self.progressBar.setMaximum(len(self.moviesSmdbData[filterByKey].keys()))
         progress = 0
 
         self.filterTable.clear()
         self.filterTable.setHorizontalHeaderLabels(['Name', 'Count'])
 
         row = 0
-        numRows = len(self.smdbData[filterByKey].keys())
+        numRows = len(self.moviesSmdbData[filterByKey].keys())
         self.filterTable.setRowCount(numRows)
         self.filterTable.setSortingEnabled(False)
-        for name in self.smdbData[filterByKey].keys():
-            count = self.smdbData[filterByKey][name]['num movies']
+        for name in self.moviesSmdbData[filterByKey].keys():
+            count = self.moviesSmdbData[filterByKey][name]['num movies']
             nameItem = QtWidgets.QTableWidgetItem(name)
             self.filterTable.setItem(row, 0, nameItem)
             countItem = QtWidgets.QTableWidgetItem('%04d' % count)
@@ -554,22 +594,11 @@ class MyWindow(QtWidgets.QMainWindow):
         filterByText = self.filterByComboBox.currentText()
         filterByKey = self.filterByDict[filterByText]
 
-        if filterByText == 'Director' or filterByText == 'Actor':
-            self.filterTable.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-            self.filterTable.customContextMenuRequested[QtCore.QPoint].connect(
-                self.filterRightMenuShowPeople)
-        elif filterByText == 'Year':
-            self.filterTable.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-            self.filterTable.customContextMenuRequested[QtCore.QPoint].connect(
-                self.filterRightMenuShowYear)
-        else:
-            self.filterTable.setContextMenuPolicy(QtCore.Qt.NoContextMenu)
-
         movieList = []
         for item in self.filterTable.selectedItems():
             row = item.row()
             name = self.filterTable.item(row, 0).text()
-            movies = self.smdbData[filterByKey][name]['movies']
+            movies = self.moviesSmdbData[filterByKey][name]['movies']
             for movie in movies:
                 movieList.append(movie)
 
@@ -986,14 +1015,14 @@ class MyWindow(QtWidgets.QMainWindow):
     # Context Menus -----------------------------------------------------------
 
     def filterRightMenuShowPeople(self):
-        rightMenu = QtWidgets.QMenu(self.filterTable)
+        self.peopleRightMenu = QtWidgets.QMenu(self.filterTable)
         selectedItem = self.filterTable.selectedItems()[0]
         row = selectedItem.row()
+        self.openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
         personName = self.filterTable.item(row, 0).text()
-        openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
-        openImdbAction.triggered.connect(lambda: self.openPersonImdbPage(personName))
-        rightMenu.addAction(openImdbAction)
-        rightMenu.exec_(QtGui.QCursor.pos())
+        self.openImdbAction.triggered.connect(lambda: self.openPersonImdbPage(personName))
+        self.peopleRightMenu.addAction(self.openImdbAction)
+        self.peopleRightMenu.exec_(QtGui.QCursor.pos())
 
     def openPersonImdbPage(self, personName):
         personId = self.db.name2imdbID(personName)
@@ -1067,9 +1096,9 @@ class MyWindow(QtWidgets.QMainWindow):
         self.downloadDataAction.triggered.connect(lambda: self.downloadDataMenu(force=True, doJson=False, doCover=True))
         self.rightMenu.addAction(self.downloadDataAction)
 
-        self.removeMdbAction = QtWidgets.QAction("Remove .json files", self)
-        self.removeMdbAction.triggered.connect(self.removeJsonFilesMenu)
-        self.rightMenu.addAction(self.removeMdbAction)
+        self.removeJsonFilesAction = QtWidgets.QAction("Remove .json files", self)
+        self.removeJsonFilesAction.triggered.connect(self.removeJsonFilesMenu)
+        self.rightMenu.addAction(self.removeJsonFilesAction)
 
         self.removeCoversAction = QtWidgets.QAction("Remove cover files", self)
         self.removeCoversAction.triggered.connect(self.removeCoverFilesMenu)
@@ -1106,7 +1135,13 @@ class MyWindow(QtWidgets.QMainWindow):
     def addToWatchList(self):
         modelIndex = self.moviesTable.selectionModel().selectedRows()[0]
         movieName = self.moviesTableProxyModel.index(modelIndex.row(), 1).data(QtCore.Qt.DisplayRole)
+        movieFolderName = self.moviesTableProxyModel.index(modelIndex.row(), 6).data(QtCore.Qt.DisplayRole)
+        moviePath = self.moviesTableProxyModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
         print("Adding movie: %s to watch list" % movieName)
+        self.watchListTableModel.addMovie(self.moviesSmdbData,
+                                          moviePath,
+                                          movieFolderName)
+        self.watchListTableProxyModel.setSourceModel(self.watchListTableModel)
 
     def openMovieFolder(self):
         modelIndex = self.moviesTable.selectionModel().selectedRows()[0]
