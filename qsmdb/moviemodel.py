@@ -20,7 +20,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                          'Id',
                          'Folder name',
                          'Path',
-                         'Json Exists']
+                         'Json Exists',
+                         'Rank']
 
         if not os.path.exists(moviesFolder):
             return
@@ -61,19 +62,15 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
         self.sort(0, QtCore.Qt.AscendingOrder)
 
     def addMovie(self, smdbData, moviePath, movieFolderName):
-        #self.layoutAboutToBeChanged()
+        self.layoutAboutToBeChanged.emit()
         data = smdbData['titles'][movieFolderName]
         movieData = self.createMovieData(data, moviePath, movieFolderName)
         self._data.append(movieData)
-        rowCount = self.rowCount()
-        print("A rowCount = %s" % rowCount)
-        minIndex = self.index(0, 0)
-        maxIndex = self.index(1, 8)
-        print("minIndex = %s" % minIndex.row())
-        print("maxIndex = %s" % maxIndex.row())
-        self.dataChanged.emit(minIndex, maxIndex)
-        print("B rowCount = %s" % rowCount)
-        #self.layoutChanged()
+        self.layoutChanged.emit()
+
+    def removeMovie(self, row):
+        print("In removeMovie")
+        del self._data[row]
 
     def setMovieDataWithJson(self, row, jsonFile, moviePath, movieFolderName):
         if os.path.exists(jsonFile):
@@ -107,6 +104,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                     movieData.append("False")
             elif headerLower == 'folder name':
                 movieData.append(movieFolderName)
+            elif headerLower == 'rank':
+                movieData.append("0")
             else:
                 if headerLower not in data:
                     if headerLower == 'title':

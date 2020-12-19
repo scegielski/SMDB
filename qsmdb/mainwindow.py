@@ -110,11 +110,6 @@ class MyWindow(QtWidgets.QMainWindow):
                                                                            self.moviesTableModel))
         fileMenu.addAction(rebuildSmdbFileAction)
 
-        rebuildWatchlistFileAction = QtWidgets.QAction("Rebuild Watchlist file", self)
-        rebuildWatchlistFileAction.triggered.connect(lambda: self.writeSmdbFile(self.watchListSmdbFile,
-                                                                                self.watchListTableModel))
-        fileMenu.addAction(rebuildWatchlistFileAction)
-
         setMovieFolderAction = QtWidgets.QAction("Set movies folder", self)
         setMovieFolderAction.triggered.connect(self.browseMoviesFolder)
         fileMenu.addAction(setMovieFolderAction)
@@ -253,7 +248,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTable.setSortingEnabled(True)
         self.moviesTable.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.moviesTable.verticalHeader().hide()
-        self.moviesTable.doubleClicked.connect(self.playMovie)
         style = "::section {""color: black; }"
         self.moviesTable.horizontalHeader().setStyleSheet(style)
         self.moviesTable.setShowGrid(False)
@@ -294,10 +288,13 @@ class MyWindow(QtWidgets.QMainWindow):
         self.watchListTable.setSortingEnabled(True)
         self.watchListTable.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.watchListTable.verticalHeader().hide()
-        self.watchListTable.doubleClicked.connect(self.playMovie)
         style = "::section {""color: black; }"
         self.watchListTable.horizontalHeader().setStyleSheet(style)
         self.watchListTable.setShowGrid(False)
+
+        self.watchListTable.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.watchListTable.customContextMenuRequested[QtCore.QPoint].connect(self.watchListTableRightMenuShow)
+
         watchListVLayout.addWidget(self.watchListTable)
 
         watchListSearchHLayout = QtWidgets.QHBoxLayout()
@@ -399,8 +396,13 @@ class MyWindow(QtWidgets.QMainWindow):
             self.moviesTableProxyModel.sort(0)
 
         self.moviesTable.setModel(self.moviesTableProxyModel)
-        self.moviesTable.selectionModel().selectionChanged.connect(self.moviesTableSelectionChanged)
+        self.moviesTable.selectionModel().selectionChanged.connect(
+            lambda: self.tableSelectionChanged(self.moviesTable, self.moviesTableProxyModel))
+        self.moviesTable.doubleClicked.connect(lambda: self.playMovie(self.moviesTable,
+                                                                      self.moviesTableProxyModel))
         self.moviesTableProxyModel.setDynamicSortFilter(False)
+        self.moviesTable.setWordWrap(False)
+
         self.moviesTable.setColumnWidth(0, 15)  # year
         self.moviesTable.setColumnWidth(1, 200)  # title
         self.moviesTable.setColumnWidth(2, 60)  # rating
@@ -412,10 +414,10 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTable.setColumnWidth(8, 65)  # json exists
         self.moviesTable.verticalHeader().setMinimumSectionSize(10)
         self.moviesTable.verticalHeader().setDefaultSectionSize(18)
-        self.moviesTable.setWordWrap(False)
         self.moviesTable.hideColumn(5)
         self.moviesTable.hideColumn(6)
         self.moviesTable.hideColumn(7)
+        self.moviesTable.hideColumn(9)
 
         self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
         self.showMoviesTableSelectionStatus()
@@ -423,20 +425,44 @@ class MyWindow(QtWidgets.QMainWindow):
         self.populateFiltersTable()
 
         self.moviesTable.selectRow(0)
-        self.moviesTableSelectionChanged()
+        self.tableSelectionChanged(self.moviesTable, self.moviesTableProxyModel)
 
         # Watch List
         if os.path.exists(self.watchListSmdbFile):
             self.watchListSmdbData = readSmdbFile(self.watchListSmdbFile)
         self.watchListTableModel = MoviesTableModel(self.watchListSmdbData,
                                                     self.moviesFolder,
-                                                    False,
+                                                    False, # force scan
                                                     True) # dont scan the movies folder for the watch list
         self.watchListTableProxyModel = QtCore.QSortFilterProxyModel()
         self.watchListTableProxyModel.setSourceModel(self.watchListTableModel)
-        self.watchListTableProxyModel.sort(0)
+        self.watchListTableProxyModel.sort(9)
 
         self.watchListTable.setModel(self.watchListTableProxyModel)
+        self.watchListTable.selectionModel().selectionChanged.connect(
+            lambda: self.tableSelectionChanged(self.watchListTable, self.watchListTableProxyModel))
+        self.watchListTable.doubleClicked.connect(lambda: self.playMovie(self.watchListTable,
+                                                                         self.watchListTableProxyModel))
+        self.watchListTableProxyModel.setDynamicSortFilter(False)
+        self.watchListTable.setWordWrap(False)
+
+        self.watchListTable.setColumnWidth(0, 15)  # year
+        self.watchListTable.setColumnWidth(1, 200)  # title
+        self.watchListTable.setColumnWidth(2, 60)  # rating
+        self.watchListTable.setColumnWidth(3, 150)  # box office
+        self.watchListTable.setColumnWidth(4, 60)  # runtime
+        self.watchListTable.setColumnWidth(5, 60)  # id
+        self.watchListTable.setColumnWidth(6, 200)  # folder
+        self.watchListTable.setColumnWidth(7, 300)  # path
+        self.watchListTable.setColumnWidth(9, 40)  # rank
+        self.watchListTable.verticalHeader().setMinimumSectionSize(10)
+        self.watchListTable.verticalHeader().setDefaultSectionSize(18)
+        self.watchListTable.hideColumn(3)
+        self.watchListTable.hideColumn(4)
+        self.watchListTable.hideColumn(5)
+        self.watchListTable.hideColumn(6)
+        self.watchListTable.hideColumn(7)
+        self.watchListTable.hideColumn(8)
 
     def backupMoviesFolder(self):
         pass
@@ -522,18 +548,18 @@ class MyWindow(QtWidgets.QMainWindow):
         numSelected = len(self.moviesTable.selectionModel().selectedRows())
         self.statusBar().showMessage('%s/%s' % (numSelected, self.numVisibleMovies))
 
-    def moviesTableSelectionChanged(self):
+    def tableSelectionChanged(self, table, proxyModel):
         self.showMoviesTableSelectionStatus()
-        numSelected = len(self.moviesTable.selectionModel().selectedRows())
+        numSelected = len(table.selectionModel().selectedRows())
         if numSelected == 1:
-            self.clickedMovieTable(self.moviesTable.selectionModel().selectedRows()[0])
+            self.clickedMovieTable(table.selectionModel().selectedRows()[0], proxyModel)
 
-    def clickedMovieTable(self, modelIndex):
-        title = self.moviesTableProxyModel.index(modelIndex.row(), 1).data(QtCore.Qt.DisplayRole)
+    def clickedMovieTable(self, modelIndex, proxyModel):
+        title = proxyModel.index(modelIndex.row(), 1).data(QtCore.Qt.DisplayRole)
         try:
-            moviePath = self.moviesTableProxyModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
-            folderName = self.moviesTableProxyModel.index(modelIndex.row(), 6).data(QtCore.Qt.DisplayRole)
-            year = self.moviesTableProxyModel.index(modelIndex.row(), 0).data(QtCore.Qt.DisplayRole)
+            moviePath = proxyModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
+            folderName = proxyModel.index(modelIndex.row(), 6).data(QtCore.Qt.DisplayRole)
+            year = proxyModel.index(modelIndex.row(), 0).data(QtCore.Qt.DisplayRole)
             jsonFile = os.path.join(moviePath, '%s.json' % folderName)
             coverFile = os.path.join(moviePath, '%s.jpg' % folderName)
             if not os.path.exists(coverFile):
@@ -1054,13 +1080,32 @@ class MyWindow(QtWidgets.QMainWindow):
     def openYearImdbPage(self, year):
         webbrowser.open('https://www.imdb.com/search/title/?release_date=%s-01-01,%s-12-31' % (year, year), new=2)
 
+    def watchListTableRightMenuShow(self, QPos):
+        rightMenu = QtWidgets.QMenu(self.moviesTable)
+
+        playAction = QtWidgets.QAction("Play", self)
+        playAction.triggered.connect(lambda: self.playMovie(self.watchListTable,
+                                                            self.watchListTableProxyModel))
+        rightMenu.addAction(playAction)
+
+        removeFromWatchListAction = QtWidgets.QAction("Remove From Watch List", self)
+        removeFromWatchListAction.triggered.connect(self.removeFromWatchList)
+        rightMenu.addAction(removeFromWatchListAction)
+
+        self.clickedMovieTable(self.watchListTable.selectionModel().selectedRows()[0],
+                               self.watchListTableProxyModel)
+
+        rightMenu.exec_(QtGui.QCursor.pos())
+
     def moviesTableRightMenuShow(self, QPos):
         self.rightMenu = QtWidgets.QMenu(self.moviesTable)
 
-        self.clickedMovieTable(self.moviesTable.selectionModel().selectedRows()[0])
+        self.clickedMovieTable(self.moviesTable.selectionModel().selectedRows()[0],
+                               self.moviesTableProxyModel)
 
         self.playAction = QtWidgets.QAction("Play", self)
-        self.playAction.triggered.connect(self.playMovie)
+        self.playAction.triggered.connect(lambda: self.playMovie(self.moviesTable,
+                                                                 self.moviesTableProxyModel))
         self.rightMenu.addAction(self.playAction)
 
         self.addToWatchListAction = QtWidgets.QAction("Add To Watch List", self)
@@ -1109,9 +1154,9 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.rightMenu.exec_(QtGui.QCursor.pos())
 
-    def playMovie(self):
-        modelIndex = self.moviesTable.selectionModel().selectedRows()[0]
-        moviePath = self.moviesTableProxyModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
+    def playMovie(self, table, proxy):
+        modelIndex = table.selectionModel().selectedRows()[0]
+        moviePath = proxy.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
         if not os.path.exists(moviePath):
             return
 
@@ -1137,14 +1182,19 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def addToWatchList(self):
         modelIndex = self.moviesTable.selectionModel().selectedRows()[0]
-        movieName = self.moviesTableProxyModel.index(modelIndex.row(), 1).data(QtCore.Qt.DisplayRole)
         movieFolderName = self.moviesTableProxyModel.index(modelIndex.row(), 6).data(QtCore.Qt.DisplayRole)
         moviePath = self.moviesTableProxyModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
-        print("Adding movie: %s to watch list" % movieName)
         self.watchListTableModel.addMovie(self.moviesSmdbData,
                                           moviePath,
                                           movieFolderName)
-        self.watchListTableProxyModel.setSourceModel(self.watchListTableModel)
+        self.writeSmdbFile(self.watchListSmdbFile,
+                           self.watchListTableModel)
+
+    def removeFromWatchList(self):
+        modelIndex = self.watchListTable.selectionModel().selectedRows()[0]
+        self.watchListTableModel.removeMovie(modelIndex.row())
+        self.writeSmdbFile(self.watchListSmdbFile,
+                           self.watchListTableModel)
 
     def openMovieFolder(self):
         modelIndex = self.moviesTable.selectionModel().selectedRows()[0]
@@ -1204,7 +1254,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
             self.downloadMovieData(modelIndex, force, doJson=doJson, doCover=doCover)
             self.moviesTable.selectRow(modelIndex.row())
-            self.clickedMovieTable(modelIndex)
+            self.clickedMovieTable(modelIndex, self.moviesTableProxyModel)
 
             progress += 1
             self.progressBar.setValue(progress)
