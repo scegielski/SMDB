@@ -69,7 +69,6 @@ class MyWindow(QtWidgets.QMainWindow):
             'Country': 'countries'
         }
 
-
         self.numVisibleMovies = 0
 
         # Default view state of panels
@@ -107,8 +106,14 @@ class MyWindow(QtWidgets.QMainWindow):
         fileMenu = menuBar.addMenu('File')
 
         rebuildSmdbFileAction = QtWidgets.QAction("Rebuild SMDB file", self)
-        rebuildSmdbFileAction.triggered.connect(lambda: self.writeSmdbFile(self.moviesSmdbFile, self.moviesTableModel))
+        rebuildSmdbFileAction.triggered.connect(lambda: self.writeSmdbFile(self.moviesSmdbFile,
+                                                                           self.moviesTableModel))
         fileMenu.addAction(rebuildSmdbFileAction)
+
+        rebuildWatchlistFileAction = QtWidgets.QAction("Rebuild Watchlist file", self)
+        rebuildWatchlistFileAction.triggered.connect(lambda: self.writeSmdbFile(self.watchListSmdbFile,
+                                                                                self.watchListTableModel))
+        fileMenu.addAction(rebuildWatchlistFileAction)
 
         setMovieFolderAction = QtWidgets.QAction("Set movies folder", self)
         setMovieFolderAction.triggered.connect(self.browseMoviesFolder)
@@ -433,7 +438,6 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.watchListTable.setModel(self.watchListTableProxyModel)
 
-
     def backupMoviesFolder(self):
         pass
 
@@ -607,7 +611,6 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Movies are stored as ['Anchorman: The Legend of Ron Burgundy', 2004]
         self.progressBar.setMaximum(len(movieList))
-        progress = 0
 
         progress = 0
         firstRow = -1
