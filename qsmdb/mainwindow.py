@@ -285,7 +285,7 @@ class MyWindow(QtWidgets.QMainWindow):
         watchListVLayout.addWidget(QtWidgets.QLabel("Watch List"))
 
         self.watchListTable = QtWidgets.QTableView()
-        self.watchListTable.setSortingEnabled(True)
+        self.watchListTable.setSortingEnabled(False)
         self.watchListTable.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.watchListTable.verticalHeader().hide()
         style = "::section {""color: black; }"
@@ -296,20 +296,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.watchListTable.customContextMenuRequested[QtCore.QPoint].connect(self.watchListTableRightMenuShow)
 
         watchListVLayout.addWidget(self.watchListTable)
-
-        watchListSearchHLayout = QtWidgets.QHBoxLayout()
-        watchListVLayout.addLayout(watchListSearchHLayout)
-
-        searchText = QtWidgets.QLabel("Search")
-        searchText.setSizePolicy(QtWidgets.QSizePolicy.Maximum,
-                                 QtWidgets.QSizePolicy.Maximum)
-        watchListSearchHLayout.addWidget(searchText)
-
-        watchListSearchBox = QtWidgets.QLineEdit(self)
-        watchListSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
-        watchListSearchBox.setClearButtonEnabled(True)
-        watchListSearchBox.textChanged.connect(lambda: searchTableView(watchListSearchBox, self.moviesTable))
-        watchListSearchHLayout.addWidget(watchListSearchBox)
 
         moviesWatchlistVSplitter.addWidget(self.watchListWidget)
 
