@@ -1248,7 +1248,7 @@ class MyWindow(QtWidgets.QMainWindow):
         if minSourceRow != 0:
             maxRow = selectedRows[-1].row()
             maxSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[-1]).row()
-            self.watchListTableModel.moveUp(minSourceRow, maxSourceRow)
+            self.watchListTableModel.moveRow(minSourceRow, maxSourceRow, minSourceRow - 1)
             self.watchListTable.selectionModel().clearSelection()
             topLeft = self.watchListTableProxyModel.index(minRow - 1, 0)
             bottomRight = self.watchListTableProxyModel.index(maxRow - 1, 9)
@@ -1268,7 +1268,7 @@ class MyWindow(QtWidgets.QMainWindow):
         if maxSourceRow < (self.watchListTableModel.getDataSize() - 1):
             minRow = selectedRows[0].row()
             minSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[0]).row()
-            self.watchListTableModel.moveDown(minSourceRow, maxSourceRow)
+            self.watchListTableModel.moveRow(minSourceRow, maxSourceRow, minSourceRow + 1)
             self.watchListTable.selectionModel().clearSelection()
             topLeft = self.watchListTableProxyModel.index(minRow + 1, 0)
             bottomRight = self.watchListTableProxyModel.index(maxRow + 1, 9)
@@ -1288,7 +1288,7 @@ class MyWindow(QtWidgets.QMainWindow):
         if minSourceRow != 0:
             maxRow = selectedRows[-1].row()
             maxSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[-1]).row()
-            self.watchListTableModel.moveToTop(minSourceRow, maxSourceRow)
+            self.watchListTableModel.moveRow(minSourceRow, maxSourceRow, 0)
             self.watchListTable.selectionModel().clearSelection()
             topLeft = self.watchListTableProxyModel.index(0, 0)
             bottomRight = self.watchListTableProxyModel.index(maxRow - minRow, 9)

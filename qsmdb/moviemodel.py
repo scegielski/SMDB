@@ -129,50 +129,12 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
         self.layoutChanged.emit()
 
-    def moveToTop(self, minRow, maxRow):
-        if minRow == 0:
-            return
-
+    def moveRow(self, minRow, maxRow, dstRow):
         maxRow = maxRow + 1
         tmpData = self._data[minRow:maxRow]
         self.layoutAboutToBeChanged.emit()
         del self._data[minRow:maxRow]
-        index = 0
-        self._data[index:index] = tmpData
-
-        # Re-number ranks
-        for i in range(len(self._data)):
-            self._data[i][9] = i
-
-        self.layoutChanged.emit()
-
-    def moveUp(self, minRow, maxRow):
-        if minRow == 0:
-            return
-
-        maxRow = maxRow + 1
-        tmpData = self._data[minRow:maxRow]
-        self.layoutAboutToBeChanged.emit()
-        del self._data[minRow:maxRow]
-        index = minRow - 1
-        self._data[index:index] = tmpData
-
-        # Re-number ranks
-        for i in range(len(self._data)):
-            self._data[i][9] = i
-
-        self.layoutChanged.emit()
-
-    def moveDown(self, minRow, maxRow):
-        if maxRow >= len(self._data):
-            return
-
-        maxRow = maxRow + 1
-        tmpData = self._data[minRow:maxRow]
-        self.layoutAboutToBeChanged.emit()
-        del self._data[minRow:maxRow]
-        index = minRow + 1
-        self._data[index:index] = tmpData
+        self._data[dstRow:dstRow] = tmpData
 
         # Re-number ranks
         for i in range(len(self._data)):
