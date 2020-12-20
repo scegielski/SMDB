@@ -1219,9 +1219,9 @@ class MyWindow(QtWidgets.QMainWindow):
     def moveUpWatchList(self):
         selectedRows = self.watchListTable.selectionModel().selectedRows()
         minRow = selectedRows[0].row()
-        if minRow != 0:
+        minSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[0]).row()
+        if minSourceRow != 0:
             maxRow = selectedRows[-1].row()
-            minSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[0]).row()
             maxSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[-1]).row()
             self.watchListTableModel.moveUp(minSourceRow, maxSourceRow)
             self.watchListTable.selectionModel().clearSelection()
@@ -1237,10 +1237,10 @@ class MyWindow(QtWidgets.QMainWindow):
     def moveDownWatchList(self):
         selectedRows = self.watchListTable.selectionModel().selectedRows()
         maxRow = selectedRows[-1].row()
-        if maxRow < self.watchListTableModel.getDataSize():
+        maxSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[-1]).row()
+        if maxSourceRow < self.watchListTableModel.getDataSize():
             minRow = selectedRows[0].row()
             minSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[0]).row()
-            maxSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[-1]).row()
             self.watchListTableModel.moveDown(minSourceRow, maxSourceRow)
             self.watchListTable.selectionModel().clearSelection()
             topLeft = self.watchListTableProxyModel.index(minRow + 1, 0)
@@ -1255,9 +1255,9 @@ class MyWindow(QtWidgets.QMainWindow):
     def moveToTopWatchList(self):
         selectedRows = self.watchListTable.selectionModel().selectedRows()
         minRow = selectedRows[0].row()
-        if minRow != 0:
+        minSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[0]).row()
+        if minSourceRow != 0:
             maxRow = selectedRows[-1].row()
-            minSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[0]).row()
             maxSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[-1]).row()
             self.watchListTableModel.moveToTop(minSourceRow, maxSourceRow)
             self.watchListTable.selectionModel().clearSelection()
