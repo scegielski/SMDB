@@ -1095,6 +1095,18 @@ class MyWindow(QtWidgets.QMainWindow):
         removeFromWatchListAction.triggered.connect(self.removeFromWatchList)
         rightMenu.addAction(removeFromWatchListAction)
 
+        moveToTopWatchListAction = QtWidgets.QAction("Move To Top", self)
+        moveToTopWatchListAction.triggered.connect(self.moveToTopWatchList)
+        rightMenu.addAction(moveToTopWatchListAction)
+
+        moveUpWatchListAction = QtWidgets.QAction("Move Up", self)
+        moveUpWatchListAction.triggered.connect(self.moveUpWatchList)
+        rightMenu.addAction(moveUpWatchListAction)
+
+        moveDownWatchListAction = QtWidgets.QAction("Move Down", self)
+        moveDownWatchListAction.triggered.connect(self.moveDownWatchList)
+        rightMenu.addAction(moveDownWatchListAction)
+
         self.clickedMovieTable(self.watchListTable.selectionModel().selectedRows()[0],
                                self.watchListTableProxyModel)
 
@@ -1200,6 +1212,60 @@ class MyWindow(QtWidgets.QMainWindow):
         maxRow = selectedRows[-1].row()
         self.watchListTableModel.removeMovies(minRow, maxRow)
         self.watchListTable.selectionModel().clearSelection()
+        self.writeSmdbFile(self.watchListSmdbFile,
+                           self.watchListTableModel,
+                           titlesOnly=True)
+
+    def moveUpWatchList(self):
+        selectedRows = self.watchListTable.selectionModel().selectedRows()
+        minRow = selectedRows[0].row()
+        if minRow != 0:
+            maxRow = selectedRows[-1].row()
+            minSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[0]).row()
+            maxSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[-1]).row()
+            self.watchListTableModel.moveUp(minSourceRow, maxSourceRow)
+            self.watchListTable.selectionModel().clearSelection()
+            topLeft = self.watchListTableProxyModel.index(minRow - 1, 0)
+            bottomRight = self.watchListTableProxyModel.index(maxRow - 1, 9)
+            selection = self.watchListTable.selectionModel().selection()
+            selection.select(topLeft, bottomRight)
+            self.watchListTable.selectionModel().select(selection, QtCore.QItemSelectionModel.ClearAndSelect)
+        self.writeSmdbFile(self.watchListSmdbFile,
+                           self.watchListTableModel,
+                           titlesOnly=True)
+
+    def moveDownWatchList(self):
+        selectedRows = self.watchListTable.selectionModel().selectedRows()
+        maxRow = selectedRows[-1].row()
+        if maxRow < self.watchListTableModel.getDataSize():
+            minRow = selectedRows[0].row()
+            minSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[0]).row()
+            maxSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[-1]).row()
+            self.watchListTableModel.moveDown(minSourceRow, maxSourceRow)
+            self.watchListTable.selectionModel().clearSelection()
+            topLeft = self.watchListTableProxyModel.index(minRow + 1, 0)
+            bottomRight = self.watchListTableProxyModel.index(maxRow + 1, 9)
+            selection = self.watchListTable.selectionModel().selection()
+            selection.select(topLeft, bottomRight)
+            self.watchListTable.selectionModel().select(selection, QtCore.QItemSelectionModel.ClearAndSelect)
+        self.writeSmdbFile(self.watchListSmdbFile,
+                           self.watchListTableModel,
+                           titlesOnly=True)
+
+    def moveToTopWatchList(self):
+        selectedRows = self.watchListTable.selectionModel().selectedRows()
+        minRow = selectedRows[0].row()
+        if minRow != 0:
+            maxRow = selectedRows[-1].row()
+            minSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[0]).row()
+            maxSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[-1]).row()
+            self.watchListTableModel.moveToTop(minSourceRow, maxSourceRow)
+            self.watchListTable.selectionModel().clearSelection()
+            topLeft = self.watchListTableProxyModel.index(0, 0)
+            bottomRight = self.watchListTableProxyModel.index(maxRow - minRow, 9)
+            selection = self.watchListTable.selectionModel().selection()
+            selection.select(topLeft, bottomRight)
+            self.watchListTable.selectionModel().select(selection, QtCore.QItemSelectionModel.ClearAndSelect)
         self.writeSmdbFile(self.watchListSmdbFile,
                            self.watchListTableModel,
                            titlesOnly=True)
