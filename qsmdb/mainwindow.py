@@ -1,6 +1,7 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
 import sys
 import os
+from enum import Enum
 from pathlib import Path
 import imdb
 from imdb import IMDb
@@ -309,27 +310,16 @@ class MyWindow(QtWidgets.QMainWindow):
         watchListButtonsHLayout.addWidget(removeButton)
 
         moveToTopButton = QtWidgets.QPushButton('Move To Top')
-        moveToTopButton.clicked.connect(self.moveToTopWatchList)
+        moveToTopButton.clicked.connect(lambda: self.watchListMoveRow(self.MoveTo.TOP))
         watchListButtonsHLayout.addWidget(moveToTopButton)
 
         moveUpButton = QtWidgets.QPushButton('Move Up')
-        moveUpButton.clicked.connect(self.moveUpWatchList)
+        moveUpButton.clicked.connect(lambda: self.watchListMoveRow(self.MoveTo.UP))
         watchListButtonsHLayout.addWidget(moveUpButton)
 
         moveDownButton = QtWidgets.QPushButton('Move Down')
-        moveDownButton.clicked.connect(self.moveDownWatchList)
+        moveDownButton.clicked.connect(lambda: self.watchListMoveRow(self.MoveTo.DOWN))
         watchListButtonsHLayout.addWidget(moveDownButton)
-
-        #searchText = QtWidgets.QLabel("Search")
-        #searchText.setSizePolicy(QtWidgets.QSizePolicy.Maximum,
-        #                         QtWidgets.QSizePolicy.Maximum)
-        #watchListSearchHLayout.addWidget(searchText)
-
-        #watchListSearchBox = QtWidgets.QLineEdit(self)
-        #watchListSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
-        #watchListSearchBox.setClearButtonEnabled(True)
-        #watchListSearchBox.textChanged.connect(lambda: searchTableView(watchListSearchBox, self.moviesTable))
-        #watchListSearchHLayout.addWidget(watchListSearchBox)
 
         moviesWatchlistVSplitter.addWidget(self.watchListWidget)
 
@@ -1116,15 +1106,15 @@ class MyWindow(QtWidgets.QMainWindow):
         rightMenu.addAction(removeFromWatchListAction)
 
         moveToTopWatchListAction = QtWidgets.QAction("Move To Top", self)
-        moveToTopWatchListAction.triggered.connect(self.moveToTopWatchList)
+        moveToTopWatchListAction.triggered.connect(lambda: self.watchListMoveRow(self.MoveTo.TOP))
         rightMenu.addAction(moveToTopWatchListAction)
 
         moveUpWatchListAction = QtWidgets.QAction("Move Up", self)
-        moveUpWatchListAction.triggered.connect(self.moveUpWatchList)
+        moveUpWatchListAction.triggered.connect(lambda: self.watchListMoveRow(self.MoveTo.UP))
         rightMenu.addAction(moveUpWatchListAction)
 
         moveDownWatchListAction = QtWidgets.QAction("Move Down", self)
-        moveDownWatchListAction.triggered.connect(self.moveDownWatchList)
+        moveDownWatchListAction.triggered.connect(lambda: self.watchListMoveRow(self.MoveTo.DOWN))
         rightMenu.addAction(moveDownWatchListAction)
 
         self.clickedMovieTable(self.watchListTable.selectionModel().selectedRows()[0],
@@ -1239,7 +1229,12 @@ class MyWindow(QtWidgets.QMainWindow):
                            self.watchListTableModel,
                            titlesOnly=True)
 
-    def moveUpWatchList(self):
+    class MoveTo(Enum):
+        DOWN = 0
+        UP = 1
+        TOP = 2
+
+    def watchListMoveRow(self, moveTo):
         selectedRows = self.watchListTable.selectionModel().selectedRows()
         if len(selectedRows) == 0:
             return
@@ -1249,64 +1244,29 @@ class MyWindow(QtWidgets.QMainWindow):
         minSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[0]).row()
         maxSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[-1]).row()
 
-        if minSourceRow != 0:
-            self.watchListTable.selectionModel().clearSelection()
+        if ((moveTo == self.MoveTo.UP or moveTo == self.MoveTo.TOP) and minSourceRow == 0) or \
+           (moveTo == self.MoveTo.DOWN and maxSourceRow >= (self.watchListTableModel.getDataSize() - 1)):
+            return
 
+        self.watchListTable.selectionModel().clearSelection()
+
+        if moveTo == self.MoveTo.UP:
             self.watchListTableModel.moveRow(minSourceRow, maxSourceRow, minSourceRow - 1)
             topLeft = self.watchListTableProxyModel.index(minRow - 1, 0)
             bottomRight = self.watchListTableProxyModel.index(maxRow - 1, 9)
-
-            selection = self.watchListTable.selectionModel().selection()
-            selection.select(topLeft, bottomRight)
-            self.watchListTable.selectionModel().select(selection, QtCore.QItemSelectionModel.ClearAndSelect)
-        self.writeSmdbFile(self.watchListSmdbFile,
-                           self.watchListTableModel,
-                           titlesOnly=True)
-
-    def moveDownWatchList(self):
-        selectedRows = self.watchListTable.selectionModel().selectedRows()
-        if len(selectedRows) == 0:
-            return
-
-        minRow = selectedRows[0].row()
-        maxRow = selectedRows[-1].row()
-        maxSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[-1]).row()
-        minSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[0]).row()
-
-        if maxSourceRow < (self.watchListTableModel.getDataSize() - 1):
-            self.watchListTable.selectionModel().clearSelection()
-
+        elif moveTo == self.MoveTo.DOWN:
             self.watchListTableModel.moveRow(minSourceRow, maxSourceRow, minSourceRow + 1)
             topLeft = self.watchListTableProxyModel.index(minRow + 1, 0)
             bottomRight = self.watchListTableProxyModel.index(maxRow + 1, 9)
-
-            selection = self.watchListTable.selectionModel().selection()
-            selection.select(topLeft, bottomRight)
-            self.watchListTable.selectionModel().select(selection, QtCore.QItemSelectionModel.ClearAndSelect)
-        self.writeSmdbFile(self.watchListSmdbFile,
-                           self.watchListTableModel,
-                           titlesOnly=True)
-
-    def moveToTopWatchList(self):
-        selectedRows = self.watchListTable.selectionModel().selectedRows()
-        if len(selectedRows) == 0:
-            return
-
-        minRow = selectedRows[0].row()
-        maxRow = selectedRows[-1].row()
-        minSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[0]).row()
-        maxSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[-1]).row()
-
-        if minSourceRow != 0:
-            self.watchListTable.selectionModel().clearSelection()
-
+        elif moveTo == self.MoveTo.TOP:
             self.watchListTableModel.moveRow(minSourceRow, maxSourceRow, 0)
             topLeft = self.watchListTableProxyModel.index(0, 0)
             bottomRight = self.watchListTableProxyModel.index(maxRow - minRow, 9)
 
-            selection = self.watchListTable.selectionModel().selection()
-            selection.select(topLeft, bottomRight)
-            self.watchListTable.selectionModel().select(selection, QtCore.QItemSelectionModel.ClearAndSelect)
+        selection = self.watchListTable.selectionModel().selection()
+        selection.select(topLeft, bottomRight)
+        self.watchListTable.selectionModel().select(selection, QtCore.QItemSelectionModel.ClearAndSelect)
+
         self.writeSmdbFile(self.watchListSmdbFile,
                            self.watchListTableModel,
                            titlesOnly=True)
