@@ -30,7 +30,7 @@ class MyWindow(QtWidgets.QMainWindow):
         super(MyWindow, self).__init__()
 
         self.setWindowTitle("Scott's Movie Database")
-        self.setGeometry(200, 75, 1275, 700)
+        self.setGeometry(200, 75, 1275, 900)
 
         # Menus and Actions
         self.rightMenu = None
@@ -313,7 +313,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         moviesWatchlistVSplitter.addWidget(self.watchListWidget)
 
-        moviesWatchlistVSplitter.setSizes([600, 200])
+        moviesWatchlistVSplitter.setSizes([600, 300])
 
         # Cover and Summary ---------------------------------------------------------------------------------------
         coverSummaryVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)

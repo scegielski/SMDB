@@ -11,6 +11,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
         super().__init__()
         self.numVisibleMovies = 0
 
+        self.movieSet = set()
+
         self._data = []
         self._headers = ['Year',
                          'Title',
@@ -57,7 +59,11 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
             moviePath = os.path.join(moviesFolder, movieFolderName)
             movieData = self.createMovieData(data, moviePath, movieFolderName)
-            self._data.append(movieData)
+
+            folderName = movieData[6]
+            if folderName not in self.movieSet:
+                self.movieSet.add(folderName)
+                self._data.append(movieData)
 
         self.sort(0, QtCore.Qt.AscendingOrder)
 
@@ -91,18 +97,33 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
     def getRank(self, row):
         return self._data[row][9]
 
-
-
     def addMovie(self, smdbData, moviePath, movieFolderName):
-        self.layoutAboutToBeChanged.emit()
         data = smdbData['titles'][movieFolderName]
-        movieData = self.createMovieData(data, moviePath, movieFolderName, generateNewRank=True)
-        self._data.append(movieData)
-        self.layoutChanged.emit()
+        movieData = self.createMovieData(data,
+                                         moviePath,
+                                         movieFolderName,
+                                         generateNewRank=True)
+        folderName = movieData[6]
+        if folderName not in self.movieSet:
+            self.movieSet.add(folderName)
+            self.layoutAboutToBeChanged.emit()
+            self._data.append(movieData)
+            self.layoutChanged.emit()
 
     def removeMovies(self, minRow, maxRow):
+        # Remove folderName from movieSet
+        for row in range(minRow, maxRow + 1, 1):
+            folderName = self._data[row][6]
+            if folderName in self.movieSet:
+                self.movieSet.remove(folderName)
+
         self.layoutAboutToBeChanged.emit()
         del self._data[minRow:maxRow+1]
+
+        # Re-number ranks
+        for i in range(len(self._data)):
+            self._data[i][9] = i
+
         self.layoutChanged.emit()
 
     def setMovieDataWithJson(self, row, jsonFile, moviePath, movieFolderName):
