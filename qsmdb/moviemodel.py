@@ -61,16 +61,49 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
         self.sort(0, QtCore.Qt.AscendingOrder)
 
+    def getYear(self, row):
+        return self._data[row][0]
+
+    def getTitle(self, row):
+        return self._data[row][1]
+
+    def getRating(self, row):
+        return self._data[row][2]
+
+    def getBoxOffice(self, row):
+        return self._data[row][3]
+
+    def getRuntime(self, row):
+        return self._data[row][4]
+
+    def getId(self, row):
+        return self._data[row][5]
+
+    def getFolderName(self, row):
+        return self._data[row][6]
+
+    def getPath(self, row):
+        return self._data[row][7]
+
+    def getJsonExists(self, row):
+        return self._data[row][8]
+
+    def getRank(self, row):
+        return self._data[row][9]
+
+
+
     def addMovie(self, smdbData, moviePath, movieFolderName):
         self.layoutAboutToBeChanged.emit()
         data = smdbData['titles'][movieFolderName]
-        movieData = self.createMovieData(data, moviePath, movieFolderName)
+        movieData = self.createMovieData(data, moviePath, movieFolderName, generateNewRank=True)
         self._data.append(movieData)
         self.layoutChanged.emit()
 
-    def removeMovie(self, row):
-        print("In removeMovie")
-        del self._data[row]
+    def removeMovies(self, minRow, maxRow):
+        self.layoutAboutToBeChanged.emit()
+        del self._data[minRow:maxRow+1]
+        self.layoutChanged.emit()
 
     def setMovieDataWithJson(self, row, jsonFile, moviePath, movieFolderName):
         if os.path.exists(jsonFile):
@@ -88,7 +121,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
         maxIndex = self.index(row, 8)
         self.dataChanged.emit(minIndex, maxIndex)
 
-    def createMovieData(self, data, moviePath, movieFolderName):
+    def createMovieData(self, data, moviePath, movieFolderName, generateNewRank=False):
         reMoneyValue = re.compile(r'(\d+(?:,\d+)*(?:\.\d+)?)')
         reCurrency = re.compile(r'^([A-Z][A-Z][A-Z])(.*)')
         movieData = []
@@ -104,8 +137,9 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                     movieData.append("False")
             elif headerLower == 'folder name':
                 movieData.append(movieFolderName)
-            elif headerLower == 'rank':
-                movieData.append("0")
+            elif generateNewRank and headerLower == 'rank':
+                rank = len(self._data)
+                movieData.append(rank)
             else:
                 if headerLower not in data:
                     if headerLower == 'title':

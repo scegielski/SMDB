@@ -780,7 +780,7 @@ class MyWindow(QtWidgets.QMainWindow):
         except:
             print("Error writing json file: %s" % jsonFile)
 
-    def writeSmdbFile(self, fileName, model):
+    def writeSmdbFile(self, fileName, model, titlesOnly=False):
         titles = {}
         directors = {}
         actors = {}
@@ -812,8 +812,9 @@ class MyWindow(QtWidgets.QMainWindow):
             self.statusBar().showMessage(message)
             QtCore.QCoreApplication.processEvents()
 
-            moviePath = model.index(row, 7).data(QtCore.Qt.DisplayRole)
-            folderName = model.index(row, 6).data(QtCore.Qt.DisplayRole)
+            rank = model.getRank(row)
+            moviePath = model.getPath(row)
+            folderName = model.getFolderName(row)
             jsonFile = os.path.join(moviePath, '%s.json' % folderName)
             if os.path.exists(jsonFile):
                 with open(jsonFile) as f:
@@ -831,7 +832,7 @@ class MyWindow(QtWidgets.QMainWindow):
                     jsonYear = None
                     if 'year' in jsonData and jsonData['year']:
                         jsonYear = jsonData['year']
-                        if not jsonYear in years:
+                        if jsonYear not in years:
                             years[jsonYear] = {}
                             years[jsonYear]['num movies'] = 0
                             years[jsonYear]['movies'] = []
@@ -938,7 +939,8 @@ class MyWindow(QtWidgets.QMainWindow):
                                           'box office': jsonBoxOffice,
                                           'director': directorName,
                                           'genres': jsonGenres,
-                                          'actors': movieActorsList}
+                                          'actors': movieActorsList,
+                                          'rank': rank}
 
             progress += 1
             self.progressBar.setValue(progress)
@@ -950,12 +952,13 @@ class MyWindow(QtWidgets.QMainWindow):
 
         data = {}
         data['titles'] = collections.OrderedDict(sorted(titles.items()))
-        data['years'] = collections.OrderedDict(sorted(years.items()))
-        data['genres'] = collections.OrderedDict(sorted(genres.items()))
-        data['directors'] = collections.OrderedDict(sorted(directors.items()))
-        data['actors'] = collections.OrderedDict(sorted(actors.items()))
-        data['companies'] = collections.OrderedDict(sorted(companies.items()))
-        data['countries'] = collections.OrderedDict(sorted(countries.items()))
+        if not titlesOnly:
+            data['years'] = collections.OrderedDict(sorted(years.items()))
+            data['genres'] = collections.OrderedDict(sorted(genres.items()))
+            data['directors'] = collections.OrderedDict(sorted(directors.items()))
+            data['actors'] = collections.OrderedDict(sorted(actors.items()))
+            data['companies'] = collections.OrderedDict(sorted(companies.items()))
+            data['countries'] = collections.OrderedDict(sorted(countries.items()))
 
         self.statusBar().showMessage('Writing %s' % fileName)
         QtCore.QCoreApplication.processEvents()
@@ -1181,20 +1184,25 @@ class MyWindow(QtWidgets.QMainWindow):
             runFile(moviePath)
 
     def addToWatchList(self):
-        modelIndex = self.moviesTable.selectionModel().selectedRows()[0]
-        movieFolderName = self.moviesTableProxyModel.index(modelIndex.row(), 6).data(QtCore.Qt.DisplayRole)
-        moviePath = self.moviesTableProxyModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
-        self.watchListTableModel.addMovie(self.moviesSmdbData,
-                                          moviePath,
-                                          movieFolderName)
+        for modelIndex in self.moviesTable.selectionModel().selectedRows():
+            movieFolderName = self.moviesTableProxyModel.index(modelIndex.row(), 6).data(QtCore.Qt.DisplayRole)
+            moviePath = self.moviesTableProxyModel.index(modelIndex.row(), 7).data(QtCore.Qt.DisplayRole)
+            self.watchListTableModel.addMovie(self.moviesSmdbData,
+                                              moviePath,
+                                              movieFolderName)
         self.writeSmdbFile(self.watchListSmdbFile,
-                           self.watchListTableModel)
+                           self.watchListTableModel,
+                           titlesOnly=True)
 
     def removeFromWatchList(self):
-        modelIndex = self.watchListTable.selectionModel().selectedRows()[0]
-        self.watchListTableModel.removeMovie(modelIndex.row())
+        selectedRows = self.watchListTable.selectionModel().selectedRows()
+        minRow = selectedRows[0].row()
+        maxRow = selectedRows[-1].row()
+        self.watchListTableModel.removeMovies(minRow, maxRow)
+        self.watchListTable.selectionModel().clearSelection()
         self.writeSmdbFile(self.watchListSmdbFile,
-                           self.watchListTableModel)
+                           self.watchListTableModel,
+                           titlesOnly=True)
 
     def openMovieFolder(self):
         modelIndex = self.moviesTable.selectionModel().selectedRows()[0]
