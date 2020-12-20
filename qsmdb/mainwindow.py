@@ -1243,15 +1243,19 @@ class MyWindow(QtWidgets.QMainWindow):
         selectedRows = self.watchListTable.selectionModel().selectedRows()
         if len(selectedRows) == 0:
             return
+
         minRow = selectedRows[0].row()
+        maxRow = selectedRows[-1].row()
         minSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[0]).row()
+        maxSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[-1]).row()
+
         if minSourceRow != 0:
-            maxRow = selectedRows[-1].row()
-            maxSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[-1]).row()
-            self.watchListTableModel.moveRow(minSourceRow, maxSourceRow, minSourceRow - 1)
             self.watchListTable.selectionModel().clearSelection()
+
+            self.watchListTableModel.moveRow(minSourceRow, maxSourceRow, minSourceRow - 1)
             topLeft = self.watchListTableProxyModel.index(minRow - 1, 0)
             bottomRight = self.watchListTableProxyModel.index(maxRow - 1, 9)
+
             selection = self.watchListTable.selectionModel().selection()
             selection.select(topLeft, bottomRight)
             self.watchListTable.selectionModel().select(selection, QtCore.QItemSelectionModel.ClearAndSelect)
@@ -1263,15 +1267,19 @@ class MyWindow(QtWidgets.QMainWindow):
         selectedRows = self.watchListTable.selectionModel().selectedRows()
         if len(selectedRows) == 0:
             return
+
+        minRow = selectedRows[0].row()
         maxRow = selectedRows[-1].row()
         maxSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[-1]).row()
+        minSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[0]).row()
+
         if maxSourceRow < (self.watchListTableModel.getDataSize() - 1):
-            minRow = selectedRows[0].row()
-            minSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[0]).row()
-            self.watchListTableModel.moveRow(minSourceRow, maxSourceRow, minSourceRow + 1)
             self.watchListTable.selectionModel().clearSelection()
+
+            self.watchListTableModel.moveRow(minSourceRow, maxSourceRow, minSourceRow + 1)
             topLeft = self.watchListTableProxyModel.index(minRow + 1, 0)
             bottomRight = self.watchListTableProxyModel.index(maxRow + 1, 9)
+
             selection = self.watchListTable.selectionModel().selection()
             selection.select(topLeft, bottomRight)
             self.watchListTable.selectionModel().select(selection, QtCore.QItemSelectionModel.ClearAndSelect)
@@ -1283,15 +1291,19 @@ class MyWindow(QtWidgets.QMainWindow):
         selectedRows = self.watchListTable.selectionModel().selectedRows()
         if len(selectedRows) == 0:
             return
+
         minRow = selectedRows[0].row()
+        maxRow = selectedRows[-1].row()
         minSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[0]).row()
+        maxSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[-1]).row()
+
         if minSourceRow != 0:
-            maxRow = selectedRows[-1].row()
-            maxSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[-1]).row()
-            self.watchListTableModel.moveRow(minSourceRow, maxSourceRow, 0)
             self.watchListTable.selectionModel().clearSelection()
+
+            self.watchListTableModel.moveRow(minSourceRow, maxSourceRow, 0)
             topLeft = self.watchListTableProxyModel.index(0, 0)
             bottomRight = self.watchListTableProxyModel.index(maxRow - minRow, 9)
+
             selection = self.watchListTable.selectionModel().selection()
             selection.select(topLeft, bottomRight)
             self.watchListTable.selectionModel().select(selection, QtCore.QItemSelectionModel.ClearAndSelect)
