@@ -297,6 +297,40 @@ class MyWindow(QtWidgets.QMainWindow):
 
         watchListVLayout.addWidget(self.watchListTable)
 
+        watchListButtonsHLayout = QtWidgets.QHBoxLayout()
+        watchListVLayout.addLayout(watchListButtonsHLayout)
+
+        addButton = QtWidgets.QPushButton('Add')
+        addButton.clicked.connect(self.addToWatchList)
+        watchListButtonsHLayout.addWidget(addButton)
+
+        removeButton = QtWidgets.QPushButton('Remove')
+        removeButton.clicked.connect(self.removeFromWatchList)
+        watchListButtonsHLayout.addWidget(removeButton)
+
+        moveToTopButton = QtWidgets.QPushButton('Move To Top')
+        moveToTopButton.clicked.connect(self.moveToTopWatchList)
+        watchListButtonsHLayout.addWidget(moveToTopButton)
+
+        moveUpButton = QtWidgets.QPushButton('Move Up')
+        moveUpButton.clicked.connect(self.moveUpWatchList)
+        watchListButtonsHLayout.addWidget(moveUpButton)
+
+        moveDownButton = QtWidgets.QPushButton('Move Down')
+        moveDownButton.clicked.connect(self.moveDownWatchList)
+        watchListButtonsHLayout.addWidget(moveDownButton)
+
+        #searchText = QtWidgets.QLabel("Search")
+        #searchText.setSizePolicy(QtWidgets.QSizePolicy.Maximum,
+        #                         QtWidgets.QSizePolicy.Maximum)
+        #watchListSearchHLayout.addWidget(searchText)
+
+        #watchListSearchBox = QtWidgets.QLineEdit(self)
+        #watchListSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
+        #watchListSearchBox.setClearButtonEnabled(True)
+        #watchListSearchBox.textChanged.connect(lambda: searchTableView(watchListSearchBox, self.moviesTable))
+        #watchListSearchHLayout.addWidget(watchListSearchBox)
+
         moviesWatchlistVSplitter.addWidget(self.watchListWidget)
 
         moviesWatchlistVSplitter.setSizes([600, 300])
@@ -1194,6 +1228,9 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def removeFromWatchList(self):
         selectedRows = self.watchListTable.selectionModel().selectedRows()
+        if len(selectedRows) == 0:
+            return
+
         minRow = selectedRows[0].row()
         maxRow = selectedRows[-1].row()
         self.watchListTableModel.removeMovies(minRow, maxRow)
@@ -1204,6 +1241,8 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def moveUpWatchList(self):
         selectedRows = self.watchListTable.selectionModel().selectedRows()
+        if len(selectedRows) == 0:
+            return
         minRow = selectedRows[0].row()
         minSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[0]).row()
         if minSourceRow != 0:
@@ -1222,9 +1261,11 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def moveDownWatchList(self):
         selectedRows = self.watchListTable.selectionModel().selectedRows()
+        if len(selectedRows) == 0:
+            return
         maxRow = selectedRows[-1].row()
         maxSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[-1]).row()
-        if maxSourceRow < self.watchListTableModel.getDataSize():
+        if maxSourceRow < (self.watchListTableModel.getDataSize() - 1):
             minRow = selectedRows[0].row()
             minSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[0]).row()
             self.watchListTableModel.moveDown(minSourceRow, maxSourceRow)
@@ -1240,6 +1281,8 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def moveToTopWatchList(self):
         selectedRows = self.watchListTable.selectionModel().selectedRows()
+        if len(selectedRows) == 0:
+            return
         minRow = selectedRows[0].row()
         minSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[0]).row()
         if minSourceRow != 0:
