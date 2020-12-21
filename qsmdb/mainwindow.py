@@ -698,8 +698,7 @@ class MyWindow(QtWidgets.QMainWindow):
             progress += 1
             self.progressBar.setValue(progress)
 
-        if not self.moviesTable.selectionModel().hasSelection():
-            self.moviesTable.selectRow(firstRow)
+        self.moviesTable.selectRow(firstRow)
         self.progressBar.setValue(0)
         self.showMoviesTableSelectionStatus()
 
