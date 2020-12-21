@@ -52,6 +52,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableWidget = None
         self.moviesTable = None
         self.movieCover = None
+        self.minCountCheckbox = None
+        self.minCountSpinBox = None
         self.filterTable = None
         self.filterByComboBox = None
         self.watchListWidget = None
@@ -206,6 +208,21 @@ class MyWindow(QtWidgets.QMainWindow):
         self.filterByComboBox.setCurrentIndex(0)
         self.filterByComboBox.activated.connect(self.populateFiltersTable)
         filterByHLayout.addWidget(self.filterByComboBox)
+
+        minCountHLayout = QtWidgets.QHBoxLayout()
+        self.filterWidget.layout().addLayout(minCountHLayout)
+        self.minCountCheckbox = QtWidgets.QCheckBox("Enable Min Count")
+        self.minCountCheckbox.setChecked(True)
+        minCountHLayout.addWidget(self.minCountCheckbox)
+
+        self.minCountSpinBox = QtWidgets.QSpinBox()
+        self.minCountSpinBox.setMinimum(0)
+        self.minCountSpinBox.setValue(2)
+        self.minCountSpinBox.valueChanged.connect(self.populateFiltersTable)
+        minCountHLayout.addWidget(self.minCountSpinBox)
+
+        self.minCountCheckbox.stateChanged.connect(self.minCountSpinBox.setEnabled)
+        self.minCountCheckbox.stateChanged.connect(self.populateFiltersTable)
 
         self.filterTable = QtWidgets.QTableWidget()
         self.filterTable.setColumnCount(2)
@@ -533,19 +550,26 @@ class MyWindow(QtWidgets.QMainWindow):
         self.filterTable.setHorizontalHeaderLabels(['Name', 'Count'])
 
         row = 0
+        numActualRows = 0
         numRows = len(self.moviesSmdbData[filterByKey].keys())
         self.filterTable.setRowCount(numRows)
         self.filterTable.setSortingEnabled(False)
         for name in self.moviesSmdbData[filterByKey].keys():
             count = self.moviesSmdbData[filterByKey][name]['num movies']
+
+            if self.minCountCheckbox.isChecked() and count < self.minCountSpinBox.value():
+                continue
+
             nameItem = QtWidgets.QTableWidgetItem(name)
             self.filterTable.setItem(row, 0, nameItem)
             countItem = QtWidgets.QTableWidgetItem('%04d' % count)
             self.filterTable.setItem(row, 1, countItem)
             row += 1
             progress += 1
+            numActualRows += 1
             self.progressBar.setValue(progress)
 
+        self.filterTable.setRowCount(numActualRows)
         self.filterTable.sortItems(1, QtCore.Qt.DescendingOrder)
         self.filterTable.setSortingEnabled(True)
 
