@@ -31,7 +31,7 @@ class MyWindow(QtWidgets.QMainWindow):
         super(MyWindow, self).__init__()
 
         self.setWindowTitle("Scott's Movie Database")
-        self.setGeometry(200, 75, 1275, 900)
+        self.setGeometry(200, 75, 1275, 700)
 
         # Menus and Actions
         self.rightMenu = None
@@ -51,6 +51,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.filterWidget = None
         self.moviesTableWidget = None
         self.moviesTable = None
+        self.moviesTableSearchBox = None
         self.movieCover = None
         self.minCountCheckbox = None
         self.minCountSpinBox = None
@@ -287,11 +288,11 @@ class MyWindow(QtWidgets.QMainWindow):
                                  QtWidgets.QSizePolicy.Maximum)
         moviesTableSearchHLayout.addWidget(searchText)
 
-        moviesTableSearchBox = QtWidgets.QLineEdit(self)
-        moviesTableSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
-        moviesTableSearchBox.setClearButtonEnabled(True)
-        moviesTableSearchBox.textChanged.connect(lambda: searchTableView(moviesTableSearchBox, self.moviesTable))
-        moviesTableSearchHLayout.addWidget(moviesTableSearchBox)
+        self.moviesTableSearchBox = QtWidgets.QLineEdit(self)
+        self.moviesTableSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
+        self.moviesTableSearchBox.setClearButtonEnabled(True)
+        self.moviesTableSearchBox.textChanged.connect(self.searchMoviesTableView)
+        moviesTableSearchHLayout.addWidget(self.moviesTableSearchBox)
 
         moviesWatchlistVSplitter.addWidget(self.moviesTableWidget)
 
@@ -417,7 +418,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableProxyModel = QtCore.QSortFilterProxyModel()
         self.moviesTableProxyModel.setSourceModel(self.moviesTableModel)
         if forceScan:
-            # If forScan, sort by exists otherwise title
+            # If forScan, sort by exists otherwise year
             self.moviesTableProxyModel.sort(8)
         else:
             self.moviesTableProxyModel.sort(0)
@@ -607,6 +608,17 @@ class MyWindow(QtWidgets.QMainWindow):
         except:
             print("Error with movie %s" % title)
 
+    def searchMoviesTableView(self):
+        searchText = self.moviesTableSearchBox.text()
+        self.moviesTableProxyModel.setFilterKeyColumn(1)
+        self.moviesTableProxyModel.setFilterRegExp(QtCore.QRegExp(searchText,
+                                                                  QtCore.Qt.CaseInsensitive,
+                                                                  QtCore.QRegExp.FixedString))
+        if not searchText:
+            self.moviesTableProxyModel.sort(0)
+            self.filterTableSelectionChanged()
+
+
     def showFiltersMenu(self):
         if self.filterWidget:
             self.showFilters = not self.showFilters
@@ -660,8 +672,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         movieList = []
         for item in self.filterTable.selectedItems():
-            row = item.row()
-            name = self.filterTable.item(row, 0).text()
+            name = self.filterTable.item(item.row(), 0).text()
             movies = self.moviesSmdbData[filterByKey][name]['movies']
             for movie in movies:
                 movieList.append(movie)
@@ -687,7 +698,8 @@ class MyWindow(QtWidgets.QMainWindow):
             progress += 1
             self.progressBar.setValue(progress)
 
-        self.moviesTable.selectRow(firstRow)
+        if not self.moviesTable.selectionModel().hasSelection():
+            self.moviesTable.selectRow(firstRow)
         self.progressBar.setValue(0)
         self.showMoviesTableSelectionStatus()
 
