@@ -1239,8 +1239,8 @@ class MyWindow(QtWidgets.QMainWindow):
         if len(selectedRows) == 0:
             return
 
-        minRow = selectedRows[0].row()
-        maxRow = selectedRows[-1].row()
+        minProxyRow = selectedRows[0].row()
+        maxProxyRow = selectedRows[-1].row()
         minSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[0]).row()
         maxSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[-1]).row()
 
@@ -1251,17 +1251,21 @@ class MyWindow(QtWidgets.QMainWindow):
         self.watchListTable.selectionModel().clearSelection()
 
         if moveTo == self.MoveTo.UP:
-            self.watchListTableModel.moveRow(minSourceRow, maxSourceRow, minSourceRow - 1)
-            topLeft = self.watchListTableProxyModel.index(minRow - 1, 0)
-            bottomRight = self.watchListTableProxyModel.index(maxRow - 1, 9)
+            dstRow = minSourceRow - 1
+            topRow = minProxyRow - 1
+            bottomRow = maxProxyRow - 1
         elif moveTo == self.MoveTo.DOWN:
-            self.watchListTableModel.moveRow(minSourceRow, maxSourceRow, minSourceRow + 1)
-            topLeft = self.watchListTableProxyModel.index(minRow + 1, 0)
-            bottomRight = self.watchListTableProxyModel.index(maxRow + 1, 9)
+            dstRow = minSourceRow + 1
+            topRow = minProxyRow + 1
+            bottomRow = maxProxyRow + 1
         elif moveTo == self.MoveTo.TOP:
-            self.watchListTableModel.moveRow(minSourceRow, maxSourceRow, 0)
-            topLeft = self.watchListTableProxyModel.index(0, 0)
-            bottomRight = self.watchListTableProxyModel.index(maxRow - minRow, 9)
+            dstRow = 0
+            topRow = 0
+            bottomRow = maxProxyRow - minProxyRow
+
+        self.watchListTableModel.moveRow(minSourceRow, maxSourceRow, dstRow)
+        topLeft = self.watchListTableProxyModel.index(topRow, 0)
+        bottomRight = self.watchListTableProxyModel.index(bottomRow, 9)
 
         selection = self.watchListTable.selectionModel().selection()
         selection.select(topLeft, bottomRight)
