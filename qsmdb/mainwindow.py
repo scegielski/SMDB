@@ -30,48 +30,31 @@ class MyWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super(MyWindow, self).__init__()
 
-        self.setWindowTitle("Scott's Movie Database")
-        self.setGeometry(200, 75, 1275, 700)
-
-        self.filterByDict = {
-            'Director': 'directors',
-            'Actor': 'actors',
-            'Genre': 'genres',
-            'Year': 'years',
-            'Company': 'companies',
-            'Country': 'countries'
-        }
-
         self.numVisibleMovies = 0
 
-        # Default view state of panels
+        # Create IMDB database
+        self.db = IMDb()
+
+         # Read the movies folder from the settings
+        self.settings = QtCore.QSettings("STC", "SMDB")
+        self.moviesFolder = self.settings.value('movies_folder', "J:/Movies", type=str)
+
+        # Init UI
+        self.setWindowTitle("SMDB")
+        self.setGeometry(200, 75, 1275, 700)
+
+        # Set foreground/background colors for item views
+        self.setStyleSheet("""QAbstractItemView{ background: black; color: white; }; """)
+
+        # Default view state of UI sections
         self.showFilters = True
         self.showMoviesTable = True
         self.showCover = True
         self.showSummary = True
         self.showWatchList = True
+
+        # Default state of cancel button
         self.isCanceled = False
-
-        # Create IMDB database
-        self.db = IMDb()
-
-        self.settings = QtCore.QSettings("STC", "SMDB")
-        self.moviesFolder = self.settings.value('movies_folder', "J:/Movies", type=str)
-
-        self.moviesSmdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
-        self.moviesSmdbData = None
-        self.moviesTableModel = None
-        self.moviesTableProxyModel = None
-
-        self.watchListSmdbFile = os.path.join(self.moviesFolder, "smdb_data_watch_list.json")
-        self.watchListSmdbData = None
-        self.watchListTableModel = None
-        self.watchListTableProxyModel = None
-
-        # Init UI
-
-        # Set foreground/background colors for item views
-        self.setStyleSheet("""QAbstractItemView{ background: black; color: white; }; """)
 
         # Main Menus
         self.initUIFileMenu()
@@ -91,6 +74,14 @@ class MyWindow(QtWidgets.QMainWindow):
         mainVLayout.addWidget(mainHSplitter)
 
         # Filter Table
+        self.filterByDict = {
+            'Director': 'directors',
+            'Actor': 'actors',
+            'Genre': 'genres',
+            'Year': 'years',
+            'Company': 'companies',
+            'Country': 'countries'
+        }
         self.filterWidget = QtWidgets.QWidget()
         self.filterByComboBox = QtWidgets.QComboBox()
         self.filterMinCountCheckbox = QtWidgets.QCheckBox()
@@ -148,8 +139,23 @@ class MyWindow(QtWidgets.QMainWindow):
         cancelButton.clicked.connect(self.cancelButtonClicked)
         bottomLayout.addWidget(cancelButton)
 
+        # Show the window
         self.show()
-        self.refresh()
+
+        if not os.path.exists(self.moviesFolder):
+            return
+
+        self.moviesSmdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
+        self.moviesSmdbData = None
+        self.moviesTableModel = None
+        self.moviesTableProxyModel = None
+        self.refreshMoviesList()
+
+        self.watchListSmdbFile = os.path.join(self.moviesFolder, "smdb_data_watch_list.json")
+        self.watchListSmdbData = None
+        self.watchListTableModel = None
+        self.watchListTableProxyModel = None
+        self.refreshWatchList()
 
     def initUIFileMenu(self):
         menuBar = self.menuBar()
@@ -169,7 +175,7 @@ class MyWindow(QtWidgets.QMainWindow):
         fileMenu.addAction(backupMoviesFolderAction)
 
         refreshAction = QtWidgets.QAction("Refresh movies dir", self)
-        refreshAction.triggered.connect(lambda: self.refresh(forceScan=True))
+        refreshAction.triggered.connect(lambda: self.refreshMoviesList(forceScan=True))
         fileMenu.addAction(refreshAction)
 
         preferencesAction = QtWidgets.QAction("Preferences", self)
@@ -377,10 +383,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.summary.setStyleSheet("color:white; background-color: black;")
         self.coverSummaryVSplitter.addWidget(self.summary)
 
-    def refresh(self, forceScan=False):
-        if not os.path.exists(self.moviesFolder):
-            return
-
+    def refreshMoviesList(self, forceScan=False):
         if os.path.exists(self.moviesSmdbFile):
             self.moviesSmdbData = readSmdbFile(self.moviesSmdbFile)
             self.moviesTableModel = MoviesTableModel(self.moviesSmdbData, self.moviesFolder, forceScan)
@@ -428,7 +431,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTable.selectRow(0)
         self.tableSelectionChanged(self.moviesTable, self.moviesTableProxyModel)
 
-        # Watch List
+    def refreshWatchList(self):
         if os.path.exists(self.watchListSmdbFile):
             self.watchListSmdbData = readSmdbFile(self.watchListSmdbFile)
         self.watchListTableModel = MoviesTableModel(self.watchListSmdbData,
