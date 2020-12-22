@@ -33,37 +33,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.setWindowTitle("Scott's Movie Database")
         self.setGeometry(200, 75, 1275, 700)
 
-        # Menus and Actions
-        self.rightMenu = None
-        self.playAction = None
-        self.addToWatchListAction = None
-        self.openFolderAction = None
-        self.openJsonAction = None
-        self.overrideImdbAction = None
-        self.downloadDataAction = None
-        self.removeJsonFilesAction = None
-        self.removeCoversAction = None
-
-        self.peopleRightMenu = None
-        self.openImdbAction = None
-
-        # Widgets
-        self.filterWidget = None
-        self.moviesTableWidget = None
-        self.moviesTable = None
-        self.moviesTableSearchBox = None
-        self.movieCover = None
-        self.minCountCheckbox = None
-        self.minCountSpinBox = None
-        self.filterTable = None
-        self.filterByComboBox = None
-        self.watchListWidget = None
-        self.watchListTable = None
-        self.coverWidget = None
-        self.movieTitle = None
-        self.summary = None
-        self.progressBar = None
-
         self.filterByDict = {
             'Director': 'directors',
             'Actor': 'actors',
@@ -99,14 +68,99 @@ class MyWindow(QtWidgets.QMainWindow):
         self.watchListTableModel = None
         self.watchListTableProxyModel = None
 
-        self.initUI()
+        # Init UI
+
+        # Main Menus
+        self.initUIFileMenu()
+        self.initUIViewMenu()
+
+        self.setStyleSheet("""
+                        QAbstractItemView{
+                            background: black;
+                            color: white;
+                        };
+                        """
+                           )
+
+        centralWidget = QtWidgets.QWidget()
+        self.setCentralWidget(centralWidget)
+
+        # Divides top h splitter and bottom progress bar
+        mainVLayout = QtWidgets.QVBoxLayout(self)
+        centralWidget.setLayout(mainVLayout)
+
+        # Main H Splitter for criteria, movies list, and cover/info
+        mainHSplitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
+        mainHSplitter.setHandleWidth(10)
+        mainVLayout.addWidget(mainHSplitter)
+
+        # Filter Table
+        self.filterWidget = QtWidgets.QWidget()
+        self.filterByComboBox = QtWidgets.QComboBox()
+        self.minCountCheckbox = QtWidgets.QCheckBox()
+        self.minCountSpinBox = QtWidgets.QSpinBox()
+        self.filterTable = QtWidgets.QTableWidget()
+        self.initUIFilterTable()
+
+        # Splitter for Movies Table and Watch List
+        self.moviesWatchListVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
+        self.moviesWatchListVSplitter.setHandleWidth(20)
+
+        # Movies Table
+        self.moviesTableRightMenu = None
+        self.playAction = QtWidgets.QAction("Play")
+        self.addToWatchListAction = None
+        self.openFolderAction = None
+        self.openJsonAction = None
+        self.overrideImdbAction = None
+        self.downloadDataAction = None
+        self.removeJsonFilesAction = None
+        self.removeCoversAction = None
+        self.moviesTableWidget = QtWidgets.QWidget()
+        self.moviesTable = QtWidgets.QTableView()
+        self.moviesTableSearchBox = QtWidgets.QLineEdit()
+        self.initUIMoviesTable()
+
+        # Watch List
+        self.watchListWidget = QtWidgets.QWidget()
+        self.watchListTable = QtWidgets.QTableView()
+        self.initUIWatchList()
+
+        self.moviesWatchListVSplitter.setSizes([600, 300])
+
+        # Cover and Summary
+        self.coverSummaryVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
+        self.coverWidget = QtWidgets.QWidget()
+        self.movieTitle = QtWidgets.QLabel('')
+        self.movieCover = QtWidgets.QLabel()
+        self.summary = QtWidgets.QTextBrowser()
+        self.initUICoverAndSummary()
+
+        # Add the sub-layouts to the mainHSplitter
+        mainHSplitter.addWidget(self.filterWidget)
+        mainHSplitter.addWidget(self.moviesWatchListVSplitter)
+        mainHSplitter.addWidget(self.coverSummaryVSplitter)
+        mainHSplitter.setSizes([250, 625, 400])
+
+        # Bottom ---------------------------------------------------------------------------------------
+        bottomLayout = QtWidgets.QHBoxLayout(self)
+        mainVLayout.addLayout(bottomLayout)
+        self.progressBar = QtWidgets.QProgressBar()
+        self.progressBar.setMaximum(100)
+        bottomLayout.addWidget(self.progressBar)
+        cancelButton = QtWidgets.QPushButton("Cancel", self)
+        cancelButton.clicked.connect(self.cancelButtonClicked)
+        bottomLayout.addWidget(cancelButton)
+
+        # Right click menus
+
+
         self.show()
+
         self.refresh()
 
-    def initUI(self):
+    def initUIFileMenu(self):
         menuBar = self.menuBar()
-
-        # File Menu ---------------------------------------------------------------------------------------
         fileMenu = menuBar.addMenu('File')
 
         rebuildSmdbFileAction = QtWidgets.QAction("Rebuild SMDB file", self)
@@ -134,7 +188,8 @@ class MyWindow(QtWidgets.QMainWindow):
         quitAction.triggered.connect(QtCore.QCoreApplication.quit)
         fileMenu.addAction(quitAction)
 
-        # View Menu ---------------------------------------------------------------------------------------
+    def initUIViewMenu(self):
+        menuBar = self.menuBar()
         viewMenu = menuBar.addMenu('View')
 
         showFiltersAction = QtWidgets.QAction("Show Filters", self)
@@ -167,31 +222,7 @@ class MyWindow(QtWidgets.QMainWindow):
         showSummaryAction.triggered.connect(self.showSummaryMenu)
         viewMenu.addAction(showSummaryAction)
 
-        # Central Widget ---------------------------------------------------------------------------------------
-
-        centralWidget = QtWidgets.QWidget()
-        self.setCentralWidget(centralWidget)
-
-        # Divides top h splitter and bottom progress bar
-        mainVLayout = QtWidgets.QVBoxLayout(self)
-        centralWidget.setLayout(mainVLayout)
-        # centralWidget.setStyleSheet("background-color: black;")
-
-        # Main H Splitter for criteria, movies list, and cover/info
-        mainHSplitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
-        mainHSplitter.setHandleWidth(10)
-        mainVLayout.addWidget(mainHSplitter)
-
-        self.setStyleSheet("""
-                        QAbstractItemView{
-                            background: black;
-                            color: white;
-                        };
-                        """
-                           )
-
-        # Filters Table ---------------------------------------------------------------------------------------
-        self.filterWidget = QtWidgets.QWidget()
+    def initUIFilterTable(self):
         filtersVLayout = QtWidgets.QVBoxLayout()
         self.filterWidget.setLayout(filtersVLayout)
 
@@ -203,7 +234,6 @@ class MyWindow(QtWidgets.QMainWindow):
                                     QtWidgets.QSizePolicy.Maximum)
         filterByHLayout.addWidget(filterByLabel)
 
-        self.filterByComboBox = QtWidgets.QComboBox()
         for i in self.filterByDict.keys():
             self.filterByComboBox.addItem(i)
         self.filterByComboBox.setCurrentIndex(0)
@@ -212,11 +242,10 @@ class MyWindow(QtWidgets.QMainWindow):
 
         minCountHLayout = QtWidgets.QHBoxLayout()
         self.filterWidget.layout().addLayout(minCountHLayout)
-        self.minCountCheckbox = QtWidgets.QCheckBox("Enable Min Count")
+        self.minCountCheckbox.setText("Enable Min Count")
         self.minCountCheckbox.setChecked(True)
         minCountHLayout.addWidget(self.minCountCheckbox)
 
-        self.minCountSpinBox = QtWidgets.QSpinBox()
         self.minCountSpinBox.setMinimum(0)
         self.minCountSpinBox.setValue(2)
         self.minCountSpinBox.valueChanged.connect(self.populateFiltersTable)
@@ -225,7 +254,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.minCountCheckbox.stateChanged.connect(self.minCountSpinBox.setEnabled)
         self.minCountCheckbox.stateChanged.connect(self.populateFiltersTable)
 
-        self.filterTable = QtWidgets.QTableWidget()
         self.filterTable.setColumnCount(2)
         self.filterTable.verticalHeader().hide()
         self.filterTable.setHorizontalHeaderLabels(['Name', 'Count'])
@@ -253,29 +281,26 @@ class MyWindow(QtWidgets.QMainWindow):
         filtersSearchHLayout.addWidget(filterTableSearchBox)
         filterTableSearchBox.textChanged.connect(lambda: searchTableWidget(filterTableSearchBox, self.filterTable))
 
-        # Movies Table ---------------------------------------------------------------------------------------
-        moviesWatchlistVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
-        moviesWatchlistVSplitter.setHandleWidth(20)
-
-        self.moviesTableWidget = QtWidgets.QWidget()
+    def initUIMoviesTable(self):
         moviesTableViewVLayout = QtWidgets.QVBoxLayout()
         self.moviesTableWidget.setLayout(moviesTableViewVLayout)
 
         moviesTableViewVLayout.addWidget(QtWidgets.QLabel("Movies"))
 
-        self.moviesTable = QtWidgets.QTableView()
         self.moviesTable.setSortingEnabled(True)
         self.moviesTable.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.moviesTable.verticalHeader().hide()
         style = "::section {""color: black; }"
         self.moviesTable.horizontalHeader().setStyleSheet(style)
         self.moviesTable.setShowGrid(False)
+
         # TODO: Need to find a better way to set the alternating colors
         # Setting alternate colors to true makes them black and white.
         # Changing the color using a stylesheet looks better but makes
         # the right click menu background also black.
         # self.moviesTable.setAlternatingRowColors(True)
         # self.moviesTable.setStyleSheet("alternate-background-color: #151515;background-color: black;");
+
         self.moviesTable.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.moviesTable.customContextMenuRequested[QtCore.QPoint].connect(self.moviesTableRightMenuShow)
         moviesTableViewVLayout.addWidget(self.moviesTable)
@@ -288,22 +313,19 @@ class MyWindow(QtWidgets.QMainWindow):
                                  QtWidgets.QSizePolicy.Maximum)
         moviesTableSearchHLayout.addWidget(searchText)
 
-        self.moviesTableSearchBox = QtWidgets.QLineEdit(self)
         self.moviesTableSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
         self.moviesTableSearchBox.setClearButtonEnabled(True)
         self.moviesTableSearchBox.textChanged.connect(self.searchMoviesTableView)
         moviesTableSearchHLayout.addWidget(self.moviesTableSearchBox)
 
-        moviesWatchlistVSplitter.addWidget(self.moviesTableWidget)
+        self.moviesWatchListVSplitter.addWidget(self.moviesTableWidget)
 
-        # Watch List ---------------------------------------------------------------------------------------
-        self.watchListWidget = QtWidgets.QWidget()
+    def initUIWatchList(self):
         watchListVLayout = QtWidgets.QVBoxLayout()
         self.watchListWidget.setLayout(watchListVLayout)
 
         watchListVLayout.addWidget(QtWidgets.QLabel("Watch List"))
 
-        self.watchListTable = QtWidgets.QTableView()
         self.watchListTable.setSortingEnabled(False)
         self.watchListTable.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.watchListTable.verticalHeader().hide()
@@ -339,16 +361,12 @@ class MyWindow(QtWidgets.QMainWindow):
         moveDownButton.clicked.connect(lambda: self.watchListMoveRow(self.MoveTo.DOWN))
         watchListButtonsHLayout.addWidget(moveDownButton)
 
-        moviesWatchlistVSplitter.addWidget(self.watchListWidget)
+        self.moviesWatchListVSplitter.addWidget(self.watchListWidget)
 
-        moviesWatchlistVSplitter.setSizes([600, 300])
+    def initUICoverAndSummary(self):
+        self.coverSummaryVSplitter.setHandleWidth(20)
+        self.coverSummaryVSplitter.splitterMoved.connect(self.resizeCoverFile)
 
-        # Cover and Summary ---------------------------------------------------------------------------------------
-        coverSummaryVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
-        coverSummaryVSplitter.setHandleWidth(20)
-        coverSummaryVSplitter.splitterMoved.connect(self.resizeCoverFile)
-
-        self.coverWidget = QtWidgets.QWidget()
         self.coverWidget.setStyleSheet("background-color: black;")
         movieVLayout = QtWidgets.QVBoxLayout()
         self.coverWidget.setLayout(movieVLayout)
@@ -360,14 +378,12 @@ class MyWindow(QtWidgets.QMainWindow):
         #    for style in dataBase.styles(family):
         #        print('\t%s' % style)
 
-        self.movieTitle = QtWidgets.QLabel('')
         self.movieTitle.setWordWrap(True)
         self.movieTitle.setFont(QtGui.QFont('TimesNew Roman', 20))
         self.movieTitle.setSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Fixed)
         self.movieTitle.setStyleSheet("color: white;")
         movieVLayout.addWidget(self.movieTitle)
 
-        self.movieCover = QtWidgets.QLabel(self)
         self.movieCover.setScaledContents(False)
         self.movieCover.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored)
 
@@ -375,34 +391,13 @@ class MyWindow(QtWidgets.QMainWindow):
 
         movieVLayout.addWidget(self.movieCover)
 
-        coverSummaryVSplitter.addWidget(self.coverWidget)
+        self.coverSummaryVSplitter.addWidget(self.coverWidget)
 
-        self.summary = QtWidgets.QTextBrowser()
         self.summary.setFont(QtGui.QFont('TimesNew Roman', 12))
         self.summary.setStyleSheet("color:white; background-color: black;")
-        coverSummaryVSplitter.addWidget(self.summary)
+        self.coverSummaryVSplitter.addWidget(self.summary)
 
-        coverSummaryVSplitter.setSizes([600, 200])
-
-        # ---------------------------------------------------------------------------------------
-
-        # Add the sub-layouts to the mainHSplitter
-        mainHSplitter.addWidget(self.filterWidget)
-        mainHSplitter.addWidget(moviesWatchlistVSplitter)
-        mainHSplitter.addWidget(coverSummaryVSplitter)
-        mainHSplitter.setSizes([250, 625, 400])
-
-        # Bottom ---------------------------------------------------------------------------------------
-        bottomLayout = QtWidgets.QHBoxLayout(self)
-        mainVLayout.addLayout(bottomLayout)
-
-        self.progressBar = QtWidgets.QProgressBar(self)
-        self.progressBar.setMaximum(100)
-        bottomLayout.addWidget(self.progressBar)
-
-        cancelButton = QtWidgets.QPushButton("Cancel", self)
-        cancelButton.clicked.connect(self.cancelButtonClicked)
-        bottomLayout.addWidget(cancelButton)
+        self.coverSummaryVSplitter.setSizes([600, 200])
 
     def refresh(self, forceScan=False):
         if not os.path.exists(self.moviesFolder):
@@ -1095,14 +1090,14 @@ class MyWindow(QtWidgets.QMainWindow):
     # Context Menus -----------------------------------------------------------
 
     def filterRightMenuShowPeople(self):
-        self.peopleRightMenu = QtWidgets.QMenu(self.filterTable)
+        peopleRightMenu = QtWidgets.QMenu(self.filterTable)
         selectedItem = self.filterTable.selectedItems()[0]
         row = selectedItem.row()
-        self.openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
+        openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
         personName = self.filterTable.item(row, 0).text()
-        self.openImdbAction.triggered.connect(lambda: self.openPersonImdbPage(personName))
-        self.peopleRightMenu.addAction(self.openImdbAction)
-        self.peopleRightMenu.exec_(QtGui.QCursor.pos())
+        openImdbAction.triggered.connect(lambda: self.openPersonImdbPage(personName))
+        peopleRightMenu.addAction(openImdbAction)
+        peopleRightMenu.exec_(QtGui.QCursor.pos())
 
     def openPersonImdbPage(self, personName):
         personId = self.db.name2imdbID(personName)
@@ -1161,61 +1156,60 @@ class MyWindow(QtWidgets.QMainWindow):
         rightMenu.exec_(QtGui.QCursor.pos())
 
     def moviesTableRightMenuShow(self, QPos):
-        self.rightMenu = QtWidgets.QMenu(self.moviesTable)
+        self.moviesTableRightMenu = QtWidgets.QMenu(self.moviesTable)
 
         self.clickedMovieTable(self.moviesTable.selectionModel().selectedRows()[0],
                                self.moviesTableProxyModel)
 
-        self.playAction = QtWidgets.QAction("Play", self)
         self.playAction.triggered.connect(lambda: self.playMovie(self.moviesTable,
                                                                  self.moviesTableProxyModel))
-        self.rightMenu.addAction(self.playAction)
+        self.moviesTableRightMenu.addAction(self.playAction)
 
         self.addToWatchListAction = QtWidgets.QAction("Add To Watch List", self)
         self.addToWatchListAction.triggered.connect(self.addToWatchList)
-        self.rightMenu.addAction(self.addToWatchListAction)
+        self.moviesTableRightMenu.addAction(self.addToWatchListAction)
 
         self.openFolderAction = QtWidgets.QAction("Open Folder", self)
         self.openFolderAction.triggered.connect(self.openMovieFolder)
-        self.rightMenu.addAction(self.openFolderAction)
+        self.moviesTableRightMenu.addAction(self.openFolderAction)
 
         self.openJsonAction = QtWidgets.QAction("Open Json File", self)
         self.openJsonAction.triggered.connect(self.openMovieJson)
-        self.rightMenu.addAction(self.openJsonAction)
+        self.moviesTableRightMenu.addAction(self.openJsonAction)
 
         self.openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
         self.openImdbAction.triggered.connect(self.openMovieImdbPage)
-        self.rightMenu.addAction(self.openImdbAction)
+        self.moviesTableRightMenu.addAction(self.openImdbAction)
 
         self.overrideImdbAction = QtWidgets.QAction("Override IMDB ID", self)
         self.overrideImdbAction.triggered.connect(self.overrideID)
-        self.rightMenu.addAction(self.overrideImdbAction)
+        self.moviesTableRightMenu.addAction(self.overrideImdbAction)
 
         self.downloadDataAction = QtWidgets.QAction("Download Data", self)
         self.downloadDataAction.triggered.connect(self.downloadDataMenu)
-        self.rightMenu.addAction(self.downloadDataAction)
+        self.moviesTableRightMenu.addAction(self.downloadDataAction)
 
         self.downloadDataAction = QtWidgets.QAction("Force Download Data", self)
         self.downloadDataAction.triggered.connect(lambda: self.downloadDataMenu(force=True))
-        self.rightMenu.addAction(self.downloadDataAction)
+        self.moviesTableRightMenu.addAction(self.downloadDataAction)
 
         self.downloadDataAction = QtWidgets.QAction("Force Download Json only", self)
         self.downloadDataAction.triggered.connect(lambda: self.downloadDataMenu(force=True, doJson=True, doCover=False))
-        self.rightMenu.addAction(self.downloadDataAction)
+        self.moviesTableRightMenu.addAction(self.downloadDataAction)
 
         self.downloadDataAction = QtWidgets.QAction("Force Download Cover only", self)
         self.downloadDataAction.triggered.connect(lambda: self.downloadDataMenu(force=True, doJson=False, doCover=True))
-        self.rightMenu.addAction(self.downloadDataAction)
+        self.moviesTableRightMenu.addAction(self.downloadDataAction)
 
         self.removeJsonFilesAction = QtWidgets.QAction("Remove .json files", self)
         self.removeJsonFilesAction.triggered.connect(self.removeJsonFilesMenu)
-        self.rightMenu.addAction(self.removeJsonFilesAction)
+        self.moviesTableRightMenu.addAction(self.removeJsonFilesAction)
 
         self.removeCoversAction = QtWidgets.QAction("Remove cover files", self)
         self.removeCoversAction.triggered.connect(self.removeCoverFilesMenu)
-        self.rightMenu.addAction(self.removeCoversAction)
+        self.moviesTableRightMenu.addAction(self.removeCoversAction)
 
-        self.rightMenu.exec_(QtGui.QCursor.pos())
+        self.moviesTableRightMenu.exec_(QtGui.QCursor.pos())
 
     def playMovie(self, table, proxy):
         modelIndex = table.selectionModel().selectedRows()[0]
