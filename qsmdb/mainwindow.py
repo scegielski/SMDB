@@ -70,18 +70,14 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Init UI
 
+        # Set foreground/background colors for item views
+        self.setStyleSheet("""QAbstractItemView{ background: black; color: white; }; """)
+
         # Main Menus
         self.initUIFileMenu()
         self.initUIViewMenu()
 
-        self.setStyleSheet("""
-                        QAbstractItemView{
-                            background: black;
-                            color: white;
-                        };
-                        """
-                           )
-
+        # Add the central widget
         centralWidget = QtWidgets.QWidget()
         self.setCentralWidget(centralWidget)
 
@@ -97,8 +93,8 @@ class MyWindow(QtWidgets.QMainWindow):
         # Filter Table
         self.filterWidget = QtWidgets.QWidget()
         self.filterByComboBox = QtWidgets.QComboBox()
-        self.minCountCheckbox = QtWidgets.QCheckBox()
-        self.minCountSpinBox = QtWidgets.QSpinBox()
+        self.filterMinCountCheckbox = QtWidgets.QCheckBox()
+        self.filterMinCountSpinBox = QtWidgets.QSpinBox()
         self.filterTable = QtWidgets.QTableWidget()
         self.initUIFilterTable()
 
@@ -107,15 +103,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesWatchListVSplitter.setHandleWidth(20)
 
         # Movies Table
-        self.moviesTableRightMenu = None
-        self.playAction = QtWidgets.QAction("Play")
-        self.addToWatchListAction = None
-        self.openFolderAction = None
-        self.openJsonAction = None
-        self.overrideImdbAction = None
-        self.downloadDataAction = None
-        self.removeJsonFilesAction = None
-        self.removeCoversAction = None
         self.moviesTableWidget = QtWidgets.QWidget()
         self.moviesTable = QtWidgets.QTableView()
         self.moviesTableSearchBox = QtWidgets.QLineEdit()
@@ -128,13 +115,22 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.moviesWatchListVSplitter.setSizes([600, 300])
 
-        # Cover and Summary
+        # Cover and Summary Splitter
         self.coverSummaryVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
-        self.coverWidget = QtWidgets.QWidget()
+        self.coverSummaryVSplitter.setHandleWidth(20)
+        self.coverSummaryVSplitter.splitterMoved.connect(self.resizeCoverFile)
+
+        # Title and Cover
+        self.titleAndCoverWidget = QtWidgets.QWidget()
         self.movieTitle = QtWidgets.QLabel('')
         self.movieCover = QtWidgets.QLabel()
+        self.initUITitleAndCover()
+
+        # Summary
         self.summary = QtWidgets.QTextBrowser()
-        self.initUICoverAndSummary()
+        self.initUISummary()
+
+        self.coverSummaryVSplitter.setSizes([600, 200])
 
         # Add the sub-layouts to the mainHSplitter
         mainHSplitter.addWidget(self.filterWidget)
@@ -142,7 +138,7 @@ class MyWindow(QtWidgets.QMainWindow):
         mainHSplitter.addWidget(self.coverSummaryVSplitter)
         mainHSplitter.setSizes([250, 625, 400])
 
-        # Bottom ---------------------------------------------------------------------------------------
+        # Bottom
         bottomLayout = QtWidgets.QHBoxLayout(self)
         mainVLayout.addLayout(bottomLayout)
         self.progressBar = QtWidgets.QProgressBar()
@@ -152,11 +148,7 @@ class MyWindow(QtWidgets.QMainWindow):
         cancelButton.clicked.connect(self.cancelButtonClicked)
         bottomLayout.addWidget(cancelButton)
 
-        # Right click menus
-
-
         self.show()
-
         self.refresh()
 
     def initUIFileMenu(self):
@@ -242,17 +234,17 @@ class MyWindow(QtWidgets.QMainWindow):
 
         minCountHLayout = QtWidgets.QHBoxLayout()
         self.filterWidget.layout().addLayout(minCountHLayout)
-        self.minCountCheckbox.setText("Enable Min Count")
-        self.minCountCheckbox.setChecked(True)
-        minCountHLayout.addWidget(self.minCountCheckbox)
+        self.filterMinCountCheckbox.setText("Enable Min Count")
+        self.filterMinCountCheckbox.setChecked(True)
+        minCountHLayout.addWidget(self.filterMinCountCheckbox)
 
-        self.minCountSpinBox.setMinimum(0)
-        self.minCountSpinBox.setValue(2)
-        self.minCountSpinBox.valueChanged.connect(self.populateFiltersTable)
-        minCountHLayout.addWidget(self.minCountSpinBox)
+        self.filterMinCountSpinBox.setMinimum(0)
+        self.filterMinCountSpinBox.setValue(2)
+        self.filterMinCountSpinBox.valueChanged.connect(self.populateFiltersTable)
+        minCountHLayout.addWidget(self.filterMinCountSpinBox)
 
-        self.minCountCheckbox.stateChanged.connect(self.minCountSpinBox.setEnabled)
-        self.minCountCheckbox.stateChanged.connect(self.populateFiltersTable)
+        self.filterMinCountCheckbox.stateChanged.connect(self.filterMinCountSpinBox.setEnabled)
+        self.filterMinCountCheckbox.stateChanged.connect(self.populateFiltersTable)
 
         self.filterTable.setColumnCount(2)
         self.filterTable.verticalHeader().hide()
@@ -363,20 +355,10 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.moviesWatchListVSplitter.addWidget(self.watchListWidget)
 
-    def initUICoverAndSummary(self):
-        self.coverSummaryVSplitter.setHandleWidth(20)
-        self.coverSummaryVSplitter.splitterMoved.connect(self.resizeCoverFile)
-
-        self.coverWidget.setStyleSheet("background-color: black;")
+    def initUITitleAndCover(self):
+        self.titleAndCoverWidget.setStyleSheet("background-color: black;")
         movieVLayout = QtWidgets.QVBoxLayout()
-        self.coverWidget.setLayout(movieVLayout)
-
-        # Get a list of available fonts
-        # dataBase = QtGui.QFontDatabase()
-        # for family in dataBase.families():
-        #    print('%s' % family)
-        #    for style in dataBase.styles(family):
-        #        print('\t%s' % style)
+        self.titleAndCoverWidget.setLayout(movieVLayout)
 
         self.movieTitle.setWordWrap(True)
         self.movieTitle.setFont(QtGui.QFont('TimesNew Roman', 20))
@@ -386,18 +368,14 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.movieCover.setScaledContents(False)
         self.movieCover.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored)
-
         self.movieCover.setStyleSheet("background-color: black;")
-
         movieVLayout.addWidget(self.movieCover)
+        self.coverSummaryVSplitter.addWidget(self.titleAndCoverWidget)
 
-        self.coverSummaryVSplitter.addWidget(self.coverWidget)
-
+    def initUISummary(self):
         self.summary.setFont(QtGui.QFont('TimesNew Roman', 12))
         self.summary.setStyleSheet("color:white; background-color: black;")
         self.coverSummaryVSplitter.addWidget(self.summary)
-
-        self.coverSummaryVSplitter.setSizes([600, 200])
 
     def refresh(self, forceScan=False):
         if not os.path.exists(self.moviesFolder):
@@ -557,7 +535,7 @@ class MyWindow(QtWidgets.QMainWindow):
         for name in self.moviesSmdbData[filterByKey].keys():
             count = self.moviesSmdbData[filterByKey][name]['num movies']
 
-            if self.minCountCheckbox.isChecked() and count < self.minCountSpinBox.value():
+            if self.filterMinCountCheckbox.isChecked() and count < self.filterMinCountSpinBox.value():
                 continue
 
             nameItem = QtWidgets.QTableWidgetItem(name)
@@ -645,9 +623,9 @@ class MyWindow(QtWidgets.QMainWindow):
         if self.movieCover:
             self.showCover = not self.showCover
             if not self.showCover:
-                self.coverWidget.hide()
+                self.titleAndCoverWidget.hide()
             else:
-                self.coverWidget.show()
+                self.titleAndCoverWidget.show()
 
     def showSummaryMenu(self):
         if self.summary:
@@ -1156,60 +1134,65 @@ class MyWindow(QtWidgets.QMainWindow):
         rightMenu.exec_(QtGui.QCursor.pos())
 
     def moviesTableRightMenuShow(self, QPos):
-        self.moviesTableRightMenu = QtWidgets.QMenu(self.moviesTable)
+        moviesTableRightMenu = QtWidgets.QMenu(self.moviesTable)
 
         self.clickedMovieTable(self.moviesTable.selectionModel().selectedRows()[0],
                                self.moviesTableProxyModel)
 
-        self.playAction.triggered.connect(lambda: self.playMovie(self.moviesTable,
-                                                                 self.moviesTableProxyModel))
-        self.moviesTableRightMenu.addAction(self.playAction)
+        playAction = QtWidgets.QAction("Play")
+        playAction.triggered.connect(lambda: self.playMovie(self.moviesTable,
+                                                            self.moviesTableProxyModel))
+        moviesTableRightMenu.addAction(playAction)
 
-        self.addToWatchListAction = QtWidgets.QAction("Add To Watch List", self)
-        self.addToWatchListAction.triggered.connect(self.addToWatchList)
-        self.moviesTableRightMenu.addAction(self.addToWatchListAction)
+        addToWatchListAction = QtWidgets.QAction("Add To Watch List", self)
+        addToWatchListAction.triggered.connect(self.addToWatchList)
+        moviesTableRightMenu.addAction(addToWatchListAction)
 
-        self.openFolderAction = QtWidgets.QAction("Open Folder", self)
-        self.openFolderAction.triggered.connect(self.openMovieFolder)
-        self.moviesTableRightMenu.addAction(self.openFolderAction)
+        openFolderAction = QtWidgets.QAction("Open Folder", self)
+        openFolderAction.triggered.connect(self.openMovieFolder)
+        moviesTableRightMenu.addAction(openFolderAction)
 
-        self.openJsonAction = QtWidgets.QAction("Open Json File", self)
-        self.openJsonAction.triggered.connect(self.openMovieJson)
-        self.moviesTableRightMenu.addAction(self.openJsonAction)
+        openJsonAction = QtWidgets.QAction("Open Json File", self)
+        openJsonAction.triggered.connect(self.openMovieJson)
+        moviesTableRightMenu.addAction(openJsonAction)
 
-        self.openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
-        self.openImdbAction.triggered.connect(self.openMovieImdbPage)
-        self.moviesTableRightMenu.addAction(self.openImdbAction)
+        openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
+        openImdbAction.triggered.connect(self.openMovieImdbPage)
+        moviesTableRightMenu.addAction(openImdbAction)
 
-        self.overrideImdbAction = QtWidgets.QAction("Override IMDB ID", self)
-        self.overrideImdbAction.triggered.connect(self.overrideID)
-        self.moviesTableRightMenu.addAction(self.overrideImdbAction)
+        overrideImdbAction = QtWidgets.QAction("Override IMDB ID", self)
+        overrideImdbAction.triggered.connect(self.overrideID)
+        moviesTableRightMenu.addAction(overrideImdbAction)
 
-        self.downloadDataAction = QtWidgets.QAction("Download Data", self)
-        self.downloadDataAction.triggered.connect(self.downloadDataMenu)
-        self.moviesTableRightMenu.addAction(self.downloadDataAction)
+        downloadDataAction = QtWidgets.QAction("Download Data", self)
+        downloadDataAction.triggered.connect(self.downloadDataMenu)
+        moviesTableRightMenu.addAction(downloadDataAction)
 
-        self.downloadDataAction = QtWidgets.QAction("Force Download Data", self)
-        self.downloadDataAction.triggered.connect(lambda: self.downloadDataMenu(force=True))
-        self.moviesTableRightMenu.addAction(self.downloadDataAction)
+        downloadDataAction = QtWidgets.QAction("Force Download Data", self)
+        downloadDataAction.triggered.connect(lambda: self.downloadDataMenu(force=True))
+        moviesTableRightMenu.addAction(downloadDataAction)
 
-        self.downloadDataAction = QtWidgets.QAction("Force Download Json only", self)
-        self.downloadDataAction.triggered.connect(lambda: self.downloadDataMenu(force=True, doJson=True, doCover=False))
-        self.moviesTableRightMenu.addAction(self.downloadDataAction)
+        downloadDataAction = QtWidgets.QAction("Force Download Json only", self)
+        downloadDataAction.triggered.connect(lambda: self.downloadDataMenu(force=True,
+                                                                           doJson=True,
+                                                                           doCover=False))
+        moviesTableRightMenu.addAction(downloadDataAction)
 
-        self.downloadDataAction = QtWidgets.QAction("Force Download Cover only", self)
-        self.downloadDataAction.triggered.connect(lambda: self.downloadDataMenu(force=True, doJson=False, doCover=True))
-        self.moviesTableRightMenu.addAction(self.downloadDataAction)
+        downloadDataAction = QtWidgets.QAction("Force Download Cover only", self)
+        downloadDataAction.triggered.connect(lambda: self.downloadDataMenu(force=True,
+                                                                           doJson=False,
+                                                                           doCover=True))
+        moviesTableRightMenu.addAction(downloadDataAction)
 
-        self.removeJsonFilesAction = QtWidgets.QAction("Remove .json files", self)
-        self.removeJsonFilesAction.triggered.connect(self.removeJsonFilesMenu)
-        self.moviesTableRightMenu.addAction(self.removeJsonFilesAction)
+        removeJsonFilesAction = QtWidgets.QAction("Remove .json files", self)
+        removeJsonFilesAction.triggered.connect(self.removeJsonFilesMenu)
+        moviesTableRightMenu.addAction(removeJsonFilesAction)
 
-        self.removeCoversAction = QtWidgets.QAction("Remove cover files", self)
-        self.removeCoversAction.triggered.connect(self.removeCoverFilesMenu)
-        self.moviesTableRightMenu.addAction(self.removeCoversAction)
+        removeCoversAction = QtWidgets.QAction("Remove cover files", self)
+        removeCoversAction.triggered.connect(self.removeCoverFilesMenu)
+        moviesTableRightMenu.addAction(removeCoversAction)
 
-        self.moviesTableRightMenu.exec_(QtGui.QCursor.pos())
+        moviesTableRightMenu.exec_(QtGui.QCursor.pos())
 
     def playMovie(self, table, proxy):
         modelIndex = table.selectionModel().selectedRows()[0]
