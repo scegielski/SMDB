@@ -526,10 +526,14 @@ class MyWindow(QtWidgets.QMainWindow):
 
         if filterByText == 'Director' or filterByText == 'Actor':
             self.filterTable.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+            try: self.filterTable.customContextMenuRequested[QtCore.QPoint].disconnect()
+            except Exception: pass
             self.filterTable.customContextMenuRequested[QtCore.QPoint].connect(
                 self.filterRightMenuShowPeople)
         elif filterByText == 'Year':
             self.filterTable.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+            try: self.filterTable.customContextMenuRequested[QtCore.QPoint].disconnect()
+            except Exception: pass
             self.filterTable.customContextMenuRequested[QtCore.QPoint].connect(
                 self.filterRightMenuShowYear)
         else:
@@ -617,7 +621,6 @@ class MyWindow(QtWidgets.QMainWindow):
         if not searchText:
             self.moviesTableProxyModel.sort(0)
             self.filterTableSelectionChanged()
-
 
     def showFiltersMenu(self):
         if self.filterWidget:
