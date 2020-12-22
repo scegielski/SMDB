@@ -408,7 +408,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableProxyModel.setDynamicSortFilter(False)
         self.moviesTableView.setWordWrap(False)
 
-        self.moviesTableView.setColumnWidth(0, 15)  # year
+        mtm = self.moviesTableModel
+        self.moviesTableView.setColumnWidth(mtm.Columns.Year.value, 15)  # year
         self.moviesTableView.setColumnWidth(1, 200)  # title
         self.moviesTableView.setColumnWidth(2, 60)  # rating
         self.moviesTableView.setColumnWidth(3, 150)  # box office

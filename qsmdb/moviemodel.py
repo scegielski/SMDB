@@ -1,8 +1,7 @@
-from PyQt5 import QtCore
-import os
 import json
 import fnmatch
-import re
+from enum import Enum
+from enum import auto
 
 from .utilities import *
 
@@ -14,6 +13,24 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
         self.movieSet = set()
 
         self._data = []
+
+        self.Columns = Enum('Columns', ['Year',
+                                        'Title',
+                                        'Rating',
+                                        'BoxOffice',
+                                        'RunTime',
+                                        'Id',
+                                        'Folder',
+                                        'Path',
+                                        'JsonExists',
+                                        'Rank'], start=0)
+
+        #self._headers = []
+        for c in self.Columns:
+            tokens = splitCamelCase(c.name)
+            headerName = ' '.join(tokens)
+            print("headerName = %s" % headerName)
+
         self._headers = ['Year',
                          'Title',
                          'Rating',
