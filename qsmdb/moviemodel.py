@@ -18,48 +18,48 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                         'Title',
                                         'Rating',
                                         'BoxOffice',
-                                        'RunTime',
+                                        'Runtime',
                                         'Id',
                                         'Folder',
                                         'Path',
                                         'JsonExists',
                                         'Rank'], start=0)
 
-        #self._headers = []
+        self.defaultWidths = [15,  # Year
+                              200, # Title
+                              60,  # Rating
+                              150, # box office
+                              60,  # runtime
+                              60,  # id
+                              200, # folder
+                              300, # path
+                              65,  # json exists
+                              40,  # rank
+                              ]
+
+        self._headers = []
         for c in self.Columns:
             tokens = splitCamelCase(c.name)
-            headerName = ' '.join(tokens)
-            print("headerName = %s" % headerName)
-
-        self._headers = ['Year',
-                         'Title',
-                         'Rating',
-                         'Box office',
-                         'Runtime',
-                         'Id',
-                         'Folder name',
-                         'Path',
-                         'Json Exists',
-                         'Rank']
+            self._headers.append(' '.join(tokens))
 
         if not os.path.exists(moviesFolder):
             return
 
-        movieList = []
+        moviesFolderList = []
         useSmdbData = False
-        if neverScan and (not smdbData or not 'titles' in smdbData):
+        if neverScan and (not smdbData or 'titles' not in smdbData):
             return
         elif not forceScan and smdbData and 'titles' in smdbData:
             useSmdbData = True
             for title in smdbData['titles']:
-                movieList.append(title)
+                moviesFolderList.append(title)
         else:
             with os.scandir(moviesFolder) as files:
                 for f in files:
                     if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
-                        movieList.append(f.name)
+                        moviesFolderList.append(f.name)
 
-        for movieFolderName in movieList:
+        for movieFolderName in moviesFolderList:
             data = {}
             if useSmdbData:
                 data = smdbData['titles'][movieFolderName]
@@ -77,12 +77,18 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
             moviePath = os.path.join(moviesFolder, movieFolderName)
             movieData = self.createMovieData(data, moviePath, movieFolderName)
 
-            folderName = movieData[6]
+            folderName = movieData[self.Columns.Folder.value]
             if folderName not in self.movieSet:
                 self.movieSet.add(folderName)
                 self._data.append(movieData)
 
         self.sort(0, QtCore.Qt.AscendingOrder)
+
+    def getNumColumns(self):
+        return len(self.Columns)
+
+    def getLastColumn(self):
+        return len(self.Columns) - 1
 
     def getYear(self, row):
         return self._data[row][0]
@@ -178,6 +184,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
     def createMovieData(self, data, moviePath, movieFolderName, generateNewRank=False):
         reMoneyValue = re.compile(r'(\d+(?:,\d+)*(?:\.\d+)?)')
         reCurrency = re.compile(r'^([A-Z][A-Z][A-Z])(.*)')
+
         movieData = []
         for header in self._headers:
             headerLower = header.lower()
@@ -189,7 +196,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                     movieData.append("True")
                 else:
                     movieData.append("False")
-            elif headerLower == 'folder name':
+            elif headerLower == 'folder':
                 movieData.append(movieFolderName)
             elif generateNewRank and headerLower == 'rank':
                 rank = len(self._data)
