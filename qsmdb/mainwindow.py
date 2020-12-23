@@ -98,6 +98,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableView = QtWidgets.QTableView()
         self.moviesTableSearchBox = QtWidgets.QLineEdit()
         self.movieTableColumnsVisible = []
+        self.moviesListHeaderActions = []
         self.initUIMoviesTable()
 
         # Watch List
@@ -309,7 +310,7 @@ class MyWindow(QtWidgets.QMainWindow):
         hh = self.moviesTableView.horizontalHeader()
         hh.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         #hh.customContextMenuRequested[QtCore.QPoint].connect(self.moviesTableHeaderRightMenuShow)
-        hh.customContextMenuRequested[QtCore.QPoint].connect(lambda: self.headerRightMenuShow(QtCore.QPoint, self.moviesTableView, self.movieTableColumnsVisible))
+        hh.customContextMenuRequested[QtCore.QPoint].connect(lambda: self.headerRightMenuShow(QtCore.QPoint, self.moviesTableView, self.movieTableColumnsVisible, self.moviesListHeaderActions))
 
         # Right click menu
         self.moviesTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
@@ -349,7 +350,7 @@ class MyWindow(QtWidgets.QMainWindow):
         # Right click header menu
         hh = self.watchListTableView.horizontalHeader()
         hh.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        hh.customContextMenuRequested[QtCore.QPoint].connect(lambda: self.headerRightMenuShow(QtCore.QPoint, self.watchListTableView, self.watchListColumnsVisible))
+        hh.customContextMenuRequested[QtCore.QPoint].connect(lambda: self.headerRightMenuShow(QtCore.QPoint, self.watchListTableView, self.watchListColumnsVisible, self.watchListHeaderActions))
 
         # Right click menu
         self.watchListTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
@@ -1180,14 +1181,14 @@ class MyWindow(QtWidgets.QMainWindow):
         else:
             tableView.hideColumn(c.value)
 
-    def headerRightMenuShow(self, QPos, tableView, visibleColumnsList):
+    def headerRightMenuShow(self, QPos, tableView, visibleColumnsList, actionsList):
         menu = QtWidgets.QMenu(tableView.horizontalHeader())
 
         showAllAction = QtWidgets.QAction("Show All")
         showAllAction.triggered.connect(lambda a, tv=tableView, vcl=visibleColumnsList: self.showAllColumns(tv, vcl))
         menu.addAction(showAllAction)
 
-        self.watchListHeaderActions = []
+        actionsList = []
         for c in self.watchListTableModel.Columns:
             header = self.watchListTableModel._headers[c.value]
             action = QtWidgets.QAction(header)
@@ -1195,7 +1196,7 @@ class MyWindow(QtWidgets.QMainWindow):
             action.setChecked(visibleColumnsList[c.value])
             action.triggered.connect(lambda a, column=c, tv=tableView, vcl=visibleColumnsList: self.toggleColumn(column, tv, vcl))
             menu.addAction(action)
-            self.watchListHeaderActions.append(action)
+            actionsList.append(action)
 
         menu.exec_(QtGui.QCursor.pos())
 
