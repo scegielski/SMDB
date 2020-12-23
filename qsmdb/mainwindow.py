@@ -1167,23 +1167,23 @@ class MyWindow(QtWidgets.QMainWindow):
     def openYearImdbPage(self, year):
         webbrowser.open('https://www.imdb.com/search/title/?release_date=%s-01-01,%s-12-31' % (year, year), new=2)
 
-    def showAllWatchListColumns(self):
+    def showAllWatchListColumns(self, tableView, visibleList):
         for i, c in enumerate(self.watchListColumnsVisible):
-            self.watchListColumnsVisible[i] = True
-            self.watchListTableView.showColumn(i)
+            visibleList[i] = True
+            tableView.showColumn(i)
 
-    def showHideWatchListColumn(self, c):
-        self.watchListColumnsVisible[c.value] = not self.watchListColumnsVisible[c.value]
-        if self.watchListColumnsVisible[c.value]:
-            self.watchListTableView.showColumn(c.value)
+    def showHideWatchListColumn(self, c, tableView, visibleList):
+        visibleList[c.value] = not visibleList[c.value]
+        if visibleList[c.value]:
+            tableView.showColumn(c.value)
         else:
-            self.watchListTableView.hideColumn(c.value)
+            tableView.hideColumn(c.value)
 
     def watchListTableHeaderRightMenuShow(self, QPos):
         menu = QtWidgets.QMenu(self.watchListTableView.horizontalHeader())
 
         showAllAction = QtWidgets.QAction("Show All")
-        showAllAction.triggered.connect(self.showAllWatchListColumns)
+        showAllAction.triggered.connect(lambda a, tableView=self.watchListTableView, visibleList=self.watchListColumnsVisible: self.showAllWatchListColumns(tableView, visibleList))
         menu.addAction(showAllAction)
 
         self.watchListHeaderActions = []
@@ -1192,7 +1192,7 @@ class MyWindow(QtWidgets.QMainWindow):
             action = QtWidgets.QAction(header)
             action.setCheckable(True)
             action.setChecked(self.watchListColumnsVisible[c.value])
-            action.triggered.connect(lambda a, column=c: self.showHideWatchListColumn(column))
+            action.triggered.connect(lambda a, column=c, tableView=self.watchListTableView, visibleList=self.watchListColumnsVisible: self.showHideWatchListColumn(column, tableView, visibleList))
             menu.addAction(action)
             self.watchListHeaderActions.append(action)
 
