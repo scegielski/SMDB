@@ -91,34 +91,34 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
         return len(self.Columns) - 1
 
     def getYear(self, row):
-        return self._data[row][0]
+        return self._data[row][self.Columns.Year.value]
 
     def getTitle(self, row):
-        return self._data[row][1]
+        return self._data[row][self.Columns.Title.value]
 
     def getRating(self, row):
-        return self._data[row][2]
+        return self._data[row][self.Columns.Rating.value]
 
     def getBoxOffice(self, row):
-        return self._data[row][3]
+        return self._data[row][self.Columns.BoxOffice.value]
 
     def getRuntime(self, row):
-        return self._data[row][4]
+        return self._data[row][self.Columns.Runtime.value]
 
     def getId(self, row):
-        return self._data[row][5]
+        return self._data[row][self.Columns.Id.value]
 
     def getFolderName(self, row):
-        return self._data[row][6]
+        return self._data[row][self.Columns.Folder.value]
 
     def getPath(self, row):
-        return self._data[row][7]
+        return self._data[row][self.Columns.Path.value]
 
     def getJsonExists(self, row):
-        return self._data[row][8]
+        return self._data[row][self.Columns.JsonExists.value]
 
     def getRank(self, row):
-        return self._data[row][9]
+        return self._data[row][self.Columns.Rank.value]
 
     def getDataSize(self):
         return len(self._data)
