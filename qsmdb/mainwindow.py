@@ -104,8 +104,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.watchListWidget = QtWidgets.QWidget()
         self.watchListTableView = QtWidgets.QTableView()
         self.watchListColumnsVisible = []
-        self.actions = []
-        self.lambdas = []
+        self.watchListHeaderActions = []
         self.initUIWatchList()
 
         self.moviesWatchListVSplitter.setSizes([600, 300])
@@ -343,6 +342,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.watchListTableView.verticalHeader().hide()
         style = "::section {""color: black; }"
         self.watchListTableView.horizontalHeader().setStyleSheet(style)
+        self.watchListTableView.horizontalHeader().setSectionsMovable(True)
         self.watchListTableView.setShowGrid(False)
 
         # Right click header menu
@@ -1167,40 +1167,34 @@ class MyWindow(QtWidgets.QMainWindow):
     def openYearImdbPage(self, year):
         webbrowser.open('https://www.imdb.com/search/title/?release_date=%s-01-01,%s-12-31' % (year, year), new=2)
 
-    def showHideWatchListColumn(self, name, value):
-        self.watchListColumnsVisible[value] = not self.watchListColumnsVisible[value]
-        print("Set column %s to %s" % (name, self.watchListColumnsVisible[value]))
-        pass
+    def showAllWatchListColumns(self):
+        for i, c in enumerate(self.watchListColumnsVisible):
+            self.watchListColumnsVisible[i] = True
+            self.watchListTableView.showColumn(i)
+
+    def showHideWatchListColumn(self, c):
+        self.watchListColumnsVisible[c.value] = not self.watchListColumnsVisible[c.value]
+        if self.watchListColumnsVisible[c.value]:
+            self.watchListTableView.showColumn(c.value)
+        else:
+            self.watchListTableView.hideColumn(c.value)
 
     def watchListTableHeaderRightMenuShow(self, QPos):
         menu = QtWidgets.QMenu(self.watchListTableView.horizontalHeader())
 
         showAllAction = QtWidgets.QAction("Show All")
+        showAllAction.triggered.connect(self.showAllWatchListColumns)
         menu.addAction(showAllAction)
 
-        #myButtons_dict = {"phase": self.ui.phase_scan_button,
-        #                  "etalon": self.ui.etalon_scan_button,
-        #                  "mirror": self.ui.mirror_scan_button,
-        #                  "gain": self.ui.gain_scan_button}
-
-        #for button in myButtons_dict:
-        #    myButtons_dict[button].clicked.connect(lambda: _, b=button self.scan_callback(scan=b))
-
-        self.actions = []
+        self.watchListHeaderActions = []
         for c in self.watchListTableModel.Columns:
             header = self.watchListTableModel._headers[c.value]
             action = QtWidgets.QAction(header)
-            self.actions.append(action)
-
-
-        for i, c in enumerate(self.watchListTableModel.Columns):
-            index = c.value
-            self.actions[index].setCheckable(True)
-            self.actions[index].setChecked(self.watchListColumnsVisible[c.value])
-            self.actions[index].triggered.connect(lambda a, # what is this?
-                                                         name=c.name,
-                                                         val=c.value:self.showHideWatchListColumn(name, val))
-            menu.addAction(self.actions[index])
+            action.setCheckable(True)
+            action.setChecked(self.watchListColumnsVisible[c.value])
+            action.triggered.connect(lambda a, column=c: self.showHideWatchListColumn(column))
+            menu.addAction(action)
+            self.watchListHeaderActions.append(action)
 
         menu.exec_(QtGui.QCursor.pos())
 
