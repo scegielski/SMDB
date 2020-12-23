@@ -97,12 +97,15 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableWidget = QtWidgets.QWidget()
         self.moviesTableView = QtWidgets.QTableView()
         self.moviesTableSearchBox = QtWidgets.QLineEdit()
+        self.movieTableColumnsVisible = []
         self.initUIMoviesTable()
-
 
         # Watch List
         self.watchListWidget = QtWidgets.QWidget()
         self.watchListTableView = QtWidgets.QTableView()
+        self.watchListColumnsVisible = []
+        self.actions = []
+        self.lambdas = []
         self.initUIWatchList()
 
         self.moviesWatchListVSplitter.setSizes([600, 300])
@@ -303,6 +306,12 @@ class MyWindow(QtWidgets.QMainWindow):
         # self.moviesTable.setAlternatingRowColors(True)
         # self.moviesTable.setStyleSheet("alternate-background-color: #151515;background-color: black;");
 
+        # Right click header menu
+        hh = self.moviesTableView.horizontalHeader()
+        hh.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        hh.customContextMenuRequested[QtCore.QPoint].connect(self.moviesTableHeaderRightMenuShow)
+
+        # Right click menu
         self.moviesTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.moviesTableView.customContextMenuRequested[QtCore.QPoint].connect(self.moviesTableRightMenuShow)
         moviesTableViewVLayout.addWidget(self.moviesTableView)
@@ -336,6 +345,12 @@ class MyWindow(QtWidgets.QMainWindow):
         self.watchListTableView.horizontalHeader().setStyleSheet(style)
         self.watchListTableView.setShowGrid(False)
 
+        # Right click header menu
+        hh = self.watchListTableView.horizontalHeader()
+        hh.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        hh.customContextMenuRequested[QtCore.QPoint].connect(self.watchListTableHeaderRightMenuShow)
+
+        # Right click menu
         self.watchListTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.watchListTableView.customContextMenuRequested[QtCore.QPoint].connect(self.watchListTableRightMenuShow)
 
@@ -426,14 +441,21 @@ class MyWindow(QtWidgets.QMainWindow):
         mtv.setWordWrap(False)
 
         # Set the column widths
+        self.movieTableColumnsVisible = []
         for col in mtm.Columns:
             mtv.setColumnWidth(col.value, mtm.defaultWidths[col.value])
+            self.movieTableColumnsVisible.append(True)
 
-        # Hide id, folder, path, and rank by default
-        mtv.hideColumn(mtm.Columns.Id.value)
-        mtv.hideColumn(mtm.Columns.Folder.value)
-        mtv.hideColumn(mtm.Columns.Path.value)
-        mtv.hideColumn(mtm.Columns.Rank.value)
+        # For the movie list, hide
+        # id, folder, path, and rank by default
+        columnsToHide = [mtm.Columns.Id,
+                         mtm.Columns.Folder,
+                         mtm.Columns.Path,
+                         mtm.Columns.Rank]
+        for c in columnsToHide:
+            index = c.value
+            mtv.hideColumn(index)
+            self.movieTableColumnsVisible[index] = False
 
         # Make the row height smaller
         mtv.verticalHeader().setMinimumSectionSize(10)
@@ -468,8 +490,24 @@ class MyWindow(QtWidgets.QMainWindow):
         wtpm.setDynamicSortFilter(False)
         wtv.setWordWrap(False)
 
+        self.watchListColumnsVisible = []
         for col in wtm.Columns:
             wtv.setColumnWidth(col.value, wtm.defaultWidths[col.value])
+            self.watchListColumnsVisible.append(True)
+
+        # For the watch list, hide
+        # box office, runtime, id, folder, path,
+        # and json exists by default
+        columnsToHide = [wtm.Columns.BoxOffice,
+                         wtm.Columns.Runtime,
+                         wtm.Columns.Id,
+                         wtm.Columns.Folder,
+                         wtm.Columns.Path,
+                         wtm.Columns.JsonExists]
+        for c in columnsToHide:
+            index = c.value
+            wtv.hideColumn(index)
+            self.watchListColumnsVisible[index] = False
 
         wtv.hideColumn(wtm.Columns.BoxOffice.value)
         wtv.hideColumn(wtm.Columns.Runtime.value)
@@ -1129,6 +1167,43 @@ class MyWindow(QtWidgets.QMainWindow):
     def openYearImdbPage(self, year):
         webbrowser.open('https://www.imdb.com/search/title/?release_date=%s-01-01,%s-12-31' % (year, year), new=2)
 
+    def showHideWatchListColumn(self, name, value):
+        self.watchListColumnsVisible[value] = not self.watchListColumnsVisible[value]
+        print("Set column %s to %s" % (name, self.watchListColumnsVisible[value]))
+        pass
+
+    def watchListTableHeaderRightMenuShow(self, QPos):
+        menu = QtWidgets.QMenu(self.watchListTableView.horizontalHeader())
+
+        showAllAction = QtWidgets.QAction("Show All")
+        menu.addAction(showAllAction)
+
+        #myButtons_dict = {"phase": self.ui.phase_scan_button,
+        #                  "etalon": self.ui.etalon_scan_button,
+        #                  "mirror": self.ui.mirror_scan_button,
+        #                  "gain": self.ui.gain_scan_button}
+
+        #for button in myButtons_dict:
+        #    myButtons_dict[button].clicked.connect(lambda: _, b=button self.scan_callback(scan=b))
+
+        self.actions = []
+        for c in self.watchListTableModel.Columns:
+            header = self.watchListTableModel._headers[c.value]
+            action = QtWidgets.QAction(header)
+            self.actions.append(action)
+
+
+        for i, c in enumerate(self.watchListTableModel.Columns):
+            index = c.value
+            self.actions[index].setCheckable(True)
+            self.actions[index].setChecked(self.watchListColumnsVisible[c.value])
+            self.actions[index].triggered.connect(lambda a, # what is this?
+                                                         name=c.name,
+                                                         val=c.value:self.showHideWatchListColumn(name, val))
+            menu.addAction(self.actions[index])
+
+        menu.exec_(QtGui.QCursor.pos())
+
     def watchListTableRightMenuShow(self, QPos):
         rightMenu = QtWidgets.QMenu(self.moviesTableView)
 
@@ -1159,6 +1234,24 @@ class MyWindow(QtWidgets.QMainWindow):
                                self.watchListTableProxyModel)
 
         rightMenu.exec_(QtGui.QCursor.pos())
+
+
+    def moviesTableHeaderRightMenuShow(self, QPos):
+        menu = QtWidgets.QMenu(self.moviesTableView.horizontalHeader())
+
+        showAllAction = QtWidgets.QAction("Show All")
+        menu.addAction(showAllAction)
+
+        actions = []
+        for c in self.moviesTableModel.Columns:
+            header = self.moviesTableModel._headers[c.value]
+            action = QtWidgets.QAction(header)
+            action.setCheckable(True)
+            action.setChecked(self.movieTableColumnsVisible[c.value])
+            actions.append(action)
+            menu.addAction(action)
+
+        menu.exec_(QtGui.QCursor.pos())
 
     def moviesTableRightMenuShow(self, QPos):
         moviesTableRightMenu = QtWidgets.QMenu(self.moviesTableView)
