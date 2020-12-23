@@ -75,7 +75,9 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                             print("Error reading %s" % jsonFile)
 
             moviePath = os.path.join(moviesFolder, movieFolderName)
-            movieData = self.createMovieData(data, moviePath, movieFolderName)
+            movieData = self.createMovieData(data,
+                                             moviePath,
+                                             movieFolderName)
 
             folderName = movieData[self.Columns.Folder.value]
             if folderName not in self.movieSet:
@@ -188,40 +190,42 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
         movieData = []
         for column in self.Columns:
-            if column.name == self.Columns.Path.name:
+            if column == self.Columns.Path:
                 movieData.append(moviePath)
-            elif column.name == self.Columns.JsonExists.name:
+            elif column == self.Columns.JsonExists:
                 jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
                 if os.path.exists(jsonFile):
                     movieData.append("True")
                 else:
                     movieData.append("False")
-            elif column.name == self.Columns.Folder.name:
+            elif column == self.Columns.Folder:
                 movieData.append(movieFolderName)
-            elif column.name == self.Columns.Rank.name:
+            elif column == self.Columns.Rank and generateNewRank:
                 rank = len(self._data)
                 movieData.append(rank)
             else:
+                # Get a lower case version of the header name
+                # which matches the smdb data keys
                 header = self._headers[column.value]
                 headerLower = header.lower()
                 if headerLower not in data:
-                    if column.name == self.Columns.Title.name:
+                    if column == self.Columns.Title:
                         title, year = getNiceTitleAndYear(movieFolderName)
                         movieData.append(title)
-                    elif column.name == self.Columns.Year.name:
+                    elif column == self.Columns.Year:
                         title, year = getNiceTitleAndYear(movieFolderName)
                         movieData.append(year)
                     else:
                         movieData.append('')
                 else:
-                    if column.name == self.Columns.Runtime.name:
+                    if column == self.Columns.Runtime:
                         runtime = data[headerLower]
                         if not runtime:
                             runtime = '000'
                         else:
                             runtime = '%03d' % int(runtime)
                         movieData.append(runtime)
-                    elif column.name == self.Columns.Rating.name:
+                    elif column == self.Columns.Rating:
                         rating = data[headerLower]
                         if not rating:
                             rating = '0.0'
@@ -230,7 +234,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                             if len(rating) == 1:
                                 rating = '%s.0' % rating
                         movieData.append(rating)
-                    elif column.name == self.Columns.BoxOffice.name:
+                    elif column == self.Columns.BoxOffice:
                         boxOffice = data[headerLower]
                         currency = 'USD'
                         if boxOffice:
