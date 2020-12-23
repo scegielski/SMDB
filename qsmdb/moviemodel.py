@@ -8,10 +8,8 @@ from .utilities import *
 class MoviesTableModel(QtCore.QAbstractTableModel):
     def __init__(self, smdbData, moviesFolder, forceScan=False, neverScan=False):
         super().__init__()
-        self.numVisibleMovies = 0
 
         self.movieSet = set()
-
         self._data = []
 
         self.Columns = Enum('Columns', ['Year',
@@ -45,6 +43,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
         if not os.path.exists(moviesFolder):
             return
 
+        # Either read the list of movie folders from the smdb data
+        # or scan the movies folder
         moviesFolderList = []
         useSmdbData = False
         if neverScan and (not smdbData or 'titles' not in smdbData):
@@ -82,7 +82,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                 self.movieSet.add(folderName)
                 self._data.append(movieData)
 
-        self.sort(0, QtCore.Qt.AscendingOrder)
+        # Sort by year
+        self.sort(self.Columns.Year.value, QtCore.Qt.AscendingOrder)
 
     def getNumColumns(self):
         return len(self.Columns)
@@ -129,7 +130,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                          moviePath,
                                          movieFolderName,
                                          generateNewRank=True)
-        folderName = movieData[6]
+        folderName = movieData[self.Columns.Folder.value]
         if folderName not in self.movieSet:
             self.movieSet.add(folderName)
             self.layoutAboutToBeChanged.emit()
@@ -139,7 +140,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
     def removeMovies(self, minRow, maxRow):
         # Remove folderName from movieSet
         for row in range(minRow, maxRow + 1, 1):
-            folderName = self._data[row][6]
+            folderName = self.getFolderName(row)
             if folderName in self.movieSet:
                 self.movieSet.remove(folderName)
 
@@ -161,7 +162,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
         # Re-number ranks
         for i in range(len(self._data)):
-            self._data[i][9] = i
+            self._data[i][self.Columns.Rank.value] = i
 
         self.layoutChanged.emit()
 
@@ -178,7 +179,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
         movieData = self.createMovieData(data, moviePath, movieFolderName)
         self._data[row] = movieData
         minIndex = self.index(row, 0)
-        maxIndex = self.index(row, 8)
+        maxIndex = self.index(row, self.getLastColumn())
         self.dataChanged.emit(minIndex, maxIndex)
 
     def createMovieData(self, data, moviePath, movieFolderName, generateNewRank=False):
@@ -263,10 +264,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
         return True
 
     def data(self, index, role):
-        row = index.row()
-        col = index.column()
         if role == QtCore.Qt.DisplayRole:
-            ln = len(self._data)
             return self._data[index.row()][index.column()]
         elif role == QtCore.Qt.TextAlignmentRole:
             return QtCore.Qt.AlignLeft
