@@ -187,40 +187,41 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
         reCurrency = re.compile(r'^([A-Z][A-Z][A-Z])(.*)')
 
         movieData = []
-        for header in self._headers:
-            headerLower = header.lower()
-            if headerLower == 'path':
+        for column in self.Columns:
+            if column.name == self.Columns.Path.name:
                 movieData.append(moviePath)
-            elif headerLower == 'json exists':
+            elif column.name == self.Columns.JsonExists.name:
                 jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
                 if os.path.exists(jsonFile):
                     movieData.append("True")
                 else:
                     movieData.append("False")
-            elif headerLower == 'folder':
+            elif column.name == self.Columns.Folder.name:
                 movieData.append(movieFolderName)
-            elif generateNewRank and headerLower == 'rank':
+            elif column.name == self.Columns.Rank.name:
                 rank = len(self._data)
                 movieData.append(rank)
             else:
+                header = self._headers[column.value]
+                headerLower = header.lower()
                 if headerLower not in data:
-                    if headerLower == 'title':
+                    if column.name == self.Columns.Title.name:
                         title, year = getNiceTitleAndYear(movieFolderName)
                         movieData.append(title)
-                    elif headerLower == 'year':
+                    elif column.name == self.Columns.Year.name:
                         title, year = getNiceTitleAndYear(movieFolderName)
                         movieData.append(year)
                     else:
                         movieData.append('')
                 else:
-                    if headerLower == 'runtime':
+                    if column.name == self.Columns.Runtime.name:
                         runtime = data[headerLower]
                         if not runtime:
                             runtime = '000'
                         else:
                             runtime = '%03d' % int(runtime)
                         movieData.append(runtime)
-                    elif headerLower == 'rating':
+                    elif column.name == self.Columns.Rating.name:
                         rating = data[headerLower]
                         if not rating:
                             rating = '0.0'
@@ -229,7 +230,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                             if len(rating) == 1:
                                 rating = '%s.0' % rating
                         movieData.append(rating)
-                    elif headerLower == 'box office':
+                    elif column.name == self.Columns.BoxOffice.name:
                         boxOffice = data[headerLower]
                         currency = 'USD'
                         if boxOffice:
