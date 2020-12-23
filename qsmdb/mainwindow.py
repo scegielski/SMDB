@@ -26,6 +26,65 @@ def getMovieKey(movie, key):
         return None
 
 
+def toggleColumn(c, tableView, visibleList):
+    visibleList[c.value] = not visibleList[c.value]
+    if visibleList[c.value]:
+        tableView.showColumn(c.value)
+    else:
+        tableView.hideColumn(c.value)
+
+
+def showAllColumns(tableView, visibleList):
+    for i, c in enumerate(visibleList):
+        visibleList[i] = True
+        tableView.showColumn(i)
+
+
+def hideAllColumns(tableView, visibleList):
+    for i, c in enumerate(visibleList):
+        if i != 0: # leave the first column visible
+            visibleList[i] = False
+            tableView.hideColumn(i)
+
+
+def openYearImdbPage(year):
+    webbrowser.open('https://www.imdb.com/search/title/?release_date=%s-01-01,%s-12-31' % (year, year), new=2)
+
+
+def headerRightMenuShow(QPos, tableView, visibleColumnsList, model):
+    menu = QtWidgets.QMenu(tableView.horizontalHeader())
+
+    showAllAction = QtWidgets.QAction("Show All")
+    showAllAction.triggered.connect(lambda a,
+                                    tv=tableView,
+                                    vcl=visibleColumnsList:
+                                    showAllColumns(tv, vcl))
+    menu.addAction(showAllAction)
+
+    hideAllAction = QtWidgets.QAction("Hide All")
+    hideAllAction.triggered.connect(lambda a,
+                                    tv=tableView,
+                                    vcl=visibleColumnsList:
+                                    hideAllColumns(tv, vcl))
+    menu.addAction(hideAllAction)
+
+    actionsList = []
+    for c in model.Columns:
+        header = model._headers[c.value]
+        action = QtWidgets.QAction(header)
+        action.setCheckable(True)
+        action.setChecked(visibleColumnsList[c.value])
+        action.triggered.connect(lambda a,
+                                 column=c,
+                                 tv=tableView,
+                                 vcl=visibleColumnsList:
+                                 toggleColumn(column, tv, vcl))
+        menu.addAction(action)
+        actionsList.append(action)
+
+    menu.exec_(QtGui.QCursor.pos())
+
+
 class MyWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super(MyWindow, self).__init__()
@@ -309,8 +368,11 @@ class MyWindow(QtWidgets.QMainWindow):
         # Right click header menu
         hh = self.moviesTableView.horizontalHeader()
         hh.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        #hh.customContextMenuRequested[QtCore.QPoint].connect(self.moviesTableHeaderRightMenuShow)
-        hh.customContextMenuRequested[QtCore.QPoint].connect(lambda: self.headerRightMenuShow(QtCore.QPoint, self.moviesTableView, self.moviesTableColumnsVisible, self.moviesTableModel))
+        hh.customContextMenuRequested[QtCore.QPoint].connect(
+            lambda: headerRightMenuShow(QtCore.QPoint,
+                                             self.moviesTableView,
+                                             self.moviesTableColumnsVisible,
+                                             self.moviesTableModel))
 
         # Right click menu
         self.moviesTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
@@ -350,7 +412,11 @@ class MyWindow(QtWidgets.QMainWindow):
         # Right click header menu
         hh = self.watchListTableView.horizontalHeader()
         hh.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        hh.customContextMenuRequested[QtCore.QPoint].connect(lambda: self.headerRightMenuShow(QtCore.QPoint, self.watchListTableView, self.watchListColumnsVisible, self.watchListTableModel))
+        hh.customContextMenuRequested[QtCore.QPoint].connect(
+            lambda: headerRightMenuShow(QtCore.QPoint,
+                                             self.watchListTableView,
+                                             self.watchListColumnsVisible,
+                                             self.watchListTableModel))
 
         # Right click menu
         self.watchListTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
@@ -1162,43 +1228,9 @@ class MyWindow(QtWidgets.QMainWindow):
         row = selectedItem.row()
         year = self.filterTable.item(row, 0).text()
         openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
-        openImdbAction.triggered.connect(lambda: self.openYearImdbPage(year))
+        openImdbAction.triggered.connect(lambda: openYearImdbPage(year))
         rightMenu.addAction(openImdbAction)
         rightMenu.exec_(QtGui.QCursor.pos())
-
-    def openYearImdbPage(self, year):
-        webbrowser.open('https://www.imdb.com/search/title/?release_date=%s-01-01,%s-12-31' % (year, year), new=2)
-
-    def showAllColumns(self, tableView, visibleList):
-        for i, c in enumerate(visibleList):
-            visibleList[i] = True
-            tableView.showColumn(i)
-
-    def toggleColumn(self, c, tableView, visibleList):
-        visibleList[c.value] = not visibleList[c.value]
-        if visibleList[c.value]:
-            tableView.showColumn(c.value)
-        else:
-            tableView.hideColumn(c.value)
-
-    def headerRightMenuShow(self, QPos, tableView, visibleColumnsList, model):
-        menu = QtWidgets.QMenu(tableView.horizontalHeader())
-
-        showAllAction = QtWidgets.QAction("Show All")
-        showAllAction.triggered.connect(lambda a, tv=tableView, vcl=visibleColumnsList: self.showAllColumns(tv, vcl))
-        menu.addAction(showAllAction)
-
-        actionsList = []
-        for c in model.Columns:
-            header = model._headers[c.value]
-            action = QtWidgets.QAction(header)
-            action.setCheckable(True)
-            action.setChecked(visibleColumnsList[c.value])
-            action.triggered.connect(lambda a, column=c, tv=tableView, vcl=visibleColumnsList: self.toggleColumn(column, tv, vcl))
-            menu.addAction(action)
-            actionsList.append(action)
-
-        menu.exec_(QtGui.QCursor.pos())
 
     def watchListTableRightMenuShow(self, QPos):
         rightMenu = QtWidgets.QMenu(self.moviesTableView)
