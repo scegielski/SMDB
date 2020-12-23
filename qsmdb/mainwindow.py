@@ -97,7 +97,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableWidget = QtWidgets.QWidget()
         self.moviesTableView = QtWidgets.QTableView()
         self.moviesTableSearchBox = QtWidgets.QLineEdit()
-        self.movieTableColumnsVisible = []
+        self.moviesTableColumnsVisible = []
         self.moviesListHeaderActions = []
         self.initUIMoviesTable()
 
@@ -310,7 +310,7 @@ class MyWindow(QtWidgets.QMainWindow):
         hh = self.moviesTableView.horizontalHeader()
         hh.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         #hh.customContextMenuRequested[QtCore.QPoint].connect(self.moviesTableHeaderRightMenuShow)
-        hh.customContextMenuRequested[QtCore.QPoint].connect(lambda: self.headerRightMenuShow(QtCore.QPoint, self.moviesTableView, self.movieTableColumnsVisible, self.moviesListHeaderActions))
+        hh.customContextMenuRequested[QtCore.QPoint].connect(lambda: self.headerRightMenuShow(QtCore.QPoint, self.moviesTableView, self.moviesTableColumnsVisible, self.moviesTableModel))
 
         # Right click menu
         self.moviesTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
@@ -350,7 +350,7 @@ class MyWindow(QtWidgets.QMainWindow):
         # Right click header menu
         hh = self.watchListTableView.horizontalHeader()
         hh.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        hh.customContextMenuRequested[QtCore.QPoint].connect(lambda: self.headerRightMenuShow(QtCore.QPoint, self.watchListTableView, self.watchListColumnsVisible, self.watchListHeaderActions))
+        hh.customContextMenuRequested[QtCore.QPoint].connect(lambda: self.headerRightMenuShow(QtCore.QPoint, self.watchListTableView, self.watchListColumnsVisible, self.watchListTableModel))
 
         # Right click menu
         self.watchListTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
@@ -443,10 +443,10 @@ class MyWindow(QtWidgets.QMainWindow):
         mtv.setWordWrap(False)
 
         # Set the column widths
-        self.movieTableColumnsVisible = []
+        self.moviesTableColumnsVisible = []
         for col in mtm.Columns:
             mtv.setColumnWidth(col.value, mtm.defaultWidths[col.value])
-            self.movieTableColumnsVisible.append(True)
+            self.moviesTableColumnsVisible.append(True)
 
         # For the movie list, hide
         # id, folder, path, and rank by default
@@ -457,7 +457,7 @@ class MyWindow(QtWidgets.QMainWindow):
         for c in columnsToHide:
             index = c.value
             mtv.hideColumn(index)
-            self.movieTableColumnsVisible[index] = False
+            self.moviesTableColumnsVisible[index] = False
 
         # Make the row height smaller
         mtv.verticalHeader().setMinimumSectionSize(10)
@@ -1181,7 +1181,7 @@ class MyWindow(QtWidgets.QMainWindow):
         else:
             tableView.hideColumn(c.value)
 
-    def headerRightMenuShow(self, QPos, tableView, visibleColumnsList, actionsList):
+    def headerRightMenuShow(self, QPos, tableView, visibleColumnsList, model):
         menu = QtWidgets.QMenu(tableView.horizontalHeader())
 
         showAllAction = QtWidgets.QAction("Show All")
@@ -1189,8 +1189,8 @@ class MyWindow(QtWidgets.QMainWindow):
         menu.addAction(showAllAction)
 
         actionsList = []
-        for c in self.watchListTableModel.Columns:
-            header = self.watchListTableModel._headers[c.value]
+        for c in model.Columns:
+            header = model._headers[c.value]
             action = QtWidgets.QAction(header)
             action.setCheckable(True)
             action.setChecked(visibleColumnsList[c.value])
@@ -1243,7 +1243,7 @@ class MyWindow(QtWidgets.QMainWindow):
             header = self.moviesTableModel._headers[c.value]
             action = QtWidgets.QAction(header)
             action.setCheckable(True)
-            action.setChecked(self.movieTableColumnsVisible[c.value])
+            action.setChecked(self.moviesTableColumnsVisible[c.value])
             actions.append(action)
             menu.addAction(action)
 
