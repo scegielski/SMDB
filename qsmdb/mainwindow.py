@@ -109,6 +109,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.showFilters = True
         self.showMoviesTable = True
         self.showCover = True
+        self.showCastCrew = True
         self.showSummary = True
         self.showWatchList = True
 
@@ -149,8 +150,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.initUIFilterTable()
 
         # Splitter for Movies Table and Watch List
-        self.moviesWatchListVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
-        self.moviesWatchListVSplitter.setHandleWidth(20)
+        moviesWatchListVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
+        moviesWatchListVSplitter.setHandleWidth(20)
 
         # Movies Table
         self.moviesTableWidget = QtWidgets.QWidget()
@@ -159,6 +160,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableColumnsVisible = []
         self.moviesListHeaderActions = []
         self.initUIMoviesTable()
+        moviesWatchListVSplitter.addWidget(self.moviesTableWidget)
 
         # Watch List
         self.watchListWidget = QtWidgets.QWidget()
@@ -166,13 +168,19 @@ class MyWindow(QtWidgets.QMainWindow):
         self.watchListColumnsVisible = []
         self.watchListHeaderActions = []
         self.initUIWatchList()
+        moviesWatchListVSplitter.addWidget(self.watchListWidget)
 
-        self.moviesWatchListVSplitter.setSizes([700, 200])
+        moviesWatchListVSplitter.setSizes([700, 200])
 
-        # Cover and Summary Splitter
-        self.coverSummaryVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
-        self.coverSummaryVSplitter.setHandleWidth(20)
-        self.coverSummaryVSplitter.splitterMoved.connect(self.resizeCoverFile)
+        # Cover and Summary V Splitter
+        coverSummaryVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
+        coverSummaryVSplitter.setHandleWidth(20)
+        coverSummaryVSplitter.splitterMoved.connect(self.resizeCoverFile)
+
+        # Title/Cover and Cast/Crew H Splitter
+        coverCrewHSplitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
+
+        coverSummaryVSplitter.addWidget(coverCrewHSplitter)
 
         # Title and Cover
         self.titleAndCoverWidget = QtWidgets.QWidget()
@@ -180,17 +188,33 @@ class MyWindow(QtWidgets.QMainWindow):
         self.movieCover = QtWidgets.QLabel()
         self.initUITitleAndCover()
 
+        coverCrewHSplitter.addWidget(self.titleAndCoverWidget)
+
+        # Cast and Crew list
+        self.castCrewWidget = QtWidgets.QWidget()
+        coverCrewHSplitter.addWidget(self.castCrewWidget)
+        coverCrewHSplitter.splitterMoved.connect(self.resizeCoverFile)
+        castCrewVLayout = QtWidgets.QVBoxLayout()
+        self.castCrewWidget.setLayout(castCrewVLayout)
+        castCrewLabel = QtWidgets.QLabel("Cast and Crew")
+        castCrewVLayout.addWidget(castCrewLabel)
+        self.castCrewListView = QtWidgets.QListWidget()
+        castCrewVLayout.addWidget(self.castCrewListView)
+        coverCrewHSplitter.setSizes([350, 150])
+
         # Summary
         self.summary = QtWidgets.QTextBrowser()
-        self.initUISummary()
-
-        self.coverSummaryVSplitter.setSizes([600, 200])
+        self.summary.setFont(QtGui.QFont('TimesNew Roman', 12))
+        self.summary.setStyleSheet("color:white; background-color: black;")
+        coverSummaryVSplitter.setSizes([600, 200])
+        coverSummaryVSplitter.addWidget(self.summary)
 
         # Add the sub-layouts to the mainHSplitter
         mainHSplitter.addWidget(self.filterWidget)
-        mainHSplitter.addWidget(self.moviesWatchListVSplitter)
-        mainHSplitter.addWidget(self.coverSummaryVSplitter)
-        mainHSplitter.setSizes([300, 800, 500])
+        mainHSplitter.addWidget(moviesWatchListVSplitter)
+        mainHSplitter.addWidget(coverSummaryVSplitter)
+        mainHSplitter.setSizes([250, 750, 600])
+        mainHSplitter.splitterMoved.connect(self.resizeCoverFile)
 
         # Bottom
         bottomLayout = QtWidgets.QHBoxLayout(self)
@@ -278,6 +302,12 @@ class MyWindow(QtWidgets.QMainWindow):
         showCoverAction.setChecked(self.showCover)
         showCoverAction.triggered.connect(self.showCoverMenu)
         viewMenu.addAction(showCoverAction)
+
+        showCastCrewAction = QtWidgets.QAction("Show Cast and Crew", self)
+        showCastCrewAction.setCheckable(True)
+        showCastCrewAction.setChecked(self.showCastCrew)
+        showCastCrewAction.triggered.connect(self.showCastCrewMenu)
+        viewMenu.addAction(showCastCrewAction)
 
         showSummaryAction = QtWidgets.QAction("Show Summary", self)
         showSummaryAction.setCheckable(True)
@@ -393,7 +423,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableSearchBox.textChanged.connect(self.searchMoviesTableView)
         moviesTableSearchHLayout.addWidget(self.moviesTableSearchBox)
 
-        self.moviesWatchListVSplitter.addWidget(self.moviesTableWidget)
 
     def initUIWatchList(self):
         watchListVLayout = QtWidgets.QVBoxLayout()
@@ -447,7 +476,6 @@ class MyWindow(QtWidgets.QMainWindow):
         moveDownButton.clicked.connect(lambda: self.watchListMoveRow(self.MoveTo.DOWN))
         watchListButtonsHLayout.addWidget(moveDownButton)
 
-        self.moviesWatchListVSplitter.addWidget(self.watchListWidget)
 
     def initUITitleAndCover(self):
         self.titleAndCoverWidget.setStyleSheet("background-color: black;")
@@ -464,12 +492,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.movieCover.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored)
         self.movieCover.setStyleSheet("background-color: black;")
         movieVLayout.addWidget(self.movieCover)
-        self.coverSummaryVSplitter.addWidget(self.titleAndCoverWidget)
-
-    def initUISummary(self):
-        self.summary.setFont(QtGui.QFont('TimesNew Roman', 12))
-        self.summary.setStyleSheet("color:white; background-color: black;")
-        self.coverSummaryVSplitter.addWidget(self.summary)
 
     def refreshMoviesList(self, forceScan=False):
         if os.path.exists(self.moviesSmdbFile):
@@ -749,12 +771,20 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.watchListWidget.show()
 
     def showCoverMenu(self):
-        if self.movieCover:
+        if self.titleAndCoverWidget:
             self.showCover = not self.showCover
             if not self.showCover:
                 self.titleAndCoverWidget.hide()
             else:
                 self.titleAndCoverWidget.show()
+
+    def showCastCrewMenu(self):
+        if self.castCrewWidget:
+            self.showCastCrew = not self.showCastCrew
+            if not self.showCastCrew:
+                self.castCrewWidget.hide()
+            else:
+                self.castCrewWidget.show()
 
     def showSummaryMenu(self):
         if self.summary:
