@@ -492,9 +492,10 @@ class MyWindow(QtWidgets.QMainWindow):
         self.titleAndCoverWidget.setLayout(movieVLayout)
 
         self.movieTitle.setWordWrap(True)
-        self.movieTitle.setFont(QtGui.QFont('TimesNew Roman', 20))
+        self.movieTitle.setAlignment(QtCore.Qt.AlignTop)
+        self.movieTitle.setFont(QtGui.QFont('TimesNew Roman', 15))
         self.movieTitle.setSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Fixed)
-        self.movieTitle.setStyleSheet("color: white;")
+        self.movieTitle.setStyleSheet("color: yellow;")
         movieVLayout.addWidget(self.movieTitle)
 
         self.movieCover.setScaledContents(False)
