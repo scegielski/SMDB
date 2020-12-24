@@ -825,6 +825,8 @@ class MyWindow(QtWidgets.QMainWindow):
         if len(self.castCrewListView.selectedItems()) == 0:
             return
 
+        self.moviesTableSearchBox.clear()
+
         movieList = []
         for item in self.castCrewListView.selectedItems():
             smdbKey = None
