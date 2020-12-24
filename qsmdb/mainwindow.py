@@ -413,6 +413,14 @@ class MyWindow(QtWidgets.QMainWindow):
         moviesTableSearchHLayout = QtWidgets.QHBoxLayout()
         moviesTableViewVLayout.addLayout(moviesTableSearchHLayout)
 
+        # Show all button
+        showAllButton = QtWidgets.QPushButton("Show All")
+        showAllButton.setSizePolicy(QtWidgets.QSizePolicy.Maximum,
+                                    QtWidgets.QSizePolicy.Maximum)
+        showAllButton.clicked.connect(self.showAllMoviesTableView)
+        moviesTableSearchHLayout.addWidget(showAllButton)
+
+        # Search box
         searchText = QtWidgets.QLabel("Search")
         searchText.setSizePolicy(QtWidgets.QSizePolicy.Maximum,
                                  QtWidgets.QSizePolicy.Maximum)
@@ -746,6 +754,13 @@ class MyWindow(QtWidgets.QMainWindow):
         self.showMovieInfo(jsonData)
         self.showCastCrewInfo(jsonData)
 
+    def showAllMoviesTableView(self):
+        self.moviesTableSearchBox.clear()
+        self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
+        self.showMoviesTableSelectionStatus()
+        for row in range(self.moviesTableProxyModel.rowCount()):
+            self.moviesTableView.setRowHidden(row, False)
+
     def searchMoviesTableView(self):
         searchText = self.moviesTableSearchBox.text()
         self.moviesTableProxyModel.setFilterKeyColumn(1)
@@ -847,11 +862,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def filterTableSelectionChanged(self):
         if len(self.filterTable.selectedItems()) == 0:
-            self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
-            self.showMoviesTableSelectionStatus()
-            for row in range(self.moviesTableProxyModel.rowCount()):
-                self.moviesTableView.setRowHidden(row, False)
-            return
+            self.showAllMoviesTableView()
 
         filterByText = self.filterByComboBox.currentText()
         filterByKey = self.filterByDict[filterByText]
