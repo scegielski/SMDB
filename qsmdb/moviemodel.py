@@ -18,6 +18,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                         'BoxOffice',
                                         'Runtime',
                                         'Director',
+                                        'Country',
+                                        'Company',
                                         'Id',
                                         'Folder',
                                         'Path',
@@ -30,6 +32,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                               150, # box office
                               60,  # runtime
                               150, # director
+                              150, # country
+                              150, # company
                               60,  # id
                               200, # folder
                               300, # path
@@ -207,6 +211,18 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
             elif column == self.Columns.Rank and generateNewRank:
                 rank = len(self._data)
                 movieData.append(rank)
+            elif column == self.Columns.Country:
+                if 'countries' in data and data['countries']:
+                    country = data['countries'][0]
+                    movieData.append(country)
+                else:
+                    movieData.append('')
+            elif column == self.Columns.Company:
+                if 'companies' in data and data['companies']:
+                    company = data['companies'][0]
+                    movieData.append(company)
+                else:
+                    movieData.append('')
             else:
                 # Get a lower case version of the header name
                 # which matches the smdb data keys

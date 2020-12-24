@@ -547,8 +547,10 @@ class MyWindow(QtWidgets.QMainWindow):
             self.moviesTableColumnsVisible.append(True)
 
         # For the movie list, hide
-        # id, folder, path, and rank by default
+        # id, folder, path, company, country, and rank by default
         columnsToHide = [mtm.Columns.Id,
+                         mtm.Columns.Country,
+                         mtm.Columns.Company,
                          mtm.Columns.Folder,
                          mtm.Columns.Path,
                          mtm.Columns.Rank]
@@ -596,11 +598,13 @@ class MyWindow(QtWidgets.QMainWindow):
             self.watchListColumnsVisible.append(True)
 
         # For the watch list, hide
-        # box office, runtime, id, folder, path,
-        # and json exists by default
+        # country, company, box office, runtime, id,
+        # folder, path, and json exists by default
         columnsToHide = [wtm.Columns.BoxOffice,
                          wtm.Columns.Runtime,
                          wtm.Columns.Director,
+                         wtm.Columns.Country,
+                         wtm.Columns.Company,
                          wtm.Columns.Id,
                          wtm.Columns.Folder,
                          wtm.Columns.Path,
