@@ -1160,6 +1160,7 @@ class MyWindow(QtWidgets.QMainWindow):
                                 genres[genre]['movies'].append(titleYear)
                                 genres[genre]['num movies'] += 1
 
+                    jsonCompanies = None
                     if 'companies' in jsonData and jsonData['companies']:
                         jsonCompanies = jsonData['companies']
                         for company in jsonCompanies:
@@ -1171,9 +1172,10 @@ class MyWindow(QtWidgets.QMainWindow):
                                 companies[company]['movies'].append(titleYear)
                                 companies[company]['num movies'] += 1
 
+                    jsonCountries = None
                     if 'countries' in jsonData and jsonData['countries']:
-                        jsonCompanies = jsonData['countries']
-                        for country in jsonCompanies:
+                        jsonCountries = jsonData['countries']
+                        for country in jsonCountries:
                             if country not in countries:
                                 countries[country] = {}
                                 countries[country]['num movies'] = 0
@@ -1206,6 +1208,8 @@ class MyWindow(QtWidgets.QMainWindow):
                                           'box office': jsonBoxOffice,
                                           'director': directorName,
                                           'genres': jsonGenres,
+                                          'countries': jsonCountries,
+                                          'companies': jsonCompanies,
                                           'actors': movieActorsList,
                                           'rank': rank}
 
