@@ -99,7 +99,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesFolder = self.settings.value('movies_folder', "J:/Movies", type=str)
 
         # Init UI
-        self.setWindowTitle("SMDB")
+        self.setWindowTitle("SMDB %s" % self.moviesFolder)
         self.setGeometry(200, 75, 1600, 900)
 
         # Set foreground/background colors for item views
@@ -638,6 +638,7 @@ class MyWindow(QtWidgets.QMainWindow):
             QtWidgets.QFileDialog.DontResolveSymlinks)
         if os.path.exists(moviesFolder):
             self.moviesFolder = moviesFolder
+            self.setWindowTitle("SMDB %s" % self.moviesFolder)
             self.settings.setValue('movies_folder', self.moviesFolder)
             print("Saved: moviesFolder = %s" % self.moviesFolder)
             readSmdbFile(self.moviesSmdbFile)
