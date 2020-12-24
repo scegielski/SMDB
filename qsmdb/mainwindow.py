@@ -199,6 +199,7 @@ class MyWindow(QtWidgets.QMainWindow):
         castCrewLabel = QtWidgets.QLabel("Cast and Crew")
         castCrewVLayout.addWidget(castCrewLabel)
         self.castCrewListView = QtWidgets.QListWidget()
+        self.castCrewListView.itemSelectionChanged.connect(self.castCrewSelectionChanged)
         castCrewVLayout.addWidget(self.castCrewListView)
         coverCrewHSplitter.setSizes([350, 150])
 
@@ -718,22 +719,32 @@ class MyWindow(QtWidgets.QMainWindow):
         sourceIndex = proxyModel.mapToSource(modelIndex)
         sourceRow = sourceIndex.row()
         title = model.getTitle(sourceRow)
-        try:
-            moviePath = model.getPath(sourceRow)
-            folderName = model.getFolderName(sourceRow)
-            year = model.getYear(sourceRow)
-            jsonFile = os.path.join(moviePath, '%s.json' % folderName)
-            coverFile = os.path.join(moviePath, '%s.jpg' % folderName)
-            if not os.path.exists(coverFile):
-                coverFilePng = os.path.join(moviePath, '%s.png' % folderName)
-                if os.path.exists(coverFilePng):
-                    coverFile = coverFilePng
 
-            self.movieTitle.setText('%s (%s)' % (title, year))
-            self.showCoverFile(coverFile)
-            self.showMovieInfo(jsonFile)
-        except:
-            print("Error with movie %s" % title)
+        moviePath = model.getPath(sourceRow)
+        folderName = model.getFolderName(sourceRow)
+        year = model.getYear(sourceRow)
+        jsonFile = os.path.join(moviePath, '%s.json' % folderName)
+        coverFile = os.path.join(moviePath, '%s.jpg' % folderName)
+        if not os.path.exists(coverFile):
+            coverFilePng = os.path.join(moviePath, '%s.png' % folderName)
+            if os.path.exists(coverFilePng):
+                coverFile = coverFilePng
+
+        self.movieTitle.setText('%s (%s)' % (title, year))
+        self.showCoverFile(coverFile)
+
+        jsonData = None
+        if os.path.exists(jsonFile):
+            with open(jsonFile) as f:
+                try:
+                    jsonData = json.load(f)
+                except UnicodeDecodeError:
+                    print("Error reading %s" % jsonFile)
+        else:
+            self.summary.clear()
+
+        self.showMovieInfo(jsonData)
+        self.showCastCrewInfo(jsonData)
 
     def searchMoviesTableView(self):
         searchText = self.moviesTableSearchBox.text()
@@ -793,6 +804,46 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.summary.hide()
             else:
                 self.summary.show()
+
+    def castCrewSelectionChanged(self):
+        if len(self.castCrewListView.selectedItems()) == 0:
+            return
+
+        filterByKey = 'actors'
+
+        movieList = []
+        for item in self.castCrewListView.selectedItems():
+            name = item.text()
+            movies = self.moviesSmdbData[filterByKey][name]['movies']
+            for movie in movies:
+                movieList.append(movie)
+
+        for row in range(self.moviesTableProxyModel.rowCount()):
+            self.moviesTableView.setRowHidden(row, True)
+
+        self.progressBar.setMaximum(len(movieList))
+
+        progress = 0
+        firstRow = -1
+        self.numVisibleMovies = 0
+        for row in range(self.moviesTableProxyModel.rowCount()):
+            proxyModelIndex = self.moviesTableProxyModel.index(row, 0)
+            sourceIndex = self.moviesTableProxyModel.mapToSource(proxyModelIndex)
+            sourceRow = sourceIndex.row()
+            title = self.moviesTableModel.getTitle(sourceRow)
+            year = self.moviesTableModel.getYear(sourceRow)
+
+            for (t, y) in movieList:
+                if t == title and y == year:
+                    self.numVisibleMovies += 1
+                    if firstRow == -1:
+                        firstRow = row
+                    self.moviesTableView.setRowHidden(row, False)
+            progress += 1
+            self.progressBar.setValue(progress)
+
+        self.progressBar.setValue(0)
+        self.showMoviesTableSelectionStatus()
 
     def filterTableSelectionChanged(self):
         if len(self.filterTable.selectedItems()) == 0:
@@ -863,55 +914,55 @@ class MyWindow(QtWidgets.QMainWindow):
         else:
             self.movieCover.setPixmap(QtGui.QPixmap(0, 0))
 
-    def showMovieInfo(self, jsonFile):
-        if os.path.exists(jsonFile):
-            with open(jsonFile) as f:
-                try:
-                    data = json.load(f)
-                    infoText = ''
-                    if 'director' in data and data['director']:
-                        infoText += 'Directed by: %s<br>' % data['director'][0]
-                    if 'rating' in data and data['rating']:
-                        infoText += '<br>Rating: %s<br>' % data['rating']
-                    if 'runtime' in data and data['runtime']:
-                        infoText += 'Runtime: %s minutes<br>' % data['runtime']
-                    if 'genres' in data and data['genres']:
-                        infoText += 'Genres: '
-                        for genre in data['genres']:
-                            infoText += '%s, ' % genre
-                        infoText += '<br>'
-                    if 'box office' in data and data['box office']:
-                        infoText += 'Box Office: %s<br>' % data['box office']
-                    if 'cast' in data and data['cast']:
-                        infoText += '<br>Cast:<br>'
-                        for c in data['cast']:
-                            infoText += '%s<br>' % c
-                    if 'plot' in data and data['plot']:
-                        infoText += '<br>Plot:<br>'
-                        plot = ''
-                        if isinstance(data['plot'], list):
-                            plot = data['plot'][0]
-                        else:
-                            plot = data['plot']
-                        # Remove the author of the plot's name
-                        plot = plot.split('::')[0]
-                        infoText += '%s<br>' % plot
-                    if 'synopsis' in data and data['synopsis']:
-                        infoText += '<br>Synopsis:<br>'
-                        synopsis = ''
-                        if isinstance(data['synopsis'], list):
-                            synopsis = data['synopsis'][0]
-                        else:
-                            synopsis = data['synopsis']
-                        # Remove the author of the synopsis's name
-                        synopsis = synopsis.split('::')[0]
-                        infoText += '%s<br>' % synopsis
-                    # infoText = '<span style=\" color: #ffffff; font-size: 8pt\">%s</span>' % infoText
-                    self.summary.setText(infoText)
-                except UnicodeDecodeError:
-                    print("Error reading %s" % jsonFile)
-        else:
-            self.summary.clear()
+    def showCastCrewInfo(self, jsonData):
+        self.castCrewListView.clear()
+        if 'cast' in jsonData and jsonData['cast']:
+            for c in jsonData['cast']:
+                castItem = QtWidgets.QListWidgetItem(c)
+                castItem.setData(QtCore.Qt.UserRole, 'actor')
+                self.castCrewListView.addItem(castItem)
+
+    def showMovieInfo(self, jsonData):
+        infoText = ''
+        if 'director' in jsonData and jsonData['director']:
+            infoText += 'Directed by: %s<br>' % jsonData['director'][0]
+        if 'rating' in jsonData and jsonData['rating']:
+            infoText += '<br>Rating: %s<br>' % jsonData['rating']
+        if 'runtime' in jsonData and jsonData['runtime']:
+            infoText += 'Runtime: %s minutes<br>' % jsonData['runtime']
+        if 'genres' in jsonData and jsonData['genres']:
+            infoText += 'Genres: '
+            for genre in jsonData['genres']:
+                infoText += '%s, ' % genre
+            infoText += '<br>'
+        if 'box office' in jsonData and jsonData['box office']:
+            infoText += 'Box Office: %s<br>' % jsonData['box office']
+        if 'cast' in jsonData and jsonData['cast']:
+            infoText += '<br>Cast:<br>'
+            for c in jsonData['cast']:
+                infoText += '%s<br>' % c
+        if 'plot' in jsonData and jsonData['plot']:
+            infoText += '<br>Plot:<br>'
+            plot = ''
+            if isinstance(jsonData['plot'], list):
+                plot = jsonData['plot'][0]
+            else:
+                plot = jsonData['plot']
+            # Remove the author of the plot's name
+            plot = plot.split('::')[0]
+            infoText += '%s<br>' % plot
+        if 'synopsis' in jsonData and jsonData['synopsis']:
+            infoText += '<br>Synopsis:<br>'
+            synopsis = ''
+            if isinstance(jsonData['synopsis'], list):
+                synopsis = jsonData['synopsis'][0]
+            else:
+                synopsis = jsonData['synopsis']
+            # Remove the author of the synopsis's name
+            synopsis = synopsis.split('::')[0]
+            infoText += '%s<br>' % synopsis
+        # infoText = '<span style=\" color: #ffffff; font-size: 8pt\">%s</span>' % infoText
+        self.summary.setText(infoText)
 
     def writeMovieJson(self, movie, jsonFile):
         d = {}
