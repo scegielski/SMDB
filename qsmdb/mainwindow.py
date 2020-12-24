@@ -568,6 +568,7 @@ class MyWindow(QtWidgets.QMainWindow):
         # and json exists by default
         columnsToHide = [wtm.Columns.BoxOffice,
                          wtm.Columns.Runtime,
+                         wtm.Columns.Director,
                          wtm.Columns.Id,
                          wtm.Columns.Folder,
                          wtm.Columns.Path,

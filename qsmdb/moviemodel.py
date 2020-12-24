@@ -17,6 +17,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                         'Rating',
                                         'BoxOffice',
                                         'Runtime',
+                                        'Director',
                                         'Id',
                                         'Folder',
                                         'Path',
@@ -28,6 +29,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                               60,  # Rating
                               150, # box office
                               60,  # runtime
+                              150, # director
                               60,  # id
                               200, # folder
                               300, # path
