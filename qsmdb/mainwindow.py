@@ -100,7 +100,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Init UI
         self.setWindowTitle("SMDB")
-        self.setGeometry(200, 75, 1275, 700)
+        self.setGeometry(200, 75, 1600, 900)
 
         # Set foreground/background colors for item views
         self.setStyleSheet("""QAbstractItemView{ background: black; color: white; }; """)
@@ -167,7 +167,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.watchListHeaderActions = []
         self.initUIWatchList()
 
-        self.moviesWatchListVSplitter.setSizes([600, 300])
+        self.moviesWatchListVSplitter.setSizes([700, 200])
 
         # Cover and Summary Splitter
         self.coverSummaryVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
@@ -190,7 +190,7 @@ class MyWindow(QtWidgets.QMainWindow):
         mainHSplitter.addWidget(self.filterWidget)
         mainHSplitter.addWidget(self.moviesWatchListVSplitter)
         mainHSplitter.addWidget(self.coverSummaryVSplitter)
-        mainHSplitter.setSizes([250, 625, 400])
+        mainHSplitter.setSizes([300, 800, 500])
 
         # Bottom
         bottomLayout = QtWidgets.QHBoxLayout(self)
