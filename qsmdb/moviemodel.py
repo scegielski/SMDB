@@ -58,6 +58,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                 for f in files:
                     if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
                         moviesFolderList.append(f.name)
+                    else:
+                        print("Not adding %s to movie list" % f.name)
 
         for movieFolderName in moviesFolderList:
             data = {}
