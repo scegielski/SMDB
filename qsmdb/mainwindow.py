@@ -937,6 +937,7 @@ class MyWindow(QtWidgets.QMainWindow):
             self.movieCover.setPixmap(QtGui.QPixmap(0, 0))
 
     def showCastCrewInfo(self, jsonData):
+        if not jsonData: return
         self.castCrewListView.clear()
 
         directorHeaderItem = QtWidgets.QListWidgetItem("Director:")
@@ -970,6 +971,8 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.castCrewListView.addItem(castItem)
 
     def showMovieInfo(self, jsonData):
+        if not jsonData: return
+
         infoText = ''
         if 'plot' in jsonData and jsonData['plot']:
             infoText += '<br>Plot:<br>'
