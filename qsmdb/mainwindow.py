@@ -970,23 +970,6 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def showMovieInfo(self, jsonData):
         infoText = ''
-        if 'director' in jsonData and jsonData['director']:
-            infoText += 'Directed by: %s<br>' % jsonData['director'][0]
-        if 'rating' in jsonData and jsonData['rating']:
-            infoText += '<br>Rating: %s<br>' % jsonData['rating']
-        if 'runtime' in jsonData and jsonData['runtime']:
-            infoText += 'Runtime: %s minutes<br>' % jsonData['runtime']
-        if 'genres' in jsonData and jsonData['genres']:
-            infoText += 'Genres: '
-            for genre in jsonData['genres']:
-                infoText += '%s, ' % genre
-            infoText += '<br>'
-        if 'box office' in jsonData and jsonData['box office']:
-            infoText += 'Box Office: %s<br>' % jsonData['box office']
-        if 'cast' in jsonData and jsonData['cast']:
-            infoText += '<br>Cast:<br>'
-            for c in jsonData['cast']:
-                infoText += '%s<br>' % c
         if 'plot' in jsonData and jsonData['plot']:
             infoText += '<br>Plot:<br>'
             plot = ''
