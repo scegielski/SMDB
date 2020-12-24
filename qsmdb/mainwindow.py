@@ -824,14 +824,24 @@ class MyWindow(QtWidgets.QMainWindow):
         if len(self.castCrewListView.selectedItems()) == 0:
             return
 
-        filterByKey = 'actors'
-
         movieList = []
         for item in self.castCrewListView.selectedItems():
-            name = item.text()
-            movies = self.moviesSmdbData[filterByKey][name]['movies']
-            for movie in movies:
-                movieList.append(movie)
+            smdbKey = None
+            category = item.data(QtCore.Qt.UserRole)[0]
+            name = item.data(QtCore.Qt.UserRole)[1]
+            if category:
+                if category == 'actor':
+                    smdbKey = 'actors'
+                elif category == 'director':
+                    smdbKey = 'directors'
+                else:
+                    continue
+
+            if smdbKey:
+                if name in self.moviesSmdbData[smdbKey]:
+                    movies = self.moviesSmdbData[smdbKey][name]['movies']
+                for movie in movies:
+                    movieList.append(movie)
 
         for row in range(self.moviesTableProxyModel.rowCount()):
             self.moviesTableView.setRowHidden(row, True)
@@ -927,10 +937,35 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def showCastCrewInfo(self, jsonData):
         self.castCrewListView.clear()
+
+        directorHeaderItem = QtWidgets.QListWidgetItem("Director:")
+        directorHeaderItem.setFlags(QtCore.Qt.ItemIsEnabled)
+        self.castCrewListView.addItem(directorHeaderItem)
+
+        if 'director' in jsonData and jsonData['director']:
+            directorName = jsonData['director'][0]
+            numMovies = 0
+            if directorName in self.moviesSmdbData['directors']:
+                numMovies = self.moviesSmdbData['directors'][directorName]['num movies']
+            directorItem = QtWidgets.QListWidgetItem('%s(%d)' % (directorName, numMovies))
+            directorItem.setData(QtCore.Qt.UserRole, ['director', directorName])
+            self.castCrewListView.addItem(directorItem)
+
+        spacerItem = QtWidgets.QListWidgetItem("")
+        spacerItem.setFlags(QtCore.Qt.ItemIsEnabled)
+        self.castCrewListView.addItem(spacerItem)
+
+        castHeaderItem = QtWidgets.QListWidgetItem("Cast:")
+        castHeaderItem.setFlags(QtCore.Qt.ItemIsEnabled)
+        self.castCrewListView.addItem(castHeaderItem)
+
         if 'cast' in jsonData and jsonData['cast']:
-            for c in jsonData['cast']:
-                castItem = QtWidgets.QListWidgetItem(c)
-                castItem.setData(QtCore.Qt.UserRole, 'actor')
+            for actorName in jsonData['cast']:
+                numMovies = 0
+                if actorName in self.moviesSmdbData['actors']:
+                    numMovies = self.moviesSmdbData['actors'][actorName]['num movies']
+                castItem = QtWidgets.QListWidgetItem('%s(%d)' % (actorName, numMovies))
+                castItem.setData(QtCore.Qt.UserRole, ['actor', actorName])
                 self.castCrewListView.addItem(castItem)
 
     def showMovieInfo(self, jsonData):
