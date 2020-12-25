@@ -614,12 +614,8 @@ class MyWindow(QtWidgets.QMainWindow):
             wtv.hideColumn(index)
             self.watchListColumnsVisible[index] = False
 
-        wtv.hideColumn(wtm.Columns.BoxOffice.value)
-        wtv.hideColumn(wtm.Columns.Runtime.value)
-        wtv.hideColumn(wtm.Columns.Id.value)
-        wtv.hideColumn(wtm.Columns.Folder.value)
-        wtv.hideColumn(wtm.Columns.Path.value)
-        wtv.hideColumn(wtm.Columns.JsonExists.value)
+        # Set rank as the first column
+        wtv.horizontalHeader().moveSection(wtm.Columns.Rank.value, 0)
 
         wtv.verticalHeader().setMinimumSectionSize(10)
         wtv.verticalHeader().setDefaultSectionSize(18)
