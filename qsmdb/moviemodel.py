@@ -26,20 +26,19 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                         'JsonExists',
                                         'Rank'], start=0)
 
-        self.defaultWidths = [15,  # Year
-                              200, # Title
-                              60,  # Rating
-                              150, # box office
-                              60,  # runtime
-                              150, # director
-                              150, # country
-                              150, # company
-                              60,  # id
-                              200, # folder
-                              300, # path
-                              65,  # json exists
-                              40,  # rank
-                              ]
+        self.defaultWidths = {self.Columns.Year: 15,
+                              self.Columns.Title: 200,
+                              self.Columns.Rating: 60,
+                              self.Columns.BoxOffice: 150,
+                              self.Columns.Runtime: 60,
+                              self.Columns.Director: 150,
+                              self.Columns.Country: 150,
+                              self.Columns.Company: 150,
+                              self.Columns.Id: 60,
+                              self.Columns.Folder: 200,
+                              self.Columns.Path: 300,
+                              self.Columns.JsonExists: 65,
+                              self.Columns.Rank: 40}
 
         self._headers = []
         for c in self.Columns:

@@ -543,7 +543,7 @@ class MyWindow(QtWidgets.QMainWindow):
         # Set the column widths
         self.moviesTableColumnsVisible = []
         for col in mtm.Columns:
-            mtv.setColumnWidth(col.value, mtm.defaultWidths[col.value])
+            mtv.setColumnWidth(col.value, mtm.defaultWidths[col])
             self.moviesTableColumnsVisible.append(True)
 
         # For the movie list, hide
@@ -594,7 +594,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.watchListColumnsVisible = []
         for col in wtm.Columns:
-            wtv.setColumnWidth(col.value, wtm.defaultWidths[col.value])
+            wtv.setColumnWidth(col.value, wtm.defaultWidths[col])
             self.watchListColumnsVisible.append(True)
 
         # For the watch list, hide
