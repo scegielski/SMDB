@@ -185,7 +185,7 @@ class MyWindow(QtWidgets.QMainWindow):
         # Title
         self.titleLabel = QtWidgets.QLabel()
         self.titleLabel.setFont(QtGui.QFont('TimesNew Roman', 20))
-        self.titleLabel.setStyleSheet("color: yellow; background: black")
+        self.titleLabel.setStyleSheet("color: white; background: black")
         self.titleLabel.setWordWrap(True)
         self.titleLabel.setAlignment(QtCore.Qt.AlignHCenter|QtCore.Qt.AlignTop)
         self.titleLabel.setSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Fixed)
@@ -801,7 +801,7 @@ class MyWindow(QtWidgets.QMainWindow):
             if os.path.exists(coverFilePng):
                 coverFile = coverFilePng
 
-        self.titleLabel.setText('"%s"' % title)
+        self.titleLabel.setText('"%s" (%s)' % (title, year))
         self.showCoverFile(coverFile)
 
         jsonData = None
