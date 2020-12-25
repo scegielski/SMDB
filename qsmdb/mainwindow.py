@@ -832,7 +832,7 @@ class MyWindow(QtWidgets.QMainWindow):
         for item in self.movieInfoListView.selectedItems():
             smdbKey = None
             category = item.data(QtCore.Qt.UserRole)[0]
-            name = item.data(QtCore.Qt.UserRole)[1]
+            name = str(item.data(QtCore.Qt.UserRole)[1])
             if category:
                 if category == 'actor':
                     smdbKey = 'actors'
@@ -844,12 +844,13 @@ class MyWindow(QtWidgets.QMainWindow):
                     smdbKey = 'countries'
                 elif category == 'genre':
                     smdbKey = 'genres'
+                elif category == 'year':
+                    smdbKey = 'years'
                 else:
                     continue
 
-            if smdbKey:
-                if name in self.moviesSmdbData[smdbKey]:
-                    movies = self.moviesSmdbData[smdbKey][name]['movies']
+            if name in self.moviesSmdbData[smdbKey]:
+                movies = self.moviesSmdbData[smdbKey][name]['movies']
                 for movie in movies:
                     movieList.append(movie)
 
@@ -970,6 +971,24 @@ class MyWindow(QtWidgets.QMainWindow):
     def movieInfoRefresh(self, jsonData):
         if not jsonData: return
         self.movieInfoListView.clear()
+
+        self.movieInfoAddHeading("Title:")
+        if 'title' in jsonData and jsonData['title']:
+            title = jsonData['title']
+            titleItem = QtWidgets.QListWidgetItem('%s' % title)
+            titleItem.setFlags(QtCore.Qt.ItemIsEnabled)
+            self.movieInfoListView.addItem(titleItem)
+
+        self.movieInfoAddSpacer()
+
+        self.movieInfoAddHeading("Year:")
+        if 'year' in jsonData and jsonData['year']:
+            year = jsonData['year']
+            yearItem = QtWidgets.QListWidgetItem('%s' % year)
+            yearItem.setData(QtCore.Qt.UserRole, ['year', year])
+            self.movieInfoListView.addItem(yearItem)
+
+        self.movieInfoAddSpacer()
 
         self.movieInfoAddHeading("Rating:")
         if 'rating' in jsonData and jsonData['rating']:
