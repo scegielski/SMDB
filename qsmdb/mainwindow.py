@@ -100,7 +100,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Init UI
         self.setWindowTitle("SMDB %s" % self.moviesFolder)
-        self.setGeometry(100, 75, 1800, 900)
+        self.setGeometry(50, 75, 1800, 900)
 
         # Set foreground/background colors for item views
         self.setStyleSheet("""QAbstractItemView{ background: black; color: white; }; """)
@@ -182,26 +182,24 @@ class MyWindow(QtWidgets.QMainWindow):
 
         coverSummaryVSplitter.addWidget(coverInfoHSplitter)
 
-        # Title and Cover
-        self.titleAndCoverWidget = QtWidgets.QWidget()
-        self.movieTitle = QtWidgets.QLabel('')
-        self.movieCover = QtWidgets.QLabel()
-        self.initUITitleAndCover()
-
-        coverInfoHSplitter.addWidget(self.titleAndCoverWidget)
-
         # Movie Info
         self.movieInfoWidget = QtWidgets.QWidget()
         coverInfoHSplitter.addWidget(self.movieInfoWidget)
         coverInfoHSplitter.splitterMoved.connect(self.resizeCoverFile)
         movieInfoVLayout = QtWidgets.QVBoxLayout()
         self.movieInfoWidget.setLayout(movieInfoVLayout)
-        movieInfoLabel = QtWidgets.QLabel("Movie Info")
-        movieInfoVLayout.addWidget(movieInfoLabel)
         self.movieInfoListView = QtWidgets.QListWidget()
         self.movieInfoListView.itemSelectionChanged.connect(self.movieInfoSelectionChanged)
+        self.movieInfoListView.setFont(QtGui.QFont('TimesNew Roman', 10))
         movieInfoVLayout.addWidget(self.movieInfoListView)
-        coverInfoHSplitter.setSizes([500, 200])
+
+        # Cover
+        self.coverWidget = QtWidgets.QWidget()
+        self.movieCover = QtWidgets.QLabel()
+        self.initUICover()
+        coverInfoHSplitter.addWidget(self.coverWidget)
+
+        coverInfoHSplitter.setSizes([250, 550])
 
         # Summary
         self.summary = QtWidgets.QTextBrowser()
@@ -485,19 +483,10 @@ class MyWindow(QtWidgets.QMainWindow):
         moveDownButton.clicked.connect(lambda: self.watchListMoveRow(self.MoveTo.DOWN))
         watchListButtonsHLayout.addWidget(moveDownButton)
 
-
-    def initUITitleAndCover(self):
-        self.titleAndCoverWidget.setStyleSheet("background-color: black;")
+    def initUICover(self):
+        self.coverWidget.setStyleSheet("background-color: black;")
         movieVLayout = QtWidgets.QVBoxLayout()
-        self.titleAndCoverWidget.setLayout(movieVLayout)
-
-        self.movieTitle.setWordWrap(True)
-        self.movieTitle.setAlignment(QtCore.Qt.AlignTop)
-        self.movieTitle.setFont(QtGui.QFont('TimesNew Roman', 15))
-        self.movieTitle.setSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Fixed)
-        self.movieTitle.setStyleSheet("color: yellow;")
-        movieVLayout.addWidget(self.movieTitle)
-
+        self.coverWidget.setLayout(movieVLayout)
         self.movieCover.setScaledContents(False)
         self.movieCover.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored)
         self.movieCover.setStyleSheet("background-color: black;")
@@ -740,7 +729,7 @@ class MyWindow(QtWidgets.QMainWindow):
             if os.path.exists(coverFilePng):
                 coverFile = coverFilePng
 
-        self.movieTitle.setText('%s (%s)' % (title, year))
+        #self.movieTitle.setText('%s (%s)' % (title, year))
         self.showCoverFile(coverFile)
 
         jsonData = None
@@ -799,12 +788,12 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.watchListWidget.show()
 
     def showCoverMenu(self):
-        if self.titleAndCoverWidget:
+        if self.coverWidget:
             self.showCover = not self.showCover
             if not self.showCover:
-                self.titleAndCoverWidget.hide()
+                self.coverWidget.hide()
             else:
-                self.titleAndCoverWidget.show()
+                self.coverWidget.show()
 
     def showMovieInfoMenu(self):
         if self.movieInfoWidget:
@@ -960,7 +949,8 @@ class MyWindow(QtWidgets.QMainWindow):
     def movieInfoAddHeading(self, headerName):
         item = QtWidgets.QListWidgetItem(headerName)
         item.setFlags(QtCore.Qt.ItemIsEnabled)
-        item.setForeground(QtCore.Qt.yellow)
+        item.setForeground(QtCore.Qt.gray)
+        item.setFont(QtGui.QFont('TimesNew Roman', 12))
         self.movieInfoListView.addItem(item)
 
     def movieInfoAddSpacer(self):
@@ -972,11 +962,12 @@ class MyWindow(QtWidgets.QMainWindow):
         if not jsonData: return
         self.movieInfoListView.clear()
 
-        self.movieInfoAddHeading("Title:")
         if 'title' in jsonData and jsonData['title']:
             title = jsonData['title']
             titleItem = QtWidgets.QListWidgetItem('%s' % title)
             titleItem.setFlags(QtCore.Qt.ItemIsEnabled)
+            titleItem.setFont(QtGui.QFont('TimesNew Roman', 15))
+            titleItem.setForeground(QtCore.Qt.yellow)
             self.movieInfoListView.addItem(titleItem)
 
         self.movieInfoAddSpacer()
@@ -994,6 +985,7 @@ class MyWindow(QtWidgets.QMainWindow):
         if 'rating' in jsonData and jsonData['rating']:
             rating = jsonData['rating']
             ratingItem = QtWidgets.QListWidgetItem('%s' % rating)
+            ratingItem.setFlags(QtCore.Qt.ItemIsEnabled)
             self.movieInfoListView.addItem(ratingItem)
 
         self.movieInfoAddSpacer()
@@ -1002,6 +994,7 @@ class MyWindow(QtWidgets.QMainWindow):
         if 'box office' in jsonData and jsonData['box office']:
             boxOffice = jsonData['box office']
             boxOfficeItem = QtWidgets.QListWidgetItem('%s' % boxOffice)
+            boxOfficeItem.setFlags(QtCore.Qt.ItemIsEnabled)
             self.movieInfoListView.addItem(boxOfficeItem)
 
         self.movieInfoAddSpacer()
@@ -1010,6 +1003,7 @@ class MyWindow(QtWidgets.QMainWindow):
         if 'runtime' in jsonData and jsonData['runtime']:
             runtime = jsonData['runtime']
             runtimeItem = QtWidgets.QListWidgetItem('%s minutes' % runtime)
+            runtimeItem.setFlags(QtCore.Qt.ItemIsEnabled)
             self.movieInfoListView.addItem(runtimeItem)
 
         self.movieInfoAddSpacer()
@@ -1037,6 +1031,9 @@ class MyWindow(QtWidgets.QMainWindow):
         self.movieInfoAddSpacer()
         self.movieInfoAddHeading("Cast:")
         self.movieInfoAddSection(jsonData, 'cast', 'actors', 'actor')
+
+        self.movieInfoListView.setCurrentRow(0)
+
 
     def summaryShow(self, jsonData):
         if not jsonData: return
