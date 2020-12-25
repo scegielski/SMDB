@@ -702,8 +702,8 @@ class MyWindow(QtWidgets.QMainWindow):
             self.setWindowTitle("SMDB %s" % self.moviesFolder)
             self.settings.setValue('movies_folder', self.moviesFolder)
             print("Saved: moviesFolder = %s" % self.moviesFolder)
-            readSmdbFile(self.moviesSmdbFile)
             self.moviesSmdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
+            readSmdbFile(self.moviesSmdbFile)
             self.refreshMoviesList()
 
     def populateFiltersTable(self):
