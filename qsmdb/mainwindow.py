@@ -199,7 +199,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.initUICover()
         coverInfoHSplitter.addWidget(self.coverWidget)
 
-        coverInfoHSplitter.setSizes([250, 550])
+        coverInfoHSplitter.setSizes([300, 500])
 
         # Summary
         self.summary = QtWidgets.QTextBrowser()
@@ -212,7 +212,7 @@ class MyWindow(QtWidgets.QMainWindow):
         mainHSplitter.addWidget(self.filterWidget)
         mainHSplitter.addWidget(moviesWatchListVSplitter)
         mainHSplitter.addWidget(coverSummaryVSplitter)
-        mainHSplitter.setSizes([300, 800, 700])
+        mainHSplitter.setSizes([260, 770, 770])
         mainHSplitter.splitterMoved.connect(self.resizeCoverFile)
 
         # Bottom
@@ -964,7 +964,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         if 'title' in jsonData and jsonData['title']:
             title = jsonData['title']
-            titleItem = QtWidgets.QListWidgetItem('%s' % title)
+            titleItem = QtWidgets.QListWidgetItem('"%s"' % title)
             titleItem.setFlags(QtCore.Qt.ItemIsEnabled)
             titleItem.setFont(QtGui.QFont('TimesNew Roman', 15))
             titleItem.setForeground(QtCore.Qt.yellow)
