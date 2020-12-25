@@ -100,7 +100,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Init UI
         self.setWindowTitle("SMDB %s" % self.moviesFolder)
-        self.setGeometry(200, 75, 1600, 900)
+        self.setGeometry(100, 75, 1800, 900)
 
         # Set foreground/background colors for item views
         self.setStyleSheet("""QAbstractItemView{ background: black; color: white; }; """)
@@ -201,7 +201,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.castCrewListView = QtWidgets.QListWidget()
         self.castCrewListView.itemSelectionChanged.connect(self.castCrewSelectionChanged)
         castCrewVLayout.addWidget(self.castCrewListView)
-        coverCrewHSplitter.setSizes([350, 150])
+        coverCrewHSplitter.setSizes([500, 200])
 
         # Summary
         self.summary = QtWidgets.QTextBrowser()
@@ -214,7 +214,7 @@ class MyWindow(QtWidgets.QMainWindow):
         mainHSplitter.addWidget(self.filterWidget)
         mainHSplitter.addWidget(moviesWatchListVSplitter)
         mainHSplitter.addWidget(coverSummaryVSplitter)
-        mainHSplitter.setSizes([250, 750, 600])
+        mainHSplitter.setSizes([300, 800, 700])
         mainHSplitter.splitterMoved.connect(self.resizeCoverFile)
 
         # Bottom
