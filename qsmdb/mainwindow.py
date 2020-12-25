@@ -840,6 +840,10 @@ class MyWindow(QtWidgets.QMainWindow):
                     smdbKey = 'directors'
                 elif category == 'company':
                     smdbKey = 'companies'
+                elif category == 'country':
+                    smdbKey = 'countries'
+                elif category == 'genre':
+                    smdbKey = 'genres'
                 else:
                     continue
 
@@ -948,13 +952,14 @@ class MyWindow(QtWidgets.QMainWindow):
                 numMovies = 0
                 if name in self.moviesSmdbData[smdbName]:
                     numMovies = self.moviesSmdbData[smdbName][name]['num movies']
-                item = QtWidgets.QListWidgetItem('%s(%d)' % (name, numMovies))
+                item = QtWidgets.QListWidgetItem('%s (%d)' % (name, numMovies))
                 item.setData(QtCore.Qt.UserRole, [userRoleName, name])
                 self.movieInfoListView.addItem(item)
 
     def movieInfoAddHeading(self, headerName):
         item = QtWidgets.QListWidgetItem(headerName)
         item.setFlags(QtCore.Qt.ItemIsEnabled)
+        item.setForeground(QtCore.Qt.yellow)
         self.movieInfoListView.addItem(item)
 
     def movieInfoAddSpacer(self):
@@ -966,9 +971,31 @@ class MyWindow(QtWidgets.QMainWindow):
         if not jsonData: return
         self.movieInfoListView.clear()
 
-        self.movieInfoAddHeading("Director:")
+        self.movieInfoAddHeading("Rating:")
+        if 'rating' in jsonData and jsonData['rating']:
+            rating = jsonData['rating']
+            ratingItem = QtWidgets.QListWidgetItem('%s' % rating)
+            self.movieInfoListView.addItem(ratingItem)
+
         self.movieInfoAddSpacer()
 
+        self.movieInfoAddHeading("Box Office:")
+        if 'box office' in jsonData and jsonData['box office']:
+            boxOffice = jsonData['box office']
+            boxOfficeItem = QtWidgets.QListWidgetItem('%s' % boxOffice)
+            self.movieInfoListView.addItem(boxOfficeItem)
+
+        self.movieInfoAddSpacer()
+
+        self.movieInfoAddHeading("Runtime:")
+        if 'runtime' in jsonData and jsonData['runtime']:
+            runtime = jsonData['runtime']
+            runtimeItem = QtWidgets.QListWidgetItem('%s minutes' % runtime)
+            self.movieInfoListView.addItem(runtimeItem)
+
+        self.movieInfoAddSpacer()
+
+        self.movieInfoAddHeading("Director:")
         # TODO Write multiple directors and no id
         if 'director' in jsonData and jsonData['director']:
             directorName = jsonData['director'][0]
@@ -982,6 +1009,12 @@ class MyWindow(QtWidgets.QMainWindow):
         self.movieInfoAddSpacer()
         self.movieInfoAddHeading("Companies:")
         self.movieInfoAddSection(jsonData, 'companies', 'companies', 'company')
+        self.movieInfoAddSpacer()
+        self.movieInfoAddHeading("Countries:")
+        self.movieInfoAddSection(jsonData, 'countries', 'countries', 'country')
+        self.movieInfoAddSpacer()
+        self.movieInfoAddHeading("Genres:")
+        self.movieInfoAddSection(jsonData, 'genres', 'genres', 'genre')
         self.movieInfoAddSpacer()
         self.movieInfoAddHeading("Cast:")
         self.movieInfoAddSection(jsonData, 'cast', 'actors', 'actor')
