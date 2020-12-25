@@ -172,12 +172,28 @@ class MyWindow(QtWidgets.QMainWindow):
 
         moviesWatchListVSplitter.setSizes([700, 200])
 
+        # Movie section widget
+        self.movieSectionWidget = QtWidgets.QWidget()
+
+        movieSectionVLayout = QtWidgets.QVBoxLayout()
+        self.movieSectionWidget.setLayout(movieSectionVLayout)
+
+        # Title
+        self.titleLabel = QtWidgets.QLabel()
+        self.titleLabel.setFont(QtGui.QFont('TimesNew Roman', 20))
+        self.titleLabel.setStyleSheet("color: yellow; background: black")
+        self.titleLabel.setWordWrap(True)
+        self.titleLabel.setAlignment(QtCore.Qt.AlignHCenter|QtCore.Qt.AlignTop)
+        self.titleLabel.setSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Fixed)
+        movieSectionVLayout.addWidget(self.titleLabel)
+
         # Cover and Summary V Splitter
         coverSummaryVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
+        movieSectionVLayout.addWidget(coverSummaryVSplitter)
         coverSummaryVSplitter.setHandleWidth(20)
         coverSummaryVSplitter.splitterMoved.connect(self.resizeCoverFile)
 
-        # Title/Cover and Cast/Crew H Splitter
+        # Cover and Movie Info H Splitter
         coverInfoHSplitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
 
         coverSummaryVSplitter.addWidget(coverInfoHSplitter)
@@ -199,21 +215,21 @@ class MyWindow(QtWidgets.QMainWindow):
         self.initUICover()
         coverInfoHSplitter.addWidget(self.coverWidget)
 
-        coverInfoHSplitter.setSizes([300, 500])
+        coverInfoHSplitter.setSizes([250, 550])
 
         # Summary
         self.summary = QtWidgets.QTextBrowser()
         self.summary.setFont(QtGui.QFont('TimesNew Roman', 12))
         self.summary.setStyleSheet("color:white; background-color: black;")
-        coverSummaryVSplitter.setSizes([600, 200])
         coverSummaryVSplitter.addWidget(self.summary)
+        coverSummaryVSplitter.setSizes([600, 200])
 
         # Add the sub-layouts to the mainHSplitter
         mainHSplitter.addWidget(self.filterWidget)
         mainHSplitter.addWidget(moviesWatchListVSplitter)
-        mainHSplitter.addWidget(coverSummaryVSplitter)
-        mainHSplitter.setSizes([260, 770, 770])
+        mainHSplitter.addWidget(self.movieSectionWidget)
         mainHSplitter.splitterMoved.connect(self.resizeCoverFile)
+        mainHSplitter.setSizes([260, 770, 770])
 
         # Bottom
         bottomLayout = QtWidgets.QHBoxLayout(self)
@@ -729,7 +745,7 @@ class MyWindow(QtWidgets.QMainWindow):
             if os.path.exists(coverFilePng):
                 coverFile = coverFilePng
 
-        #self.movieTitle.setText('%s (%s)' % (title, year))
+        self.titleLabel.setText('"%s"' % title)
         self.showCoverFile(coverFile)
 
         jsonData = None
@@ -961,16 +977,6 @@ class MyWindow(QtWidgets.QMainWindow):
     def movieInfoRefresh(self, jsonData):
         if not jsonData: return
         self.movieInfoListView.clear()
-
-        if 'title' in jsonData and jsonData['title']:
-            title = jsonData['title']
-            titleItem = QtWidgets.QListWidgetItem('"%s"' % title)
-            titleItem.setFlags(QtCore.Qt.ItemIsEnabled)
-            titleItem.setFont(QtGui.QFont('TimesNew Roman', 15))
-            titleItem.setForeground(QtCore.Qt.yellow)
-            self.movieInfoListView.addItem(titleItem)
-
-        self.movieInfoAddSpacer()
 
         self.movieInfoAddHeading("Year:")
         if 'year' in jsonData and jsonData['year']:
