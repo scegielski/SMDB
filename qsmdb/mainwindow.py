@@ -109,7 +109,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.showFilters = True
         self.showMoviesTable = True
         self.showCover = True
-        self.showCastCrew = True
+        self.showMovieInfo = True
         self.showSummary = True
         self.showWatchList = True
 
@@ -178,9 +178,9 @@ class MyWindow(QtWidgets.QMainWindow):
         coverSummaryVSplitter.splitterMoved.connect(self.resizeCoverFile)
 
         # Title/Cover and Cast/Crew H Splitter
-        coverCrewHSplitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
+        coverInfoHSplitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
 
-        coverSummaryVSplitter.addWidget(coverCrewHSplitter)
+        coverSummaryVSplitter.addWidget(coverInfoHSplitter)
 
         # Title and Cover
         self.titleAndCoverWidget = QtWidgets.QWidget()
@@ -188,20 +188,20 @@ class MyWindow(QtWidgets.QMainWindow):
         self.movieCover = QtWidgets.QLabel()
         self.initUITitleAndCover()
 
-        coverCrewHSplitter.addWidget(self.titleAndCoverWidget)
+        coverInfoHSplitter.addWidget(self.titleAndCoverWidget)
 
-        # Cast and Crew list
-        self.castCrewWidget = QtWidgets.QWidget()
-        coverCrewHSplitter.addWidget(self.castCrewWidget)
-        coverCrewHSplitter.splitterMoved.connect(self.resizeCoverFile)
-        castCrewVLayout = QtWidgets.QVBoxLayout()
-        self.castCrewWidget.setLayout(castCrewVLayout)
-        castCrewLabel = QtWidgets.QLabel("Cast and Crew")
-        castCrewVLayout.addWidget(castCrewLabel)
-        self.castCrewListView = QtWidgets.QListWidget()
-        self.castCrewListView.itemSelectionChanged.connect(self.castCrewSelectionChanged)
-        castCrewVLayout.addWidget(self.castCrewListView)
-        coverCrewHSplitter.setSizes([500, 200])
+        # Movie Info
+        self.movieInfoWidget = QtWidgets.QWidget()
+        coverInfoHSplitter.addWidget(self.movieInfoWidget)
+        coverInfoHSplitter.splitterMoved.connect(self.resizeCoverFile)
+        movieInfoVLayout = QtWidgets.QVBoxLayout()
+        self.movieInfoWidget.setLayout(movieInfoVLayout)
+        movieInfoLabel = QtWidgets.QLabel("Movie Info")
+        movieInfoVLayout.addWidget(movieInfoLabel)
+        self.movieInfoListView = QtWidgets.QListWidget()
+        self.movieInfoListView.itemSelectionChanged.connect(self.movieInfoSelectionChanged)
+        movieInfoVLayout.addWidget(self.movieInfoListView)
+        coverInfoHSplitter.setSizes([500, 200])
 
         # Summary
         self.summary = QtWidgets.QTextBrowser()
@@ -304,11 +304,11 @@ class MyWindow(QtWidgets.QMainWindow):
         showCoverAction.triggered.connect(self.showCoverMenu)
         viewMenu.addAction(showCoverAction)
 
-        showCastCrewAction = QtWidgets.QAction("Show Cast and Crew", self)
-        showCastCrewAction.setCheckable(True)
-        showCastCrewAction.setChecked(self.showCastCrew)
-        showCastCrewAction.triggered.connect(self.showCastCrewMenu)
-        viewMenu.addAction(showCastCrewAction)
+        showMovieInfoAction = QtWidgets.QAction("Show Movie Info", self)
+        showMovieInfoAction.setCheckable(True)
+        showMovieInfoAction.setChecked(self.showMovieInfo)
+        showMovieInfoAction.triggered.connect(self.showMovieInfoMenu)
+        viewMenu.addAction(showMovieInfoAction)
 
         showSummaryAction = QtWidgets.QAction("Show Summary", self)
         showSummaryAction.setCheckable(True)
@@ -753,8 +753,8 @@ class MyWindow(QtWidgets.QMainWindow):
         else:
             self.summary.clear()
 
-        self.showMovieInfo(jsonData)
-        self.showCastCrewInfo(jsonData)
+        self.summaryShow(jsonData)
+        self.movieInfoRefresh(jsonData)
 
     def showAllMoviesTableView(self):
         self.moviesTableSearchBox.clear()
@@ -806,13 +806,13 @@ class MyWindow(QtWidgets.QMainWindow):
             else:
                 self.titleAndCoverWidget.show()
 
-    def showCastCrewMenu(self):
-        if self.castCrewWidget:
-            self.showCastCrew = not self.showCastCrew
-            if not self.showCastCrew:
-                self.castCrewWidget.hide()
+    def showMovieInfoMenu(self):
+        if self.movieInfoWidget:
+            self.showMovieInfo = not self.showMovieInfo
+            if not self.showMovieInfo:
+                self.movieInfoWidget.hide()
             else:
-                self.castCrewWidget.show()
+                self.movieInfoWidget.show()
 
     def showSummaryMenu(self):
         if self.summary:
@@ -822,14 +822,14 @@ class MyWindow(QtWidgets.QMainWindow):
             else:
                 self.summary.show()
 
-    def castCrewSelectionChanged(self):
-        if len(self.castCrewListView.selectedItems()) == 0:
+    def movieInfoSelectionChanged(self):
+        if len(self.movieInfoListView.selectedItems()) == 0:
             return
 
         self.moviesTableSearchBox.clear()
 
         movieList = []
-        for item in self.castCrewListView.selectedItems():
+        for item in self.movieInfoListView.selectedItems():
             smdbKey = None
             category = item.data(QtCore.Qt.UserRole)[0]
             name = item.data(QtCore.Qt.UserRole)[1]
@@ -941,7 +941,7 @@ class MyWindow(QtWidgets.QMainWindow):
         else:
             self.movieCover.setPixmap(QtGui.QPixmap(0, 0))
 
-    def addCastCrewSection(self, jsonData, jsonName, smdbName, userRoleName):
+    def movieInfoAddSection(self, jsonData, jsonName, smdbName, userRoleName):
         if not jsonData: return
         if jsonName in jsonData and jsonData[jsonName]:
             for name in jsonData[jsonName]:
@@ -950,24 +950,24 @@ class MyWindow(QtWidgets.QMainWindow):
                     numMovies = self.moviesSmdbData[smdbName][name]['num movies']
                 item = QtWidgets.QListWidgetItem('%s(%d)' % (name, numMovies))
                 item.setData(QtCore.Qt.UserRole, [userRoleName, name])
-                self.castCrewListView.addItem(item)
+                self.movieInfoListView.addItem(item)
 
-    def addCastCrewHeader(self, headerName):
+    def movieInfoAddHeading(self, headerName):
         item = QtWidgets.QListWidgetItem(headerName)
         item.setFlags(QtCore.Qt.ItemIsEnabled)
-        self.castCrewListView.addItem(item)
+        self.movieInfoListView.addItem(item)
 
-    def addCastCrewSpacer(self):
+    def movieInfoAddSpacer(self):
         spacerItem = QtWidgets.QListWidgetItem("")
         spacerItem.setFlags(QtCore.Qt.ItemIsEnabled)
-        self.castCrewListView.addItem(spacerItem)
+        self.movieInfoListView.addItem(spacerItem)
 
-    def showCastCrewInfo(self, jsonData):
+    def movieInfoRefresh(self, jsonData):
         if not jsonData: return
-        self.castCrewListView.clear()
+        self.movieInfoListView.clear()
 
-        self.addCastCrewHeader("Director:")
-        self.addCastCrewSpacer()
+        self.movieInfoAddHeading("Director:")
+        self.movieInfoAddSpacer()
 
         # TODO Write multiple directors and no id
         if 'director' in jsonData and jsonData['director']:
@@ -977,16 +977,16 @@ class MyWindow(QtWidgets.QMainWindow):
                 numMovies = self.moviesSmdbData['directors'][directorName]['num movies']
             directorItem = QtWidgets.QListWidgetItem('%s(%d)' % (directorName, numMovies))
             directorItem.setData(QtCore.Qt.UserRole, ['director', directorName])
-            self.castCrewListView.addItem(directorItem)
+            self.movieInfoListView.addItem(directorItem)
 
-        self.addCastCrewSpacer()
-        self.addCastCrewHeader("Companies:")
-        self.addCastCrewSection(jsonData, 'companies', 'companies', 'company')
-        self.addCastCrewSpacer()
-        self.addCastCrewHeader("Cast:")
-        self.addCastCrewSection(jsonData, 'cast', 'actors', 'actor')
+        self.movieInfoAddSpacer()
+        self.movieInfoAddHeading("Companies:")
+        self.movieInfoAddSection(jsonData, 'companies', 'companies', 'company')
+        self.movieInfoAddSpacer()
+        self.movieInfoAddHeading("Cast:")
+        self.movieInfoAddSection(jsonData, 'cast', 'actors', 'actor')
 
-    def showMovieInfo(self, jsonData):
+    def summaryShow(self, jsonData):
         if not jsonData: return
 
         infoText = ''
