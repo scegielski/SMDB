@@ -525,9 +525,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.watchListTableView.setSortingEnabled(False)
         self.watchListTableView.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.watchListTableView.verticalHeader().hide()
-        #style = "::section {""color: black; }"
-        #self.watchListTableView.horizontalHeader().setStyleSheet(style)
-        self.watchListTableView.setStyleSheet("background: black;")
+        self.watchListTableView.setStyleSheet("background: black; alternate-background-color: #151515; color: white")
+        self.watchListTableView.setAlternatingRowColors(True)
         self.watchListTableView.horizontalHeader().setSectionsMovable(True)
         self.watchListTableView.horizontalHeader().setStyleSheet("color: black")
         self.watchListTableView.setShowGrid(False)
