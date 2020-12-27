@@ -632,11 +632,11 @@ class MyWindow(QtWidgets.QMainWindow):
             mtv.setColumnWidth(col.value, mtm.defaultWidths[col])
             self.moviesTableColumnsVisible.append(True)
 
-        # For the movie list, hide
-        # id, folder, path, company, country, and rank by default
         columnsToHide = [mtm.Columns.Id,
                          mtm.Columns.Country,
                          mtm.Columns.Company,
+                         mtm.Columns.Director,
+                         mtm.Columns.Genre,
                          mtm.Columns.Folder,
                          mtm.Columns.Path,
                          mtm.Columns.Rank]
@@ -683,13 +683,11 @@ class MyWindow(QtWidgets.QMainWindow):
             wtv.setColumnWidth(col.value, wtm.defaultWidths[col])
             self.watchListColumnsVisible.append(True)
 
-        # For the watch list, hide
-        # country, company, box office, runtime, id,
-        # folder, path, and json exists by default
         columnsToHide = [wtm.Columns.BoxOffice,
                          wtm.Columns.Runtime,
                          wtm.Columns.Director,
                          wtm.Columns.Country,
+                         wtm.Columns.Genre,
                          wtm.Columns.Company,
                          wtm.Columns.Id,
                          wtm.Columns.Folder,

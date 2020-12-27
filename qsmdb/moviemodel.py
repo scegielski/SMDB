@@ -20,6 +20,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                         'Director',
                                         'Country',
                                         'Company',
+                                        'Genre',
                                         'Id',
                                         'Folder',
                                         'Path',
@@ -34,6 +35,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                               self.Columns.Director: 150,
                               self.Columns.Country: 150,
                               self.Columns.Company: 150,
+                              self.Columns.Genre: 150,
                               self.Columns.Id: 60,
                               self.Columns.Folder: 200,
                               self.Columns.Path: 300,
@@ -220,6 +222,12 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                 if 'companies' in data and data['companies']:
                     company = data['companies'][0]
                     movieData.append(company)
+                else:
+                    movieData.append('')
+            elif column == self.Columns.Genre:
+                if 'genres' in data and data['genres']:
+                    genre = data['genres'][0]
+                    movieData.append(genre)
                 else:
                     movieData.append('')
             else:
