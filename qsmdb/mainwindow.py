@@ -84,6 +84,19 @@ def headerRightMenuShow(QPos, tableView, visibleColumnsList, model):
 
     menu.exec_(QtGui.QCursor.pos())
 
+class FilterTable(QtWidgets.QTableWidget):
+    def __init__(self):
+        super(FilterTable, self).__init__()
+        self.mouseLocation = 0
+
+    def mousePressEvent(self, event):
+        if event.type() == QtCore.QEvent.MouseButtonPress:
+            if event.button() == QtCore.Qt.RightButton:
+                self.mouseLocation = event.pos()
+                return
+            else:
+                super(FilterTable, self).mousePressEvent(event)
+
 class MovieInfoListview(QtWidgets.QListWidget):
     def __init__(self):
         super(MovieInfoListview, self).__init__()
@@ -160,7 +173,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.filterByComboBox = QtWidgets.QComboBox()
         self.filterMinCountCheckbox = QtWidgets.QCheckBox()
         self.filterMinCountSpinBox = QtWidgets.QSpinBox()
-        self.filterTable = QtWidgets.QTableWidget()
+        self.filterTable = FilterTable()
         self.initUIFilterTable()
 
         # Splitter for Movies Table and Watch List
@@ -1460,7 +1473,8 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def filterRightMenu(self):
         rightMenu = QtWidgets.QMenu(self.filterTable)
-        selectedItem = self.filterTable.selectedItems()[0]
+        #selectedItem = self.filterTable.selectedItems()[0]
+        selectedItem = self.filterTable.itemAt(self.filterTable.mouseLocation)
         row = selectedItem.row()
         openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
         itemText = self.filterTable.item(row, 0).text()
