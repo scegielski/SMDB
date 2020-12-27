@@ -1724,6 +1724,15 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.moviesTableModel.setMovieData(sourceRow, data, moviePath, movieFolderName)
 
+        if 'user tags' in self.moviesSmdbData:
+            if userTag not in self.moviesSmdbData['user tags']:
+                numMovies = self.moviesSmdbData['user tags'][userTag]['num movies']
+                self.moviesSmdbData['user tags'][userTag]['num movies'] = numMovies + 1
+                title = self.moviesTableModel.getTitle(sourceRow)
+                year = self.moviesTableModel.getTitle(sourceRow)
+                titleYear = (title, year)
+                self.moviesSmdbData['user tags'][userTag]['movies'].append(titleYear)
+
     def removeFromWatchList(self):
         selectedRows = self.watchListTableView.selectionModel().selectedRows()
         if len(selectedRows) == 0:
