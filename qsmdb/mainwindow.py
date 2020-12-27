@@ -472,9 +472,9 @@ class MyWindow(QtWidgets.QMainWindow):
         hh.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         hh.customContextMenuRequested[QtCore.QPoint].connect(
             lambda: headerRightMenuShow(QtCore.QPoint,
-                                             self.moviesTableView,
-                                             self.moviesTableColumnsVisible,
-                                             self.moviesTableModel))
+                                        self.moviesTableView,
+                                        self.moviesTableColumnsVisible,
+                                        self.moviesTableModel))
 
         # Right click menu
         self.moviesTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
@@ -538,9 +538,9 @@ class MyWindow(QtWidgets.QMainWindow):
         hh.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         hh.customContextMenuRequested[QtCore.QPoint].connect(
             lambda: headerRightMenuShow(QtCore.QPoint,
-                                             self.watchListTableView,
-                                             self.watchListColumnsVisible,
-                                             self.watchListTableModel))
+                                        self.watchListTableView,
+                                        self.watchListColumnsVisible,
+                                        self.watchListTableModel))
 
         # Right click menu
         self.watchListTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
