@@ -421,9 +421,9 @@ class MyWindow(QtWidgets.QMainWindow):
         self.filterTable.verticalHeader().setDefaultSectionSize(18)
         self.filterTable.setWordWrap(False)
         self.filterTable.setStyleSheet("background: black;")
-        self.filterTable.horizontalHeader().setStyleSheet("color: black")
-        #self.filterTable.horizontalHeader().setStyleSheet(style)
         self.filterTable.itemSelectionChanged.connect(self.filterTableSelectionChanged)
+        hh = self.filterTable.horizontalHeader()
+        hh.setStyleSheet("background: #303030; color: white")
         filtersVLayout.addWidget(self.filterTable)
 
         filtersSearchHLayout = QtWidgets.QHBoxLayout()
@@ -461,7 +461,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableView.verticalHeader().hide()
         #style = "::section {""color: black; }"
         #self.moviesTableView.horizontalHeader().setStyleSheet(style)
-        self.moviesTableView.setStyleSheet("background: black;")
+        self.moviesTableView.setStyleSheet("background: black; color: white")
         self.moviesTableView.horizontalHeader().setSectionsMovable(True)
         self.moviesTableView.setShowGrid(False)
 
@@ -474,6 +474,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Right click header menu
         hh = self.moviesTableView.horizontalHeader()
+        hh.setStyleSheet("background: #303030; color: white")
         hh.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         hh.customContextMenuRequested[QtCore.QPoint].connect(
             lambda: headerRightMenuShow(QtCore.QPoint,
@@ -539,6 +540,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Right click header menu
         hh = self.watchListTableView.horizontalHeader()
+        hh.setStyleSheet("background: #303030; color: white")
         hh.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         hh.customContextMenuRequested[QtCore.QPoint].connect(
             lambda: headerRightMenuShow(QtCore.QPoint,
