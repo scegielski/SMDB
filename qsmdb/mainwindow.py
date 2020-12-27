@@ -84,6 +84,19 @@ def headerRightMenuShow(QPos, tableView, visibleColumnsList, model):
 
     menu.exec_(QtGui.QCursor.pos())
 
+class MovieInfoListview(QtWidgets.QListWidget):
+    def __init__(self):
+        super(MovieInfoListview, self).__init__()
+        self.mouseLocation = 0
+
+    def mousePressEvent(self, event):
+        if event.type() == QtCore.QEvent.MouseButtonPress:
+            if event.button() == QtCore.Qt.RightButton:
+                self.mouseLocation = event.pos()
+                return
+            else:
+                super(MovieInfoListview, self).mousePressEvent(event)
+
 
 class MyWindow(QtWidgets.QMainWindow):
     def __init__(self):
@@ -208,10 +221,12 @@ class MyWindow(QtWidgets.QMainWindow):
         coverInfoHSplitter.splitterMoved.connect(self.resizeCoverFile)
         movieInfoVLayout = QtWidgets.QVBoxLayout()
         self.movieInfoWidget.setLayout(movieInfoVLayout)
-        self.movieInfoListView = QtWidgets.QListWidget()
+        self.movieInfoListView = MovieInfoListview()
         self.movieInfoListView.setStyleSheet("background: black")
         self.movieInfoListView.itemSelectionChanged.connect(self.movieInfoSelectionChanged)
         self.movieInfoListView.setFont(QtGui.QFont('TimesNew Roman', 10))
+        self.movieInfoListView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.movieInfoListView.customContextMenuRequested[QtCore.QPoint].connect(self.movieInfoRightMenu)
         movieInfoVLayout.addWidget(self.movieInfoListView)
 
         # Cover
@@ -1456,6 +1471,22 @@ class MyWindow(QtWidgets.QMainWindow):
             openImdbAction.triggered.connect(lambda: openYearImdbPage(itemText))
         rightMenu.addAction(openImdbAction)
         rightMenu.exec_(QtGui.QCursor.pos())
+
+    def movieInfoRightMenu(self):
+        rightMenu = QtWidgets.QMenu(self.movieInfoListView)
+        selectedItem = self.movieInfoListView.itemAt(self.movieInfoListView.mouseLocation)
+        category = selectedItem.data(QtCore.Qt.UserRole)[0]
+        print("category = %s" % category)
+        if category == 'director' or category == 'actor' or category == 'year':
+            row = self.movieInfoListView.row(selectedItem)
+            openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
+            itemText = selectedItem.text()
+            if category == 'director' or category == 'actor':
+                openImdbAction.triggered.connect(lambda: self.openPersonImdbPage(itemText))
+            elif category == 'year':
+                openImdbAction.triggered.connect(lambda: openYearImdbPage(itemText))
+            rightMenu.addAction(openImdbAction)
+            rightMenu.exec_(QtGui.QCursor.pos())
 
     def openPersonImdbPage(self, personName):
         personId = self.db.name2imdbID(personName)
