@@ -165,6 +165,7 @@ class MyWindow(QtWidgets.QMainWindow):
             'Director': 'directors',
             'Actor': 'actors',
             'Genre': 'genres',
+            'User Tags': 'user tags',
             'Year': 'years',
             'Company': 'companies',
             'Country': 'countries'
@@ -637,6 +638,7 @@ class MyWindow(QtWidgets.QMainWindow):
                          mtm.Columns.Company,
                          mtm.Columns.Director,
                          mtm.Columns.Genre,
+                         mtm.Columns.UserTags,
                          mtm.Columns.Folder,
                          mtm.Columns.Path,
                          mtm.Columns.Rank]
@@ -688,6 +690,7 @@ class MyWindow(QtWidgets.QMainWindow):
                          wtm.Columns.Director,
                          wtm.Columns.Country,
                          wtm.Columns.Genre,
+                         wtm.Columns.UserTags,
                          wtm.Columns.Company,
                          wtm.Columns.Id,
                          wtm.Columns.Folder,
@@ -1202,6 +1205,7 @@ class MyWindow(QtWidgets.QMainWindow):
         years = {}
         companies = {}
         countries = {}
+        userTags = {}
 
         count = model.rowCount()
         self.progressBar.setMaximum(count)
@@ -1295,6 +1299,18 @@ class MyWindow(QtWidgets.QMainWindow):
 
                             movieActorsList.append(actorName)
 
+                    jsonUserTags = None
+                    if 'user tags' in jsonData and jsonData['user tags']:
+                        jsonUserTags = jsonData['user tags']
+                        for tag in jsonUserTags:
+                            if tag  not in userTags:
+                                userTags[tag] = {}
+                                userTags[tag]['num movies'] = 0
+                                userTags[tag]['movies'] = []
+                            if titleYear not in userTags[tag]['movies']:
+                                userTags[tag]['movies'].append(titleYear)
+                                userTags[tag]['num movies'] += 1
+
                     jsonGenres = None
                     if 'genres' in jsonData and jsonData['genres']:
                         jsonGenres = jsonData['genres']
@@ -1355,6 +1371,7 @@ class MyWindow(QtWidgets.QMainWindow):
                                           'box office': jsonBoxOffice,
                                           'director': directorName,
                                           'genres': jsonGenres,
+                                          'user tags': jsonUserTags,
                                           'countries': jsonCountries,
                                           'companies': jsonCompanies,
                                           'actors': movieActorsList,
@@ -1377,6 +1394,7 @@ class MyWindow(QtWidgets.QMainWindow):
             data['actors'] = collections.OrderedDict(sorted(actors.items()))
             data['companies'] = collections.OrderedDict(sorted(companies.items()))
             data['countries'] = collections.OrderedDict(sorted(countries.items()))
+            data['user tags'] = collections.OrderedDict(sorted(userTags.items()))
 
         self.statusBar().showMessage('Writing %s' % fileName)
         QtCore.QCoreApplication.processEvents()
@@ -1570,6 +1588,10 @@ class MyWindow(QtWidgets.QMainWindow):
         addToWatchListAction.triggered.connect(self.addToWatchList)
         moviesTableRightMenu.addAction(addToWatchListAction)
 
+        addUserTagAction = QtWidgets.QAction("Add User Tag", self)
+        addUserTagAction.triggered.connect(self.addUserTag)
+        moviesTableRightMenu.addAction(addUserTagAction)
+
         openFolderAction = QtWidgets.QAction("Open Folder", self)
         openFolderAction.triggered.connect(self.openMovieFolder)
         moviesTableRightMenu.addAction(openFolderAction)
@@ -1661,6 +1683,46 @@ class MyWindow(QtWidgets.QMainWindow):
         self.writeSmdbFile(self.watchListSmdbFile,
                            self.watchListTableModel,
                            titlesOnly=True)
+
+    def addUserTag(self):
+        userTag, ok = QtWidgets.QInputDialog.getText(self,
+                                                     "User Tag",
+                                                     "Enter new user tag",
+                                                     QtWidgets.QLineEdit.Normal,
+                                                     "")
+        if not userTag or not ok:
+            return
+
+        modelIndex = self.moviesTableView.selectionModel().selectedRows()[0]
+        sourceIndex = self.moviesTableProxyModel.mapToSource(modelIndex)
+        sourceRow = sourceIndex.row()
+        moviePath = self.moviesTableModel.getPath(sourceRow)
+        movieFolderName = self.moviesTableModel.getFolderName(sourceRow)
+
+        jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
+        if not os.path.exists(jsonFile):
+            return
+
+        data = {}
+        with open(jsonFile) as f:
+            try:
+                data = json.load(f)
+            except UnicodeDecodeError:
+                print("Error reading %s" % jsonFile)
+
+        if "user tags" not in data:
+            data["user tags"] = []
+
+        if userTag not in data["user tags"]:
+            data["user tags"].append(userTag)
+
+        try:
+            with open(jsonFile, "w") as f:
+                json.dump(data, f, indent=4)
+        except:
+            print("Error writing json file: %s" % jsonFile)
+
+        self.moviesTableModel.setMovieData(sourceRow, data, moviePath, movieFolderName)
 
     def removeFromWatchList(self):
         selectedRows = self.watchListTableView.selectionModel().selectedRows()
