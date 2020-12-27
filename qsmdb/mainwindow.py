@@ -420,7 +420,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.filterTable.verticalHeader().setMinimumSectionSize(10)
         self.filterTable.verticalHeader().setDefaultSectionSize(18)
         self.filterTable.setWordWrap(False)
-        self.filterTable.setStyleSheet("background: black;")
+        self.filterTable.setStyleSheet("background: black; alternate-background-color: #151515; color: white")
+        self.filterTable.setAlternatingRowColors(True)
         self.filterTable.itemSelectionChanged.connect(self.filterTableSelectionChanged)
         hh = self.filterTable.horizontalHeader()
         hh.setStyleSheet("background: #303030; color: white")
@@ -460,8 +461,10 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableView.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.moviesTableView.verticalHeader().hide()
         self.moviesTableView.setStyleSheet("background: black; alternate-background-color: #151515; color: white")
+        self.moviesTableView.setAlternatingRowColors(True)
         self.moviesTableView.horizontalHeader().setSectionsMovable(True)
         self.moviesTableView.setShowGrid(False)
+
 
         # Right click header menu
         hh = self.moviesTableView.horizontalHeader()
