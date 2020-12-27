@@ -26,7 +26,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                         'JsonExists',
                                         'Rank'], start=0)
 
-        self.defaultWidths = {self.Columns.Year: 15,
+        self.defaultWidths = {self.Columns.Year: 50,
                               self.Columns.Title: 200,
                               self.Columns.Rating: 60,
                               self.Columns.BoxOffice: 150,

@@ -248,7 +248,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.initUICover()
         coverInfoHSplitter.addWidget(self.coverWidget)
 
-        coverInfoHSplitter.setSizes([250, 550])
+        coverInfoHSplitter.setSizes([200, 540])
 
         # Summary
         self.summary = QtWidgets.QTextBrowser()
@@ -262,7 +262,7 @@ class MyWindow(QtWidgets.QMainWindow):
         mainHSplitter.addWidget(moviesWatchListVSplitter)
         mainHSplitter.addWidget(self.movieSectionWidget)
         mainHSplitter.splitterMoved.connect(self.resizeCoverFile)
-        mainHSplitter.setSizes([260, 770, 770])
+        mainHSplitter.setSizes([270, 790, 740])
 
         # Bottom
         bottomLayout = QtWidgets.QHBoxLayout(self)
@@ -416,7 +416,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.filterTable.verticalHeader().hide()
         self.filterTable.setHorizontalHeaderLabels(['Name', 'Count'])
         self.filterTable.setColumnWidth(0, 170)
-        self.filterTable.setColumnWidth(1, 45)
+        self.filterTable.setColumnWidth(1, 60)
         self.filterTable.verticalHeader().setMinimumSectionSize(10)
         self.filterTable.verticalHeader().setDefaultSectionSize(18)
         self.filterTable.setWordWrap(False)
