@@ -1588,9 +1588,13 @@ class MyWindow(QtWidgets.QMainWindow):
         addToWatchListAction.triggered.connect(self.addToWatchList)
         moviesTableRightMenu.addAction(addToWatchListAction)
 
-        addUserTagAction = QtWidgets.QAction("Add User Tag", self)
-        addUserTagAction.triggered.connect(self.addUserTag)
-        moviesTableRightMenu.addAction(addUserTagAction)
+        addNewUserTagAction = QtWidgets.QAction("Add New User Tag", self)
+        addNewUserTagAction.triggered.connect(self.addNewUserTag)
+        moviesTableRightMenu.addAction(addNewUserTagAction)
+
+        addExistingUserTagAction = QtWidgets.QAction("Add Existing User Tag", self)
+        addExistingUserTagAction.triggered.connect(self.addExistingUserTag)
+        moviesTableRightMenu.addAction(addExistingUserTagAction)
 
         openFolderAction = QtWidgets.QAction("Open Folder", self)
         openFolderAction.triggered.connect(self.openMovieFolder)
@@ -1684,15 +1688,30 @@ class MyWindow(QtWidgets.QMainWindow):
                            self.watchListTableModel,
                            titlesOnly=True)
 
-    def addUserTag(self):
+    def addNewUserTag(self):
         userTag, ok = QtWidgets.QInputDialog.getText(self,
                                                      "User Tag",
                                                      "Enter new user tag",
                                                      QtWidgets.QLineEdit.Normal,
                                                      "")
-        if not userTag or not ok:
-            return
+        if userTag and ok:
+            self.addUserTag(userTag)
 
+    def addExistingUserTag(self):
+        userTags = []
+        if 'user tags' in self.moviesSmdbData:
+            for tag in self.moviesSmdbData['user tags']:
+                userTags.append(tag)
+        userTag, ok = QtWidgets.QInputDialog.getItem(self,
+                                                     "User Tag",
+                                                     "Enter new user tag",
+                                                     userTags,
+                                                     0,
+                                                     False)
+        if userTag and ok:
+            self.addUserTag(userTag)
+
+    def addUserTag(self, userTag):
         modelIndex = self.moviesTableView.selectionModel().selectedRows()[0]
         sourceIndex = self.moviesTableProxyModel.mapToSource(modelIndex)
         sourceRow = sourceIndex.row()
@@ -1725,13 +1744,19 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableModel.setMovieData(sourceRow, data, moviePath, movieFolderName)
 
         if 'user tags' in self.moviesSmdbData:
-            if userTag not in self.moviesSmdbData['user tags']:
+            if userTag in self.moviesSmdbData['user tags']:
                 numMovies = self.moviesSmdbData['user tags'][userTag]['num movies']
                 self.moviesSmdbData['user tags'][userTag]['num movies'] = numMovies + 1
-                title = self.moviesTableModel.getTitle(sourceRow)
-                year = self.moviesTableModel.getTitle(sourceRow)
-                titleYear = (title, year)
-                self.moviesSmdbData['user tags'][userTag]['movies'].append(titleYear)
+            else:
+                self.moviesSmdbData['user tags'][userTag] = {}
+                self.moviesSmdbData['user tags'][userTag]['movies'] = []
+                self.moviesSmdbData['user tags'][userTag]['num movies'] = 1
+
+            title = self.moviesTableModel.getTitle(sourceRow)
+            year = self.moviesTableModel.getYear(sourceRow)
+            titleYear = (title, year)
+
+            self.moviesSmdbData['user tags'][userTag]['movies'].append(titleYear)
 
     def removeFromWatchList(self):
         selectedRows = self.watchListTableView.selectionModel().selectedRows()
