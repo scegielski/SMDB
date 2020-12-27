@@ -271,6 +271,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.watchListTableProxyModel = None
         self.refreshWatchList()
 
+        self.showMoviesTableSelectionStatus()
+
     def initUIFileMenu(self):
         menuBar = self.menuBar()
         fileMenu = menuBar.addMenu('File')
@@ -823,6 +825,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.showMoviesTableSelectionStatus()
         for row in range(self.moviesTableProxyModel.rowCount()):
             self.moviesTableView.setRowHidden(row, False)
+        self.moviesTableProxyModel.sort(0)
 
     def searchMoviesTableView(self):
         searchText = self.moviesTableSearchBox.text()
@@ -831,9 +834,9 @@ class MyWindow(QtWidgets.QMainWindow):
             QtCore.QRegExp(searchText,
                            QtCore.Qt.CaseInsensitive,
                            QtCore.QRegExp.FixedString))
-        if not searchText:
-            self.moviesTableProxyModel.sort(0)
-            self.filterTableSelectionChanged()
+        #if not searchText:
+        #    self.moviesTableProxyModel.sort(0)
+        #    self.filterTableSelectionChanged()
 
     def showFiltersMenu(self):
         if self.filterWidget:
@@ -945,6 +948,7 @@ class MyWindow(QtWidgets.QMainWindow):
     def filterTableSelectionChanged(self):
         if len(self.filterTable.selectedItems()) == 0:
             self.showAllMoviesTableView()
+            return
 
         filterByText = self.filterByComboBox.currentText()
         filterByKey = self.filterByDict[filterByText]
