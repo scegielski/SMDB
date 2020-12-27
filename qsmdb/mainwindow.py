@@ -459,18 +459,9 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableView.setSortingEnabled(True)
         self.moviesTableView.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.moviesTableView.verticalHeader().hide()
-        #style = "::section {""color: black; }"
-        #self.moviesTableView.horizontalHeader().setStyleSheet(style)
-        self.moviesTableView.setStyleSheet("background: black; color: white")
+        self.moviesTableView.setStyleSheet("background: black; alternate-background-color: #151515; color: white")
         self.moviesTableView.horizontalHeader().setSectionsMovable(True)
         self.moviesTableView.setShowGrid(False)
-
-        # TODO: Need to find a better way to set the alternating colors
-        # Setting alternate colors to true makes them black and white.
-        # Changing the color using a stylesheet looks better but makes
-        # the right click menu background also black.
-        # self.moviesTable.setAlternatingRowColors(True)
-        # self.moviesTable.setStyleSheet("alternate-background-color: #151515;background-color: black;");
 
         # Right click header menu
         hh = self.moviesTableView.horizontalHeader()
