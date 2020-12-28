@@ -140,6 +140,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.showMovieInfo = True
         self.showSummary = True
         self.showWatchList = True
+        self.showBackupList = True
 
         # Default state of cancel button
         self.isCanceled = False
@@ -180,8 +181,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.initUIFilterTable()
 
         # Splitter for Movies Table and Watch List
-        moviesWatchListVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
-        moviesWatchListVSplitter.setHandleWidth(20)
+        moviesWatchListBackupVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
+        moviesWatchListBackupVSplitter.setHandleWidth(20)
 
         # Movies Table
         self.moviesTableWidget = QtWidgets.QFrame()
@@ -190,7 +191,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableColumnsVisible = []
         self.moviesListHeaderActions = []
         self.initUIMoviesTable()
-        moviesWatchListVSplitter.addWidget(self.moviesTableWidget)
+        moviesWatchListBackupVSplitter.addWidget(self.moviesTableWidget)
 
         # Watch List
         self.watchListWidget = QtWidgets.QFrame()
@@ -198,9 +199,17 @@ class MyWindow(QtWidgets.QMainWindow):
         self.watchListColumnsVisible = []
         self.watchListHeaderActions = []
         self.initUIWatchList()
-        moviesWatchListVSplitter.addWidget(self.watchListWidget)
+        moviesWatchListBackupVSplitter.addWidget(self.watchListWidget)
 
-        moviesWatchListVSplitter.setSizes([700, 200])
+        # Backup List
+        self.backupListWidget = QtWidgets.QFrame()
+        self.backupListTableView = QtWidgets.QTableView()
+        self.backupListColumnsVisible = []
+        self.backupListHeaderActions = []
+        self.initUIBackupList()
+        moviesWatchListBackupVSplitter.addWidget(self.backupListWidget)
+
+        moviesWatchListBackupVSplitter.setSizes([500, 200, 200])
 
         # Movie section widget
         self.movieSectionWidget = QtWidgets.QFrame()
@@ -262,7 +271,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Add the sub-layouts to the mainHSplitter
         mainHSplitter.addWidget(self.filterWidget)
-        mainHSplitter.addWidget(moviesWatchListVSplitter)
+        mainHSplitter.addWidget(moviesWatchListBackupVSplitter)
         mainHSplitter.addWidget(self.movieSectionWidget)
         mainHSplitter.splitterMoved.connect(self.resizeCoverFile)
         mainHSplitter.setSizes([270, 790, 740])
@@ -301,6 +310,12 @@ class MyWindow(QtWidgets.QMainWindow):
         self.watchListTableModel = None
         self.watchListTableProxyModel = None
         self.refreshWatchList()
+
+        self.backupListSmdbFile = os.path.join(self.moviesFolder, "smdb_data_backup_list.json")
+        self.backupListSmdbData = None
+        self.backupListTableModel = None
+        self.backupListTableProxyModel = None
+        self.refreshBackupList()
 
         self.showMoviesTableSelectionStatus()
 
@@ -354,6 +369,12 @@ class MyWindow(QtWidgets.QMainWindow):
         showWatchListAction.setChecked(self.showWatchList)
         showWatchListAction.triggered.connect(self.showWatchListMenu)
         viewMenu.addAction(showWatchListAction)
+
+        showBackupListAction = QtWidgets.QAction("Show Backup List", self)
+        showBackupListAction.setCheckable(True)
+        showBackupListAction.setChecked(self.showBackupList)
+        showBackupListAction.triggered.connect(self.showBackupListMenu)
+        viewMenu.addAction(showBackupListAction)
 
         showCoverAction = QtWidgets.QAction("Show Cover", self)
         showCoverAction.setCheckable(True)
@@ -552,13 +573,13 @@ class MyWindow(QtWidgets.QMainWindow):
         watchListVLayout.addLayout(watchListButtonsHLayout)
 
         addButton = QtWidgets.QPushButton('Add')
-        addButton.clicked.connect(self.addToWatchList)
+        addButton.clicked.connect(self.watchListAdd)
         addButton.setFont(QtGui.QFont('TimesNew Roman', 12))
         addButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
         watchListButtonsHLayout.addWidget(addButton)
 
         removeButton = QtWidgets.QPushButton('Remove')
-        removeButton.clicked.connect(self.removeFromWatchList)
+        removeButton.clicked.connect(self.watchListRemove)
         removeButton.setFont(QtGui.QFont('TimesNew Roman', 12))
         removeButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
         watchListButtonsHLayout.addWidget(removeButton)
@@ -580,6 +601,76 @@ class MyWindow(QtWidgets.QMainWindow):
         moveDownButton.setFont(QtGui.QFont('TimesNew Roman', 12))
         moveDownButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
         watchListButtonsHLayout.addWidget(moveDownButton)
+
+    def initUIBackupList(self):
+        self.backupListWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
+        self.backupListWidget.setLineWidth(5)
+        self.backupListWidget.setStyleSheet("background: rgb(25, 25, 25); color: white; border-radius: 10px")
+
+        backupListVLayout = QtWidgets.QVBoxLayout()
+        self.backupListWidget.setLayout(backupListVLayout)
+
+        backupListLabel = QtWidgets.QLabel("Backup List")
+        backupListLabel.setFont(QtGui.QFont('TimesNew Roman', 12))
+        backupListVLayout.addWidget(backupListLabel)
+
+        self.backupListTableView.setSortingEnabled(False)
+        self.backupListTableView.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
+        self.backupListTableView.verticalHeader().hide()
+        self.backupListTableView.setStyleSheet("background: black; alternate-background-color: #151515; color: white")
+        self.backupListTableView.setAlternatingRowColors(True)
+        self.backupListTableView.horizontalHeader().setSectionsMovable(True)
+        self.backupListTableView.horizontalHeader().setStyleSheet("color: black")
+        self.backupListTableView.setShowGrid(False)
+
+        # Right click header menu
+        hh = self.backupListTableView.horizontalHeader()
+        hh.setStyleSheet("background: #303030; color: white")
+        hh.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        hh.customContextMenuRequested[QtCore.QPoint].connect(
+            lambda: headerRightMenuShow(QtCore.QPoint,
+                                        self.backupListTableView,
+                                        self.backupListColumnsVisible,
+                                        self.backupListTableModel))
+
+        # Right click menu
+        self.backupListTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.backupListTableView.customContextMenuRequested[QtCore.QPoint].connect(self.backupListTableRightMenuShow)
+
+        backupListVLayout.addWidget(self.backupListTableView)
+
+        backupListButtonsHLayout = QtWidgets.QHBoxLayout()
+        backupListVLayout.addLayout(backupListButtonsHLayout)
+
+        addButton = QtWidgets.QPushButton('Add')
+        addButton.clicked.connect(self.backupListAdd)
+        addButton.setFont(QtGui.QFont('TimesNew Roman', 12))
+        addButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        backupListButtonsHLayout.addWidget(addButton)
+
+        removeButton = QtWidgets.QPushButton('Remove')
+        removeButton.clicked.connect(self.backupListRemove)
+        removeButton.setFont(QtGui.QFont('TimesNew Roman', 12))
+        removeButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        backupListButtonsHLayout.addWidget(removeButton)
+
+        moveToTopButton = QtWidgets.QPushButton('Move To Top')
+        moveToTopButton.clicked.connect(lambda: self.backupListMoveRow(self.MoveTo.TOP))
+        moveToTopButton.setFont(QtGui.QFont('TimesNew Roman', 12))
+        moveToTopButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        backupListButtonsHLayout.addWidget(moveToTopButton)
+
+        moveUpButton = QtWidgets.QPushButton('Move Up')
+        moveUpButton.clicked.connect(lambda: self.backupListMoveRow(self.MoveTo.UP))
+        moveUpButton.setFont(QtGui.QFont('TimesNew Roman', 12))
+        moveUpButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        backupListButtonsHLayout.addWidget(moveUpButton)
+
+        moveDownButton = QtWidgets.QPushButton('Move Down')
+        moveDownButton.clicked.connect(lambda: self.backupListMoveRow(self.MoveTo.DOWN))
+        moveDownButton.setFont(QtGui.QFont('TimesNew Roman', 12))
+        moveDownButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        backupListButtonsHLayout.addWidget(moveDownButton)
 
     def initUICover(self):
         self.coverWidget.setStyleSheet("background-color: black;")
@@ -712,6 +803,56 @@ class MyWindow(QtWidgets.QMainWindow):
 
         wtv.verticalHeader().setMinimumSectionSize(10)
         wtv.verticalHeader().setDefaultSectionSize(18)
+
+    def refreshBackupList(self):
+        if os.path.exists(self.backupListSmdbFile):
+            self.backupListSmdbData = readSmdbFile(self.backupListSmdbFile)
+        self.backupListTableModel = MoviesTableModel(self.backupListSmdbData,
+                                                    self.moviesFolder,
+                                                    False,  # force scan
+                                                    True)  # don't scan the movies folder for the watch list
+        self.backupListTableProxyModel = QtCore.QSortFilterProxyModel()
+        self.backupListTableProxyModel.setSourceModel(self.backupListTableModel)
+
+        btv = self.backupListTableView
+        btm = self.backupListTableModel
+        btpm = self.backupListTableProxyModel
+
+        # Sort the watch list by rankl
+        btpm.sort(btm.Columns.Rank.value)
+
+        btv.setModel(btpm)
+        btv.selectionModel().selectionChanged.connect(lambda: self.tableSelectionChanged(btv, btm, btpm))
+        btv.doubleClicked.connect(lambda: self.playMovie(btv, btpm))
+        btpm.setDynamicSortFilter(False)
+        btv.setWordWrap(False)
+
+        self.backupListColumnsVisible = []
+        for col in btm.Columns:
+            btv.setColumnWidth(col.value, btm.defaultWidths[col])
+            self.backupListColumnsVisible.append(True)
+
+        columnsToHide = [btm.Columns.BoxOffice,
+                         btm.Columns.Runtime,
+                         btm.Columns.Director,
+                         btm.Columns.Country,
+                         btm.Columns.Genre,
+                         btm.Columns.UserTags,
+                         btm.Columns.Company,
+                         btm.Columns.Id,
+                         btm.Columns.Folder,
+                         btm.Columns.Path,
+                         btm.Columns.JsonExists]
+        for c in columnsToHide:
+            index = c.value
+            btv.hideColumn(index)
+            self.backupListColumnsVisible[index] = False
+
+        # Set rank as the first column
+        btv.horizontalHeader().moveSection(btm.Columns.Rank.value, 0)
+
+        btv.verticalHeader().setMinimumSectionSize(10)
+        btv.verticalHeader().setDefaultSectionSize(18)
 
     def backupMoviesFolder(self):
         pass
@@ -887,6 +1028,14 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.watchListWidget.hide()
             else:
                 self.watchListWidget.show()
+
+    def showBackupListMenu(self):
+        if self.backupListWidget:
+            self.showBackupList = not self.showBackupList
+            if not self.showBackupList:
+                self.backupListWidget.hide()
+            else:
+                self.backupListWidget.show()
 
     def showCoverMenu(self):
         if self.coverWidget:
@@ -1545,7 +1694,7 @@ class MyWindow(QtWidgets.QMainWindow):
         rightMenu.addAction(playAction)
 
         removeFromWatchListAction = QtWidgets.QAction("Remove From Watch List", self)
-        removeFromWatchListAction.triggered.connect(self.removeFromWatchList)
+        removeFromWatchListAction.triggered.connect(self.watchListRemove)
         rightMenu.addAction(removeFromWatchListAction)
 
         moveToTopWatchListAction = QtWidgets.QAction("Move To Top", self)
@@ -1564,6 +1713,37 @@ class MyWindow(QtWidgets.QMainWindow):
         self.clickedMovieTable(modelIndex,
                                self.watchListTableModel,
                                self.watchListTableProxyModel)
+
+        rightMenu.exec_(QtGui.QCursor.pos())
+
+    def backupListTableRightMenuShow(self, QPos):
+        rightMenu = QtWidgets.QMenu(self.moviesTableView)
+
+        playAction = QtWidgets.QAction("Play", self)
+        playAction.triggered.connect(lambda: self.playMovie(self.backupListTableView,
+                                                            self.backupListTableProxyModel))
+        rightMenu.addAction(playAction)
+
+        removeFromWatchListAction = QtWidgets.QAction("Remove From Watch List", self)
+        removeFromWatchListAction.triggered.connect(self.watchListRemove)
+        rightMenu.addAction(removeFromWatchListAction)
+
+        moveToTopWatchListAction = QtWidgets.QAction("Move To Top", self)
+        moveToTopWatchListAction.triggered.connect(lambda: self.backupListMoveRow(self.MoveTo.TOP))
+        rightMenu.addAction(moveToTopWatchListAction)
+
+        moveUpWatchListAction = QtWidgets.QAction("Move Up", self)
+        moveUpWatchListAction.triggered.connect(lambda: self.backupListMoveRow(self.MoveTo.UP))
+        rightMenu.addAction(moveUpWatchListAction)
+
+        moveDownWatchListAction = QtWidgets.QAction("Move Down", self)
+        moveDownWatchListAction.triggered.connect(lambda: self.backupListMoveRow(self.MoveTo.DOWN))
+        rightMenu.addAction(moveDownWatchListAction)
+
+        modelIndex = self.backupListTableView.selectionModel().selectedRows()[0]
+        self.clickedMovieTable(modelIndex,
+                               self.backupListTableModel,
+                               self.backupListTableProxyModel)
 
         rightMenu.exec_(QtGui.QCursor.pos())
 
@@ -1594,8 +1774,12 @@ class MyWindow(QtWidgets.QMainWindow):
         moviesTableRightMenu.addAction(playAction)
 
         addToWatchListAction = QtWidgets.QAction("Add To Watch List", self)
-        addToWatchListAction.triggered.connect(self.addToWatchList)
+        addToWatchListAction.triggered.connect(self.watchListAdd)
         moviesTableRightMenu.addAction(addToWatchListAction)
+
+        addToBackupListAction = QtWidgets.QAction("Add To Backup List", self)
+        addToBackupListAction.triggered.connect(self.backupListAdd)
+        moviesTableRightMenu.addAction(addToBackupListAction)
 
         addNewUserTagAction = QtWidgets.QAction("Add New User Tag", self)
         addNewUserTagAction.triggered.connect(self.addNewUserTag)
@@ -1685,7 +1869,7 @@ class MyWindow(QtWidgets.QMainWindow):
             # play the desired file.
             runFile(moviePath)
 
-    def addToWatchList(self):
+    def watchListAdd(self):
         for modelIndex in self.moviesTableView.selectionModel().selectedRows():
             sourceIndex = self.moviesTableProxyModel.mapToSource(modelIndex)
             sourceRow = sourceIndex.row()
@@ -1697,6 +1881,20 @@ class MyWindow(QtWidgets.QMainWindow):
         self.writeSmdbFile(self.watchListSmdbFile,
                            self.watchListTableModel,
                            titlesOnly=True)
+
+    def backupListAdd(self):
+        for modelIndex in self.moviesTableView.selectionModel().selectedRows():
+            sourceIndex = self.moviesTableProxyModel.mapToSource(modelIndex)
+            sourceRow = sourceIndex.row()
+            movieFolderName = self.moviesTableModel.getFolderName(sourceRow)
+            moviePath = self.moviesTableModel.getPath(sourceRow)
+            self.backupListTableModel.addMovie(self.moviesSmdbData,
+                                              moviePath,
+                                              movieFolderName)
+        self.writeSmdbFile(self.backupListSmdbFile,
+                           self.backupListTableModel,
+                           titlesOnly=True)
+
 
     def addNewUserTag(self):
         userTag, ok = QtWidgets.QInputDialog.getText(self,
@@ -1768,7 +1966,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
             self.moviesSmdbData['user tags'][userTag]['movies'].append(titleYear)
 
-    def removeFromWatchList(self):
+    def watchListRemove(self):
         selectedRows = self.watchListTableView.selectionModel().selectedRows()
         if len(selectedRows) == 0:
             return
@@ -1781,10 +1979,69 @@ class MyWindow(QtWidgets.QMainWindow):
                            self.watchListTableModel,
                            titlesOnly=True)
 
+    def backupListRemove(self):
+        selectedRows = self.backupListTableView.selectionModel().selectedRows()
+        if len(selectedRows) == 0:
+            return
+
+        minRow = selectedRows[0].row()
+        maxRow = selectedRows[-1].row()
+        self.backupListTableModel.removeMovies(minRow, maxRow)
+        self.backupListTableView.selectionModel().clearSelection()
+        self.writeSmdbFile(self.backupListSmdbFile,
+                           self.backupListTableModel,
+                           titlesOnly=True)
+
     class MoveTo(Enum):
         DOWN = 0
         UP = 1
         TOP = 2
+
+    def backupListMoveRow(self, moveTo):
+        selectedRows = self.backupListTableView.selectionModel().selectedRows()
+        if len(selectedRows) == 0:
+            return
+
+        minProxyRow = selectedRows[0].row()
+        maxProxyRow = selectedRows[-1].row()
+        minSourceRow = self.backupListTableProxyModel.mapToSource(selectedRows[0]).row()
+        maxSourceRow = self.backupListTableProxyModel.mapToSource(selectedRows[-1]).row()
+
+        if ((moveTo == self.MoveTo.UP or moveTo == self.MoveTo.TOP) and minSourceRow == 0) or \
+                (moveTo == self.MoveTo.DOWN and maxSourceRow >= (self.backupListTableModel.getDataSize() - 1)):
+            return
+
+        self.backupListTableView.selectionModel().clearSelection()
+
+        dstRow = 0
+        topRow = 0
+        bottomRow = 0
+        if moveTo == self.MoveTo.UP:
+            dstRow = minSourceRow - 1
+            topRow = minProxyRow - 1
+            bottomRow = maxProxyRow - 1
+        elif moveTo == self.MoveTo.DOWN:
+            dstRow = minSourceRow + 1
+            topRow = minProxyRow + 1
+            bottomRow = maxProxyRow + 1
+        elif moveTo == self.MoveTo.TOP:
+            dstRow = 0
+            topRow = 0
+            bottomRow = maxProxyRow - minProxyRow
+
+        self.backupListTableModel.moveRow(minSourceRow, maxSourceRow, dstRow)
+        topLeft = self.backupListTableProxyModel.index(topRow, 0)
+        lastColumn = self.moviesTableModel.getLastColumn()
+        bottomRight = self.backupListTableProxyModel.index(bottomRow, lastColumn)
+
+        selection = self.backupListTableView.selectionModel().selection()
+        selection.select(topLeft, bottomRight)
+        self.backupListTableView.selectionModel().select(selection,
+                                                        QtCore.QItemSelectionModel.ClearAndSelect)
+
+        self.writeSmdbFile(self.backupListSmdbFile,
+                           self.backupListTableModel,
+                           titlesOnly=True)
 
     def watchListMoveRow(self, moveTo):
         selectedRows = self.watchListTableView.selectionModel().selectedRows()
