@@ -1,9 +1,9 @@
 import json
 import fnmatch
 from enum import Enum
-from enum import auto
 
 from .utilities import *
+
 
 class MoviesTableModel(QtCore.QAbstractTableModel):
     def __init__(self, smdbData, moviesFolder, forceScan=False, neverScan=False):
@@ -97,6 +97,9 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
         # Sort by year
         self.sort(self.Columns.Year.value, QtCore.Qt.AscendingOrder)
+
+    def getHeaders(self):
+        return self._headers
 
     def getNumColumns(self):
         return len(self.Columns)

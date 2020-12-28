@@ -1,6 +1,4 @@
-from PyQt5 import QtCore, QtGui, QtWidgets
-import sys
-import os
+from PyQt5 import QtGui, QtWidgets
 from enum import Enum
 from pathlib import Path
 import imdb
@@ -20,7 +18,7 @@ def readSmdbFile(fileName):
 
 
 def getMovieKey(movie, key):
-    if movie.has_key(key):
+    if key in movie:
         return movie[key]
     else:
         return None
@@ -42,7 +40,7 @@ def showAllColumns(tableView, visibleList):
 
 def hideAllColumns(tableView, visibleList):
     for i, c in enumerate(visibleList):
-        if i != 0: # leave the first column visible
+        if i != 0:  # leave the first column visible
             visibleList[i] = False
             tableView.hideColumn(i)
 
@@ -68,9 +66,11 @@ def headerRightMenuShow(QPos, tableView, visibleColumnsList, model):
                                     hideAllColumns(tv, vcl))
     menu.addAction(hideAllAction)
 
+    headers = model.getHeaders()
+
     actionsList = []
     for c in model.Columns:
-        header = model._headers[c.value]
+        header = headers[c.value]
         action = QtWidgets.QAction(header)
         action.setCheckable(True)
         action.setChecked(visibleColumnsList[c.value])
@@ -84,6 +84,7 @@ def headerRightMenuShow(QPos, tableView, visibleColumnsList, model):
 
     menu.exec_(QtGui.QCursor.pos())
 
+
 class FilterTable(QtWidgets.QTableWidget):
     def __init__(self):
         super(FilterTable, self).__init__()
@@ -96,6 +97,7 @@ class FilterTable(QtWidgets.QTableWidget):
                 return
             else:
                 super(FilterTable, self).mousePressEvent(event)
+
 
 class MovieInfoListview(QtWidgets.QListWidget):
     def __init__(self):
@@ -202,7 +204,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Movie section widget
         self.movieSectionWidget = QtWidgets.QFrame()
-        self.movieSectionWidget.setFrameShape(QtWidgets.QFrame.Panel|QtWidgets.QFrame.Sunken)
+        self.movieSectionWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
         self.movieSectionWidget.setLineWidth(5)
         self.movieSectionWidget.setStyleSheet("background: rgb(25, 25, 25); border-radius: 10px")
 
@@ -214,7 +216,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.titleLabel.setFont(QtGui.QFont('TimesNew Roman', 20))
         self.titleLabel.setStyleSheet("color: white; background: black")
         self.titleLabel.setWordWrap(True)
-        self.titleLabel.setAlignment(QtCore.Qt.AlignHCenter|QtCore.Qt.AlignTop)
+        self.titleLabel.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignTop)
         self.titleLabel.setSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Fixed)
         movieSectionVLayout.addWidget(self.titleLabel)
 
@@ -372,7 +374,7 @@ class MyWindow(QtWidgets.QMainWindow):
         viewMenu.addAction(showSummaryAction)
 
     def initUIFilterTable(self):
-        self.filterWidget.setFrameShape(QtWidgets.QFrame.Panel|QtWidgets.QFrame.Sunken)
+        self.filterWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
         self.filterWidget.setLineWidth(5)
         self.filterWidget.setStyleSheet("background: rgb(25, 25, 25); color: white; border-radius: 10px")
 
@@ -446,7 +448,7 @@ class MyWindow(QtWidgets.QMainWindow):
         filterTableSearchBox.textChanged.connect(lambda: searchTableWidget(filterTableSearchBox, self.filterTable))
 
     def initUIMoviesTable(self):
-        self.moviesTableWidget.setFrameShape(QtWidgets.QFrame.Panel|QtWidgets.QFrame.Sunken)
+        self.moviesTableWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
         self.moviesTableWidget.setLineWidth(5)
         self.moviesTableWidget.setStyleSheet("background: rgb(25, 25, 25); color: white;  border-radius: 10px")
         self.moviesTableView.horizontalHeader().setStyleSheet("color: black")
@@ -465,7 +467,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableView.setAlternatingRowColors(True)
         self.moviesTableView.horizontalHeader().setSectionsMovable(True)
         self.moviesTableView.setShowGrid(False)
-
 
         # Right click header menu
         hh = self.moviesTableView.horizontalHeader()
@@ -487,7 +488,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Show all button
         showAllButton = QtWidgets.QPushButton("Show All")
-        showAllButton.setFixedSize(100,20)
+        showAllButton.setFixedSize(100, 20)
         showAllButton.setSizePolicy(QtWidgets.QSizePolicy.Fixed,
                                     QtWidgets.QSizePolicy.Maximum)
         showAllButton.clicked.connect(self.showAllMoviesTableView)
@@ -510,9 +511,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableSearchBox.textChanged.connect(self.searchMoviesTableView)
         moviesTableSearchHLayout.addWidget(self.moviesTableSearchBox)
 
-
     def initUIWatchList(self):
-        self.watchListWidget.setFrameShape(QtWidgets.QFrame.Panel|QtWidgets.QFrame.Sunken)
+        self.watchListWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
         self.watchListWidget.setLineWidth(5)
         self.watchListWidget.setStyleSheet("background: rgb(25, 25, 25); color: white; border-radius: 10px")
 
@@ -599,7 +599,7 @@ class MyWindow(QtWidgets.QMainWindow):
         else:
             self.moviesTableModel = MoviesTableModel(self.moviesSmdbData,
                                                      self.moviesFolder,
-                                                     True) # Force scan if no smdb file
+                                                     True)  # Force scan if no smdb file
             # Generate smdb data from movies table model and write
             # out smdb file
             self.moviesSmdbData = self.writeSmdbFile(self.moviesSmdbFile,
@@ -662,8 +662,8 @@ class MyWindow(QtWidgets.QMainWindow):
             self.watchListSmdbData = readSmdbFile(self.watchListSmdbFile)
         self.watchListTableModel = MoviesTableModel(self.watchListSmdbData,
                                                     self.moviesFolder,
-                                                    False, # force scan
-                                                    True) # dont scan the movies folder for the watch list
+                                                    False,  # force scan
+                                                    True)  # don't scan the movies folder for the watch list
         self.watchListTableProxyModel = QtCore.QSortFilterProxyModel()
         self.watchListTableProxyModel.setSourceModel(self.watchListTableModel)
 
@@ -743,8 +743,10 @@ class MyWindow(QtWidgets.QMainWindow):
         showMenuTexts = ['Director', 'Actor', 'Year']
         if filterByText in showMenuTexts:
             self.filterTable.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-            try: self.filterTable.customContextMenuRequested[QtCore.QPoint].disconnect()
-            except Exception: pass
+            try:
+                self.filterTable.customContextMenuRequested[QtCore.QPoint].disconnect()
+            except Exception:
+                pass
             self.filterTable.customContextMenuRequested[QtCore.QPoint].connect(
                 self.filterRightMenu)
         else:
@@ -853,9 +855,6 @@ class MyWindow(QtWidgets.QMainWindow):
             QtCore.QRegExp(searchText,
                            QtCore.Qt.CaseInsensitive,
                            QtCore.QRegExp.FixedString))
-        #if not searchText:
-        #    self.moviesTableProxyModel.sort(0)
-        #    self.filterTableSelectionChanged()
 
     def showFiltersMenu(self):
         if self.filterWidget:
@@ -1031,7 +1030,8 @@ class MyWindow(QtWidgets.QMainWindow):
             self.movieCover.setPixmap(QtGui.QPixmap(0, 0))
 
     def movieInfoAddSection(self, jsonData, jsonName, smdbName, userRoleName):
-        if not jsonData: return
+        if not jsonData:
+            return
         if jsonName in jsonData and jsonData[jsonName]:
             for name in jsonData[jsonName]:
                 numMovies = 0
@@ -1054,7 +1054,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.movieInfoListView.addItem(spacerItem)
 
     def movieInfoRefresh(self, jsonData):
-        if not jsonData: return
+        if not jsonData:
+            return
         self.movieInfoListView.clear()
 
         self.movieInfoAddHeading("Year:")
@@ -1119,14 +1120,13 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.movieInfoListView.setCurrentRow(0)
 
-
     def summaryShow(self, jsonData):
-        if not jsonData: return
+        if not jsonData:
+            return
 
         infoText = ''
         if 'plot' in jsonData and jsonData['plot']:
             infoText += '<br>Plot:<br>'
-            plot = ''
             if isinstance(jsonData['plot'], list):
                 plot = jsonData['plot'][0]
             else:
@@ -1136,7 +1136,6 @@ class MyWindow(QtWidgets.QMainWindow):
             infoText += '%s<br>' % plot
         if 'synopsis' in jsonData and jsonData['synopsis']:
             infoText += '<br>Synopsis:<br>'
-            synopsis = ''
             if isinstance(jsonData['synopsis'], list):
                 synopsis = jsonData['synopsis'][0]
             else:
@@ -1173,7 +1172,7 @@ class MyWindow(QtWidgets.QMainWindow):
             for k in boxOffice.keys():
                 d['box office'] = boxOffice[k]
         director = getMovieKey(movie, 'director')
-        if (director):
+        if director:
             if isinstance(director, list):
                 directorName = str(director[0]['name'])
                 directorId = self.db.name2imdbID(directorName)
@@ -1215,7 +1214,7 @@ class MyWindow(QtWidgets.QMainWindow):
         for row in range(count):
 
             QtCore.QCoreApplication.processEvents()
-            if self.isCanceled == True:
+            if self.isCanceled:
                 self.statusBar().showMessage('Cancelled')
                 self.isCanceled = False
                 self.progressBar.setValue(0)
@@ -1258,6 +1257,7 @@ class MyWindow(QtWidgets.QMainWindow):
                             years[jsonYear]['movies'].append(titleYear)
                             years[jsonYear]['num movies'] += 1
 
+                    directorName = ''
                     if 'director' in jsonData and jsonData['director']:
                         directorData = jsonData['director']
 
@@ -1268,7 +1268,7 @@ class MyWindow(QtWidgets.QMainWindow):
                             directorName = directorData
                             directorId = ''
 
-                        if not directorName in directors:
+                        if directorName not in directors:
                             directors[directorName] = {}
                             directors[directorName]['id'] = directorId
                             directors[directorName]['num movies'] = 0
@@ -1303,7 +1303,7 @@ class MyWindow(QtWidgets.QMainWindow):
                     if 'user tags' in jsonData and jsonData['user tags']:
                         jsonUserTags = jsonData['user tags']
                         for tag in jsonUserTags:
-                            if tag  not in userTags:
+                            if tag not in userTags:
                                 userTags[tag] = {}
                                 userTags[tag]['num movies'] = 0
                                 userTags[tag]['movies'] = []
@@ -1385,8 +1385,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage('Sorting Data...')
         QtCore.QCoreApplication.processEvents()
 
-        data = {}
-        data['titles'] = collections.OrderedDict(sorted(titles.items()))
+        data = {'titles': collections.OrderedDict(sorted(titles.items()))}
         if not titlesOnly:
             data['years'] = collections.OrderedDict(sorted(years.items()))
             data['genres'] = collections.OrderedDict(sorted(genres.items()))
@@ -1471,7 +1470,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         movie = results[0]
         for res in results:
-            if res.has_key('year') and res.has_key('kind'):
+            if 'year' in res and 'kind' in res:
                 kind = res['kind']
                 if res['year'] == year and (kind in acceptableKinds):
                     movie = res
@@ -1484,7 +1483,6 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def filterRightMenu(self):
         rightMenu = QtWidgets.QMenu(self.filterTable)
-        #selectedItem = self.filterTable.selectedItems()[0]
         selectedItem = self.filterTable.itemAt(self.filterTable.mouseLocation)
         row = selectedItem.row()
         openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
@@ -1503,7 +1501,6 @@ class MyWindow(QtWidgets.QMainWindow):
         category = selectedItem.data(QtCore.Qt.UserRole)[0]
         print("category = %s" % category)
         if category == 'director' or category == 'actor' or category == 'year':
-            row = self.movieInfoListView.row(selectedItem)
             openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
             itemText = selectedItem.text()
             if category == 'director' or category == 'actor':
@@ -1524,7 +1521,7 @@ class MyWindow(QtWidgets.QMainWindow):
             if isinstance(person, imdb.Person.Person):
                 personId = person.getID()
 
-        if (personId):
+        if personId:
             webbrowser.open('http://imdb.com/name/nm%s' % personId, new=2)
 
     def watchListTableRightMenuShow(self, QPos):
@@ -1558,7 +1555,6 @@ class MyWindow(QtWidgets.QMainWindow):
 
         rightMenu.exec_(QtGui.QCursor.pos())
 
-
     def moviesTableHeaderRightMenuShow(self, QPos):
         menu = QtWidgets.QMenu(self.moviesTableView.horizontalHeader())
 
@@ -1566,8 +1562,9 @@ class MyWindow(QtWidgets.QMainWindow):
         menu.addAction(showAllAction)
 
         actions = []
+        headers = self.moviesTableModel.getHeaders()
         for c in self.moviesTableModel.Columns:
-            header = self.moviesTableModel._headers[c.value]
+            header = headers[c.value]
             action = QtWidgets.QAction(header)
             action.setCheckable(True)
             action.setChecked(self.moviesTableColumnsVisible[c.value])
@@ -1647,7 +1644,8 @@ class MyWindow(QtWidgets.QMainWindow):
 
         moviesTableRightMenu.exec_(QtGui.QCursor.pos())
 
-    def playMovie(self, table, proxy):
+    @staticmethod
+    def playMovie(table, proxy):
         proxyIndex = table.selectionModel().selectedRows()[0]
         sourceIndex = proxy.mapToSource(proxyIndex)
         sourceRow = sourceIndex.row()
@@ -1792,6 +1790,9 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.watchListTableView.selectionModel().clearSelection()
 
+        dstRow = 0
+        topRow = 0
+        bottomRow = 0
         if moveTo == self.MoveTo.UP:
             dstRow = minSourceRow - 1
             topRow = minProxyRow - 1
@@ -1869,7 +1870,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.isCanceled = False
         for modelIndex in self.moviesTableView.selectionModel().selectedRows():
             QtCore.QCoreApplication.processEvents()
-            if self.isCanceled == True:
+            if self.isCanceled:
                 self.statusBar().showMessage('Cancelled')
                 self.isCanceled = False
                 self.progressBar.setValue(0)
@@ -1902,7 +1903,7 @@ class MyWindow(QtWidgets.QMainWindow):
             moviePath = self.moviesTableModel.getPath(sourceRow)
             movieFolder = self.moviesTableModel.getFolderName(sourceRow)
             jsonFile = os.path.join(moviePath, '%s.json' % movieFolder)
-            if (os.path.exists(jsonFile)):
+            if os.path.exists(jsonFile):
                 filesToDelete.append(os.path.join(moviePath, jsonFile))
         removeFiles(self, filesToDelete, '.json')
         # self.setMovieListItemColors()
