@@ -861,6 +861,8 @@ class MyWindow(QtWidgets.QMainWindow):
             QtCore.QRegExp(searchText,
                            QtCore.Qt.CaseInsensitive,
                            QtCore.QRegExp.FixedString))
+        if not searchText:
+            self.filterTableSelectionChanged()
 
     def showFiltersMenu(self):
         if self.filterWidget:
@@ -1011,6 +1013,10 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableView.selectRow(firstRow)
         self.progressBar.setValue(0)
         self.showMoviesTableSelectionStatus()
+
+        sortColumn = self.moviesTableProxyModel.sortColumn()
+        sortOrder = self.moviesTableProxyModel.sortOrder()
+        self.moviesTableProxyModel.sort(sortColumn, sortOrder)
 
     def resizeCoverFile(self):
         if self.movieCover:
