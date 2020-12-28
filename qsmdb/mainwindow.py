@@ -619,6 +619,12 @@ class MyWindow(QtWidgets.QMainWindow):
             mtpm.sort(mtm.Columns.Year.value)
 
         mtv.setModel(mtpm)
+
+        try:
+            mtv.doubleClicked.disconnect()
+        except Exception:
+            pass
+
         mtv.selectionModel().selectionChanged.connect(lambda: self.tableSelectionChanged(mtv, mtm, mtpm))
         mtv.doubleClicked.connect(lambda: self.playMovie(mtv, mtpm))
 
