@@ -125,6 +125,7 @@ class MyWindow(QtWidgets.QMainWindow):
         # Read the movies folder from the settings
         self.settings = QtCore.QSettings("STC", "SMDB")
         self.moviesFolder = self.settings.value('movies_folder', "J:/Movies", type=str)
+        self.backupFolder = ""
 
         # Init UI
         self.setWindowTitle("SMDB %s" % self.moviesFolder)
@@ -204,8 +205,15 @@ class MyWindow(QtWidgets.QMainWindow):
         # Backup List
         self.backupListWidget = QtWidgets.QFrame()
         self.backupListTableView = QtWidgets.QTableView()
+        self.analyseButton = QtWidgets.QPushButton("Analyse")
+        self.backupButton = QtWidgets.QPushButton("Backup")
+        self.spaceAvailableWidget = QtWidgets.QWidget()
+        self.spaceUsedWidget = QtWidgets.QWidget()
+        self.spaceChangedWidget = QtWidgets.QWidget()
         self.backupListColumnsVisible = []
         self.backupListHeaderActions = []
+        self.backupFolderEdit = QtWidgets.QLineEdit()
+        self.backupFolder = ''
         self.initUIBackupList()
         moviesWatchListBackupVSplitter.addWidget(self.backupListWidget)
 
@@ -296,6 +304,8 @@ class MyWindow(QtWidgets.QMainWindow):
 
         if not os.path.exists(self.moviesFolder):
             return
+
+        return
 
         self.moviesSmdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
         self.moviesSmdbData = None
@@ -672,6 +682,80 @@ class MyWindow(QtWidgets.QMainWindow):
         moveDownButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
         backupListButtonsHLayout.addWidget(moveDownButton)
 
+        backupFolderHLayout = QtWidgets.QHBoxLayout()
+        backupListVLayout.addLayout(backupFolderHLayout)
+
+        backupFolderLabel = QtWidgets.QLabel("Destination Folder")
+        backupFolderLabel.setFixedSize(150, 20)
+        backupFolderLabel.setFont(QtGui.QFont('TimesNew Roman', 12))
+        backupFolderHLayout.addWidget(backupFolderLabel)
+
+        self.backupFolderEdit.setStyleSheet("background: black; color: white; border-radius: 5px")
+        self.backupFolderEdit.setReadOnly(True)
+        self.backupFolderEdit.setFont(QtGui.QFont('TimesNew Roman', 12))
+        backupFolderHLayout.addWidget(self.backupFolderEdit)
+
+        browseButton = QtWidgets.QPushButton("Browse")
+        browseButton.setFont(QtGui.QFont('TimesNew Roman', 12))
+        browseButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        browseButton.clicked.connect(self.browseBackupFolder)
+        browseButton.setFixedSize(80, 20)
+        backupFolderHLayout.addWidget(browseButton)
+
+        backupListButtons2HLayout = QtWidgets.QHBoxLayout()
+        backupListVLayout.addLayout(backupListButtons2HLayout)
+
+        self.analyseButton.setFont(QtGui.QFont('TimesNew Roman', 12))
+        self.analyseButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        self.analyseButton.setFixedSize(80, 20)
+        self.analyseButton.setEnabled(False)
+        self.analyseButton.clicked.connect(self.analyseBackup)
+        backupListButtons2HLayout.addWidget(self.analyseButton)
+
+        self.backupButton.setFont(QtGui.QFont('TimesNew Roman', 12))
+        self.backupButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        self.backupButton.setFixedSize(80, 20)
+        self.backupButton.setEnabled(False)
+        self.backupButton.clicked.connect(self.runBackup)
+        backupListButtons2HLayout.addWidget(self.backupButton)
+
+        backupListButtons2HLayout.addStretch(1)
+
+        backupSpaceLayout = QtWidgets.QHBoxLayout()
+        backupListVLayout.addLayout(backupSpaceLayout)
+
+        spaceAvailableLabel = QtWidgets.QLabel("Space Available")
+        spaceAvailableLabel.setFixedSize(125, 20)
+        spaceAvailableLabel.setFont(QtGui.QFont('TimesNew Roman', 12))
+        spaceAvailableLabel.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        backupSpaceLayout.addWidget(spaceAvailableLabel)
+
+        self.spaceAvailableWidget.setStyleSheet("background: rgb(100,100,100); border-radius: 5px")
+        #self.spaceAvailableWidget.setFixedSize(125, 20)
+        #self.spaceAvailableWidget.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        backupSpaceLayout.addWidget(self.spaceAvailableWidget)
+
+        #backupSpaceLayout.addStretch(1)
+
+        spaceAvailableHLayout = QtWidgets.QHBoxLayout()
+        spaceAvailableHLayout.setSpacing(0)
+        spaceAvailableHLayout.setContentsMargins(0, 0, 0, 0)
+        self.spaceAvailableWidget.setLayout(spaceAvailableHLayout)
+
+        self.spaceUsedWidget.setStyleSheet("background: rgb(0,255,0); border-radius: 0px")
+        spaceAvailableHLayout.addWidget(self.spaceUsedWidget)
+
+        self.spaceChangedWidget.setStyleSheet("background: rgb(255,255,0); border-radius: 0px")
+        spaceAvailableHLayout.addWidget(self.spaceChangedWidget)
+
+        spaceAvailableHLayout.setStretch(0, 2)
+        spaceAvailableHLayout.setStretch(1, 1)
+
+        #spaceAvailableHLayout.addStretch(1)
+
+
+
+
     def initUICover(self):
         self.coverWidget.setStyleSheet("background-color: black;")
         movieVLayout = QtWidgets.QVBoxLayout()
@@ -738,7 +822,8 @@ class MyWindow(QtWidgets.QMainWindow):
                          mtm.Columns.UserTags,
                          mtm.Columns.Folder,
                          mtm.Columns.Path,
-                         mtm.Columns.Rank]
+                         mtm.Columns.Rank,
+                         mtm.Columns.BackupStatus]
         for c in columnsToHide:
             index = c.value
             mtv.hideColumn(index)
@@ -792,7 +877,8 @@ class MyWindow(QtWidgets.QMainWindow):
                          wtm.Columns.Id,
                          wtm.Columns.Folder,
                          wtm.Columns.Path,
-                         wtm.Columns.JsonExists]
+                         wtm.Columns.JsonExists,
+                         wtm.Columns.BackupStatus]
         for c in columnsToHide:
             index = c.value
             wtv.hideColumn(index)
@@ -833,8 +919,10 @@ class MyWindow(QtWidgets.QMainWindow):
             self.backupListColumnsVisible.append(True)
 
         columnsToHide = [btm.Columns.BoxOffice,
+                         btm.Columns.Year,
                          btm.Columns.Runtime,
                          btm.Columns.Director,
+                         btm.Columns.Rating,
                          btm.Columns.Country,
                          btm.Columns.Genre,
                          btm.Columns.UserTags,
@@ -878,6 +966,27 @@ class MyWindow(QtWidgets.QMainWindow):
             self.moviesSmdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
             readSmdbFile(self.moviesSmdbFile)
             self.refreshMoviesList()
+
+    def browseBackupFolder(self):
+        browseDir = str(Path.home())
+        if os.path.exists('%s/Desktop' % browseDir):
+            browseDir = '%s/Desktop' % browseDir
+        self.backupFolder =\
+            QtWidgets.QFileDialog.getExistingDirectory(self,
+                                                       "Select Backup Folder",
+                                                       browseDir,
+                                                       QtWidgets.QFileDialog.ShowDirsOnly |
+                                                       QtWidgets.QFileDialog.DontResolveSymlinks)
+        if os.path.exists(self.backupFolder):
+            self.backupFolderEdit.setText(self.backupFolder)
+            self.analyseButton.setEnabled(True)
+
+    def analyseBackup(self):
+        print("Analysing backup...")
+        self.backupButton.setEnabled(True)
+
+    def runBackup(self):
+        print("Running backup...")
 
     def populateFiltersTable(self):
         if not self.moviesSmdbData:

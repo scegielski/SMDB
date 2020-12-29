@@ -26,7 +26,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                         'Folder',
                                         'Path',
                                         'JsonExists',
-                                        'Rank'], start=0)
+                                        'Rank',
+                                        'BackupStatus'], start=0)
 
         self.defaultWidths = {self.Columns.Year: 50,
                               self.Columns.Title: 200,
@@ -42,7 +43,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                               self.Columns.Folder: 200,
                               self.Columns.Path: 300,
                               self.Columns.JsonExists: 65,
-                              self.Columns.Rank: 40}
+                              self.Columns.Rank: 40,
+                              self.Columns.BackupStatus: 150}
 
         self._headers = []
         for c in self.Columns:
