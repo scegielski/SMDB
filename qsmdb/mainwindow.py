@@ -207,9 +207,9 @@ class MyWindow(QtWidgets.QMainWindow):
         self.backupListTableView = QtWidgets.QTableView()
         self.analyseButton = QtWidgets.QPushButton("Analyse")
         self.backupButton = QtWidgets.QPushButton("Backup")
-        self.spaceAvailableWidget = QtWidgets.QWidget()
         self.spaceUsedWidget = QtWidgets.QWidget()
         self.spaceChangedWidget = QtWidgets.QWidget()
+        self.spaceAvailableWidget = QtWidgets.QWidget()
         self.backupListColumnsVisible = []
         self.backupListHeaderActions = []
         self.backupFolderEdit = QtWidgets.QLineEdit()
@@ -730,26 +730,37 @@ class MyWindow(QtWidgets.QMainWindow):
         spaceAvailableLabel.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
         backupSpaceLayout.addWidget(spaceAvailableLabel)
 
-        self.spaceAvailableWidget.setStyleSheet("background: rgb(100,100,100); border-radius: 5px")
-        #self.spaceAvailableWidget.setFixedSize(125, 20)
-        #self.spaceAvailableWidget.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        backupSpaceLayout.addWidget(self.spaceAvailableWidget)
+        spaceBarWidget = QtWidgets.QWidget()
+        backupSpaceLayout.addWidget(spaceBarWidget)
 
-        #backupSpaceLayout.addStretch(1)
+        spaceBarLayout = QtWidgets.QHBoxLayout()
+        spaceBarLayout.setSpacing(0)
+        spaceBarLayout.setContentsMargins(0, 0, 0, 0)
+        spaceBarWidget.setLayout(spaceBarLayout)
 
-        spaceAvailableHLayout = QtWidgets.QHBoxLayout()
-        spaceAvailableHLayout.setSpacing(0)
-        spaceAvailableHLayout.setContentsMargins(0, 0, 0, 0)
-        self.spaceAvailableWidget.setLayout(spaceAvailableHLayout)
+        self.spaceUsedWidget.setStyleSheet("background: rgb(0,255,0);"
+                                           "border-top-left-radius: 5px;"
+                                           "border-bottom-left-radius: 5px;"
+                                           "border-top-right-radius: 0px;"
+                                           "border-bottom-right-radius: 0px;"
+                                           )
 
-        self.spaceUsedWidget.setStyleSheet("background: rgb(0,255,0); border-radius: 0px")
-        spaceAvailableHLayout.addWidget(self.spaceUsedWidget)
+        spaceBarLayout.addWidget(self.spaceUsedWidget)
 
-        self.spaceChangedWidget.setStyleSheet("background: rgb(255,255,0); border-radius: 0px")
-        spaceAvailableHLayout.addWidget(self.spaceChangedWidget)
+        self.spaceChangedWidget.setStyleSheet("background: rgb(255,255,0); border-radius: 0px 0px 0px 0px")
+        spaceBarLayout.addWidget(self.spaceChangedWidget)
 
-        spaceAvailableHLayout.setStretch(0, 2)
-        spaceAvailableHLayout.setStretch(1, 1)
+        self.spaceAvailableWidget.setStyleSheet("background: rgb(100,100,100);"
+                                                "border-top-left-radius: 5px;"
+                                                "border-bottom-left-radius: 5px;"
+                                                "border-top-right-radius: 5px;"
+                                                "border-bottom-right-radius: 5px;"
+                                                )
+        spaceBarLayout.addWidget(self.spaceAvailableWidget)
+
+        spaceBarLayout.setStretch(0, 0)
+        spaceBarLayout.setStretch(1, 0)
+        spaceBarLayout.setStretch(2, 1000)
 
         #spaceAvailableHLayout.addStretch(1)
 
