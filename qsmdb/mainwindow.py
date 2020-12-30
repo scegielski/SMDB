@@ -12,6 +12,8 @@ import os
 from .utilities import *
 from .moviemodel import MoviesTableModel
 
+def bToGb(b):
+    return b // (2**30)
 
 def readSmdbFile(fileName):
     if os.path.exists(fileName):
@@ -693,16 +695,13 @@ class MyWindow(QtWidgets.QMainWindow):
 
         backupFolderLabel = QtWidgets.QLabel("Destination Folder")
         backupFolderLabel.setFixedSize(150, 20)
-        backupFolderLabel.setFont(QtGui.QFont('TimesNew Roman', 12))
         backupFolderHLayout.addWidget(backupFolderLabel)
 
         self.backupFolderEdit.setStyleSheet("background: black; color: white; border-radius: 5px")
         self.backupFolderEdit.setReadOnly(True)
-        self.backupFolderEdit.setFont(QtGui.QFont('TimesNew Roman', 12))
         backupFolderHLayout.addWidget(self.backupFolderEdit)
 
         browseButton = QtWidgets.QPushButton("Browse")
-        browseButton.setFont(QtGui.QFont('TimesNew Roman', 12))
         browseButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
         browseButton.clicked.connect(self.browseBackupFolder)
         browseButton.setFixedSize(80, 20)
@@ -712,8 +711,6 @@ class MyWindow(QtWidgets.QMainWindow):
         backupListVLayout.addLayout(backupSpaceLayout)
 
         spaceLabel = QtWidgets.QLabel("Space Available")
-        spaceLabel.setFixedSize(125, 20)
-        spaceLabel.setFont(QtGui.QFont('TimesNew Roman', 12))
         spaceLabel.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
         backupSpaceLayout.addWidget(spaceLabel)
 
@@ -741,22 +738,18 @@ class MyWindow(QtWidgets.QMainWindow):
         self.spaceBarLayout.setStretch(1, 0)
         self.spaceBarLayout.setStretch(2, 1000)
 
-        #self.spaceAvailableLabel.setFixedSize(125, 20)
-        #self.spaceAvailableLabel.setFont(QtGui.QFont('TimesNew Roman', 12))
         self.spaceAvailableLabel.setAlignment(QtCore.Qt.AlignRight)
         backupSpaceLayout.addWidget(self.spaceAvailableLabel)
 
         backupListButtons2HLayout = QtWidgets.QHBoxLayout()
         backupListVLayout.addLayout(backupListButtons2HLayout)
 
-        self.analyseButton.setFont(QtGui.QFont('TimesNew Roman', 12))
         self.analyseButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
         self.analyseButton.setFixedSize(80, 20)
         self.analyseButton.setEnabled(False)
         self.analyseButton.clicked.connect(self.backupAnalyse)
         backupListButtons2HLayout.addWidget(self.analyseButton)
 
-        self.backupButton.setFont(QtGui.QFont('TimesNew Roman', 12))
         self.backupButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
         self.backupButton.setFixedSize(80, 20)
         self.backupButton.setEnabled(False)
@@ -999,16 +992,16 @@ class MyWindow(QtWidgets.QMainWindow):
             drive = os.path.splitdrive(self.backupFolder)[0]
 
             self.spaceTotal, self.spaceUsed, self.spaceFree = shutil.disk_usage(drive)
-            self.spaceTotal = self.spaceTotal // (2**30)
-            self.spaceUsed = self.spaceUsed // (2**30)
-            self.spaceFree = self.spaceFree // (2**30)
+            self.spaceTotal = self.spaceTotal
+            self.spaceUsed = self.spaceUsed
+            self.spaceFree = self.spaceFree
             self.spacePercent = self.spaceUsed / self.spaceTotal
             self.spaceBarLayout.setStretch(0, self.spacePercent * 1000)
             self.spaceBarLayout.setStretch(2, (1.0 - self.spacePercent) * 1000)
 
-            self.spaceAvailableLabel.setText("%d Gb / %d Gb (%.2f)" % (self.spaceUsed,
-                                                                       self.spaceTotal,
-                                                                       self.spacePercent))
+            self.spaceAvailableLabel.setText("%d Gb / %d Gb : %.2f%%" % (bToGb(self.spaceUsed),
+                                                                         bToGb(self.spaceTotal),
+                                                                         100.0 * self.spacePercent))
 
     def getFolderSize(self, startPath='.'):
         total_size = 0
@@ -1037,6 +1030,9 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.setMovieListItemColors()
                 self.backupListTableModel.changedLayout()
                 return
+
+            progress += 1
+            self.progressBar.setValue(progress)
 
             modelIndex = self.backupListTableProxyModel.index(row, 0)
             sourceIndex = self.backupListTableProxyModel.mapToSource(modelIndex)
@@ -1089,14 +1085,12 @@ class MyWindow(QtWidgets.QMainWindow):
             self.statusBar().showMessage(message)
             QtCore.QCoreApplication.processEvents()
 
-            progress += 1
-            self.progressBar.setValue(progress)
 
         self.backupListTableModel.changedLayout()
         self.statusBar().showMessage("Done")
         self.progressBar.setValue(0)
 
-        sizeChange = sizeChange // (2**30)
+        sizeChange = sizeChange
 
         if (self.spaceUsed + sizeChange > self.spaceTotal):
             self.spaceUsedWidget.setStyleSheet("background: rgb(255,0,0);"
@@ -1118,10 +1112,11 @@ class MyWindow(QtWidgets.QMainWindow):
             self.spaceBarLayout.setStretch(1, changeStretch)
             self.spaceBarLayout.setStretch(2, (1.0 - self.spacePercent - changePercent) * 1000)
 
-        self.spacePercent = (self.spaceUsed + sizeChange) / self.spaceTotal
-        self.spaceAvailableLabel.setText("%d Gb / %d Gb (%.2f)" % (self.spaceUsed + sizeChange,
-                                                                   self.spaceTotal,
-                                                                   self.spacePercent))
+        newSize = self.spaceUsed + sizeChange
+        self.spacePercent = newSize / self.spaceTotal
+        self.spaceAvailableLabel.setText("%d Gb / %d Gb : %.2f%%" % (bToGb(newSize),
+                                                                     bToGb(self.spaceTotal),
+                                                                     100.0 * self.spacePercent))
 
         self.backupButton.setEnabled(True)
 
