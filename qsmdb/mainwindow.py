@@ -1072,11 +1072,18 @@ class MyWindow(QtWidgets.QMainWindow):
             if os.path.exists(destPath):
                 destFolderSize = self.getFolderSize(destPath)
 
-            filesAndSizes = dict()
+            sourceFilesAndSizes = dict()
             for f in os.listdir(sourcePath):
                 fullPath = os.path.join(sourcePath, f)
                 fileSize = os.path.getsize(fullPath)
-                filesAndSizes[f] = fileSize
+                sourceFilesAndSizes[f] = fileSize
+
+            destFilesAndSizes = dict()
+            if os.path.exists(destPath):
+                for f in os.listdir(destPath):
+                    fullPath = os.path.join(destPath, f)
+                    fileSize = os.path.getsize(fullPath)
+                    destFilesAndSizes[f] = fileSize
 
             if not os.path.exists(destPath):
                 self.backupListTableModel.setBackupStatus(sourceIndex, "Folder Missing")
@@ -1085,31 +1092,44 @@ class MyWindow(QtWidgets.QMainWindow):
             else:
                 self.backupListTableModel.setBackupStatus(sourceIndex, "No Difference")
 
-            for f in filesAndSizes.keys():
+            replaceFolder = False
 
+            # Check if any of the destination files are missing or have different sizes
+            for f in sourceFilesAndSizes.keys():
                 # Check if the destination file exists
                 fullDestPath = os.path.join(destPath, f)
                 if not os.path.exists(fullDestPath):
-                    self.backupListTableModel.setBackupStatus(sourceIndex, "Files Missing")
-                    sizeChange -= destFolderSize
-                    sizeChange += sourceFolderSize
-                    continue
+                    self.backupListTableModel.setBackupStatus(sourceIndex, "Dest Files Missing")
+                    replaceFolder = True
+                    break
 
                 # Check if the destination file is the same size as the source file
                 destFileSize = os.path.getsize(fullDestPath)
-                sourceFileSize = filesAndSizes[f]
+                sourceFileSize = sourceFilesAndSizes[f]
                 if sourceFileSize != destFileSize:
                     self.backupListTableModel.setBackupStatus(sourceIndex, "File Size Difference")
-                    sizeChange -= destFolderSize
-                    sizeChange += sourceFolderSize
-                    continue
+                    replaceFolder = True
+                    break
+
+            # Check if the destination has files that the source doesn't
+            if os.path.exists(destPath):
+                for f in destFilesAndSizes.keys():
+                    # Check if the destination file exists
+                    fullSourcePath = os.path.join(sourcePath, f)
+                    if not os.path.exists(fullSourcePath):
+                        self.backupListTableModel.setBackupStatus(sourceIndex, "Source Files Missing")
+                        replaceFolder = True
+                        break
+
+            if replaceFolder:
+                sizeChange -= destFolderSize
+                sizeChange += sourceFolderSize
 
             message = "Analysing folder (%d/%d): %s" % (progress + 1,
                                                         numItems,
                                                         title)
             self.statusBar().showMessage(message)
             QtCore.QCoreApplication.processEvents()
-
 
         self.backupListTableModel.changedLayout()
         self.statusBar().showMessage("Done")
@@ -1194,7 +1214,8 @@ class MyWindow(QtWidgets.QMainWindow):
             QtCore.QCoreApplication.processEvents()
 
             if backupStatus == 'File Size Difference' or \
-               backupStatus == 'Files Missing':
+               backupStatus == 'Source Files Missing' or \
+               backupStatus == 'Dest Files Missing':
                 print("Removing destination directory %s" % destPath)
                 shutil.rmtree(destPath)
                 print("Copying folder %s to %s" % (sourcePath, destPath))

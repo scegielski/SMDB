@@ -349,7 +349,9 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                 return QtGui.QBrush(QtGui.QColor("darkgreen"))
             elif backupStatus == "Folder Missing":
                 return QtGui.QBrush(QtGui.QColor("darkred"))
-            elif backupStatus == "Files Missing":
+            elif backupStatus == "Dest Files Missing":
+                return QtGui.QBrush(QtGui.QColor("darkorange"))
+            elif backupStatus == "Source Files Missing":
                 return QtGui.QBrush(QtGui.QColor("darkorange"))
             elif "Size Difference" in backupStatus:
                 return QtGui.QBrush(QtGui.QColor("darkgoldenrod"))
