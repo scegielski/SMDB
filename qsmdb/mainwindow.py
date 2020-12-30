@@ -13,7 +13,10 @@ from .utilities import *
 from .moviemodel import MoviesTableModel
 
 def bToGb(b):
-    return b // (2**30)
+    return b / (2**30)
+
+def bToMb(b):
+    return b / (2**20)
 
 def readSmdbFile(fileName):
     if os.path.exists(fileName):
@@ -839,7 +842,8 @@ class MyWindow(QtWidgets.QMainWindow):
                          mtm.Columns.Folder,
                          mtm.Columns.Path,
                          mtm.Columns.Rank,
-                         mtm.Columns.BackupStatus]
+                         mtm.Columns.BackupStatus,
+                         mtm.Columns.Size]
         for c in columnsToHide:
             index = c.value
             mtv.hideColumn(index)
@@ -894,7 +898,8 @@ class MyWindow(QtWidgets.QMainWindow):
                          wtm.Columns.Folder,
                          wtm.Columns.Path,
                          wtm.Columns.JsonExists,
-                         wtm.Columns.BackupStatus]
+                         wtm.Columns.BackupStatus,
+                         wtm.Columns.Size]
         for c in columnsToHide:
             index = c.value
             wtv.hideColumn(index)
@@ -1062,6 +1067,7 @@ class MyWindow(QtWidgets.QMainWindow):
             destPath = os.path.join(self.backupFolder, sourceFolderName)
 
             sourceFolderSize = self.getFolderSize(sourcePath)
+            self.backupListTableModel.setSize(sourceIndex, '%05d Mb' % bToMb(sourceFolderSize))
             destFolderSize = 0
             if os.path.exists(destPath):
                 destFolderSize = self.getFolderSize(destPath)

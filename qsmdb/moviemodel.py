@@ -28,7 +28,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                         'Path',
                                         'JsonExists',
                                         'Rank',
-                                        'BackupStatus'], start=0)
+                                        'BackupStatus',
+                                        'Size'], start=0)
 
         self.defaultWidths = {self.Columns.Year: 50,
                               self.Columns.Title: 200,
@@ -45,7 +46,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                               self.Columns.Path: 300,
                               self.Columns.JsonExists: 65,
                               self.Columns.Rank: 40,
-                              self.Columns.BackupStatus: 150}
+                              self.Columns.BackupStatus: 150,
+                              self.Columns.Size: 100}
 
         self._headers = []
         for c in self.Columns:
@@ -142,6 +144,9 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
     def getRank(self, row):
         return self._data[row][self.Columns.Rank.value]
+
+    def getSize(self, row):
+        return self._data[row][self.Columns.Size.value]
 
     def getDataSize(self):
         return len(self._data)
@@ -319,6 +324,10 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
     def setBackupStatus(self, index, value):
         self._data[index.row()][self.Columns.BackupStatus.value] = value
+        self.dataChanged.emit(index, index)
+
+    def setSize(self, index, value):
+        self._data[index.row()][self.Columns.Size.value] = value
         self.dataChanged.emit(index, index)
 
     def setData(self, index, value, role=QtCore.Qt.EditRole):
