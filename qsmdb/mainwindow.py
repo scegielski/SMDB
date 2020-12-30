@@ -212,6 +212,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.backupListTableView = QtWidgets.QTableView()
         self.analyseButton = QtWidgets.QPushButton("Analyse")
         self.backupButton = QtWidgets.QPushButton("Backup")
+        self.backupOnlyJsonCheckBox = QtWidgets.QCheckBox("Only .json")
+        self.backupOnlyCoverCheckBox = QtWidgets.QCheckBox("Only Covers")
         self.spaceBarLayout = QtWidgets.QHBoxLayout()
         self.spaceUsedWidget = QtWidgets.QWidget()
         self.spaceChangedWidget = QtWidgets.QWidget()
@@ -724,6 +726,12 @@ class MyWindow(QtWidgets.QMainWindow):
         self.backupButton.setEnabled(False)
         self.backupButton.clicked.connect(self.backupRun)
         backupFolderHLayout.addWidget(self.backupButton)
+
+        self.backupOnlyJsonCheckBox.setChecked(False)
+        backupFolderHLayout.addWidget(self.backupOnlyJsonCheckBox)
+
+        self.backupOnlyCoverCheckBox.setChecked(False)
+        backupFolderHLayout.addWidget(self.backupOnlyCoverCheckBox)
 
         backupSpaceLayout = QtWidgets.QHBoxLayout()
         backupListVLayout.addLayout(backupSpaceLayout)
