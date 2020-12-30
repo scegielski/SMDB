@@ -1122,8 +1122,10 @@ class MyWindow(QtWidgets.QMainWindow):
             self.spaceBarLayout.setStretch(1, 0)
             self.spaceBarLayout.setStretch(2, 0)
             mb = QtWidgets.QMessageBox()
-            mb.setText("Error: Not enough space in backup folder: %s.   Need %.2f Gb more space" % (self.backupFolder,
-                                                                                                  bToGb(sizeChange)))
+            spaceNeeded = self.spaceUsed + sizeChange - self.spaceTotal
+            mb.setText("Error: Not enough space in backup folder: %s."
+                       "   Need %.2f Gb more space" % (self.backupFolder,
+                                                       bToGb(spaceNeeded)))
             mb.setIcon(QtWidgets.QMessageBox.Critical)
             mb.exec()
         else:
