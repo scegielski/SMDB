@@ -6,6 +6,8 @@ from imdb import IMDb
 import json
 import collections
 import webbrowser
+import shutil
+import os
 
 from .utilities import *
 from .moviemodel import MoviesTableModel
@@ -207,9 +209,15 @@ class MyWindow(QtWidgets.QMainWindow):
         self.backupListTableView = QtWidgets.QTableView()
         self.analyseButton = QtWidgets.QPushButton("Analyse")
         self.backupButton = QtWidgets.QPushButton("Backup")
+        self.spaceBarLayout = QtWidgets.QHBoxLayout()
         self.spaceUsedWidget = QtWidgets.QWidget()
         self.spaceChangedWidget = QtWidgets.QWidget()
         self.spaceAvailableWidget = QtWidgets.QWidget()
+        self.spaceAvailableLabel = QtWidgets.QLabel("")
+        self.spaceTotal = 0
+        self.spaceUsed = 0
+        self.spaceFree = 0
+        self.spacePercent = 0
         self.backupListColumnsVisible = []
         self.backupListHeaderActions = []
         self.backupFolderEdit = QtWidgets.QLineEdit()
@@ -304,8 +312,6 @@ class MyWindow(QtWidgets.QMainWindow):
 
         if not os.path.exists(self.moviesFolder):
             return
-
-        return
 
         self.moviesSmdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
         self.moviesSmdbData = None
@@ -624,7 +630,7 @@ class MyWindow(QtWidgets.QMainWindow):
         backupListLabel.setFont(QtGui.QFont('TimesNew Roman', 12))
         backupListVLayout.addWidget(backupListLabel)
 
-        self.backupListTableView.setSortingEnabled(False)
+        self.backupListTableView.setSortingEnabled(True)
         self.backupListTableView.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.backupListTableView.verticalHeader().hide()
         self.backupListTableView.setStyleSheet("background: black; alternate-background-color: #151515; color: white")
@@ -702,6 +708,49 @@ class MyWindow(QtWidgets.QMainWindow):
         browseButton.setFixedSize(80, 20)
         backupFolderHLayout.addWidget(browseButton)
 
+        backupSpaceLayout = QtWidgets.QHBoxLayout()
+        backupListVLayout.addLayout(backupSpaceLayout)
+
+        spaceLabel = QtWidgets.QLabel("Space Available")
+        spaceLabel.setFixedSize(125, 20)
+        spaceLabel.setFont(QtGui.QFont('TimesNew Roman', 12))
+        spaceLabel.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        backupSpaceLayout.addWidget(spaceLabel)
+
+        spaceBarWidget = QtWidgets.QWidget()
+        backupSpaceLayout.addWidget(spaceBarWidget)
+
+        self.spaceBarLayout.setSpacing(0)
+        self.spaceBarLayout.setContentsMargins(0, 0, 0, 0)
+        spaceBarWidget.setLayout(self.spaceBarLayout)
+
+        self.spaceUsedWidget.setStyleSheet("background: rgb(0,255,0);"
+                                           "border-top-left-radius: 5px;"
+                                           "border-bottom-left-radius: 5px;"
+                                           "border-top-right-radius: 0px;"
+                                           "border-bottom-right-radius: 0px;")
+
+        self.spaceBarLayout.addWidget(self.spaceUsedWidget)
+
+        self.spaceChangedWidget.setStyleSheet("background: rgb(255,255,0); border-radius: 0px 0px 0px 0px")
+        self.spaceBarLayout.addWidget(self.spaceChangedWidget)
+
+        self.spaceAvailableWidget.setStyleSheet("background: rgb(100,100,100);"
+                                                "border-top-left-radius: 5px;"
+                                                "border-bottom-left-radius: 5px;"
+                                                "border-top-right-radius: 5px;"
+                                                "border-bottom-right-radius: 5px;")
+        self.spaceBarLayout.addWidget(self.spaceAvailableWidget)
+
+        self.spaceBarLayout.setStretch(0, 0)
+        self.spaceBarLayout.setStretch(1, 0)
+        self.spaceBarLayout.setStretch(2, 1000)
+
+        #self.spaceAvailableLabel.setFixedSize(125, 20)
+        #self.spaceAvailableLabel.setFont(QtGui.QFont('TimesNew Roman', 12))
+        self.spaceAvailableLabel.setAlignment(QtCore.Qt.AlignRight)
+        backupSpaceLayout.addWidget(self.spaceAvailableLabel)
+
         backupListButtons2HLayout = QtWidgets.QHBoxLayout()
         backupListVLayout.addLayout(backupListButtons2HLayout)
 
@@ -709,62 +758,17 @@ class MyWindow(QtWidgets.QMainWindow):
         self.analyseButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
         self.analyseButton.setFixedSize(80, 20)
         self.analyseButton.setEnabled(False)
-        self.analyseButton.clicked.connect(self.analyseBackup)
+        self.analyseButton.clicked.connect(self.backupAnalyse)
         backupListButtons2HLayout.addWidget(self.analyseButton)
 
         self.backupButton.setFont(QtGui.QFont('TimesNew Roman', 12))
         self.backupButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
         self.backupButton.setFixedSize(80, 20)
         self.backupButton.setEnabled(False)
-        self.backupButton.clicked.connect(self.runBackup)
+        self.backupButton.clicked.connect(self.backupRun)
         backupListButtons2HLayout.addWidget(self.backupButton)
 
         backupListButtons2HLayout.addStretch(1)
-
-        backupSpaceLayout = QtWidgets.QHBoxLayout()
-        backupListVLayout.addLayout(backupSpaceLayout)
-
-        spaceAvailableLabel = QtWidgets.QLabel("Space Available")
-        spaceAvailableLabel.setFixedSize(125, 20)
-        spaceAvailableLabel.setFont(QtGui.QFont('TimesNew Roman', 12))
-        spaceAvailableLabel.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
-        backupSpaceLayout.addWidget(spaceAvailableLabel)
-
-        spaceBarWidget = QtWidgets.QWidget()
-        backupSpaceLayout.addWidget(spaceBarWidget)
-
-        spaceBarLayout = QtWidgets.QHBoxLayout()
-        spaceBarLayout.setSpacing(0)
-        spaceBarLayout.setContentsMargins(0, 0, 0, 0)
-        spaceBarWidget.setLayout(spaceBarLayout)
-
-        self.spaceUsedWidget.setStyleSheet("background: rgb(0,255,0);"
-                                           "border-top-left-radius: 5px;"
-                                           "border-bottom-left-radius: 5px;"
-                                           "border-top-right-radius: 0px;"
-                                           "border-bottom-right-radius: 0px;"
-                                           )
-
-        spaceBarLayout.addWidget(self.spaceUsedWidget)
-
-        self.spaceChangedWidget.setStyleSheet("background: rgb(255,255,0); border-radius: 0px 0px 0px 0px")
-        spaceBarLayout.addWidget(self.spaceChangedWidget)
-
-        self.spaceAvailableWidget.setStyleSheet("background: rgb(100,100,100);"
-                                                "border-top-left-radius: 5px;"
-                                                "border-bottom-left-radius: 5px;"
-                                                "border-top-right-radius: 5px;"
-                                                "border-bottom-right-radius: 5px;"
-                                                )
-        spaceBarLayout.addWidget(self.spaceAvailableWidget)
-
-        spaceBarLayout.setStretch(0, 0)
-        spaceBarLayout.setStretch(1, 0)
-        spaceBarLayout.setStretch(2, 1000)
-
-        #spaceAvailableHLayout.addStretch(1)
-
-
 
 
     def initUICover(self):
@@ -940,7 +944,7 @@ class MyWindow(QtWidgets.QMainWindow):
                          btm.Columns.Company,
                          btm.Columns.Id,
                          btm.Columns.Folder,
-                         btm.Columns.Path,
+                         btm.Columns.Rank,
                          btm.Columns.JsonExists]
         for c in columnsToHide:
             index = c.value
@@ -988,16 +992,215 @@ class MyWindow(QtWidgets.QMainWindow):
                                                        browseDir,
                                                        QtWidgets.QFileDialog.ShowDirsOnly |
                                                        QtWidgets.QFileDialog.DontResolveSymlinks)
+
+        if self.backupFolder == self.moviesFolder:
+            mb = QtWidgets.QMessageBox()
+            mb.setText("Error: Backup folder must be different from movies folder")
+            mb.setIcon(QtWidgets.QMessageBox.Critical)
+            mb.exec()
+            return
+
         if os.path.exists(self.backupFolder):
             self.backupFolderEdit.setText(self.backupFolder)
             self.analyseButton.setEnabled(True)
+            drive = os.path.splitdrive(self.backupFolder)[0]
 
-    def analyseBackup(self):
-        print("Analysing backup...")
+            self.spaceTotal, self.spaceUsed, self.spaceFree = shutil.disk_usage(drive)
+            self.spaceTotal = self.spaceTotal // (2**30)
+            self.spaceUsed = self.spaceUsed // (2**30)
+            self.spaceFree = self.spaceFree // (2**30)
+            self.spacePercent = self.spaceUsed / self.spaceTotal
+            self.spaceBarLayout.setStretch(0, self.spacePercent * 1000)
+            self.spaceBarLayout.setStretch(2, (1.0 - self.spacePercent) * 1000)
+
+            self.spaceUsedWidget.setStyleSheet("background: rgb(0,255,0);"
+                                               "border-top-left-radius: 5px;"
+                                               "border-bottom-left-radius: 5px;"
+                                               "border-top-right-radius: 0px;"
+                                               "border-bottom-right-radius: 0px;")
+
+            self.spaceChangedWidget.setStyleSheet("background: rgb(255,255,0);"
+                                                  "border-radius: 0px 0px 0px 0px")
+
+            self.spaceAvailableWidget.setStyleSheet("background: rgb(100,100,100);"
+                                                    "border-top-left-radius: 0px;"
+                                                    "border-bottom-left-radius: 0px;"
+                                                    "border-top-right-radius: 5px;"
+                                                    "border-bottom-right-radius: 5px;" )
+
+            self.spaceAvailableLabel.setText("%d Gb / %d Gb (%.2f)" % (self.spaceUsed,
+                                                                       self.spaceTotal,
+                                                                       self.spacePercent))
+
+    def getFolderSize(self, startPath='.'):
+        total_size = 0
+        for dirpath, dirnames, filenames in os.walk(startPath):
+            for f in filenames:
+                fp = os.path.join(dirpath, f)
+                # skip if it is symbolic link
+                if not os.path.islink(fp):
+                    total_size += os.path.getsize(fp)
+
+        return total_size
+
+    def backupAnalyse(self):
+        numItems = self.backupListTableProxyModel.rowCount()
+        self.progressBar.setMaximum(numItems)
+        progress = 0
+        self.isCanceled = False
+        self.backupListTableModel.aboutToChangeLayout()
+        sizeChange = 0
+        for row in range(numItems):
+            QtCore.QCoreApplication.processEvents()
+            if self.isCanceled:
+                self.statusBar().showMessage('Cancelled')
+                self.isCanceled = False
+                self.progressBar.setValue(0)
+                self.setMovieListItemColors()
+                self.backupListTableModel.changedLayout()
+                return
+
+            modelIndex = self.backupListTableProxyModel.index(row, 0)
+            sourceIndex = self.backupListTableProxyModel.mapToSource(modelIndex)
+            sourceRow = sourceIndex.row()
+            title = self.backupListTableModel.getTitle(sourceRow)
+            sourcePath = self.backupListTableModel.getPath(sourceRow)
+            sourceFolderName = self.backupListTableModel.getFolderName(sourceRow)
+            destPath = os.path.join(self.backupFolder, sourceFolderName)
+
+            filesAndSizes = dict()
+            sourceFolderSize = self.getFolderSize(sourcePath)
+
+            for f in os.listdir(sourcePath):
+                fullPath = os.path.join(sourcePath, f)
+                fileSize = os.path.getsize(fullPath)
+                filesAndSizes[f] = fileSize
+                sourceFolderSize = sourceFolderSize + fileSize
+
+            for f in os.listdir(sourcePath):
+                fullPath = os.path.join(sourcePath, f)
+                fileSize = os.path.getsize(fullPath)
+                filesAndSizes[f] = fileSize
+                sourceFolderSize = sourceFolderSize + fileSize
+
+            destFolderSize = 0
+            if not os.path.exists(destPath):
+                self.backupListTableModel.setBackupStatus(sourceIndex, "Folder Missing")
+                sizeChange -= destFolderSize
+                sizeChange += sourceFolderSize
+                continue
+            else:
+                destFolderSize = self.getFolderSize(destPath)
+                self.backupListTableModel.setBackupStatus(sourceIndex, "No Difference")
+
+            for f in filesAndSizes.keys():
+
+                # Check if the destination file exists
+                fullDestPath = os.path.join(destPath, f)
+                if not os.path.exists(fullDestPath):
+                    self.backupListTableModel.setBackupStatus(sourceIndex, "Files Missing")
+                    sizeChange -= destFolderSize
+                    sizeChange += sourceFolderSize
+                    continue
+
+                # Check if the destination file is the same size as the source file
+                destFileSize = os.path.getsize(fullDestPath)
+                sourceFileSize = filesAndSizes[f]
+                if sourceFileSize != destFileSize:
+                    self.backupListTableModel.setBackupStatus(sourceIndex, "File Size Difference")
+                    sizeChange -= destFolderSize
+                    sizeChange += sourceFolderSize
+                    continue
+
+            message = "Analysing folder (%d/%d): %s" % (progress + 1,
+                                                        numItems,
+                                                        title)
+            self.statusBar().showMessage(message)
+            QtCore.QCoreApplication.processEvents()
+
+            progress += 1
+            self.progressBar.setValue(progress)
+
+        self.backupListTableModel.changedLayout()
+        self.statusBar().showMessage("Done")
+        self.progressBar.setValue(0)
+
+        sizeChange = sizeChange // (2**30)
+
+        if (self.spaceUsed + sizeChange > self.spaceTotal):
+            self.spaceUsedWidget.setStyleSheet("background: rgb(255,0,0);"
+                                               "border-top-left-radius: 5px;"
+                                               "border-bottom-left-radius: 5px;"
+                                               "border-top-right-radius: 5px;"
+                                               "border-bottom-right-radius: 5px;")
+            self.spaceBarLayout.setStretch(0, 1000)
+            self.spaceBarLayout.setStretch(1, 0)
+            self.spaceBarLayout.setStretch(2, 0)
+            mb = QtWidgets.QMessageBox()
+            mb.setText("Error: Not enough space in backup folder: %s.   Need %s Gb more space" % (self.backupFolder,
+                                                                                                  sizeChange))
+            mb.setIcon(QtWidgets.QMessageBox.Critical)
+            mb.exec()
+        else:
+            self.spaceUsedWidget.setStyleSheet("background: rgb(0,255,0);"
+                                               "border-top-left-radius: 0px;"
+                                               "border-bottom-left-radius: 0px;"
+                                               "border-top-right-radius: 5px;"
+                                               "border-bottom-right-radius: 5px;")
+            changePercent = sizeChange / self.spaceTotal
+            self.spaceBarLayout.setStretch(0, self.spacePercent * 1000)
+            changeStretch = changePercent * 1000
+            self.spaceBarLayout.setStretch(1, changeStretch)
+            self.spaceBarLayout.setStretch(2, (1.0 - self.spacePercent - changePercent) * 1000)
+
+        self.spacePercent = (self.spaceUsed + sizeChange) / self.spaceTotal
+        self.spaceAvailableLabel.setText("%d Gb / %d Gb (%.2f)" % (self.spaceUsed + sizeChange,
+                                                                   self.spaceTotal,
+                                                                   self.spacePercent))
+
         self.backupButton.setEnabled(True)
 
-    def runBackup(self):
-        print("Running backup...")
+    def backupRun(self):
+        numItems = self.backupListTableProxyModel.rowCount()
+        self.progressBar.setMaximum(numItems)
+        progress = 0
+        self.isCanceled = False
+        self.backupListTableModel.aboutToChangeLayout()
+        for row in range(numItems):
+            QtCore.QCoreApplication.processEvents()
+            if self.isCanceled:
+                self.statusBar().showMessage('Cancelled')
+                self.isCanceled = False
+                self.progressBar.setValue(0)
+                self.setMovieListItemColors()
+                self.backupListTableModel.changedLayout()
+                return
+
+            modelIndex = self.backupListTableProxyModel.index(row, 0)
+            sourceIndex = self.backupListTableProxyModel.mapToSource(modelIndex)
+            sourceRow = sourceIndex.row()
+            title = self.backupListTableModel.getTitle(sourceRow)
+            sourcePath = self.backupListTableModel.getPath(sourceRow)
+            sourceFolderName = self.backupListTableModel.getFolderName(sourceRow)
+            destPath = os.path.join(self.backupFolder, sourceFolderName)
+
+            backupStatus = self.backupListTableModel.getBackupStatus(sourceIndex.row())
+            print("destPath = %s - %s" % (destPath, backupStatus))
+
+            message = "Backing up folder (%d/%d): %s" % (progress + 1,
+                                                         numItems,
+                                                         title)
+            self.statusBar().showMessage(message)
+            QtCore.QCoreApplication.processEvents()
+
+            progress += 1
+            self.progressBar.setValue(progress)
+
+        self.backupListTableModel.changedLayout()
+        self.statusBar().showMessage("Done")
+        self.progressBar.setValue(0)
+
+        self.backupButton.setEnabled(True)
 
     def populateFiltersTable(self):
         if not self.moviesSmdbData:
@@ -1836,6 +2039,29 @@ class MyWindow(QtWidgets.QMainWindow):
 
         rightMenu.exec_(QtGui.QCursor.pos())
 
+    def openBackupSourceFolder(self):
+        proxyIndex = self.backupListTableView.selectionModel().selectedRows()[0]
+        sourceIndex = self.backupListTableProxyModel.mapToSource(proxyIndex)
+        sourceRow = sourceIndex.row()
+        moviePath = self.backupListTableModel.getPath(sourceRow)
+        if os.path.exists(moviePath):
+            runFile(moviePath)
+        else:
+            print("Folder doesn't exist")
+
+    def openBackupDestinationFolder(self):
+        if not self.backupFolder:
+            return
+        proxyIndex = self.backupListTableView.selectionModel().selectedRows()[0]
+        sourceIndex = self.backupListTableProxyModel.mapToSource(proxyIndex)
+        sourceRow = sourceIndex.row()
+        movieFolder = self.backupListTableModel.getFolderName(sourceRow)
+        moviePath = os.path.join(self.backupFolder, movieFolder)
+        if os.path.exists(moviePath):
+            runFile(moviePath)
+        else:
+            print("Folder doesn't exist")
+
     def backupListTableRightMenuShow(self, QPos):
         rightMenu = QtWidgets.QMenu(self.moviesTableView)
 
@@ -1844,8 +2070,16 @@ class MyWindow(QtWidgets.QMainWindow):
                                                             self.backupListTableProxyModel))
         rightMenu.addAction(playAction)
 
-        removeFromWatchListAction = QtWidgets.QAction("Remove From Watch List", self)
-        removeFromWatchListAction.triggered.connect(self.watchListRemove)
+        openSourceFolderAction = QtWidgets.QAction("Open Source Folder", self)
+        openSourceFolderAction.triggered.connect(self.openBackupSourceFolder)
+        rightMenu.addAction(openSourceFolderAction)
+
+        openDestinationFolderAction = QtWidgets.QAction("Open Destination Folder", self)
+        openDestinationFolderAction.triggered.connect(self.openBackupDestinationFolder)
+        rightMenu.addAction(openDestinationFolderAction)
+
+        removeFromWatchListAction = QtWidgets.QAction("Remove From Backup List", self)
+        removeFromWatchListAction.triggered.connect(self.backupListRemove)
         rightMenu.addAction(removeFromWatchListAction)
 
         moveToTopWatchListAction = QtWidgets.QAction("Move To Top", self)
@@ -1990,27 +2224,32 @@ class MyWindow(QtWidgets.QMainWindow):
             runFile(moviePath)
 
     def watchListAdd(self):
+        self.watchListTableModel.aboutToChangeLayout()
         for modelIndex in self.moviesTableView.selectionModel().selectedRows():
             sourceIndex = self.moviesTableProxyModel.mapToSource(modelIndex)
             sourceRow = sourceIndex.row()
             movieFolderName = self.moviesTableModel.getFolderName(sourceRow)
             moviePath = self.moviesTableModel.getPath(sourceRow)
             self.watchListTableModel.addMovie(self.moviesSmdbData,
-                                              moviePath,
-                                              movieFolderName)
+                                              moviePath)
+
+        self.watchListTableModel.changedLayout()
         self.writeSmdbFile(self.watchListSmdbFile,
                            self.watchListTableModel,
                            titlesOnly=True)
 
     def backupListAdd(self):
+        #self.backupListTableModel.aboutToChangeLayout()
+        self.backupListTableModel.layoutAboutToBeChanged.emit()
         for modelIndex in self.moviesTableView.selectionModel().selectedRows():
             sourceIndex = self.moviesTableProxyModel.mapToSource(modelIndex)
             sourceRow = sourceIndex.row()
-            movieFolderName = self.moviesTableModel.getFolderName(sourceRow)
             moviePath = self.moviesTableModel.getPath(sourceRow)
             self.backupListTableModel.addMovie(self.moviesSmdbData,
-                                              moviePath,
-                                              movieFolderName)
+                                               moviePath)
+
+        self.backupListTableModel.changedLayout()
+        print("Writing backup smdb file")
         self.writeSmdbFile(self.backupListSmdbFile,
                            self.backupListTableModel,
                            titlesOnly=True)

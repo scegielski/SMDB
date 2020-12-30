@@ -1,6 +1,7 @@
 import json
 import fnmatch
 from enum import Enum
+from PyQt5 import QtGui
 
 from .utilities import *
 
@@ -109,6 +110,9 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
     def getLastColumn(self):
         return len(self.Columns) - 1
 
+    def getBackupStatus(self, row):
+        return self._data[row][self.Columns.BackupStatus.value]
+
     def getYear(self, row):
         return self._data[row][self.Columns.Year.value]
 
@@ -142,7 +146,14 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
     def getDataSize(self):
         return len(self._data)
 
-    def addMovie(self, smdbData, moviePath, movieFolderName):
+    def aboutToChangeLayout(self):
+        self.layoutAboutToBeChanged.emit()
+
+    def changedLayout(self):
+        self.layoutChanged.emit()
+
+    def addMovie(self, smdbData, moviePath):
+        movieFolderName = os.path.basename(moviePath)
         data = smdbData['titles'][movieFolderName]
         movieData = self.createMovieData(data,
                                          moviePath,
@@ -151,9 +162,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
         folderName = movieData[self.Columns.Folder.value]
         if folderName not in self.movieSet:
             self.movieSet.add(folderName)
-            self.layoutAboutToBeChanged.emit()
             self._data.append(movieData)
-            self.layoutChanged.emit()
 
     def removeMovies(self, minRow, maxRow):
         # Remove folderName from movieSet
@@ -302,6 +311,10 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
     def columnCount(self, parent):
         return len(self._headers)
 
+    def setBackupStatus(self, index, value):
+        self._data[index.row()][self.Columns.BackupStatus.value] = value
+        self.dataChanged.emit(index, index)
+
     def setData(self, index, value, role=QtCore.Qt.EditRole):
         if role == QtCore.Qt.EditRole:
             self._data[index.row()][index.column()] = value
@@ -313,6 +326,18 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
             return self._data[index.row()][index.column()]
         elif role == QtCore.Qt.TextAlignmentRole:
             return QtCore.Qt.AlignLeft
+        elif role == QtCore.Qt.BackgroundRole:
+            backupStatus = self._data[index.row()][self.Columns.BackupStatus.value]
+            if not backupStatus:
+                return
+            elif backupStatus == "Found":
+                return QtGui.QBrush(QtGui.QColor("darkgreen"))
+            elif backupStatus == "Folder Missing":
+                return QtGui.QBrush(QtGui.QColor("darkred"))
+            elif backupStatus == "Files Missing":
+                return QtGui.QBrush(QtGui.QColor("darkorange"))
+            elif "Size Difference" in backupStatus:
+                return QtGui.QBrush(QtGui.QColor("darkgoldenrod"))
 
     def headerData(self, section, orientation, role):
         if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
