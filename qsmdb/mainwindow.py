@@ -906,9 +906,7 @@ class MyWindow(QtWidgets.QMainWindow):
         wtv.verticalHeader().setDefaultSectionSize(18)
 
     def refreshBackupList(self):
-        if os.path.exists(self.backupListSmdbFile):
-            self.backupListSmdbData = readSmdbFile(self.backupListSmdbFile)
-        self.backupListTableModel = MoviesTableModel(self.backupListSmdbData,
+        self.backupListTableModel = MoviesTableModel(None,
                                                     self.moviesFolder,
                                                     False,  # force scan
                                                     True)  # don't scan the movies folder for the watch list
@@ -2239,7 +2237,6 @@ class MyWindow(QtWidgets.QMainWindow):
                            titlesOnly=True)
 
     def backupListAdd(self):
-        #self.backupListTableModel.aboutToChangeLayout()
         self.backupListTableModel.layoutAboutToBeChanged.emit()
         for modelIndex in self.moviesTableView.selectionModel().selectedRows():
             sourceIndex = self.moviesTableProxyModel.mapToSource(modelIndex)
@@ -2249,10 +2246,6 @@ class MyWindow(QtWidgets.QMainWindow):
                                                moviePath)
 
         self.backupListTableModel.changedLayout()
-        print("Writing backup smdb file")
-        self.writeSmdbFile(self.backupListSmdbFile,
-                           self.backupListTableModel,
-                           titlesOnly=True)
 
 
     def addNewUserTag(self):
