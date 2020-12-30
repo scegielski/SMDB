@@ -1066,29 +1066,22 @@ class MyWindow(QtWidgets.QMainWindow):
             sourceFolderName = self.backupListTableModel.getFolderName(sourceRow)
             destPath = os.path.join(self.backupFolder, sourceFolderName)
 
-            filesAndSizes = dict()
             sourceFolderSize = self.getFolderSize(sourcePath)
-
-            for f in os.listdir(sourcePath):
-                fullPath = os.path.join(sourcePath, f)
-                fileSize = os.path.getsize(fullPath)
-                filesAndSizes[f] = fileSize
-                sourceFolderSize = sourceFolderSize + fileSize
-
-            for f in os.listdir(sourcePath):
-                fullPath = os.path.join(sourcePath, f)
-                fileSize = os.path.getsize(fullPath)
-                filesAndSizes[f] = fileSize
-                sourceFolderSize = sourceFolderSize + fileSize
-
             destFolderSize = 0
+            if os.path.exists(destPath):
+                destFolderSize = self.getFolderSize(destPath)
+
+            filesAndSizes = dict()
+            for f in os.listdir(sourcePath):
+                fullPath = os.path.join(sourcePath, f)
+                fileSize = os.path.getsize(fullPath)
+                filesAndSizes[f] = fileSize
+
             if not os.path.exists(destPath):
                 self.backupListTableModel.setBackupStatus(sourceIndex, "Folder Missing")
-                sizeChange -= destFolderSize
                 sizeChange += sourceFolderSize
                 continue
             else:
-                destFolderSize = self.getFolderSize(destPath)
                 self.backupListTableModel.setBackupStatus(sourceIndex, "No Difference")
 
             for f in filesAndSizes.keys():
