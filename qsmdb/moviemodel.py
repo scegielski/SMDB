@@ -164,6 +164,12 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
             self.movieSet.add(folderName)
             self._data.append(movieData)
 
+    def removeMovie(self, row):
+        folderName = self.getFolderName(row)
+        if folderName in self.movieSet:
+            self.movieSet.remove(folderName)
+        del self._data[row]
+
     def removeMovies(self, minRow, maxRow):
         # Remove folderName from movieSet
         for row in range(minRow, maxRow + 1, 1):

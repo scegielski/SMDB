@@ -223,7 +223,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.spaceTotal = 0
         self.spaceUsed = 0
         self.spaceFree = 0
-        self.spacePercent = 0
+        self.spaceUsedPercent = 0
         self.backupListColumnsVisible = []
         self.backupListHeaderActions = []
         self.backupFolderEdit = QtWidgets.QLineEdit()
@@ -714,7 +714,7 @@ class MyWindow(QtWidgets.QMainWindow):
         browseButton.setStyleSheet("background: rgb(50, 50, 50);"
                                    "color: white;"
                                    "border-radius: 5px")
-        browseButton.clicked.connect(self.browseBackupFolder)
+        browseButton.clicked.connect(self.backupBrowseFolder)
         browseButton.setFixedSize(80, 20)
         backupFolderHLayout.addWidget(browseButton)
 
@@ -981,7 +981,7 @@ class MyWindow(QtWidgets.QMainWindow):
             readSmdbFile(self.moviesSmdbFile)
             self.refreshMoviesList()
 
-    def browseBackupFolder(self):
+    def backupBrowseFolder(self):
         browseDir = str(Path.home())
         if os.path.exists('%s/Desktop' % browseDir):
             browseDir = '%s/Desktop' % browseDir
@@ -1008,13 +1008,13 @@ class MyWindow(QtWidgets.QMainWindow):
             self.spaceTotal = self.spaceTotal
             self.spaceUsed = self.spaceUsed
             self.spaceFree = self.spaceFree
-            self.spacePercent = self.spaceUsed / self.spaceTotal
-            self.spaceBarLayout.setStretch(0, self.spacePercent * 1000)
-            self.spaceBarLayout.setStretch(2, (1.0 - self.spacePercent) * 1000)
+            self.spaceUsedPercent = self.spaceUsed / self.spaceTotal
+            self.spaceBarLayout.setStretch(0, self.spaceUsedPercent * 1000)
+            self.spaceBarLayout.setStretch(2, (1.0 - self.spaceUsedPercent) * 1000)
 
             self.spaceAvailableLabel.setText("%d Gb / %d Gb : %.2f%%" % (bToGb(self.spaceUsed),
                                                                          bToGb(self.spaceTotal),
-                                                                         100.0 * self.spacePercent))
+                                                                         100.0 * self.spaceUsedPercent))
 
     def getFolderSize(self, startPath='.'):
         total_size = 0
@@ -1047,7 +1047,6 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.statusBar().showMessage('Cancelled')
                 self.isCanceled = False
                 self.progressBar.setValue(0)
-                self.setMovieListItemColors()
                 self.backupListTableModel.changedLayout()
                 return
 
@@ -1110,8 +1109,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage("Done")
         self.progressBar.setValue(0)
 
-        sizeChange = sizeChange
-
         if (self.spaceUsed + sizeChange > self.spaceTotal):
             self.spaceUsedWidget.setStyleSheet("background: rgb(255,0,0);"
                                                "border-radius: 0px 0px 0px 0px")
@@ -1127,16 +1124,15 @@ class MyWindow(QtWidgets.QMainWindow):
             self.spaceUsedWidget.setStyleSheet("background: rgb(0,255,0);"
                                                "border-radius: 0px 0px 0px 0px")
             changePercent = sizeChange / self.spaceTotal
-            self.spaceBarLayout.setStretch(0, self.spacePercent * 1000)
-            changeStretch = changePercent * 1000
-            self.spaceBarLayout.setStretch(1, changeStretch)
-            self.spaceBarLayout.setStretch(2, (1.0 - self.spacePercent - changePercent) * 1000)
+            self.spaceBarLayout.setStretch(0, self.spaceUsedPercent * 1000)
+            self.spaceBarLayout.setStretch(1, changePercent * 1000)
+            self.spaceBarLayout.setStretch(2, (1.0 - self.spaceUsedPercent - changePercent) * 1000)
 
         newSize = self.spaceUsed + sizeChange
-        self.spacePercent = newSize / self.spaceTotal
+        newSpacePercent = newSize / self.spaceTotal
         self.spaceAvailableLabel.setText("%d Gb / %d Gb : %.2f%%" % (bToGb(newSize),
                                                                      bToGb(self.spaceTotal),
-                                                                     100.0 * self.spacePercent))
+                                                                     100.0 * newSpacePercent))
 
         self.backupAnalysed = True
 
@@ -1166,7 +1162,6 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.statusBar().showMessage('Cancelled')
                 self.isCanceled = False
                 self.progressBar.setValue(0)
-                self.setMovieListItemColors()
                 self.backupListTableModel.changedLayout()
                 return
 
@@ -1704,7 +1699,6 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.statusBar().showMessage('Cancelled')
                 self.isCanceled = False
                 self.progressBar.setValue(0)
-                self.setMovieListItemColors()
                 return
 
             title = model.getTitle(row)
@@ -2341,13 +2335,16 @@ class MyWindow(QtWidgets.QMainWindow):
         if len(selectedRows) == 0:
             return
 
-        minRow = selectedRows[0].row()
-        maxRow = selectedRows[-1].row()
-        self.backupListTableModel.removeMovies(minRow, maxRow)
-        self.backupListTableView.selectionModel().clearSelection()
-        self.writeSmdbFile(self.backupListSmdbFile,
-                           self.backupListTableModel,
-                           titlesOnly=True)
+        self.backupListTableModel.aboutToChangeLayout()
+        rowsToDelete = list()
+        for index in selectedRows:
+            sourceIndex = self.backupListTableProxyModel.mapToSource(index)
+            rowsToDelete.append(sourceIndex.row())
+
+        for row in sorted(rowsToDelete, reverse=True):
+            self.backupListTableModel.removeMovie(row)
+
+        self.backupListTableModel.changedLayout()
 
     class MoveTo(Enum):
         DOWN = 0
@@ -2500,7 +2497,6 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.statusBar().showMessage('Cancelled')
                 self.isCanceled = False
                 self.progressBar.setValue(0)
-                self.setMovieListItemColors()
                 return
 
             sourceRow = self.getSourceRow(modelIndex)
@@ -2532,7 +2528,6 @@ class MyWindow(QtWidgets.QMainWindow):
             if os.path.exists(jsonFile):
                 filesToDelete.append(os.path.join(moviePath, jsonFile))
         removeFiles(self, filesToDelete, '.json')
-        # self.setMovieListItemColors()
 
     def removeCoverFilesMenu(self):
         filesToDelete = []
