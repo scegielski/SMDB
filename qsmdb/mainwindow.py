@@ -1099,25 +1099,26 @@ class MyWindow(QtWidgets.QMainWindow):
                 # Check if the destination file exists
                 fullDestPath = os.path.join(destPath, f)
                 if not os.path.exists(fullDestPath):
-                    self.backupListTableModel.setBackupStatus(sourceIndex, "Dest Files Missing")
+                    self.backupListTableModel.setBackupStatus(sourceIndex, "Files Missing (Destination)")
                     replaceFolder = True
                     break
 
                 # Check if the destination file is the same size as the source file
-                destFileSize = os.path.getsize(fullDestPath)
-                sourceFileSize = sourceFilesAndSizes[f]
-                if sourceFileSize != destFileSize:
-                    self.backupListTableModel.setBackupStatus(sourceIndex, "File Size Difference")
-                    replaceFolder = True
-                    break
+                if not replaceFolder:
+                    destFileSize = os.path.getsize(fullDestPath)
+                    sourceFileSize = sourceFilesAndSizes[f]
+                    if sourceFileSize != destFileSize:
+                        self.backupListTableModel.setBackupStatus(sourceIndex, "File Size Difference")
+                        replaceFolder = True
+                        break
 
             # Check if the destination has files that the source doesn't
-            if os.path.exists(destPath):
+            if not replaceFolder and os.path.exists(destPath):
                 for f in destFilesAndSizes.keys():
                     # Check if the destination file exists
                     fullSourcePath = os.path.join(sourcePath, f)
                     if not os.path.exists(fullSourcePath):
-                        self.backupListTableModel.setBackupStatus(sourceIndex, "Source Files Missing")
+                        self.backupListTableModel.setBackupStatus(sourceIndex, "Files Missing (Source)")
                         replaceFolder = True
                         break
 
@@ -1214,8 +1215,8 @@ class MyWindow(QtWidgets.QMainWindow):
             QtCore.QCoreApplication.processEvents()
 
             if backupStatus == 'File Size Difference' or \
-               backupStatus == 'Source Files Missing' or \
-               backupStatus == 'Dest Files Missing':
+               backupStatus == 'Files Missing (Source)' or \
+               backupStatus == 'Files Missing (Dest)':
                 print("Removing destination directory %s" % destPath)
                 shutil.rmtree(destPath)
                 print("Copying folder %s to %s" % (sourcePath, destPath))
