@@ -1173,6 +1173,9 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.backupListTableModel.changedLayout()
                 return
 
+            progress += 1
+            self.progressBar.setValue(progress)
+
             modelIndex = self.backupListTableProxyModel.index(row, 0)
             sourceIndex = self.backupListTableProxyModel.mapToSource(modelIndex)
             sourceRow = sourceIndex.row()
@@ -1182,22 +1185,29 @@ class MyWindow(QtWidgets.QMainWindow):
             destPath = os.path.join(self.backupFolder, sourceFolderName)
 
             backupStatus = self.backupListTableModel.getBackupStatus(sourceIndex.row())
-            print("destPath = %s - %s" % (destPath, backupStatus))
 
             message = "Backing up folder (%d/%d): %s" % (progress + 1,
                                                          numItems,
                                                          title)
+
             self.statusBar().showMessage(message)
             QtCore.QCoreApplication.processEvents()
 
-            progress += 1
-            self.progressBar.setValue(progress)
+            if backupStatus == 'File Size Difference' or \
+               backupStatus == 'Files Missing':
+                print("Removing destination directory %s" % destPath)
+                shutil.rmtree(destPath)
+                print("Copying folder %s to %s" % (sourcePath, destPath))
+                shutil.copytree(sourcePath, destPath)
+            elif backupStatus == 'Folder Missing':
+                print("Copying folder %s to %s" % (sourcePath, destPath))
+                shutil.copytree(sourcePath, destPath)
+            else:
+                print("Skipping %s" % sourcePath)
 
         self.backupListTableModel.changedLayout()
         self.statusBar().showMessage("Done")
         self.progressBar.setValue(0)
-
-        self.backupButton.setEnabled(True)
 
     def populateFiltersTable(self):
         if not self.moviesSmdbData:
