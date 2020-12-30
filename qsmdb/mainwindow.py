@@ -12,6 +12,25 @@ import os
 from .utilities import *
 from .moviemodel import MoviesTableModel
 
+def handleRemoveReadonly(func, path, exc_info):
+    """
+    Error handler for ``shutil.rmtree``.
+
+    If the error is due to an access error (read only file)
+    it attempts to add write permission and then retries.
+
+    If the error is for another reason it re-raises the error.
+
+    Usage : ``shutil.rmtree(path, onerror=onerror)``
+    """
+    import stat
+    if not os.access(path, os.W_OK):
+        # Is the error an access error ?
+        os.chmod(path, stat.S_IWUSR)
+        func(path)
+    else:
+        raise
+
 def bToGb(b):
     return b / (2**30)
 
@@ -1216,9 +1235,11 @@ class MyWindow(QtWidgets.QMainWindow):
 
             if backupStatus == 'File Size Difference' or \
                backupStatus == 'Files Missing (Source)' or \
-               backupStatus == 'Files Missing (Dest)':
+               backupStatus == 'Files Missing (Destination)':
                 print("Removing destination directory %s" % destPath)
-                shutil.rmtree(destPath)
+                shutil.rmtree(destPath,
+                              ignore_errors=False,
+                              onerror=handleRemoveReadonly)
                 print("Copying folder %s to %s" % (sourcePath, destPath))
                 shutil.copytree(sourcePath, destPath)
             elif backupStatus == 'Folder Missing':
