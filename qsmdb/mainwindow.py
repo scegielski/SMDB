@@ -143,6 +143,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.showMoviesTable = True
         self.showCover = True
         self.showMovieInfo = True
+        self.showMovieSection = True
         self.showSummary = True
         self.showWatchList = True
         self.showBackupList = True
@@ -393,6 +394,12 @@ class MyWindow(QtWidgets.QMainWindow):
         showBackupListAction.setChecked(self.showBackupList)
         showBackupListAction.triggered.connect(self.showBackupListMenu)
         viewMenu.addAction(showBackupListAction)
+
+        showMovieSectionAction = QtWidgets.QAction("Show Movie Section", self)
+        showMovieSectionAction.setCheckable(True)
+        showMovieSectionAction.setChecked(self.showMovieSection)
+        showMovieSectionAction.triggered.connect(self.showMovieSectionMenu)
+        viewMenu.addAction(showMovieSectionAction)
 
         showCoverAction = QtWidgets.QAction("Show Cover", self)
         showCoverAction.setCheckable(True)
@@ -694,7 +701,6 @@ class MyWindow(QtWidgets.QMainWindow):
         backupListVLayout.addLayout(backupFolderHLayout)
 
         backupFolderLabel = QtWidgets.QLabel("Destination Folder")
-        backupFolderLabel.setFixedSize(150, 20)
         backupFolderHLayout.addWidget(backupFolderLabel)
 
         self.backupFolderEdit.setStyleSheet("background: black; color: white; border-radius: 5px")
@@ -1319,6 +1325,14 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.backupListWidget.hide()
             else:
                 self.backupListWidget.show()
+
+    def showMovieSectionMenu(self):
+        if self.movieSectionWidget:
+            self.showMovieSection = not self.showMovieSection
+            if not self.showMovieSection:
+                self.movieSectionWidget.hide()
+            else:
+                self.movieSectionWidget.show()
 
     def showCoverMenu(self):
         if self.coverWidget:
