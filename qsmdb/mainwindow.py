@@ -725,21 +725,16 @@ class MyWindow(QtWidgets.QMainWindow):
         spaceBarWidget.setLayout(self.spaceBarLayout)
 
         self.spaceUsedWidget.setStyleSheet("background: rgb(0,255,0);"
-                                           "border-top-left-radius: 5px;"
-                                           "border-bottom-left-radius: 5px;"
-                                           "border-top-right-radius: 0px;"
-                                           "border-bottom-right-radius: 0px;")
+                                           "border-radius: 0px 0px 0px 0px")
 
         self.spaceBarLayout.addWidget(self.spaceUsedWidget)
 
-        self.spaceChangedWidget.setStyleSheet("background: rgb(255,255,0); border-radius: 0px 0px 0px 0px")
+        self.spaceChangedWidget.setStyleSheet("background: rgb(255,255,0);"
+                                              "border-radius: 0px 0px 0px 0px")
         self.spaceBarLayout.addWidget(self.spaceChangedWidget)
 
         self.spaceAvailableWidget.setStyleSheet("background: rgb(100,100,100);"
-                                                "border-top-left-radius: 5px;"
-                                                "border-bottom-left-radius: 5px;"
-                                                "border-top-right-radius: 5px;"
-                                                "border-bottom-right-radius: 5px;")
+                                                "border-radius: 0px 0px 0px 0px")
         self.spaceBarLayout.addWidget(self.spaceAvailableWidget)
 
         self.spaceBarLayout.setStretch(0, 0)
@@ -1011,21 +1006,6 @@ class MyWindow(QtWidgets.QMainWindow):
             self.spaceBarLayout.setStretch(0, self.spacePercent * 1000)
             self.spaceBarLayout.setStretch(2, (1.0 - self.spacePercent) * 1000)
 
-            self.spaceUsedWidget.setStyleSheet("background: rgb(0,255,0);"
-                                               "border-top-left-radius: 5px;"
-                                               "border-bottom-left-radius: 5px;"
-                                               "border-top-right-radius: 0px;"
-                                               "border-bottom-right-radius: 0px;")
-
-            self.spaceChangedWidget.setStyleSheet("background: rgb(255,255,0);"
-                                                  "border-radius: 0px 0px 0px 0px")
-
-            self.spaceAvailableWidget.setStyleSheet("background: rgb(100,100,100);"
-                                                    "border-top-left-radius: 0px;"
-                                                    "border-bottom-left-radius: 0px;"
-                                                    "border-top-right-radius: 5px;"
-                                                    "border-bottom-right-radius: 5px;" )
-
             self.spaceAvailableLabel.setText("%d Gb / %d Gb (%.2f)" % (self.spaceUsed,
                                                                        self.spaceTotal,
                                                                        self.spacePercent))
@@ -1120,10 +1100,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         if (self.spaceUsed + sizeChange > self.spaceTotal):
             self.spaceUsedWidget.setStyleSheet("background: rgb(255,0,0);"
-                                               "border-top-left-radius: 5px;"
-                                               "border-bottom-left-radius: 5px;"
-                                               "border-top-right-radius: 5px;"
-                                               "border-bottom-right-radius: 5px;")
+                                               "border-radius: 0px 0px 0px 0px")
             self.spaceBarLayout.setStretch(0, 1000)
             self.spaceBarLayout.setStretch(1, 0)
             self.spaceBarLayout.setStretch(2, 0)
@@ -1134,10 +1111,7 @@ class MyWindow(QtWidgets.QMainWindow):
             mb.exec()
         else:
             self.spaceUsedWidget.setStyleSheet("background: rgb(0,255,0);"
-                                               "border-top-left-radius: 0px;"
-                                               "border-bottom-left-radius: 0px;"
-                                               "border-top-right-radius: 5px;"
-                                               "border-bottom-right-radius: 5px;")
+                                               "border-radius: 0px 0px 0px 0px")
             changePercent = sizeChange / self.spaceTotal
             self.spaceBarLayout.setStretch(0, self.spacePercent * 1000)
             changeStretch = changePercent * 1000
