@@ -713,6 +713,18 @@ class MyWindow(QtWidgets.QMainWindow):
         browseButton.setFixedSize(80, 20)
         backupFolderHLayout.addWidget(browseButton)
 
+        self.analyseButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        self.analyseButton.setFixedSize(80, 20)
+        self.analyseButton.setEnabled(False)
+        self.analyseButton.clicked.connect(self.backupAnalyse)
+        backupFolderHLayout.addWidget(self.analyseButton)
+
+        self.backupButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        self.backupButton.setFixedSize(80, 20)
+        self.backupButton.setEnabled(False)
+        self.backupButton.clicked.connect(self.backupRun)
+        backupFolderHLayout.addWidget(self.backupButton)
+
         backupSpaceLayout = QtWidgets.QHBoxLayout()
         backupListVLayout.addLayout(backupSpaceLayout)
 
@@ -746,24 +758,6 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.spaceAvailableLabel.setAlignment(QtCore.Qt.AlignRight)
         backupSpaceLayout.addWidget(self.spaceAvailableLabel)
-
-        backupListButtons2HLayout = QtWidgets.QHBoxLayout()
-        backupListVLayout.addLayout(backupListButtons2HLayout)
-
-        self.analyseButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
-        self.analyseButton.setFixedSize(80, 20)
-        self.analyseButton.setEnabled(False)
-        self.analyseButton.clicked.connect(self.backupAnalyse)
-        backupListButtons2HLayout.addWidget(self.analyseButton)
-
-        self.backupButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
-        self.backupButton.setFixedSize(80, 20)
-        self.backupButton.setEnabled(False)
-        self.backupButton.clicked.connect(self.backupRun)
-        backupListButtons2HLayout.addWidget(self.backupButton)
-
-        backupListButtons2HLayout.addStretch(1)
-
 
     def initUICover(self):
         self.coverWidget.setStyleSheet("background-color: black;")
