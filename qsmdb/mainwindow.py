@@ -208,6 +208,7 @@ class MyWindow(QtWidgets.QMainWindow):
         moviesWatchListBackupVSplitter.addWidget(self.watchListWidget)
 
         # Backup List
+        self.backupAnalysed = False
         self.backupListWidget = QtWidgets.QFrame()
         self.backupListTableView = QtWidgets.QTableView()
         self.analyseButton = QtWidgets.QPushButton("Analyse")
@@ -710,20 +711,24 @@ class MyWindow(QtWidgets.QMainWindow):
         backupFolderHLayout.addWidget(self.backupFolderEdit)
 
         browseButton = QtWidgets.QPushButton("Browse")
-        browseButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        browseButton.setStyleSheet("background: rgb(50, 50, 50);"
+                                   "color: white;"
+                                   "border-radius: 5px")
         browseButton.clicked.connect(self.browseBackupFolder)
         browseButton.setFixedSize(80, 20)
         backupFolderHLayout.addWidget(browseButton)
 
-        self.analyseButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        self.analyseButton.setStyleSheet("background: rgb(50, 50, 50);"
+                                         "color: white;"
+                                         "border-radius: 5px")
         self.analyseButton.setFixedSize(80, 20)
-        self.analyseButton.setEnabled(False)
         self.analyseButton.clicked.connect(self.backupAnalyse)
         backupFolderHLayout.addWidget(self.analyseButton)
 
-        self.backupButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        self.backupButton.setStyleSheet("background: rgb(50, 50, 50);"
+                                        "color: white;"
+                                        "border-radius: 5px")
         self.backupButton.setFixedSize(80, 20)
-        self.backupButton.setEnabled(False)
         self.backupButton.clicked.connect(self.backupRun)
         backupFolderHLayout.addWidget(self.backupButton)
 
@@ -1023,6 +1028,13 @@ class MyWindow(QtWidgets.QMainWindow):
         return total_size
 
     def backupAnalyse(self):
+        if not self.backupFolder:
+            mb = QtWidgets.QMessageBox()
+            mb.setText("Destination folder is not set")
+            mb.setIcon(QtWidgets.QMessageBox.Critical)
+            mb.exec()
+            return
+
         numItems = self.backupListTableProxyModel.rowCount()
         self.progressBar.setMaximum(numItems)
         progress = 0
@@ -1126,9 +1138,23 @@ class MyWindow(QtWidgets.QMainWindow):
                                                                      bToGb(self.spaceTotal),
                                                                      100.0 * self.spacePercent))
 
-        self.backupButton.setEnabled(True)
+        self.backupAnalysed = True
 
     def backupRun(self):
+        if not self.backupFolder:
+            mb = QtWidgets.QMessageBox()
+            mb.setText("Destination folder is not set")
+            mb.setIcon(QtWidgets.QMessageBox.Critical)
+            mb.exec()
+            return
+
+        if not self.backupAnalysed:
+            mb = QtWidgets.QMessageBox()
+            mb.setText("Run analyses first by pressing Analyse button")
+            mb.setIcon(QtWidgets.QMessageBox.Critical)
+            mb.exec()
+            return
+
         numItems = self.backupListTableProxyModel.rowCount()
         self.progressBar.setMaximum(numItems)
         progress = 0
@@ -2224,6 +2250,7 @@ class MyWindow(QtWidgets.QMainWindow):
                                                moviePath)
 
         self.backupListTableModel.changedLayout()
+        self.backupAnalysed = False
 
 
     def addNewUserTag(self):
