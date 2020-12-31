@@ -181,7 +181,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.showMovieSection = True
         self.showSummary = True
         self.showWatchList = True
-        self.showBackupList = True
+        self.showBackupList = False
 
         # Default state of cancel button
         self.isCanceled = False
@@ -220,6 +220,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.filterMinCountSpinBox = QtWidgets.QSpinBox()
         self.filterTable = FilterTable()
         self.initUIFilterTable()
+        if not self.showFilters:
+            self.filterWidget.hide()
 
         # Splitter for Movies Table and Watch List
         moviesWatchListBackupVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
@@ -233,6 +235,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesListHeaderActions = []
         self.initUIMoviesTable()
         moviesWatchListBackupVSplitter.addWidget(self.moviesTableWidget)
+        if not self.showMoviesTable:
+            self.moviesTableWidget.hide()
 
         # Watch List
         self.watchListWidget = QtWidgets.QFrame()
@@ -241,6 +245,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.watchListHeaderActions = []
         self.initUIWatchList()
         moviesWatchListBackupVSplitter.addWidget(self.watchListWidget)
+        if not self.showWatchList:
+            self.watchListWidget.hide()
 
         # Backup List
         self.backupAnalysed = False
@@ -264,6 +270,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.backupFolder = ''
         self.initUIBackupList()
         moviesWatchListBackupVSplitter.addWidget(self.backupListWidget)
+        if not self.showBackupList:
+            self.backupListWidget.hide()
 
         moviesWatchListBackupVSplitter.setSizes([500, 200, 200])
 
@@ -272,6 +280,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.movieSectionWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
         self.movieSectionWidget.setLineWidth(5)
         self.movieSectionWidget.setStyleSheet("background: rgb(25, 25, 25); border-radius: 10px")
+        if not self.showMovieSection:
+            self.movieSectionWidget.hide()
 
         movieSectionVLayout = QtWidgets.QVBoxLayout()
         self.movieSectionWidget.setLayout(movieSectionVLayout)
@@ -309,12 +319,16 @@ class MyWindow(QtWidgets.QMainWindow):
         self.movieInfoListView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.movieInfoListView.customContextMenuRequested[QtCore.QPoint].connect(self.movieInfoRightMenu)
         movieInfoVLayout.addWidget(self.movieInfoListView)
+        if not self.showMovieInfo:
+            self.movieInfoWidget.hide()
 
         # Cover
         self.coverWidget = QtWidgets.QWidget()
         self.movieCover = QtWidgets.QLabel()
         self.initUICover()
         coverInfoHSplitter.addWidget(self.coverWidget)
+        if not self.showCover:
+            self.coverWidget.hide()
 
         coverInfoHSplitter.setSizes([200, 540])
 
@@ -324,6 +338,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.summary.setStyleSheet("color:white; background-color: black;")
         coverSummaryVSplitter.addWidget(self.summary)
         coverSummaryVSplitter.setSizes([600, 200])
+        if not self.showSummary:
+            self.summary.hide()
 
         # Add the sub-layouts to the mainHSplitter
         mainHSplitter.addWidget(self.filterWidget)
