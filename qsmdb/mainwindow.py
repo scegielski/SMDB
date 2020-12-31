@@ -2237,6 +2237,10 @@ class MyWindow(QtWidgets.QMainWindow):
         removeFromWatchListAction.triggered.connect(self.backupListRemove)
         rightMenu.addAction(removeFromWatchListAction)
 
+        removeNoDifferenceAction = QtWidgets.QAction("Remove Entries With No Differences", self)
+        removeNoDifferenceAction.triggered.connect(self.backupListRemoveNoDifference)
+        rightMenu.addAction(removeNoDifferenceAction)
+
         moveToTopWatchListAction = QtWidgets.QAction("Move To Top", self)
         moveToTopWatchListAction.triggered.connect(lambda: self.backupListMoveRow(self.MoveTo.TOP))
         rightMenu.addAction(moveToTopWatchListAction)
