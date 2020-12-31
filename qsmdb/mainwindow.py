@@ -2350,7 +2350,6 @@ class MyWindow(QtWidgets.QMainWindow):
         for modelIndex in self.moviesTableView.selectionModel().selectedRows():
             sourceIndex = self.moviesTableProxyModel.mapToSource(modelIndex)
             sourceRow = sourceIndex.row()
-            movieFolderName = self.moviesTableModel.getFolderName(sourceRow)
             moviePath = self.moviesTableModel.getPath(sourceRow)
             self.watchListTableModel.addMovie(self.moviesSmdbData,
                                               moviePath)
