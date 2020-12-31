@@ -1168,7 +1168,7 @@ class MyWindow(QtWidgets.QMainWindow):
                         break
 
             # Check if the destination has files that the source doesn't
-            if not replaceFolder and os.path.exists(destPath):
+            if not replaceFolder:
                 for f in destFilesAndSizes.keys():
                     # Check if the destination file exists
                     fullSourcePath = os.path.join(sourcePath, f)
@@ -1297,7 +1297,7 @@ class MyWindow(QtWidgets.QMainWindow):
             startTime = time.perf_counter()
 
             if backupStatus == 'File Size Difference' or \
-                    backupStatus == 'Files Missing (Source)' or \
+               backupStatus == 'Files Missing (Source)' or \
                backupStatus == 'Files Missing (Destination)':
                 print("Removing destination directory %s" % destPath)
                 shutil.rmtree(destPath,
