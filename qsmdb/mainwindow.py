@@ -865,8 +865,7 @@ class MyWindow(QtWidgets.QMainWindow):
                          mtm.Columns.Folder,
                          mtm.Columns.Path,
                          mtm.Columns.Rank,
-                         mtm.Columns.BackupStatus,
-                         mtm.Columns.Size]
+                         mtm.Columns.BackupStatus]
         for c in columnsToHide:
             index = c.value
             mtv.hideColumn(index)
@@ -1054,6 +1053,33 @@ class MyWindow(QtWidgets.QMainWindow):
                     total_size += os.path.getsize(fp)
 
         return total_size
+
+    def calculateFolderSizes(self):
+        numItems = self.moviesTableModel.rowCount()
+        self.progressBar.setMaximum(numItems)
+        progress = 0
+        self.isCanceled = False
+        self.moviesTableModel.aboutToChangeLayout()
+        for row in range(numItems):
+            QtCore.QCoreApplication.processEvents()
+            if self.isCanceled:
+                self.statusBar().showMessage('Cancelled')
+                self.isCanceled = False
+                self.progressBar.setValue(0)
+                self.movieTableModel.changedLayout()
+                return
+
+            progress += 1
+            self.progressBar.setValue(progress)
+
+            modelIndex = self.moviesTableModel.index(row, 0)
+            path = self.moviesTableModel.getPath(row)
+            folderSize = self.getFolderSize(path)
+            self.moviesTableModel.setSize(modelIndex, '%05d Mb' % bToMb(folderSize))
+
+        self.moviesTableModel.changedLayout()
+        self.statusBar().showMessage("Done")
+        self.progressBar.setValue(0)
 
     def backupAnalyse(self):
         if not self.backupFolder:
@@ -1811,7 +1837,11 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.progressBar.setValue(0)
                 return
 
+            progress += 1
+            self.progressBar.setValue(progress)
+
             title = model.getTitle(row)
+            size = model.getSize(row)
 
             message = "Processing item (%d/%d): %s" % (progress + 1,
                                                        count,
@@ -1965,10 +1995,8 @@ class MyWindow(QtWidgets.QMainWindow):
                                           'countries': jsonCountries,
                                           'companies': jsonCompanies,
                                           'actors': movieActorsList,
-                                          'rank': rank}
-
-            progress += 1
-            self.progressBar.setValue(progress)
+                                          'rank': rank,
+                                          'size': size}
 
         self.progressBar.setValue(0)
 
@@ -2252,6 +2280,10 @@ class MyWindow(QtWidgets.QMainWindow):
         addToBackupListAction = QtWidgets.QAction("Add To Backup List", self)
         addToBackupListAction.triggered.connect(self.backupListAdd)
         moviesTableRightMenu.addAction(addToBackupListAction)
+
+        calculateSizesAction = QtWidgets.QAction("Calculate Folder Sizes", self)
+        calculateSizesAction.triggered.connect(self.calculateFolderSizes)
+        moviesTableRightMenu.addAction(calculateSizesAction)
 
         addNewUserTagAction = QtWidgets.QAction("Add New User Tag", self)
         addNewUserTagAction.triggered.connect(self.addNewUserTag)
