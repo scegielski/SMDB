@@ -1299,12 +1299,36 @@ class MyWindow(QtWidgets.QMainWindow):
             if backupStatus == 'File Size Difference' or \
                backupStatus == 'Files Missing (Source)' or \
                backupStatus == 'Files Missing (Destination)':
-                print("Removing destination directory %s" % destPath)
-                shutil.rmtree(destPath,
-                              ignore_errors=False,
-                              onerror=handleRemoveReadonly)
+
                 startTime = time.perf_counter()
-                shutil.copytree(sourcePath, destPath)
+
+                # Copy any files that are missing or have different sizes
+                for f in os.listdir(sourcePath):
+                    sourceFilePath = os.path.join(sourcePath, f)
+                    sourceFileSize = os.path.getsize(sourceFilePath)
+                    destFilePath = os.path.join(destPath, f)
+                    destFileSize = 0
+                    if os.path.exists(destFilePath):
+                        destFileSize = os.path.getsize(destFilePath)
+                    if not os.path.exists(destFilePath) or sourceFileSize != destFileSize:
+                        if os.path.isdir(sourceFilePath):
+                            shutil.copytree(sourceFilePath, destFilePath)
+                        else:
+                            shutil.copy(sourceFilePath, destFilePath)
+
+                # Remove any files in the destination dir that
+                # are not in the source dir
+                for f in os.listdir(destPath):
+                    destFilePath = os.path.join(destPath, f)
+                    sourceFilePath = os.path.join(sourcePath, f)
+                    if not os.path.exists(sourceFilePath):
+                        if os.path.isdir(destFilePath):
+                            shutil.rmtree(destFilePath,
+                                          ignore_errors=False,
+                                          onerror=handleRemoveReadonly)
+                        else:
+                            os.remove(destFilePath)
+
                 bytesRemaining += destFolderSize
                 bytesRemaining -= sourceFolderSize
             elif backupStatus == 'Folder Missing':
