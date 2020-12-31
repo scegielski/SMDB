@@ -159,6 +159,9 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
     def addMovie(self, smdbData, moviePath):
         movieFolderName = os.path.basename(moviePath)
+        if movieFolderName not in smdbData['titles']:
+            return
+
         data = smdbData['titles'][movieFolderName]
         movieData = self.createMovieData(data,
                                          moviePath,
