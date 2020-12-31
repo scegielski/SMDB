@@ -2117,6 +2117,10 @@ class MyWindow(QtWidgets.QMainWindow):
     def watchListTableRightMenuShow(self, QPos):
         rightMenu = QtWidgets.QMenu(self.moviesTableView)
 
+        selectAllAction = QtWidgets.QAction("Select All", self)
+        selectAllAction.triggered.connect(lambda: self.tableSelectAll(self.watchListTableView))
+        rightMenu.addAction(selectAllAction)
+
         playAction = QtWidgets.QAction("Play", self)
         playAction.triggered.connect(lambda: self.playMovie(self.watchListTableView,
                                                             self.watchListTableProxyModel))
@@ -2170,6 +2174,10 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def backupListTableRightMenuShow(self, QPos):
         rightMenu = QtWidgets.QMenu(self.moviesTableView)
+
+        selectAllAction = QtWidgets.QAction("Select All", self)
+        selectAllAction.triggered.connect(lambda: self.tableSelectAll(self.backupListTableView))
+        rightMenu.addAction(selectAllAction)
 
         playAction = QtWidgets.QAction("Play", self)
         playAction.triggered.connect(lambda: self.playMovie(self.backupListTableView,
@@ -2227,6 +2235,10 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def moviesTableRightMenuShow(self, QPos):
         moviesTableRightMenu = QtWidgets.QMenu(self.moviesTableView)
+
+        selectAllAction = QtWidgets.QAction("Select All", self)
+        selectAllAction.triggered.connect(lambda: self.tableSelectAll(self.moviesTableView))
+        moviesTableRightMenu.addAction(selectAllAction)
 
         playAction = QtWidgets.QAction("Play")
         playAction.triggered.connect(lambda: self.playMovie(self.moviesTableView,
@@ -2299,6 +2311,10 @@ class MyWindow(QtWidgets.QMainWindow):
                                self.moviesTableProxyModel)
 
         moviesTableRightMenu.exec_(QtGui.QCursor.pos())
+
+    def tableSelectAll(self, table):
+        table.selectAll()
+        pass
 
     @staticmethod
     def playMovie(table, proxy):
