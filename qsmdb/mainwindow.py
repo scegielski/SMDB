@@ -720,23 +720,11 @@ class MyWindow(QtWidgets.QMainWindow):
         removeButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
         backupListButtonsHLayout.addWidget(removeButton)
 
-        moveToTopButton = QtWidgets.QPushButton('Move To Top')
-        moveToTopButton.clicked.connect(lambda: self.backupListMoveRow(self.MoveTo.TOP))
-        moveToTopButton.setFont(QtGui.QFont('TimesNew Roman', 12))
-        moveToTopButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
-        backupListButtonsHLayout.addWidget(moveToTopButton)
-
-        moveUpButton = QtWidgets.QPushButton('Move Up')
-        moveUpButton.clicked.connect(lambda: self.backupListMoveRow(self.MoveTo.UP))
-        moveUpButton.setFont(QtGui.QFont('TimesNew Roman', 12))
-        moveUpButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
-        backupListButtonsHLayout.addWidget(moveUpButton)
-
-        moveDownButton = QtWidgets.QPushButton('Move Down')
-        moveDownButton.clicked.connect(lambda: self.backupListMoveRow(self.MoveTo.DOWN))
-        moveDownButton.setFont(QtGui.QFont('TimesNew Roman', 12))
-        moveDownButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
-        backupListButtonsHLayout.addWidget(moveDownButton)
+        removeNoDifferenceButton = QtWidgets.QPushButton('Remove No Difference')
+        removeNoDifferenceButton.clicked.connect(self.backupListRemoveNoDifference)
+        removeNoDifferenceButton.setFont(QtGui.QFont('TimesNew Roman', 12))
+        removeNoDifferenceButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        backupListButtonsHLayout.addWidget(removeNoDifferenceButton)
 
         backupFolderHLayout = QtWidgets.QHBoxLayout()
         backupListVLayout.addLayout(backupFolderHLayout)
@@ -2522,6 +2510,18 @@ class MyWindow(QtWidgets.QMainWindow):
         for index in selectedRows:
             sourceIndex = self.backupListTableProxyModel.mapToSource(index)
             rowsToDelete.append(sourceIndex.row())
+
+        for row in sorted(rowsToDelete, reverse=True):
+            self.backupListTableModel.removeMovie(row)
+
+        self.backupListTableModel.changedLayout()
+
+    def backupListRemoveNoDifference(self):
+        self.backupListTableModel.aboutToChangeLayout()
+        rowsToDelete = list()
+        for row in range(self.backupListTableModel.rowCount()):
+            if self.backupListTableModel.getBackupStatus(row) == "No Difference":
+                rowsToDelete.append(row)
 
         for row in sorted(rowsToDelete, reverse=True):
             self.backupListTableModel.removeMovie(row)
