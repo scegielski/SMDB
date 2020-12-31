@@ -8,6 +8,7 @@ import collections
 import webbrowser
 import shutil
 import os
+import time
 
 from .utilities import *
 from .moviemodel import MoviesTableModel
@@ -246,6 +247,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.spaceUsed = 0
         self.spaceFree = 0
         self.spaceUsedPercent = 0
+        self.bytesToBeCopied = 0
+        self.sourceFolderSizes = dict()
         self.backupListColumnsVisible = []
         self.backupListHeaderActions = []
         self.backupFolderEdit = QtWidgets.QLineEdit()
@@ -1064,7 +1067,7 @@ class MyWindow(QtWidgets.QMainWindow):
         progress = 0
         self.isCanceled = False
         self.backupListTableModel.aboutToChangeLayout()
-        sizeChange = 0
+        self.bytesToBeCopied = 0
         for row in range(numItems):
             QtCore.QCoreApplication.processEvents()
             if self.isCanceled:
@@ -1087,6 +1090,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
             sourceFolderSize = self.getFolderSize(sourcePath)
             self.backupListTableModel.setSize(sourceIndex, '%05d Mb' % bToMb(sourceFolderSize))
+            self.sourceFolderSizes[sourceFolderName] = sourceFolderSize
             destFolderSize = 0
             if os.path.exists(destPath):
                 destFolderSize = self.getFolderSize(destPath)
@@ -1106,7 +1110,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
             if not os.path.exists(destPath):
                 self.backupListTableModel.setBackupStatus(sourceIndex, "Folder Missing")
-                sizeChange += sourceFolderSize
+                self.bytesToBeCopied += sourceFolderSize
                 continue
             else:
                 self.backupListTableModel.setBackupStatus(sourceIndex, "No Difference")
@@ -1142,8 +1146,8 @@ class MyWindow(QtWidgets.QMainWindow):
                         break
 
             if replaceFolder:
-                sizeChange -= destFolderSize
-                sizeChange += sourceFolderSize
+                self.bytesToBeCopied -= destFolderSize
+                self.bytesToBeCopied += sourceFolderSize
 
             message = "Analysing folder (%d/%d): %s" % (progress + 1,
                                                         numItems,
@@ -1155,14 +1159,14 @@ class MyWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage("Done")
         self.progressBar.setValue(0)
 
-        if (self.spaceUsed + sizeChange > self.spaceTotal):
+        if (self.spaceUsed + self.bytesToBeCopied > self.spaceTotal):
             self.spaceUsedWidget.setStyleSheet("background: rgb(255,0,0);"
                                                "border-radius: 0px 0px 0px 0px")
             self.spaceBarLayout.setStretch(0, 1000)
             self.spaceBarLayout.setStretch(1, 0)
             self.spaceBarLayout.setStretch(2, 0)
             mb = QtWidgets.QMessageBox()
-            spaceNeeded = self.spaceUsed + sizeChange - self.spaceTotal
+            spaceNeeded = self.spaceUsed + self.bytesToBeCopied - self.spaceTotal
             mb.setText("Error: Not enough space in backup folder: %s."
                        "   Need %.2f Gb more space" % (self.backupFolder,
                                                        bToGb(spaceNeeded)))
@@ -1171,12 +1175,12 @@ class MyWindow(QtWidgets.QMainWindow):
         else:
             self.spaceUsedWidget.setStyleSheet("background: rgb(0,255,0);"
                                                "border-radius: 0px 0px 0px 0px")
-            changePercent = sizeChange / self.spaceTotal
+            changePercent = self.bytesToBeCopied / self.spaceTotal
             self.spaceBarLayout.setStretch(0, self.spaceUsedPercent * 1000)
             self.spaceBarLayout.setStretch(1, changePercent * 1000)
             self.spaceBarLayout.setStretch(2, (1.0 - self.spaceUsedPercent - changePercent) * 1000)
 
-        newSize = self.spaceUsed + sizeChange
+        newSize = self.spaceUsed + self.bytesToBeCopied
         newSpacePercent = newSize / self.spaceTotal
         self.spaceAvailableLabel.setText("%d Gb / %d Gb : %.2f%%" % (bToGb(newSize),
                                                                      bToGb(self.spaceTotal),
@@ -1199,12 +1203,22 @@ class MyWindow(QtWidgets.QMainWindow):
             mb.exec()
             return
 
-        numItems = self.backupListTableProxyModel.rowCount()
-        self.progressBar.setMaximum(numItems)
-        progress = 0
         self.isCanceled = False
         self.backupListTableModel.aboutToChangeLayout()
+
+        progress = 0
+        lastBytesPerSecond = 0
+        totalBytesCopied = 0
+        totalTimeToCopy = 0
+        averageBytesPerSecond = 0
+        bytesRemaining = self.bytesToBeCopied
+        estimatedHoursRemaining = 0
+        estimatedMinutesRemaining = 0
+
+        numItems = self.backupListTableProxyModel.rowCount()
+        self.progressBar.setMaximum(numItems)
         for row in range(numItems):
+            self.backupListTableView.selectRow(row)
             QtCore.QCoreApplication.processEvents()
             if self.isCanceled:
                 self.statusBar().showMessage('Cancelled')
@@ -1222,31 +1236,63 @@ class MyWindow(QtWidgets.QMainWindow):
             title = self.backupListTableModel.getTitle(sourceRow)
             sourcePath = self.backupListTableModel.getPath(sourceRow)
             sourceFolderName = self.backupListTableModel.getFolderName(sourceRow)
+            folderSizeInBytes = self.sourceFolderSizes[sourceFolderName]
             destPath = os.path.join(self.backupFolder, sourceFolderName)
 
             backupStatus = self.backupListTableModel.getBackupStatus(sourceIndex.row())
 
-            message = "Backing up folder (%d/%d): %s" % (progress + 1,
-                                                         numItems,
-                                                         title)
+            message = "Backing up folder (%d/%d): %s" \
+                      "   Size: %d Mb" \
+                      "   Last rate = %d Mb/s" \
+                      "   Average rate = %d Mb/s" \
+                      "   %d Mb Remaining" \
+                      "   Time remaining: %d Hours %d minutes" % \
+                      (progress + 1,
+                       numItems,
+                       title,
+                       bToMb(folderSizeInBytes),
+                       bToMb(lastBytesPerSecond),
+                       bToMb(averageBytesPerSecond),
+                       bToMb(bytesRemaining),
+                       estimatedHoursRemaining,
+                       estimatedMinutesRemaining)
 
             self.statusBar().showMessage(message)
             QtCore.QCoreApplication.processEvents()
 
+            # Time the copy
+            startTime = time.perf_counter()
+
             if backupStatus == 'File Size Difference' or \
-               backupStatus == 'Files Missing (Source)' or \
+                    backupStatus == 'Files Missing (Source)' or \
                backupStatus == 'Files Missing (Destination)':
                 print("Removing destination directory %s" % destPath)
                 shutil.rmtree(destPath,
                               ignore_errors=False,
                               onerror=handleRemoveReadonly)
                 print("Copying folder %s to %s" % (sourcePath, destPath))
+                startTime = time.perf_counter()
                 shutil.copytree(sourcePath, destPath)
+                endTime = time.perf_counter()
             elif backupStatus == 'Folder Missing':
                 print("Copying folder %s to %s" % (sourcePath, destPath))
                 shutil.copytree(sourcePath, destPath)
             else:
+                folderSizeInBytes = 0
                 print("Skipping %s" % sourcePath)
+
+            if folderSizeInBytes != 0:
+                endTime = time.perf_counter()
+                secondsToCopy = endTime - startTime
+                print("Seconds to copy = %d" % secondsToCopy)
+                lastBytesPerSecond = folderSizeInBytes / secondsToCopy
+                totalTimeToCopy += secondsToCopy
+                totalBytesCopied += folderSizeInBytes
+                averageBytesPerSecond = totalBytesCopied / totalTimeToCopy
+                bytesRemaining -= folderSizeInBytes
+                estimatedSecondsRemaining = bytesRemaining // averageBytesPerSecond
+                estimatedMinutesRemaining = (estimatedSecondsRemaining // 60) % 60
+                estimatedHoursRemaining = estimatedSecondsRemaining // 3600
 
         self.backupListTableModel.changedLayout()
         self.statusBar().showMessage("Done")
