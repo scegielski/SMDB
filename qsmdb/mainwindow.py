@@ -246,10 +246,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.backupAnalysed = False
         self.backupListWidget = QtWidgets.QFrame()
         self.backupListTableView = QtWidgets.QTableView()
-        self.analyseButton = QtWidgets.QPushButton("Analyse")
-        self.backupButton = QtWidgets.QPushButton("Backup")
-        self.backupOnlyJsonCheckBox = QtWidgets.QCheckBox("Only .json")
-        self.backupOnlyCoverCheckBox = QtWidgets.QCheckBox("Only Covers")
         self.spaceBarLayout = QtWidgets.QHBoxLayout()
         self.spaceUsedWidget = QtWidgets.QWidget()
         self.spaceChangedWidget = QtWidgets.QWidget()
@@ -709,34 +705,58 @@ class MyWindow(QtWidgets.QMainWindow):
         backupListVLayout.addLayout(backupListButtonsHLayout)
 
         addButton = QtWidgets.QPushButton('Add')
-        addButton.clicked.connect(self.backupListAdd)
         addButton.setFont(QtGui.QFont('TimesNew Roman', 12))
-        addButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        addButton.setStyleSheet("background: rgb(50, 50, 50);"
+                                "color: white;"
+                                "border-radius: 5px")
+        addButton.clicked.connect(self.backupListAdd)
         backupListButtonsHLayout.addWidget(addButton)
 
         removeButton = QtWidgets.QPushButton('Remove')
-        removeButton.clicked.connect(self.backupListRemove)
         removeButton.setFont(QtGui.QFont('TimesNew Roman', 12))
-        removeButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        removeButton.setStyleSheet("background: rgb(50, 50, 50); color: white;"
+                                   "border-radius: 5px")
+        removeButton.clicked.connect(self.backupListRemove)
         backupListButtonsHLayout.addWidget(removeButton)
 
-        removeNoDifferenceButton = QtWidgets.QPushButton('Remove No Difference')
-        removeNoDifferenceButton.clicked.connect(self.backupListRemoveNoDifference)
+        removeNoDifferenceButton = QtWidgets.QPushButton('Remove Folders With No Difference')
+        removeNoDifferenceButton.setFixedSize(300, 20)
         removeNoDifferenceButton.setFont(QtGui.QFont('TimesNew Roman', 12))
-        removeNoDifferenceButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        removeNoDifferenceButton.setStyleSheet("background: rgb(50, 50, 50);"
+                                               "color: white; border-radius: 5px")
+        removeNoDifferenceButton.clicked.connect(self.backupListRemoveNoDifference)
         backupListButtonsHLayout.addWidget(removeNoDifferenceButton)
+
+        analyseButton = QtWidgets.QPushButton("Analyse")
+        analyseButton.setFont(QtGui.QFont('TimesNew Roman', 12))
+        analyseButton.setStyleSheet("background: rgb(50, 50, 50);"
+                                    "color: white;"
+                                    "border-radius: 5px")
+        analyseButton.clicked.connect(self.backupAnalyse)
+        backupListButtonsHLayout.addWidget(analyseButton)
+
+        backupButton = QtWidgets.QPushButton("Backup")
+        backupButton.setStyleSheet("background: rgb(50, 50, 50);"
+                                   "color: white;"
+                                   "border-radius: 5px")
+        backupButton.setFont(QtGui.QFont('TimesNew Roman', 12))
+        backupButton.clicked.connect(self.backupRun)
+        backupListButtonsHLayout.addWidget(backupButton)
 
         backupFolderHLayout = QtWidgets.QHBoxLayout()
         backupListVLayout.addLayout(backupFolderHLayout)
 
         backupFolderLabel = QtWidgets.QLabel("Destination Folder")
+        backupFolderLabel.setFont(QtGui.QFont('TimesNew Roman', 12))
         backupFolderHLayout.addWidget(backupFolderLabel)
 
         self.backupFolderEdit.setStyleSheet("background: black; color: white; border-radius: 5px")
+        self.backupFolderEdit.setFont(QtGui.QFont('TimesNew Roman', 12))
         self.backupFolderEdit.setReadOnly(True)
         backupFolderHLayout.addWidget(self.backupFolderEdit)
 
         browseButton = QtWidgets.QPushButton("Browse")
+        browseButton.setFont(QtGui.QFont('TimesNew Roman', 12))
         browseButton.setStyleSheet("background: rgb(50, 50, 50);"
                                    "color: white;"
                                    "border-radius: 5px")
@@ -744,30 +764,15 @@ class MyWindow(QtWidgets.QMainWindow):
         browseButton.setFixedSize(80, 20)
         backupFolderHLayout.addWidget(browseButton)
 
-        self.analyseButton.setStyleSheet("background: rgb(50, 50, 50);"
-                                         "color: white;"
-                                         "border-radius: 5px")
-        self.analyseButton.setFixedSize(80, 20)
-        self.analyseButton.clicked.connect(self.backupAnalyse)
-        backupFolderHLayout.addWidget(self.analyseButton)
-
-        self.backupButton.setStyleSheet("background: rgb(50, 50, 50);"
-                                        "color: white;"
-                                        "border-radius: 5px")
-        self.backupButton.setFixedSize(80, 20)
-        self.backupButton.clicked.connect(self.backupRun)
-        backupFolderHLayout.addWidget(self.backupButton)
-
-        self.backupOnlyJsonCheckBox.setChecked(False)
-        backupFolderHLayout.addWidget(self.backupOnlyJsonCheckBox)
-
-        self.backupOnlyCoverCheckBox.setChecked(False)
-        backupFolderHLayout.addWidget(self.backupOnlyCoverCheckBox)
+        self.spaceAvailableLabel.setAlignment(QtCore.Qt.AlignRight)
+        self.spaceAvailableLabel.setFont(QtGui.QFont('TimesNew Roman', 12))
+        backupFolderHLayout.addWidget(self.spaceAvailableLabel)
 
         backupSpaceLayout = QtWidgets.QHBoxLayout()
         backupListVLayout.addLayout(backupSpaceLayout)
 
-        spaceLabel = QtWidgets.QLabel("Space Available")
+        spaceLabel = QtWidgets.QLabel("Disk Space")
+        spaceLabel.setFont(QtGui.QFont('TimesNew Roman', 12))
         spaceLabel.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
         backupSpaceLayout.addWidget(spaceLabel)
 
@@ -794,9 +799,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.spaceBarLayout.setStretch(0, 0)
         self.spaceBarLayout.setStretch(1, 0)
         self.spaceBarLayout.setStretch(2, 1000)
-
-        self.spaceAvailableLabel.setAlignment(QtCore.Qt.AlignRight)
-        backupSpaceLayout.addWidget(self.spaceAvailableLabel)
 
     def initUICover(self):
         self.coverWidget.setStyleSheet("background-color: black;")
@@ -1028,7 +1030,6 @@ class MyWindow(QtWidgets.QMainWindow):
 
         if os.path.exists(self.backupFolder):
             self.backupFolderEdit.setText(self.backupFolder)
-            self.analyseButton.setEnabled(True)
             drive = os.path.splitdrive(self.backupFolder)[0]
 
             self.spaceTotal, self.spaceUsed, self.spaceFree = shutil.disk_usage(drive)
@@ -1039,9 +1040,10 @@ class MyWindow(QtWidgets.QMainWindow):
             self.spaceBarLayout.setStretch(0, self.spaceUsedPercent * 1000)
             self.spaceBarLayout.setStretch(2, (1.0 - self.spaceUsedPercent) * 1000)
 
-            self.spaceAvailableLabel.setText("%d Gb / %d Gb : %.2f%%" % (bToGb(self.spaceUsed),
-                                                                         bToGb(self.spaceTotal),
-                                                                         100.0 * self.spaceUsedPercent))
+            self.spaceAvailableLabel.setText("%dGb  Of  %dGb  Used       %dGb Free" % \
+                                             (bToGb(self.spaceUsed),
+                                              bToGb(self.spaceTotal),
+                                              bToGb(self.spaceFree)))
 
     def calculateFolderSizes(self):
         numItems = self.moviesTableModel.rowCount()
@@ -1201,10 +1203,12 @@ class MyWindow(QtWidgets.QMainWindow):
             self.spaceBarLayout.setStretch(2, (1.0 - self.spaceUsedPercent - changePercent) * 1000)
 
         newSize = self.spaceUsed + self.bytesToBeCopied
+        self.spaceFree = self.spaceTotal - newSize
         newSpacePercent = newSize / self.spaceTotal
-        self.spaceAvailableLabel.setText("%d Gb / %d Gb : %.2f%%" % (bToGb(newSize),
-                                                                     bToGb(self.spaceTotal),
-                                                                     100.0 * newSpacePercent))
+        self.spaceAvailableLabel.setText("%dGb  Of  %dGb  Used       %dGb Free" % \
+                                         (bToGb(newSize),
+                                         bToGb(self.spaceTotal),
+                                         bToGb(self.spaceFree)))
 
         self.backupAnalysed = True
 
