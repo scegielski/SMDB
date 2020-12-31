@@ -140,6 +140,18 @@ class MovieInfoListview(QtWidgets.QListWidget):
                 super(MovieInfoListview, self).mousePressEvent(event)
 
 
+def getFolderSize(startPath='.'):
+    total_size = 0
+    for dirpath, dirnames, filenames in os.walk(startPath):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            # skip if it is symbolic link
+            if not os.path.islink(fp):
+                total_size += os.path.getsize(fp)
+
+    return total_size
+
+
 class MyWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super(MyWindow, self).__init__()
@@ -1043,17 +1055,6 @@ class MyWindow(QtWidgets.QMainWindow):
                                                                          bToGb(self.spaceTotal),
                                                                          100.0 * self.spaceUsedPercent))
 
-    def getFolderSize(self, startPath='.'):
-        total_size = 0
-        for dirpath, dirnames, filenames in os.walk(startPath):
-            for f in filenames:
-                fp = os.path.join(dirpath, f)
-                # skip if it is symbolic link
-                if not os.path.islink(fp):
-                    total_size += os.path.getsize(fp)
-
-        return total_size
-
     def calculateFolderSizes(self):
         numItems = self.moviesTableModel.rowCount()
         self.progressBar.setMaximum(numItems)
@@ -1074,7 +1075,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
             modelIndex = self.moviesTableModel.index(row, 0)
             path = self.moviesTableModel.getPath(row)
-            folderSize = self.getFolderSize(path)
+            folderSize = getFolderSize(path)
             self.moviesTableModel.setSize(modelIndex, '%05d Mb' % bToMb(folderSize))
 
         self.moviesTableModel.changedLayout()
@@ -1117,13 +1118,13 @@ class MyWindow(QtWidgets.QMainWindow):
             sourceFolderName = self.backupListTableModel.getFolderName(sourceRow)
             destPath = os.path.join(self.backupFolder, sourceFolderName)
 
-            sourceFolderSize = self.getFolderSize(sourcePath)
+            sourceFolderSize = getFolderSize(sourcePath)
             self.backupListTableModel.setSize(sourceIndex, '%05d Mb' % bToMb(sourceFolderSize))
             self.sourceFolderSizes[sourceFolderName] = sourceFolderSize
 
             destFolderSize = 0
             if os.path.exists(destPath):
-                destFolderSize = self.getFolderSize(destPath)
+                destFolderSize = getFolderSize(destPath)
             self.destFolderSizes[sourceFolderName] = destFolderSize
 
             sourceFilesAndSizes = dict()
