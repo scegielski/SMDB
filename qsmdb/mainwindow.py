@@ -249,6 +249,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.spaceUsedPercent = 0
         self.bytesToBeCopied = 0
         self.sourceFolderSizes = dict()
+        self.destFolderSizes = dict()
         self.backupListColumnsVisible = []
         self.backupListHeaderActions = []
         self.backupFolderEdit = QtWidgets.QLineEdit()
@@ -1068,6 +1069,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.isCanceled = False
         self.backupListTableModel.aboutToChangeLayout()
         self.bytesToBeCopied = 0
+        self.sourceFolderSizes = {}
+        self.destFolderSizes = {}
         for row in range(numItems):
             QtCore.QCoreApplication.processEvents()
             if self.isCanceled:
@@ -1091,9 +1094,11 @@ class MyWindow(QtWidgets.QMainWindow):
             sourceFolderSize = self.getFolderSize(sourcePath)
             self.backupListTableModel.setSize(sourceIndex, '%05d Mb' % bToMb(sourceFolderSize))
             self.sourceFolderSizes[sourceFolderName] = sourceFolderSize
+
             destFolderSize = 0
             if os.path.exists(destPath):
                 destFolderSize = self.getFolderSize(destPath)
+            self.destFolderSizes[sourceFolderName] = destFolderSize
 
             sourceFilesAndSizes = dict()
             for f in os.listdir(sourcePath):
@@ -1236,7 +1241,8 @@ class MyWindow(QtWidgets.QMainWindow):
             title = self.backupListTableModel.getTitle(sourceRow)
             sourcePath = self.backupListTableModel.getPath(sourceRow)
             sourceFolderName = self.backupListTableModel.getFolderName(sourceRow)
-            folderSizeInBytes = self.sourceFolderSizes[sourceFolderName]
+            sourceFolderSize = self.sourceFolderSizes[sourceFolderName]
+            destFolderSize = self.destFolderSizes[sourceFolderName]
             destPath = os.path.join(self.backupFolder, sourceFolderName)
 
             backupStatus = self.backupListTableModel.getBackupStatus(sourceIndex.row())
@@ -1250,7 +1256,7 @@ class MyWindow(QtWidgets.QMainWindow):
                       (progress + 1,
                        numItems,
                        title,
-                       bToMb(folderSizeInBytes),
+                       bToMb(sourceFolderSize),
                        bToMb(lastBytesPerSecond),
                        bToMb(averageBytesPerSecond),
                        bToMb(bytesRemaining),
@@ -1270,26 +1276,23 @@ class MyWindow(QtWidgets.QMainWindow):
                 shutil.rmtree(destPath,
                               ignore_errors=False,
                               onerror=handleRemoveReadonly)
-                print("Copying folder %s to %s" % (sourcePath, destPath))
                 startTime = time.perf_counter()
                 shutil.copytree(sourcePath, destPath)
-                endTime = time.perf_counter()
+                bytesRemaining += destFolderSize
+                bytesRemaining -= sourceFolderSize
             elif backupStatus == 'Folder Missing':
-                print("Copying folder %s to %s" % (sourcePath, destPath))
                 shutil.copytree(sourcePath, destPath)
+                bytesRemaining -= sourceFolderSize
             else:
-                folderSizeInBytes = 0
-                print("Skipping %s" % sourcePath)
+                sourceFolderSize = 0
 
-            if folderSizeInBytes != 0:
+            if sourceFolderSize != 0:
                 endTime = time.perf_counter()
                 secondsToCopy = endTime - startTime
-                print("Seconds to copy = %d" % secondsToCopy)
-                lastBytesPerSecond = folderSizeInBytes / secondsToCopy
+                lastBytesPerSecond = sourceFolderSize / secondsToCopy
                 totalTimeToCopy += secondsToCopy
-                totalBytesCopied += folderSizeInBytes
+                totalBytesCopied += sourceFolderSize
                 averageBytesPerSecond = totalBytesCopied / totalTimeToCopy
-                bytesRemaining -= folderSizeInBytes
                 estimatedSecondsRemaining = bytesRemaining // averageBytesPerSecond
                 estimatedMinutesRemaining = (estimatedSecondsRemaining // 60) % 60
                 estimatedHoursRemaining = estimatedSecondsRemaining // 3600
