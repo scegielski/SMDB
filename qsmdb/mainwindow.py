@@ -1804,6 +1804,15 @@ class MyWindow(QtWidgets.QMainWindow):
         d['year'] = getMovieKey(movie, 'year')
         d['rating'] = getMovieKey(movie, 'rating')
 
+        mpaaRating = ""
+        if 'certificates' in movie:
+            certificates = movie['certificates']
+            for c in certificates:
+                if 'United States' in c and 'TV' not in c:
+                    mpaaRating = c.split(':')[1]
+                    print('MPAA rating = %s' % mpaaRating)
+        d['mpaaRating'] = mpaaRating
+
         d['countries'] = []
         countries = getMovieKey(movie, 'countries')
         if countries and isinstance(countries, list):
@@ -2077,6 +2086,10 @@ class MyWindow(QtWidgets.QMainWindow):
             if not movie:
                 return coverFile
             self.db.update(movie)
+
+            for k in movie.keys():
+                print(k)
+
             if doJson:
                 self.writeMovieJson(movie, jsonFile)
             if doCover:
