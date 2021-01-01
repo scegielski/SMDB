@@ -16,6 +16,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
         self.Columns = Enum('Columns', ['Year',
                                         'Title',
                                         'Rating',
+                                        'MpaaRating',
                                         'BoxOffice',
                                         'Runtime',
                                         'Director',
@@ -34,6 +35,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
         self.defaultWidths = {self.Columns.Year: 50,
                               self.Columns.Title: 200,
                               self.Columns.Rating: 60,
+                              self.Columns.MpaaRating: 100,
                               self.Columns.BoxOffice: 150,
                               self.Columns.Runtime: 60,
                               self.Columns.Director: 150,
@@ -111,6 +113,9 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
     def getLastColumn(self):
         return len(self.Columns) - 1
+
+    def getMpaaRating(self, row):
+        return self._data[row][self.Columns.MpaaRating.value]
 
     def getBackupStatus(self, row):
         return self._data[row][self.Columns.BackupStatus.value]
@@ -271,6 +276,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                 # which matches the smdb data keys
                 header = self._headers[column.value]
                 headerLower = header.lower()
+                print("headerLower = %s" % headerLower)
                 if headerLower not in data:
                     if column == self.Columns.Title:
                         title, year = getNiceTitleAndYear(movieFolderName)
@@ -331,6 +337,10 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
     def setSize(self, index, value):
         self._data[index.row()][self.Columns.Size.value] = value
+        self.dataChanged.emit(index, index)
+
+    def setMpaaRating(self, index, value):
+        self._data[index.row()][self.Columns.MpaaRating.value] = value
         self.dataChanged.emit(index, index)
 
     def setData(self, index, value, role=QtCore.Qt.EditRole):

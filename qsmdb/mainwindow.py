@@ -1811,7 +1811,7 @@ class MyWindow(QtWidgets.QMainWindow):
                 if 'United States' in c and 'TV' not in c:
                     mpaaRating = c.split(':')[1]
                     print('MPAA rating = %s' % mpaaRating)
-        d['mpaaRating'] = mpaaRating
+        d['mpaa rating'] = mpaaRating
 
         d['countries'] = []
         countries = getMovieKey(movie, 'countries')
@@ -1859,6 +1859,7 @@ class MyWindow(QtWidgets.QMainWindow):
         titles = {}
         directors = {}
         actors = {}
+        mpaaRatings = {}
         genres = {}
         years = {}
         companies = {}
@@ -1884,6 +1885,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
             title = model.getTitle(row)
             size = model.getSize(row)
+            mpaaRating = model.getMpaaRating(row)
 
             message = "Processing item (%d/%d): %s" % (progress + 1,
                                                        count,
@@ -2038,7 +2040,8 @@ class MyWindow(QtWidgets.QMainWindow):
                                           'companies': jsonCompanies,
                                           'actors': movieActorsList,
                                           'rank': rank,
-                                          'size': size}
+                                          'size': size,
+                                          'mpaaRating': mpaaRating}
 
         self.progressBar.setValue(0)
 
@@ -2054,6 +2057,7 @@ class MyWindow(QtWidgets.QMainWindow):
             data['companies'] = collections.OrderedDict(sorted(companies.items()))
             data['countries'] = collections.OrderedDict(sorted(countries.items()))
             data['user tags'] = collections.OrderedDict(sorted(userTags.items()))
+            data['mpaa ratings'] = collections.OrderedDict(sorted(mpaaRatings.items()))
 
         self.statusBar().showMessage('Writing %s' % fileName)
         QtCore.QCoreApplication.processEvents()
