@@ -209,6 +209,7 @@ class MyWindow(QtWidgets.QMainWindow):
             'Director': 'directors',
             'Actor': 'actors',
             'Genre': 'genres',
+            'Mpaa Rating': 'mpaa ratings',
             'User Tags': 'user tags',
             'Year': 'years',
             'Company': 'companies',
