@@ -276,7 +276,6 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                 # which matches the smdb data keys
                 header = self._headers[column.value]
                 headerLower = header.lower()
-                print("headerLower = %s" % headerLower)
                 if headerLower not in data:
                     if column == self.Columns.Title:
                         title, year = getNiceTitleAndYear(movieFolderName)
@@ -303,6 +302,11 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                             if len(rating) == 1:
                                 rating = '%s.0' % rating
                         movieData.append(rating)
+                    elif column == self.Columns.MpaaRating:
+                        mpaaRating = "No Rating"
+                        if 'mpaa rating' in data and data['mpaa rating']:
+                            mpaaRating = data['mpaa rating']
+                        movieData.append(mpaaRating)
                     elif column == self.Columns.BoxOffice:
                         boxOffice = data[headerLower]
                         currency = 'USD'

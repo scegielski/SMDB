@@ -2019,6 +2019,10 @@ class MyWindow(QtWidgets.QMainWindow):
                     if 'rating' in jsonData and jsonData['rating']:
                         jsonRating = jsonData['rating']
 
+                    jsonMpaaRating = None
+                    if 'mpaa rating' in jsonData and jsonData['mpaa rating']:
+                        jsonMpaaRating = jsonData['mpaa rating']
+
                     jsonBoxOffice = None
                     if 'box office' in jsonData and jsonData['box office']:
                         jsonBoxOffice = jsonData['box office']
@@ -2031,6 +2035,7 @@ class MyWindow(QtWidgets.QMainWindow):
                                           'title': jsonTitle,
                                           'year': jsonYear,
                                           'rating': jsonRating,
+                                          'mpaa rating': jsonMpaaRating,
                                           'runtime': jsonRuntime,
                                           'box office': jsonBoxOffice,
                                           'director': directorName,
@@ -2040,8 +2045,7 @@ class MyWindow(QtWidgets.QMainWindow):
                                           'companies': jsonCompanies,
                                           'actors': movieActorsList,
                                           'rank': rank,
-                                          'size': size,
-                                          'mpaaRating': mpaaRating}
+                                          'size': size}
 
         self.progressBar.setValue(0)
 
