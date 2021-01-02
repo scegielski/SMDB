@@ -2023,6 +2023,13 @@ class MyWindow(QtWidgets.QMainWindow):
                     jsonMpaaRating = None
                     if 'mpaa rating' in jsonData and jsonData['mpaa rating']:
                         jsonMpaaRating = jsonData['mpaa rating']
+                        if jsonMpaaRating not in mpaaRatings:
+                            mpaaRatings[jsonMpaaRating] = {}
+                            mpaaRatings[jsonMpaaRating]['num movies'] = 0
+                            mpaaRatings[jsonMpaaRating]['movies'] = []
+                        if titleYear not in mpaaRatings[jsonMpaaRating]['movies']:
+                            mpaaRatings[jsonMpaaRating]['movies'].append(titleYear)
+                            mpaaRatings[jsonMpaaRating]['num movies'] += 1
 
                     jsonBoxOffice = None
                     if 'box office' in jsonData and jsonData['box office']:
