@@ -168,7 +168,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Init UI
         self.setWindowTitle("SMDB %s" % self.moviesFolder)
-        self.setGeometry(50, 75, 1800, 900)
+        self.setGeometry(300, 150, 1300, 700)
 
         # Set foreground/background colors for item views
         self.setStyleSheet("""QAbstractItemView{ background: black; color: white; }; """)
@@ -331,7 +331,7 @@ class MyWindow(QtWidgets.QMainWindow):
         if not self.showCover:
             self.coverWidget.hide()
 
-        coverInfoHSplitter.setSizes([200, 540])
+        coverInfoHSplitter.setSizes([250, 450])
 
         # Summary
         self.summary = QtWidgets.QTextBrowser()
@@ -347,7 +347,7 @@ class MyWindow(QtWidgets.QMainWindow):
         mainHSplitter.addWidget(moviesWatchListBackupVSplitter)
         mainHSplitter.addWidget(self.movieSectionWidget)
         mainHSplitter.splitterMoved.connect(self.resizeCoverFile)
-        mainHSplitter.setSizes([270, 790, 740])
+        mainHSplitter.setSizes([270, 430, 600])
 
         # Bottom
         bottomLayout = QtWidgets.QHBoxLayout(self)
@@ -884,7 +884,12 @@ class MyWindow(QtWidgets.QMainWindow):
                          mtm.Columns.Folder,
                          mtm.Columns.Path,
                          mtm.Columns.Rank,
-                         mtm.Columns.BackupStatus]
+                         mtm.Columns.MpaaRating,
+                         mtm.Columns.BackupStatus,
+                         mtm.Columns.BoxOffice,
+                         mtm.Columns.Runtime,
+                         mtm.Columns.Size,
+                         mtm.Columns.JsonExists]
         for c in columnsToHide:
             index = c.value
             mtv.hideColumn(index)
@@ -939,6 +944,8 @@ class MyWindow(QtWidgets.QMainWindow):
                          wtm.Columns.Folder,
                          wtm.Columns.Path,
                          wtm.Columns.JsonExists,
+                         wtm.Columns.MpaaRating,
+                         wtm.Columns.BoxOffice,
                          wtm.Columns.BackupStatus,
                          wtm.Columns.Size]
         for c in columnsToHide:
@@ -990,6 +997,7 @@ class MyWindow(QtWidgets.QMainWindow):
                          btm.Columns.Id,
                          btm.Columns.Folder,
                          btm.Columns.Rank,
+                         btm.Columns.MpaaRating,
                          btm.Columns.JsonExists]
         for c in columnsToHide:
             index = c.value
