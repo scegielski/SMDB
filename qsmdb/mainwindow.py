@@ -8,6 +8,7 @@ import collections
 import webbrowser
 import shutil
 import os
+import stat
 import time
 
 from .utilities import *
@@ -1344,6 +1345,7 @@ class MyWindow(QtWidgets.QMainWindow):
                                           ignore_errors=False,
                                           onerror=handleRemoveReadonly)
                         else:
+                            os.chmod(destFilePath, stat.S_IWRITE)
                             os.remove(destFilePath)
 
                 bytesRemaining += destFolderSize
