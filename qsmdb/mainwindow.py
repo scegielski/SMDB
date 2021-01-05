@@ -1755,17 +1755,18 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.movieInfoAddSpacer()
 
-        self.movieInfoAddHeading("Director:")
-        # TODO Write multiple directors and no id
-        if 'director' in jsonData and jsonData['director']:
-            directorName = jsonData['director'][0]
-            numMovies = 0
-            if directorName in self.moviesSmdbData['directors']:
-                numMovies = self.moviesSmdbData['directors'][directorName]['num movies']
-            directorItem = QtWidgets.QListWidgetItem('%s(%d)' % (directorName, numMovies))
-            directorItem.setData(QtCore.Qt.UserRole, ['director', directorName])
-            self.movieInfoListView.addItem(directorItem)
+        #self.movieInfoAddHeading("Director:")
+        #if 'directors' in jsonData and jsonData['directors']:
+        #    directorName = jsonData['director'][0]
+        #    numMovies = 0
+        #    if directorName in self.moviesSmdbData['directors']:
+        #        numMovies = self.moviesSmdbData['directors'][directorName]['num movies']
+        #    directorItem = QtWidgets.QListWidgetItem('%s(%d)' % (directorName, numMovies))
+        #    directorItem.setData(QtCore.Qt.UserRole, ['director', directorName])
+        #    self.movieInfoListView.addItem(directorItem)
 
+        self.movieInfoAddHeading("Directors:")
+        self.movieInfoAddSection(jsonData, 'directors', 'directors', 'director')
         self.movieInfoAddSpacer()
         self.movieInfoAddHeading("Companies:")
         self.movieInfoAddSection(jsonData, 'companies', 'companies', 'company')
@@ -1841,12 +1842,13 @@ class MyWindow(QtWidgets.QMainWindow):
         if boxOffice:
             for k in boxOffice.keys():
                 d['box office'] = boxOffice[k]
-        director = getMovieKey(movie, 'director')
-        if director:
-            if isinstance(director, list):
-                directorName = str(director[0]['name'])
+        directors = getMovieKey(movie, 'director')
+        d['directors'] = []
+        if directors:
+            for director in directors:
+                directorName = str(director['name'])
                 directorId = self.db.name2imdbID(directorName)
-                d['director'] = [directorName, directorId]
+                d['directors'].append(directorName)
         d['cast'] = []
         cast = getMovieKey(movie, 'cast')
         if cast and isinstance(cast, list):
@@ -1932,47 +1934,31 @@ class MyWindow(QtWidgets.QMainWindow):
                             years[jsonYear]['movies'].append(titleYear)
                             years[jsonYear]['num movies'] += 1
 
-                    directorName = ''
-                    if 'director' in jsonData and jsonData['director']:
-                        directorData = jsonData['director']
+                    movieDirectorList = []
+                    if 'directors' in jsonData and jsonData['directors']:
+                        for director in jsonData['directors']:
+                            if director not in directors:
+                                directors[director] = {}
+                                directors[director]['num movies'] = 0
+                                directors[director]['movies'] = []
+                            if titleYear not in directors[director]['movies']:
+                                directors[director]['movies'].append(titleYear)
+                                directors[director]['num movies'] += 1
 
-                        if isinstance(directorData, list):
-                            directorName = directorData[0]
-                            directorId = directorData[1]
-                        else:
-                            directorName = directorData
-                            directorId = ''
-
-                        if directorName not in directors:
-                            directors[directorName] = {}
-                            directors[directorName]['id'] = directorId
-                            directors[directorName]['num movies'] = 0
-                            directors[directorName]['movies'] = []
-                        if titleYear not in directors[directorName]['movies']:
-                            directors[directorName]['movies'].append(titleYear)
-                            directors[directorName]['num movies'] += 1
+                            movieDirectorList.append(director)
 
                     movieActorsList = []
                     if 'cast' in jsonData and jsonData['cast']:
-                        jsonActors = jsonData['cast']
-                        for actorData in jsonActors:
-                            if isinstance(actorData, list):
-                                actorName = actorData[0]
-                                actorId = actorData[1]
-                            else:
-                                actorName = actorData
-                                actorId = ''
+                        for actor in jsonData['cast']:
+                            if actor not in actors:
+                                actors[actor] = {}
+                                actors[actor]['num movies'] = 0
+                                actors[actor]['movies'] = []
+                            if titleYear not in actors[actor]['movies']:
+                                actors[actor]['movies'].append(titleYear)
+                                actors[actor]['num movies'] += 1
 
-                            if actorName not in actors:
-                                actors[actorName] = {}
-                                actors[actorName]['id'] = actorId
-                                actors[actorName]['num movies'] = 0
-                                actors[actorName]['movies'] = []
-                            if titleYear not in actors[actorName]['movies']:
-                                actors[actorName]['movies'].append(titleYear)
-                                actors[actorName]['num movies'] += 1
-
-                            movieActorsList.append(actorName)
+                            movieActorsList.append(actor)
 
                     jsonUserTags = None
                     if 'user tags' in jsonData and jsonData['user tags']:
@@ -2056,7 +2042,7 @@ class MyWindow(QtWidgets.QMainWindow):
                                           'mpaa rating': jsonMpaaRating,
                                           'runtime': jsonRuntime,
                                           'box office': jsonBoxOffice,
-                                          'director': directorName,
+                                          'directors': movieDirectorList,
                                           'genres': jsonGenres,
                                           'user tags': jsonUserTags,
                                           'countries': jsonCountries,
