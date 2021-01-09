@@ -41,8 +41,11 @@ def bToMb(b):
 
 def readSmdbFile(fileName):
     if os.path.exists(fileName):
-        with open(fileName) as f:
-            return json.load(f)
+        try:
+            with open(fileName) as f:
+                return json.load(f)
+        except:
+            print("Could not open file: %s" % fileName)
 
 
 def getMovieKey(movie, key):
