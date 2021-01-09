@@ -155,6 +155,7 @@ def getFolderSize(startPath='.'):
 
 class MyWindow(QtWidgets.QMainWindow):
     def __init__(self):
+        print("running init")
         super(MyWindow, self).__init__()
 
         self.numVisibleMovies = 0
@@ -1292,12 +1293,12 @@ class MyWindow(QtWidgets.QMainWindow):
 
             backupStatus = self.backupListTableModel.getBackupStatus(sourceIndex.row())
 
-            message = "Backing up folder (%d/%d): %s" \
-                      "   Size: %d Mb" \
-                      "   Last rate = %d Mb/s" \
-                      "   Average rate = %d Mb/s" \
-                      "   %d Mb Remaining" \
-                      "   Time remaining: %d Hours %d minutes" % \
+            message = "Backing up folder (%05d/%05d): %-50s" \
+                      "   Size: %06d Mb" \
+                      "   Last rate = %06d Mb/s" \
+                      "   Average rate = %06d Mb/s" \
+                      "   %10d Mb Remaining" \
+                      "   Time remaining: %03d Hours %02d minutes" % \
                       (progress + 1,
                        numItems,
                        title,
@@ -1313,6 +1314,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
             # Time the copy
             startTime = time.perf_counter()
+            bytesCopied = 0
 
             if backupStatus == 'File Size Difference' or \
                backupStatus == 'Files Missing (Source)' or \
@@ -1329,6 +1331,7 @@ class MyWindow(QtWidgets.QMainWindow):
                     if os.path.exists(destFilePath):
                         destFileSize = os.path.getsize(destFilePath)
                     if not os.path.exists(destFilePath) or sourceFileSize != destFileSize:
+                        bytesCopied += sourceFileSize
                         if os.path.isdir(sourceFilePath):
                             shutil.copytree(sourceFilePath, destFilePath)
                         else:
@@ -1352,16 +1355,18 @@ class MyWindow(QtWidgets.QMainWindow):
                 bytesRemaining -= sourceFolderSize
             elif backupStatus == 'Folder Missing':
                 shutil.copytree(sourcePath, destPath)
+                bytesCopied = sourceFolderSize
                 bytesRemaining -= sourceFolderSize
             else:
+                bytesCopied = 0
                 sourceFolderSize = 0
 
             if sourceFolderSize != 0:
                 endTime = time.perf_counter()
                 secondsToCopy = endTime - startTime
-                lastBytesPerSecond = sourceFolderSize / secondsToCopy
+                lastBytesPerSecond = bytesCopied / secondsToCopy
                 totalTimeToCopy += secondsToCopy
-                totalBytesCopied += sourceFolderSize
+                totalBytesCopied += bytesCopied
                 averageBytesPerSecond = totalBytesCopied / totalTimeToCopy
                 estimatedSecondsRemaining = bytesRemaining // averageBytesPerSecond
                 estimatedMinutesRemaining = (estimatedSecondsRemaining // 60) % 60
