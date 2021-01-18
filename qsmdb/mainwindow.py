@@ -835,11 +835,11 @@ class MyWindow(QtWidgets.QMainWindow):
         if os.path.exists(self.moviesSmdbFile):
             self.moviesSmdbData = readSmdbFile(self.moviesSmdbFile)
             self.moviesTableModel = MoviesTableModel(self.moviesSmdbData,
-                                                     self.moviesFolder,
+                                                     [self.moviesFolder],
                                                      forceScan)
         else:
             self.moviesTableModel = MoviesTableModel(self.moviesSmdbData,
-                                                     self.moviesFolder,
+                                                     [self.moviesFolder],
                                                      True)  # Force scan if no smdb file
             # Generate smdb data from movies table model and write
             # out smdb file
@@ -914,7 +914,7 @@ class MyWindow(QtWidgets.QMainWindow):
         if os.path.exists(self.watchListSmdbFile):
             self.watchListSmdbData = readSmdbFile(self.watchListSmdbFile)
         self.watchListTableModel = MoviesTableModel(self.watchListSmdbData,
-                                                    self.moviesFolder,
+                                                    [self.moviesFolder],
                                                     False,  # force scan
                                                     True)  # don't scan the movies folder for the watch list
         self.watchListTableProxyModel = QtCore.QSortFilterProxyModel()
@@ -966,7 +966,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def refreshBackupList(self):
         self.backupListTableModel = MoviesTableModel(None,
-                                                    self.moviesFolder,
+                                                    [self.moviesFolder],
                                                     False,  # force scan
                                                     True)  # don't scan the movies folder for the watch list
         self.backupListTableProxyModel = QtCore.QSortFilterProxyModel()
