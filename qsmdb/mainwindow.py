@@ -171,8 +171,12 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesFolder = self.settings.value('movies_folder', "J:/Movies", type=str)
         self.backupFolder = ""
 
+        self.additionalMoviesFolders = self.settings.value('additional_movies_folders', [], type=list)
+        for af in self.additionalMoviesFolders:
+            print("Additional movies folder = %s" % af)
+
         # Init UI
-        self.setWindowTitle("SMDB %s" % self.moviesFolder)
+        self.setTitleBar()
         self.setGeometry(300, 150, 1300, 700)
 
         # Set foreground/background colors for item views
@@ -410,9 +414,13 @@ class MyWindow(QtWidgets.QMainWindow):
         setMovieFolderAction.triggered.connect(self.browseMoviesFolder)
         fileMenu.addAction(setMovieFolderAction)
 
-        backupMoviesFolderAction = QtWidgets.QAction("Backup movie folder", self)
-        backupMoviesFolderAction.triggered.connect(self.backupMoviesFolder)
-        fileMenu.addAction(backupMoviesFolderAction)
+        addAdditionalMoviesFolderAction = QtWidgets.QAction("Add additional movies folder", self)
+        addAdditionalMoviesFolderAction.triggered.connect(self.browseAdditionalMoviesFolder)
+        fileMenu.addAction(addAdditionalMoviesFolderAction)
+
+        clearAdditionalMoviesFolderAction = QtWidgets.QAction("Clear additional movies folders", self)
+        clearAdditionalMoviesFolderAction.triggered.connect(self.clearAdditionalMoviesFolders)
+        fileMenu.addAction(clearAdditionalMoviesFolderAction)
 
         refreshAction = QtWidgets.QAction("Refresh movies dir", self)
         refreshAction.triggered.connect(lambda: self.refreshMoviesList(forceScan=True))
@@ -1021,6 +1029,16 @@ class MyWindow(QtWidgets.QMainWindow):
     def preferences(self):
         pass
 
+    def setTitleBar(self):
+        additionalMoviesFoldersString = ""
+        if self.additionalMoviesFolders:
+            for af in self.additionalMoviesFolders:
+                additionalMoviesFoldersString += '%s, ' % af
+            self.setWindowTitle("SMDB - Primary Movies Folder = %s  Additional Movies Folders = %s"
+                                % (self.moviesFolder, additionalMoviesFoldersString))
+        else:
+            self.setWindowTitle("SMDB - Primary Movies Folder = %s" % (self.moviesFolder))
+
     def browseMoviesFolder(self):
         browseDir = str(Path.home())
         if os.path.exists('%s/Desktop' % browseDir):
@@ -1033,12 +1051,33 @@ class MyWindow(QtWidgets.QMainWindow):
             QtWidgets.QFileDialog.DontResolveSymlinks)
         if os.path.exists(moviesFolder):
             self.moviesFolder = moviesFolder
-            self.setWindowTitle("SMDB %s" % self.moviesFolder)
             self.settings.setValue('movies_folder', self.moviesFolder)
+            self.setTitleBar()
             print("Saved: moviesFolder = %s" % self.moviesFolder)
             self.moviesSmdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
             readSmdbFile(self.moviesSmdbFile)
             self.refreshMoviesList()
+
+    def browseAdditionalMoviesFolder(self):
+        browseDir = str(Path.home())
+        if os.path.exists('%s/Desktop' % browseDir):
+            browseDir = '%s/Desktop' % browseDir
+        additionalMoviesFolder = QtWidgets.QFileDialog.getExistingDirectory(
+            self,
+            "Select Movies Directory",
+            browseDir,
+            QtWidgets.QFileDialog.ShowDirsOnly |
+            QtWidgets.QFileDialog.DontResolveSymlinks)
+        if os.path.exists(additionalMoviesFolder):
+            self.additionalMoviesFolders.append(additionalMoviesFolder)
+            self.setTitleBar()
+            self.settings.setValue('additional_movies_folders', self.additionalMoviesFolders)
+            print("Saved: additionalMoviesFolder = %s" % additionalMoviesFolder)
+
+    def clearAdditionalMoviesFolders(self):
+        self.additionalMoviesFolders = []
+        self.settings.setValue('additional_movies_folders', self.additionalMoviesFolders)
+        self.setTitleBar()
 
     def backupBrowseFolder(self):
         browseDir = str(Path.home())
