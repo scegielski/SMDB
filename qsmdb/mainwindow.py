@@ -2551,6 +2551,7 @@ class MyWindow(QtWidgets.QMainWindow):
             self.addUserTag(userTag)
 
     def clearUserTags(self):
+        modelIndex = self.moviesTableView.selectionModel().selectedRows()[0]
         sourceIndex = self.moviesTableProxyModel.mapToSource(modelIndex)
         sourceRow = sourceIndex.row()
         moviePath = self.moviesTableModel.getPath(sourceRow)
