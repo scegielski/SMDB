@@ -840,14 +840,16 @@ class MyWindow(QtWidgets.QMainWindow):
         movieVLayout.addWidget(self.movieCover)
 
     def refreshMoviesList(self, forceScan=False):
+        moviesFolders = [self.moviesFolder]
+        moviesFolders += self.additionalMoviesFolders
         if os.path.exists(self.moviesSmdbFile):
             self.moviesSmdbData = readSmdbFile(self.moviesSmdbFile)
             self.moviesTableModel = MoviesTableModel(self.moviesSmdbData,
-                                                     [self.moviesFolder],
+                                                     moviesFolders,
                                                      forceScan)
         else:
             self.moviesTableModel = MoviesTableModel(self.moviesSmdbData,
-                                                     [self.moviesFolder],
+                                                     moviesFolders,
                                                      True)  # Force scan if no smdb file
             # Generate smdb data from movies table model and write
             # out smdb file
@@ -1032,9 +1034,12 @@ class MyWindow(QtWidgets.QMainWindow):
     def setTitleBar(self):
         additionalMoviesFoldersString = ""
         if self.additionalMoviesFolders:
-            for af in self.additionalMoviesFolders:
-                additionalMoviesFoldersString += '%s, ' % af
-            self.setWindowTitle("SMDB - Primary Movies Folder = %s  Additional Movies Folders = %s"
+            if len(self.additionalMoviesFolders) == 1:
+                additionalMoviesFoldersString += '%s' % af
+            else:
+                for af in self.additionalMoviesFolders:
+                    additionalMoviesFoldersString += '%s, ' % af
+            self.setWindowTitle("SMDB - Primary Movies Folder: %s  Additional Movies Folders: (%s)"
                                 % (self.moviesFolder, additionalMoviesFoldersString))
         else:
             self.setWindowTitle("SMDB - Primary Movies Folder = %s" % (self.moviesFolder))
