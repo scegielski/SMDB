@@ -1377,11 +1377,16 @@ class MyWindow(QtWidgets.QMainWindow):
                     destFileSize = 0
                     if os.path.exists(destFilePath):
                         destFileSize = os.path.getsize(destFilePath)
-                    if not os.path.exists(destFilePath) or sourceFileSize != destFileSize:
+
+                    if not os.path.exists(destFilePath):
                         bytesCopied += sourceFileSize
                         if os.path.isdir(sourceFilePath):
                             shutil.copytree(sourceFilePath, destFilePath)
                         else:
+                            shutil.copy(sourceFilePath, destFilePath)
+                    elif sourceFileSize != destFileSize:
+                        bytesCopied += sourceFileSize
+                        if not os.path.isdir(sourceFilePath):
                             shutil.copy(sourceFilePath, destFilePath)
 
                 # Remove any files in the destination dir that
@@ -2407,6 +2412,10 @@ class MyWindow(QtWidgets.QMainWindow):
         addExistingUserTagAction.triggered.connect(self.addExistingUserTag)
         moviesTableRightMenu.addAction(addExistingUserTagAction)
 
+        clearUserTagsAction = QtWidgets.QAction("Clear User Tags", self)
+        clearUserTagsAction.triggered.connect(self.clearUserTags)
+        moviesTableRightMenu.addAction(clearUserTagsAction)
+
         openFolderAction = QtWidgets.QAction("Open Folder", self)
         openFolderAction.triggered.connect(self.openMovieFolder)
         moviesTableRightMenu.addAction(openFolderAction)
@@ -2540,6 +2549,33 @@ class MyWindow(QtWidgets.QMainWindow):
                                                      False)
         if userTag and ok:
             self.addUserTag(userTag)
+
+    def clearUserTags(self):
+        sourceIndex = self.moviesTableProxyModel.mapToSource(modelIndex)
+        sourceRow = sourceIndex.row()
+        moviePath = self.moviesTableModel.getPath(sourceRow)
+        movieFolderName = self.moviesTableModel.getFolderName(sourceRow)
+
+        jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
+        if not os.path.exists(jsonFile):
+            return
+
+        data = {}
+        with open(jsonFile) as f:
+            try:
+                data = json.load(f)
+            except UnicodeDecodeError:
+                print("Error reading %s" % jsonFile)
+
+        data["user tags"] = []
+
+        try:
+            with open(jsonFile, "w") as f:
+                json.dump(data, f, indent=4)
+        except:
+            print("Error writing json file: %s" % jsonFile)
+
+        self.moviesTableModel.setMovieData(sourceRow, data, moviePath, movieFolderName)
 
     def addUserTag(self, userTag):
         modelIndex = self.moviesTableView.selectionModel().selectedRows()[0]
