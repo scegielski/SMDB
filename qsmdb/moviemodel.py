@@ -20,9 +20,9 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                         'BoxOffice',
                                         'Runtime',
                                         'Directors',
-                                        'Country',
-                                        'Company',
-                                        'Genre',
+                                        'Countries',
+                                        'Companies',
+                                        'Genres',
                                         'UserTags',
                                         'Id',
                                         'Folder',
@@ -39,9 +39,9 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                               self.Columns.BoxOffice: 150,
                               self.Columns.Runtime: 60,
                               self.Columns.Directors: 150,
-                              self.Columns.Country: 150,
-                              self.Columns.Company: 150,
-                              self.Columns.Genre: 150,
+                              self.Columns.Countries: 150,
+                              self.Columns.Companies: 150,
+                              self.Columns.Genres: 150,
                               self.Columns.UserTags: 150,
                               self.Columns.Id: 60,
                               self.Columns.Folder: 200,
@@ -252,22 +252,43 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
             elif column == self.Columns.Rank and generateNewRank:
                 rank = len(self._data)
                 movieData.append(rank)
-            elif column == self.Columns.Country:
+            elif column == self.Columns.Countries:
                 if 'countries' in data and data['countries']:
-                    country = data['countries'][0]
-                    movieData.append(country)
+                    if 'countries' in data and data['countries']:
+                        if 'countries' in data and data['countries']:
+                            countries = ""
+                            for country in data['countries']:
+                                if country == data['countries'][-1]:
+                                    countries += '%s' % country
+                                else:
+                                    countries += '%s, ' % country
+                            movieData.append(countries)
                 else:
                     movieData.append('')
-            elif column == self.Columns.Company:
+            elif column == self.Columns.Companies:
                 if 'companies' in data and data['companies']:
-                    company = data['companies'][0]
-                    movieData.append(company)
+                    if 'companies' in data and data['companies']:
+                        if 'companies' in data and data['companies']:
+                            if 'companies' in data and data['companies']:
+                                companies = ""
+                                for company in data['companies']:
+                                    if company == data['companies'][-1]:
+                                        companies += '%s' % company
+                                    else:
+                                        companies += '%s, ' % company
+                                movieData.append(companies)
                 else:
                     movieData.append('')
-            elif column == self.Columns.Genre:
+            elif column == self.Columns.Genres:
                 if 'genres' in data and data['genres']:
-                    genre = data['genres'][0]
-                    movieData.append(genre)
+                    if 'genres' in data and data['genres']:
+                        genres = ""
+                        for genre in data['genres']:
+                            if genre == data['genres'][-1]:
+                                genres += '%s' % genre
+                            else:
+                                genres += '%s, ' % genre
+                        movieData.append(genres)
                 else:
                     movieData.append('')
             elif column == self.Columns.Directors:
