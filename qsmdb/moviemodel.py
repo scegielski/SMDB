@@ -272,8 +272,15 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                     movieData.append('')
             elif column == self.Columns.UserTags:
                 if 'user tags' in data and data['user tags']:
-                    userTag = data['user tags'][0]
-                    movieData.append(userTag)
+                    userTags = ""
+                    for userTag in data['user tags']:
+                        if userTag == data['user tags'][-1]:
+                            userTags += '%s' % userTag
+                        else:
+                            userTags += '%s, ' % userTag
+                    movieData.append(userTags)
+                    #userTag = data['user tags'][0]
+                    #movieData.append(userTag)
                 else:
                     movieData.append('')
             else:
