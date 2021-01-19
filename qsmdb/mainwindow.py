@@ -1035,7 +1035,7 @@ class MyWindow(QtWidgets.QMainWindow):
         additionalMoviesFoldersString = ""
         if self.additionalMoviesFolders:
             if len(self.additionalMoviesFolders) == 1:
-                additionalMoviesFoldersString += '%s' % af
+                additionalMoviesFoldersString += '%s' % self.additionalMoviesFolders[0]
             else:
                 for af in self.additionalMoviesFolders:
                     additionalMoviesFoldersString += '%s, ' % af
