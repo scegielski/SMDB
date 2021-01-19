@@ -19,7 +19,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                         'MpaaRating',
                                         'BoxOffice',
                                         'Runtime',
-                                        'Director',
+                                        'Directors',
                                         'Country',
                                         'Company',
                                         'Genre',
@@ -38,7 +38,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                               self.Columns.MpaaRating: 100,
                               self.Columns.BoxOffice: 150,
                               self.Columns.Runtime: 60,
-                              self.Columns.Director: 150,
+                              self.Columns.Directors: 150,
                               self.Columns.Country: 150,
                               self.Columns.Company: 150,
                               self.Columns.Genre: 150,
@@ -270,6 +270,17 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                     movieData.append(genre)
                 else:
                     movieData.append('')
+            elif column == self.Columns.Directors:
+                if 'directors' in data and data['directors']:
+                    directors = ""
+                    for director in data['directors']:
+                        if director == data['directors'][-1]:
+                            directors += '%s' % director
+                        else:
+                            directors += '%s, ' % director
+                    movieData.append(directors)
+                else:
+                    movieData.append('')
             elif column == self.Columns.UserTags:
                 if 'user tags' in data and data['user tags']:
                     userTags = ""
@@ -279,8 +290,6 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                         else:
                             userTags += '%s, ' % userTag
                     movieData.append(userTags)
-                    #userTag = data['user tags'][0]
-                    #movieData.append(userTag)
                 else:
                     movieData.append('')
             else:
