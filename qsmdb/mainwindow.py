@@ -2156,8 +2156,9 @@ class MyWindow(QtWidgets.QMainWindow):
                 return coverFile
             self.db.update(movie)
 
-            for k in movie.keys():
-                print(k)
+            # Print out all the movie keys
+            #for k in movie.keys():
+            #    print(k)
 
             if doJson:
                 self.writeMovieJson(movie, jsonFile)
