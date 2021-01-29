@@ -890,8 +890,10 @@ class MyWindow(QtWidgets.QMainWindow):
             mtv.setColumnWidth(col.value, mtm.defaultWidths[col])
             self.moviesTableColumnsVisible.append(True)
 
+        # TODO: Make this columns to show
         columnsToHide = [mtm.Columns.Id,
                          mtm.Columns.Countries,
+                         mtm.Columns.Duplicate,
                          mtm.Columns.Companies,
                          mtm.Columns.Directors,
                          mtm.Columns.Genres,
@@ -952,6 +954,7 @@ class MyWindow(QtWidgets.QMainWindow):
                          wtm.Columns.Runtime,
                          wtm.Columns.Directors,
                          wtm.Columns.Countries,
+                         wtm.Columns.Duplicate,
                          wtm.Columns.Genres,
                          wtm.Columns.UserTags,
                          wtm.Columns.Companies,
@@ -1002,6 +1005,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         columnsToHide = [btm.Columns.BoxOffice,
                          btm.Columns.Year,
+                         btm.Columns.Duplicate,
                          btm.Columns.Runtime,
                          btm.Columns.Directors,
                          btm.Columns.Rating,
@@ -1143,7 +1147,49 @@ class MyWindow(QtWidgets.QMainWindow):
             self.moviesTableModel.setSize(modelIndex, '%05d Mb' % bToMb(folderSize))
 
         self.moviesTableModel.changedLayout()
-        self.statusBar().showMessage("Done")
+        self.progressBar.setValue(0)
+
+    def findDuplicates(self):
+        numItems = self.moviesTableModel.rowCount()
+        self.progressBar.setMaximum(numItems)
+        progress = 0
+        self.isCanceled = False
+
+        self.moviesTableModel.aboutToChangeLayout()
+        titleYearSet = set()
+        duplicates = set()
+        for row in range(numItems):
+            QtCore.QCoreApplication.processEvents()
+            if self.isCanceled:
+                self.statusBar().showMessage('Cancelled')
+                self.isCanceled = False
+                self.progressBar.setValue(0)
+                self.movieTableModel.changedLayout()
+                return
+
+            progress += 1
+            self.progressBar.setValue(progress)
+
+            modelIndex = self.moviesTableModel.index(row, 0)
+            title = self.moviesTableModel.getTitle(modelIndex.row())
+            year = self.moviesTableModel.getYear(modelIndex.row())
+            titleYear = (title, year)
+            if titleYear in titleYearSet:
+                self.moviesTableModel.setDuplicate(modelIndex, 'Yes')
+                duplicates.add(titleYear)
+            else:
+                self.moviesTableModel.setDuplicate(modelIndex, 'No')
+            titleYearSet.add((title, year))
+
+        for row in range(numItems):
+            modelIndex = self.moviesTableModel.index(row, 0)
+            title = self.moviesTableModel.getTitle(modelIndex.row())
+            year = self.moviesTableModel.getYear(modelIndex.row())
+            titleYear = (title, year)
+            if titleYear in duplicates:
+                self.moviesTableModel.setDuplicate(modelIndex, 'Yes')
+
+        self.moviesTableModel.changedLayout()
         self.progressBar.setValue(0)
 
     def backupAnalyse(self):
@@ -2404,6 +2450,10 @@ class MyWindow(QtWidgets.QMainWindow):
         calculateSizesAction = QtWidgets.QAction("Calculate Folder Sizes", self)
         calculateSizesAction.triggered.connect(self.calculateFolderSizes)
         moviesTableRightMenu.addAction(calculateSizesAction)
+
+        findDuplicatesAction = QtWidgets.QAction("Find Duplicates", self)
+        findDuplicatesAction.triggered.connect(self.findDuplicates)
+        moviesTableRightMenu.addAction(findDuplicatesAction)
 
         addNewUserTagAction = QtWidgets.QAction("Add New User Tag", self)
         addNewUserTagAction.triggered.connect(self.addNewUserTag)

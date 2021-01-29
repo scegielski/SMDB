@@ -30,6 +30,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                         'JsonExists',
                                         'Rank',
                                         'BackupStatus',
+                                        'Duplicate',
                                         'Size'], start=0)
 
         self.defaultWidths = {self.Columns.Year: 50,
@@ -49,6 +50,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                               self.Columns.JsonExists: 65,
                               self.Columns.Rank: 40,
                               self.Columns.BackupStatus: 150,
+                              self.Columns.Duplicate: 60,
                               self.Columns.Size: 100}
 
         self._headers = []
@@ -157,6 +159,9 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
     def getSize(self, row):
         return self._data[row][self.Columns.Size.value]
+
+    def getDuplicate(self, row):
+        return self._data[row][self.Columns.Duplicate.value]
 
     def getDataSize(self):
         return len(self._data)
@@ -383,6 +388,10 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
     def setSize(self, index, value):
         self._data[index.row()][self.Columns.Size.value] = value
+        self.dataChanged.emit(index, index)
+
+    def setDuplicate(self, index, value):
+        self._data[index.row()][self.Columns.Duplicate.value] = value
         self.dataChanged.emit(index, index)
 
     def setMpaaRating(self, index, value):
