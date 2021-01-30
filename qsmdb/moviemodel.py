@@ -31,6 +31,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                         'Rank',
                                         'BackupStatus',
                                         'Duplicate',
+                                        'Width',
+                                        'Height',
                                         'Size'], start=0)
 
         self.defaultWidths = {self.Columns.Year: 50,
@@ -51,6 +53,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                               self.Columns.Rank: 40,
                               self.Columns.BackupStatus: 150,
                               self.Columns.Duplicate: 60,
+                              self.Columns.Width: 50,
+                              self.Columns.Height: 50,
                               self.Columns.Size: 100}
 
         self._headers = []
@@ -144,6 +148,11 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
     def getId(self, row):
         return self._data[row][self.Columns.Id.value]
+
+    def getDimensions(self, row):
+        width = self._data[row][self.Columns.Width.value]
+        height = self._data[row][self.Columns.Height.value]
+        return width, height
 
     def getFolderName(self, row):
         return self._data[row][self.Columns.Folder.value]
@@ -259,41 +268,35 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                 movieData.append(rank)
             elif column == self.Columns.Countries:
                 if 'countries' in data and data['countries']:
-                    if 'countries' in data and data['countries']:
-                        if 'countries' in data and data['countries']:
-                            countries = ""
-                            for country in data['countries']:
-                                if country == data['countries'][-1]:
-                                    countries += '%s' % country
-                                else:
-                                    countries += '%s, ' % country
-                            movieData.append(countries)
+                    countries = ""
+                    for country in data['countries']:
+                        if country == data['countries'][-1]:
+                            countries += '%s' % country
+                        else:
+                            countries += '%s, ' % country
+                    movieData.append(countries)
                 else:
                     movieData.append('')
             elif column == self.Columns.Companies:
                 if 'companies' in data and data['companies']:
-                    if 'companies' in data and data['companies']:
-                        if 'companies' in data and data['companies']:
-                            if 'companies' in data and data['companies']:
-                                companies = ""
-                                for company in data['companies']:
-                                    if company == data['companies'][-1]:
-                                        companies += '%s' % company
-                                    else:
-                                        companies += '%s, ' % company
-                                movieData.append(companies)
+                    companies = ""
+                    for company in data['companies']:
+                        if company == data['companies'][-1]:
+                            companies += '%s' % company
+                        else:
+                            companies += '%s, ' % company
+                    movieData.append(companies)
                 else:
                     movieData.append('')
             elif column == self.Columns.Genres:
                 if 'genres' in data and data['genres']:
-                    if 'genres' in data and data['genres']:
-                        genres = ""
-                        for genre in data['genres']:
-                            if genre == data['genres'][-1]:
-                                genres += '%s' % genre
-                            else:
-                                genres += '%s, ' % genre
-                        movieData.append(genres)
+                    genres = ""
+                    for genre in data['genres']:
+                        if genre == data['genres'][-1]:
+                            genres += '%s' % genre
+                        else:
+                            genres += '%s, ' % genre
+                    movieData.append(genres)
                 else:
                     movieData.append('')
             elif column == self.Columns.Directors:
@@ -388,6 +391,11 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
     def setSize(self, index, value):
         self._data[index.row()][self.Columns.Size.value] = value
+        self.dataChanged.emit(index, index)
+
+    def setDimensions(self, index, width, height):
+        self._data[index.row()][self.Columns.Width.value] = width
+        self._data[index.row()][self.Columns.Height.value] = height
         self.dataChanged.emit(index, index)
 
     def setDuplicate(self, index, value):

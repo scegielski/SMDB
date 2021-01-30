@@ -907,6 +907,8 @@ class MyWindow(QtWidgets.QMainWindow):
                          mtm.Columns.BoxOffice,
                          mtm.Columns.Runtime,
                          mtm.Columns.Size,
+                         mtm.Columns.Width,
+                         mtm.Columns.Height,
                          mtm.Columns.JsonExists]
         for c in columnsToHide:
             index = c.value
@@ -966,6 +968,8 @@ class MyWindow(QtWidgets.QMainWindow):
                          wtm.Columns.MpaaRating,
                          wtm.Columns.BoxOffice,
                          wtm.Columns.BackupStatus,
+                         wtm.Columns.Width,
+                         wtm.Columns.Height,
                          wtm.Columns.Size]
         for c in columnsToHide:
             index = c.value
@@ -1018,6 +1022,8 @@ class MyWindow(QtWidgets.QMainWindow):
                          btm.Columns.Folder,
                          btm.Columns.Rank,
                          btm.Columns.MpaaRating,
+                         btm.Columns.Width,
+                         btm.Columns.Height,
                          btm.Columns.JsonExists]
         for c in columnsToHide:
             index = c.value
@@ -1136,7 +1142,7 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.statusBar().showMessage('Cancelled')
                 self.isCanceled = False
                 self.progressBar.setValue(0)
-                self.movieTableModel.changedLayout()
+                self.moviesTableModel.changedLayout()
                 return
 
             progress += 1
@@ -1146,6 +1152,54 @@ class MyWindow(QtWidgets.QMainWindow):
             path = self.moviesTableModel.getPath(row)
             folderSize = getFolderSize(path)
             self.moviesTableModel.setSize(modelIndex, '%05d Mb' % bToMb(folderSize))
+
+        self.moviesTableModel.changedLayout()
+        self.progressBar.setValue(0)
+
+    def calculateMovieDimensions(self):
+        numSelectedItems = len(self.moviesTableView.selectionModel().selectedRows())
+        self.progressBar.setMaximum(numSelectedItems)
+        progress = 0
+        self.isCanceled = False
+        self.moviesTableModel.aboutToChangeLayout()
+        for proxyIndex in self.moviesTableView.selectionModel().selectedRows():
+            QtCore.QCoreApplication.processEvents()
+            if self.isCanceled:
+                self.statusBar().showMessage('Cancelled')
+                self.isCanceled = False
+                self.progressBar.setValue(0)
+                self.moviesTableModel.changedLayout()
+                return
+
+            progress += 1
+            self.progressBar.setValue(progress)
+
+            sourceIndex = self.moviesTableProxyModel.mapToSource(proxyIndex)
+            moviePath = self.moviesTableModel.getPath(sourceIndex.row())
+            movieFolderName = self.moviesTableModel.getFolderName(sourceIndex.row())
+            width, height = self.getMovieDimensions(moviePath)
+
+            jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
+            if not os.path.exists(jsonFile):
+                return
+
+            data = {}
+            with open(jsonFile) as f:
+                try:
+                    data = json.load(f)
+                except UnicodeDecodeError:
+                    print("Error reading %s" % jsonFile)
+
+            data["width"] = width
+            data["height"] = height
+
+            self.moviesTableModel.setMovieData(sourceIndex.row(), data, moviePath, movieFolderName)
+
+            try:
+                with open(jsonFile, "w") as f:
+                    json.dump(data, f, indent=4)
+            except:
+                print("Error writing json file: %s" % jsonFile)
 
         self.moviesTableModel.changedLayout()
         self.progressBar.setValue(0)
@@ -2002,7 +2056,6 @@ class MyWindow(QtWidgets.QMainWindow):
 
             title = model.getTitle(row)
             size = model.getSize(row)
-            mpaaRating = model.getMpaaRating(row)
 
             message = "Processing item (%d/%d): %s" % (progress + 1,
                                                        count,
@@ -2026,6 +2079,14 @@ class MyWindow(QtWidgets.QMainWindow):
                     jsonTitle = jsonData['title']
                     jsonYear = jsonData['year']
                     titleYear = (jsonTitle, jsonYear)
+
+                    jsonWidth = 0
+                    if 'width' in jsonData and jsonData['width']:
+                        jsonWidth = jsonData['width']
+
+                    jsonHeight = 0
+                    if 'height' in jsonData and jsonData['height']:
+                        jsonHeight = jsonData['height']
 
                     jsonYear = None
                     if 'year' in jsonData and jsonData['year']:
@@ -2153,6 +2214,8 @@ class MyWindow(QtWidgets.QMainWindow):
                                           'companies': jsonCompanies,
                                           'actors': movieActorsList,
                                           'rank': rank,
+                                          'width': jsonWidth,
+                                          'height': jsonHeight,
                                           'size': size}
 
         self.progressBar.setValue(0)
@@ -2452,6 +2515,10 @@ class MyWindow(QtWidgets.QMainWindow):
         calculateSizesAction.triggered.connect(self.calculateFolderSizes)
         moviesTableRightMenu.addAction(calculateSizesAction)
 
+        calculateDimensionsAction = QtWidgets.QAction("Calculate Movie Dimensions", self)
+        calculateDimensionsAction.triggered.connect(self.calculateMovieDimensions)
+        moviesTableRightMenu.addAction(calculateDimensionsAction)
+
         findDuplicatesAction = QtWidgets.QAction("Find Duplicates", self)
         findDuplicatesAction.triggered.connect(self.findDuplicates)
         moviesTableRightMenu.addAction(findDuplicatesAction)
@@ -2532,15 +2599,12 @@ class MyWindow(QtWidgets.QMainWindow):
         if not os.path.exists(moviePath):
             return
 
+        validExtentions = ['.mkv', '.mpg', '.mp4', '.avi', '.flv', '.wmv', '.m4v', '.divx', '.ogm']
+
         movieFiles = []
         for file in os.listdir(moviePath):
-            extension = os.path.splitext(file)[1]
-            if extension == '.mkv' or \
-                    extension == '.mpg' or \
-                    extension == '.mp4' or \
-                    extension == '.avi' or \
-                    extension == '.avi' or \
-                    extension == '.m4v':
+            extension = os.path.splitext(file)[1].lower()
+            if extension in validExtentions:
                 movieFiles.append(file)
         if len(movieFiles) == 1:
             fileToPlay = os.path.join(moviePath, movieFiles[0])
@@ -2555,6 +2619,29 @@ class MyWindow(QtWidgets.QMainWindow):
             # folder, then just open the folder so the user can
             # play the desired file.
             runFile(moviePath)
+
+    @staticmethod
+    def getMovieDimensions(moviePath):
+        if not os.path.exists(moviePath):
+            return
+
+        validExtentions = ['.mkv', '.mpg', '.mp4', '.avi', '.flv', '.wmv', '.m4v', '.divx', '.ogm']
+
+        movieFiles = []
+        for file in os.listdir(moviePath):
+            extension = os.path.splitext(file)[1].lower()
+            if extension in validExtentions:
+                movieFiles.append(file)
+        if (len(movieFiles) > 0):
+            movieFile = os.path.join(moviePath, movieFiles[0])
+            info = MediaInfo.parse(movieFile)
+            for track in info.tracks:
+                if track.track_type == 'Video':
+                    return track.width, track.height
+            print("No video track for movie: %s" % movieFile)
+        else:
+            print("No movie files in %s" % moviePath)
+        return 0, 0
 
     def watchListAdd(self):
         self.watchListTableModel.aboutToChangeLayout()
