@@ -860,70 +860,56 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableProxyModel = QtCore.QSortFilterProxyModel()
         self.moviesTableProxyModel.setSourceModel(self.moviesTableModel)
 
-        mtv = self.moviesTableView
-        mtm = self.moviesTableModel
-        mtpm = self.moviesTableProxyModel
+        tableView = self.moviesTableView
+        tableModel = self.moviesTableModel
+        proxyModel = self.moviesTableProxyModel
 
         # If forScan, sort by exists otherwise year
         if forceScan:
-            mtpm.sort(mtm.Columns.JsonExists.value)
+            proxyModel.sort(tableModel.Columns.JsonExists.value)
         else:
-            mtpm.sort(mtm.Columns.Year.value)
+            proxyModel.sort(tableModel.Columns.Year.value)
 
-        mtv.setModel(mtpm)
+        tableView.setModel(proxyModel)
 
         try:
-            mtv.doubleClicked.disconnect()
+            tableView.doubleClicked.disconnect()
         except Exception:
             pass
 
-        mtv.selectionModel().selectionChanged.connect(lambda: self.tableSelectionChanged(mtv, mtm, mtpm))
-        mtv.doubleClicked.connect(lambda: self.playMovie(mtv, mtpm))
+        tableView.selectionModel().selectionChanged.connect(lambda: self.tableSelectionChanged(tableView, tableModel, proxyModel))
+        tableView.doubleClicked.connect(lambda: self.playMovie(tableView, proxyModel))
 
         # Don't sort the table when the data changes
-        mtpm.setDynamicSortFilter(False)
+        proxyModel.setDynamicSortFilter(False)
 
-        mtv.setWordWrap(False)
+        tableView.setWordWrap(False)
 
         # Set the column widths
         self.moviesTableColumnsVisible = []
-        for col in mtm.Columns:
-            mtv.setColumnWidth(col.value, mtm.defaultWidths[col])
+        for col in tableModel.Columns:
+            tableView.setColumnWidth(col.value, tableModel.defaultWidths[col])
             self.moviesTableColumnsVisible.append(True)
 
-        # TODO: Make this columns to show
-        columnsToHide = [mtm.Columns.Id,
-                         mtm.Columns.Countries,
-                         mtm.Columns.Duplicate,
-                         mtm.Columns.Companies,
-                         mtm.Columns.Directors,
-                         mtm.Columns.Genres,
-                         mtm.Columns.UserTags,
-                         mtm.Columns.Folder,
-                         mtm.Columns.Path,
-                         mtm.Columns.Rank,
-                         mtm.Columns.MpaaRating,
-                         mtm.Columns.BackupStatus,
-                         mtm.Columns.BoxOffice,
-                         mtm.Columns.Runtime,
-                         mtm.Columns.Size,
-                         mtm.Columns.Width,
-                         mtm.Columns.Height,
-                         mtm.Columns.JsonExists]
-        for c in columnsToHide:
+        columnsToShow = [tableModel.Columns.Year,
+                         tableModel.Columns.Title,
+                         tableModel.Columns.Rating]
+
+        for c in tableModel.Columns:
             index = c.value
-            mtv.hideColumn(index)
-            self.moviesTableColumnsVisible[index] = False
+            if c not in columnsToShow:
+                tableView.hideColumn(index)
+                self.moviesTableColumnsVisible[index] = False
 
         # Make the row height smaller
-        mtv.verticalHeader().setMinimumSectionSize(10)
-        mtv.verticalHeader().setDefaultSectionSize(18)
+        tableView.verticalHeader().setMinimumSectionSize(10)
+        tableView.verticalHeader().setDefaultSectionSize(18)
 
-        self.numVisibleMovies = mtpm.rowCount()
+        self.numVisibleMovies = proxyModel.rowCount()
         self.showMoviesTableSelectionStatus()
 
-        mtv.selectRow(0)
-        self.tableSelectionChanged(mtv, mtm, mtpm)
+        tableView.selectRow(0)
+        self.tableSelectionChanged(tableView, tableModel, proxyModel)
 
     def refreshWatchList(self):
         if os.path.exists(self.watchListSmdbFile):
@@ -935,52 +921,40 @@ class MyWindow(QtWidgets.QMainWindow):
         self.watchListTableProxyModel = QtCore.QSortFilterProxyModel()
         self.watchListTableProxyModel.setSourceModel(self.watchListTableModel)
 
-        wtv = self.watchListTableView
-        wtm = self.watchListTableModel
-        wtpm = self.watchListTableProxyModel
+        tableView = self.watchListTableView
+        tableModel = self.watchListTableModel
+        proxyModel = self.watchListTableProxyModel
 
         # Sort the watch list by rankl
-        wtpm.sort(wtm.Columns.Rank.value)
+        proxyModel.sort(tableModel.Columns.Rank.value)
 
-        wtv.setModel(wtpm)
-        wtv.selectionModel().selectionChanged.connect(lambda: self.tableSelectionChanged(wtv, wtm, wtpm))
-        wtv.doubleClicked.connect(lambda: self.playMovie(wtv, wtpm))
-        wtpm.setDynamicSortFilter(False)
-        wtv.setWordWrap(False)
+        tableView.setModel(proxyModel)
+        tableView.selectionModel().selectionChanged.connect(lambda: self.tableSelectionChanged(tableView, tableModel, proxyModel))
+        tableView.doubleClicked.connect(lambda: self.playMovie(tableView, proxyModel))
+        proxyModel.setDynamicSortFilter(False)
+        tableView.setWordWrap(False)
 
         self.watchListColumnsVisible = []
-        for col in wtm.Columns:
-            wtv.setColumnWidth(col.value, wtm.defaultWidths[col])
+        for col in tableModel.Columns:
+            tableView.setColumnWidth(col.value, tableModel.defaultWidths[col])
             self.watchListColumnsVisible.append(True)
 
-        columnsToHide = [wtm.Columns.BoxOffice,
-                         wtm.Columns.Runtime,
-                         wtm.Columns.Directors,
-                         wtm.Columns.Countries,
-                         wtm.Columns.Duplicate,
-                         wtm.Columns.Genres,
-                         wtm.Columns.UserTags,
-                         wtm.Columns.Companies,
-                         wtm.Columns.Id,
-                         wtm.Columns.Folder,
-                         wtm.Columns.Path,
-                         wtm.Columns.JsonExists,
-                         wtm.Columns.MpaaRating,
-                         wtm.Columns.BoxOffice,
-                         wtm.Columns.BackupStatus,
-                         wtm.Columns.Width,
-                         wtm.Columns.Height,
-                         wtm.Columns.Size]
-        for c in columnsToHide:
+        columnsToShow = [tableModel.Columns.Rank,
+                         tableModel.Columns.Year,
+                         tableModel.Columns.Title,
+                         tableModel.Columns.Rating]
+
+        for c in tableModel.Columns:
             index = c.value
-            wtv.hideColumn(index)
-            self.watchListColumnsVisible[index] = False
+            if c not in columnsToShow:
+                tableView.hideColumn(index)
+                self.moviesTableColumnsVisible[index] = False
 
         # Set rank as the first column
-        wtv.horizontalHeader().moveSection(wtm.Columns.Rank.value, 0)
+        tableView.horizontalHeader().moveSection(tableModel.Columns.Rank.value, 0)
 
-        wtv.verticalHeader().setMinimumSectionSize(10)
-        wtv.verticalHeader().setDefaultSectionSize(18)
+        tableView.verticalHeader().setMinimumSectionSize(10)
+        tableView.verticalHeader().setDefaultSectionSize(18)
 
     def refreshBackupList(self):
         self.backupListTableModel = MoviesTableModel(None,
@@ -990,51 +964,37 @@ class MyWindow(QtWidgets.QMainWindow):
         self.backupListTableProxyModel = QtCore.QSortFilterProxyModel()
         self.backupListTableProxyModel.setSourceModel(self.backupListTableModel)
 
-        btv = self.backupListTableView
-        btm = self.backupListTableModel
-        btpm = self.backupListTableProxyModel
+        tableView = self.backupListTableView
+        tableModel = self.backupListTableModel
+        proxyModel = self.backupListTableProxyModel
 
         # Sort the watch list by rankl
-        btpm.sort(btm.Columns.Rank.value)
+        proxyModel.sort(tableModel.Columns.Rank.value)
 
-        btv.setModel(btpm)
-        btv.selectionModel().selectionChanged.connect(lambda: self.tableSelectionChanged(btv, btm, btpm))
-        btv.doubleClicked.connect(lambda: self.playMovie(btv, btpm))
-        btpm.setDynamicSortFilter(False)
-        btv.setWordWrap(False)
+        tableView.setModel(proxyModel)
+        tableView.selectionModel().selectionChanged.connect(lambda: self.tableSelectionChanged(tableView, tableModel, proxyModel))
+        tableView.doubleClicked.connect(lambda: self.playMovie(tableView, proxyModel))
+        proxyModel.setDynamicSortFilter(False)
+        tableView.setWordWrap(False)
 
         self.backupListColumnsVisible = []
-        for col in btm.Columns:
-            btv.setColumnWidth(col.value, btm.defaultWidths[col])
+        for col in tableModel.Columns:
+            tableView.setColumnWidth(col.value, tableModel.defaultWidths[col])
             self.backupListColumnsVisible.append(True)
 
-        columnsToHide = [btm.Columns.BoxOffice,
-                         btm.Columns.Year,
-                         btm.Columns.Duplicate,
-                         btm.Columns.Runtime,
-                         btm.Columns.Directors,
-                         btm.Columns.Rating,
-                         btm.Columns.Countries,
-                         btm.Columns.Genres,
-                         btm.Columns.UserTags,
-                         btm.Columns.Companies,
-                         btm.Columns.Id,
-                         btm.Columns.Folder,
-                         btm.Columns.Rank,
-                         btm.Columns.MpaaRating,
-                         btm.Columns.Width,
-                         btm.Columns.Height,
-                         btm.Columns.JsonExists]
-        for c in columnsToHide:
+        columnsToShow = [tableModel.Columns.Title,
+                         tableModel.Columns.Path,
+                         tableModel.Columns.BackupStatus,
+                         tableModel.Columns.Size]
+
+        for c in tableModel.Columns:
             index = c.value
-            btv.hideColumn(index)
-            self.backupListColumnsVisible[index] = False
+            if c not in columnsToShow:
+                tableView.hideColumn(index)
+                self.moviesTableColumnsVisible[index] = False
 
-        # Set rank as the first column
-        btv.horizontalHeader().moveSection(btm.Columns.Rank.value, 0)
-
-        btv.verticalHeader().setMinimumSectionSize(10)
-        btv.verticalHeader().setDefaultSectionSize(18)
+        tableView.verticalHeader().setMinimumSectionSize(10)
+        tableView.verticalHeader().setDefaultSectionSize(18)
 
     def backupMoviesFolder(self):
         pass
