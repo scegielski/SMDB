@@ -13,7 +13,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
         self.movieSet = set()
         self._data = []
 
-        self.Columns = Enum('Columns', ['Year',
+        self.Columns = Enum('Columns', ['Cover',
+                                        'Year',
                                         'Title',
                                         'Rating',
                                         'MpaaRating',
@@ -35,7 +36,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                         'Height',
                                         'Size'], start=0)
 
-        self.defaultWidths = {self.Columns.Year: 50,
+        self.defaultWidths = {self.Columns.Cover: 100,
+                              self.Columns.Year: 50,
                               self.Columns.Title: 200,
                               self.Columns.Rating: 60,
                               self.Columns.MpaaRating: 100,
@@ -431,6 +433,15 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                 return QtGui.QBrush(QtGui.QColor("darkorange"))
             elif "Size Difference" in backupStatus:
                 return QtGui.QBrush(QtGui.QColor("darkgoldenrod"))
+        elif role == QtCore.Qt.DecorationRole :
+            if index.column() == self.Columns.Cover.value:
+                row = index.row()
+                folderName = self.getFolderName(row)
+                moviePath = self.getPath(row)
+                coverFile = os.path.join(moviePath, '%s.jpg' % folderName)
+
+                pixMap = QtGui.QPixmap(coverFile).scaled(10, 10)
+                return pixMap;
 
     def headerData(self, section, orientation, role):
         if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
