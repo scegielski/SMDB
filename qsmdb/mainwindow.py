@@ -1108,10 +1108,32 @@ class MyWindow(QtWidgets.QMainWindow):
             progress += 1
             self.progressBar.setValue(progress)
 
-            modelIndex = self.moviesTableModel.index(row, 0)
-            path = self.moviesTableModel.getPath(row)
-            folderSize = getFolderSize(path)
-            self.moviesTableModel.setSize(modelIndex, '%05d Mb' % bToMb(folderSize))
+            proxyIndex = self.moviesTableModel.index(row, 0)
+            sourceIndex = self.moviesTableProxyModel.mapToSource(proxyIndex)
+            moviePath = self.moviesTableModel.getPath(row)
+            movieFolderName = self.moviesTableModel.getFolderName(row)
+            folderSize = '%05d Mb' % bToMb(getFolderSize(moviePath))
+
+            jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
+            if not os.path.exists(jsonFile):
+                return
+
+            data = {}
+            with open(jsonFile) as f:
+                try:
+                    data = json.load(f)
+                except UnicodeDecodeError:
+                    print("Error reading %s" % jsonFile)
+
+            data["size"] = folderSize
+
+            self.moviesTableModel.setMovieData(sourceIndex.row(), data, moviePath, movieFolderName)
+
+            try:
+                with open(jsonFile, "w") as f:
+                    json.dump(data, f, indent=4)
+            except:
+                print("Error writing json file: %s" % jsonFile)
 
         self.moviesTableModel.changedLayout()
         self.progressBar.setValue(0)
