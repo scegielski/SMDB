@@ -2543,6 +2543,10 @@ class MyWindow(QtWidgets.QMainWindow):
         openImdbAction.triggered.connect(self.openMovieImdbPage)
         moviesTableRightMenu.addAction(openImdbAction)
 
+        searchForOtherVersionsAction = QtWidgets.QAction("Search for other versions", self)
+        searchForOtherVersionsAction.triggered.connect(self.searchForOtherVersions)
+        moviesTableRightMenu.addAction(searchForOtherVersionsAction)
+
         overrideImdbAction = QtWidgets.QAction("Override IMDB ID", self)
         overrideImdbAction.triggered.connect(self.overrideID)
         moviesTableRightMenu.addAction(overrideImdbAction)
@@ -2933,6 +2937,20 @@ class MyWindow(QtWidgets.QMainWindow):
         sourceRow = self.getSelectedRow()
         movieId = self.moviesTableModel.getId(sourceRow)
         webbrowser.open('http://imdb.com/title/tt%s' % movieId, new=2)
+
+    def searchForOtherVersions(self):
+        sourceRow = self.getSelectedRow()
+        title = self.moviesTableModel.getTitle(sourceRow)
+        titlePlus = '+'.join(title.split())
+        titleMinus = '+'.join(title.split())
+        year = self.moviesTableModel.getTitle(sourceRow)
+        urlPirateBay = f"https://thepiratebay.org/search.php?q={titlePlus}+%28{year}%29&all=on&search=Pirate+Search&page=0&orderby="
+        url1337x = f"https://1337x.to/search/{titlePlus}+{year}/1/"
+        urlRarBG = f"http://rarbg.to/torrents.php?search={titlePlus}+%28{year}%29"
+        usrlLimeTorrents = f"https://www.limetorrents.info/search/all/{titleMinus}-%20{year}%20/"
+        urls = [urlPirateBay, url1337x, urlRarBG, usrlLimeTorrents]
+        for u in urls:
+            webbrowser.open(u, new=2)
 
     def overrideID(self):
         movieId, ok = QtWidgets.QInputDialog.getText(self,
