@@ -512,28 +512,28 @@ class MyWindow(QtWidgets.QMainWindow):
         if visibleList[c.value]:
             tableView.showColumn(c.value)
             if c.value == self.moviesTableModel.Columns.Cover.value:
-                self.moviesTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
-                self.moviesTableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
-                self.moviesTableView.verticalScrollBar().setSingleStep(10)
+                tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
+                tableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
+                tableView.verticalScrollBar().setSingleStep(10)
         else:
             tableView.hideColumn(c.value)
             if c.value == self.moviesTableModel.Columns.Cover.value:
-                self.moviesTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
-                self.moviesTableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerItem)
-                self.moviesTableView.verticalScrollBar().setSingleStep(5)
+                tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+                tableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerItem)
+                tableView.verticalScrollBar().setSingleStep(5)
 
     def showAllColumns(self, tableView, visibleList):
-        self.moviesTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
-        self.moviesTableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
-        self.moviesTableView.verticalScrollBar().setSingleStep(10)
+        tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
+        tableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
+        tableView.verticalScrollBar().setSingleStep(10)
         for i, c in enumerate(visibleList):
             visibleList[i] = True
             tableView.showColumn(i)
 
     def hideAllColumns(self, tableView, visibleList):
-        self.moviesTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
-        self.moviesTableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerItem)
-        self.moviesTableView.verticalScrollBar().setSingleStep(5)
+        tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+        tableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerItem)
+        tableView.verticalScrollBar().setSingleStep(5)
         for i, c in enumerate(visibleList):
             if i != self.moviesTableModel.Columns.Year.value:  # leave the year column visible
                 visibleList[i] = False
