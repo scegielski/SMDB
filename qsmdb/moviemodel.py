@@ -36,7 +36,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                         'Height',
                                         'Size'], start=0)
 
-        self.defaultWidths = {self.Columns.Cover: 200,
+        self.defaultWidths = {self.Columns.Cover: 150,
                               self.Columns.Year: 50,
                               self.Columns.Title: 200,
                               self.Columns.Rating: 60,

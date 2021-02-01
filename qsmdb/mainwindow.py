@@ -513,19 +513,27 @@ class MyWindow(QtWidgets.QMainWindow):
             tableView.showColumn(c.value)
             if c.value == self.moviesTableModel.Columns.Cover.value:
                 self.moviesTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
+                self.moviesTableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
+                self.moviesTableView.verticalScrollBar().setSingleStep(10)
         else:
             tableView.hideColumn(c.value)
             if c.value == self.moviesTableModel.Columns.Cover.value:
                 self.moviesTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+                self.moviesTableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerItem)
+                self.moviesTableView.verticalScrollBar().setSingleStep(5)
 
     def showAllColumns(self, tableView, visibleList):
         self.moviesTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
+        self.moviesTableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
+        self.moviesTableView.verticalScrollBar().setSingleStep(10)
         for i, c in enumerate(visibleList):
             visibleList[i] = True
             tableView.showColumn(i)
 
     def hideAllColumns(self, tableView, visibleList):
         self.moviesTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+        self.moviesTableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerItem)
+        self.moviesTableView.verticalScrollBar().setSingleStep(5)
         for i, c in enumerate(visibleList):
             if i != self.moviesTableModel.Columns.Year.value:  # leave the year column visible
                 visibleList[i] = False
@@ -570,7 +578,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
         self.moviesTableWidget.setLineWidth(5)
         self.moviesTableWidget.setStyleSheet("background: rgb(25, 25, 25); color: white;  border-radius: 10px")
-        self.moviesTableView.horizontalHeader().setStyleSheet("color: black")
 
         moviesTableViewVLayout = QtWidgets.QVBoxLayout()
         self.moviesTableWidget.setLayout(moviesTableViewVLayout)
@@ -579,6 +586,7 @@ class MyWindow(QtWidgets.QMainWindow):
         moviesLabel.setFont(QtGui.QFont('TimesNew Roman', 12))
         moviesTableViewVLayout.addWidget(moviesLabel)
 
+        self.moviesTableView.horizontalHeader().setStyleSheet("color: black")
         self.moviesTableView.setSortingEnabled(True)
         self.moviesTableView.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.moviesTableView.verticalHeader().hide()
@@ -586,6 +594,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableView.setAlternatingRowColors(True)
         self.moviesTableView.horizontalHeader().setSectionsMovable(True)
         self.moviesTableView.setShowGrid(False)
+        self.moviesTableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerItem)
+        self.moviesTableView.verticalScrollBar().setSingleStep(5)
 
         # Right click header menu
         hh = self.moviesTableView.horizontalHeader()
