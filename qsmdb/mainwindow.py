@@ -1643,7 +1643,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def searchMoviesTableView(self):
         searchText = self.moviesTableSearchBox.text()
-        self.moviesTableProxyModel.setFilterKeyColumn(1)
+        self.moviesTableProxyModel.setFilterKeyColumn(self.moviesTableModel.Columns.Title.value)
         self.moviesTableProxyModel.setFilterRegExp(
             QtCore.QRegExp(searchText,
                            QtCore.Qt.CaseInsensitive,
