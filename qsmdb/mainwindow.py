@@ -122,7 +122,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Init UI
         self.setTitleBar()
-        self.setGeometry(300, 150, 1300, 700)
+        self.setGeometry(50, 50, 1820, 980)
 
         # Set foreground/background colors for item views
         self.setStyleSheet("""QAbstractItemView{ background: black; color: white; }; """)
@@ -303,7 +303,9 @@ class MyWindow(QtWidgets.QMainWindow):
         mainHSplitter.addWidget(moviesWatchListBackupVSplitter)
         mainHSplitter.addWidget(self.movieSectionWidget)
         mainHSplitter.splitterMoved.connect(self.resizeCoverFile)
-        mainHSplitter.setSizes([270, 430, 600])
+
+        # Main horizontal sizes
+        mainHSplitter.setSizes([270, 950, 600])
 
         # Bottom
         bottomLayout = QtWidgets.QHBoxLayout(self)
@@ -906,6 +908,13 @@ class MyWindow(QtWidgets.QMainWindow):
             self.moviesTableColumnsVisible.append(True)
 
         columnsToShow = [tableModel.Columns.Year,
+                         tableModel.Columns.Cover,
+                         tableModel.Columns.Width,
+                         tableModel.Columns.Height,
+                         tableModel.Columns.Size,
+                         tableModel.Columns.Genres,
+                         tableModel.Columns.BoxOffice,
+                         tableModel.Columns.MpaaRating,
                          tableModel.Columns.Title,
                          tableModel.Columns.Rating]
 
@@ -918,7 +927,9 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Make the row height smaller
         tableView.verticalHeader().setMinimumSectionSize(10)
-        tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+        tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
+        tableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
+        tableView.verticalScrollBar().setSingleStep(10)
 
         self.numVisibleMovies = proxyModel.rowCount()
         self.showMoviesTableSelectionStatus()
