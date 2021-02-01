@@ -36,7 +36,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                         'Height',
                                         'Size'], start=0)
 
-        self.defaultWidths = {self.Columns.Cover: 100,
+        self.defaultWidths = {self.Columns.Cover: 200,
                               self.Columns.Year: 50,
                               self.Columns.Title: 200,
                               self.Columns.Rating: 60,
@@ -439,8 +439,9 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                 folderName = self.getFolderName(row)
                 moviePath = self.getPath(row)
                 coverFile = os.path.join(moviePath, '%s.jpg' % folderName)
-
-                pixMap = QtGui.QPixmap(coverFile).scaled(10, 10)
+                pixMap = QtGui.QPixmap(coverFile).scaled(200, 200,
+                                                         QtCore.Qt.KeepAspectRatio,
+                                                         QtCore.Qt.SmoothTransformation)
                 return pixMap;
 
     def headerData(self, section, orientation, role):

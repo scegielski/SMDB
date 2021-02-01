@@ -183,6 +183,8 @@ class MyWindow(QtWidgets.QMainWindow):
         moviesWatchListBackupVSplitter.setHandleWidth(20)
 
         # Movies Table
+        self.rowHeightWithoutCover = 18
+        self.rowHeightWithCover = 200
         self.moviesTableWidget = QtWidgets.QFrame()
         self.moviesTableView = QtWidgets.QTableView()
         self.moviesTableSearchBox = QtWidgets.QLineEdit()
@@ -510,20 +512,20 @@ class MyWindow(QtWidgets.QMainWindow):
         if visibleList[c.value]:
             tableView.showColumn(c.value)
             if c.value == self.moviesTableModel.Columns.Cover.value:
-                self.moviesTableView.verticalHeader().setDefaultSectionSize(50)
+                self.moviesTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
         else:
             tableView.hideColumn(c.value)
             if c.value == self.moviesTableModel.Columns.Cover.value:
-                self.moviesTableView.verticalHeader().setDefaultSectionSize(18)
+                self.moviesTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
 
     def showAllColumns(self, tableView, visibleList):
-        self.moviesTableView.verticalHeader().setDefaultSectionSize(50)
+        self.moviesTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
         for i, c in enumerate(visibleList):
             visibleList[i] = True
             tableView.showColumn(i)
 
     def hideAllColumns(self, tableView, visibleList):
-        self.moviesTableView.verticalHeader().setDefaultSectionSize(18)
+        self.moviesTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
         for i, c in enumerate(visibleList):
             if i != self.moviesTableModel.Columns.Year.value:  # leave the year column visible
                 visibleList[i] = False
@@ -654,10 +656,10 @@ class MyWindow(QtWidgets.QMainWindow):
         hh.setStyleSheet("background: #303030; color: white")
         hh.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         hh.customContextMenuRequested[QtCore.QPoint].connect(
-            lambda: headerRightMenuShow(QtCore.QPoint,
-                                        self.watchListTableView,
-                                        self.watchListColumnsVisible,
-                                        self.watchListTableModel))
+            lambda: self.headerRightMenuShow(QtCore.QPoint,
+                                             self.watchListTableView,
+                                             self.watchListColumnsVisible,
+                                             self.watchListTableModel))
 
         # Right click menu
         self.watchListTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
@@ -724,10 +726,10 @@ class MyWindow(QtWidgets.QMainWindow):
         hh.setStyleSheet("background: #303030; color: white")
         hh.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         hh.customContextMenuRequested[QtCore.QPoint].connect(
-            lambda: headerRightMenuShow(QtCore.QPoint,
-                                        self.backupListTableView,
-                                        self.backupListColumnsVisible,
-                                        self.backupListTableModel))
+            lambda: self.headerRightMenuShow(QtCore.QPoint,
+                                             self.backupListTableView,
+                                             self.backupListColumnsVisible,
+                                             self.backupListTableModel))
 
         # Right click menu
         self.backupListTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
@@ -907,7 +909,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Make the row height smaller
         tableView.verticalHeader().setMinimumSectionSize(10)
-        tableView.verticalHeader().setDefaultSectionSize(18)
+        tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
 
         self.numVisibleMovies = proxyModel.rowCount()
         self.showMoviesTableSelectionStatus()
@@ -957,7 +959,7 @@ class MyWindow(QtWidgets.QMainWindow):
         tableView.horizontalHeader().moveSection(tableModel.Columns.Rank.value, 0)
 
         tableView.verticalHeader().setMinimumSectionSize(10)
-        tableView.verticalHeader().setDefaultSectionSize(18)
+        tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
 
     def refreshBackupList(self):
         self.backupListTableModel = MoviesTableModel(None,
@@ -996,7 +998,7 @@ class MyWindow(QtWidgets.QMainWindow):
                 tableView.hideColumn(index)
 
         tableView.verticalHeader().setMinimumSectionSize(10)
-        tableView.verticalHeader().setDefaultSectionSize(18)
+        tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
 
     def backupMoviesFolder(self):
         pass
