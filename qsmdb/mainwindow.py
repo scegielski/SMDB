@@ -2943,7 +2943,7 @@ class MyWindow(QtWidgets.QMainWindow):
         title = self.moviesTableModel.getTitle(sourceRow)
         titlePlus = '+'.join(title.split())
         titleMinus = '-'.join(title.split())
-        year = self.moviesTableModel.getTitle(sourceRow)
+        year = self.moviesTableModel.getYear(sourceRow)
         urlPirateBay = f"https://thepiratebay.org/search.php?q={titlePlus}+%28{year}%29&all=on&search=Pirate+Search&page=0&orderby="
         url1337x = f"https://1337x.to/search/{titlePlus}+{year}/1/"
         urlRarBG = f"http://rarbg.to/torrents.php?search={titlePlus}+%28{year}%29"
