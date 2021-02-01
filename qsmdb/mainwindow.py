@@ -586,13 +586,11 @@ class MyWindow(QtWidgets.QMainWindow):
         moviesLabel.setFont(QtGui.QFont('TimesNew Roman', 12))
         moviesTableViewVLayout.addWidget(moviesLabel)
 
-        self.moviesTableView.horizontalHeader().setStyleSheet("color: black")
         self.moviesTableView.setSortingEnabled(True)
         self.moviesTableView.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.moviesTableView.verticalHeader().hide()
         self.moviesTableView.setStyleSheet("background: black; alternate-background-color: #151515; color: white")
         self.moviesTableView.setAlternatingRowColors(True)
-        self.moviesTableView.horizontalHeader().setSectionsMovable(True)
         self.moviesTableView.setShowGrid(False)
         self.moviesTableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerItem)
         self.moviesTableView.verticalScrollBar().setSingleStep(5)
@@ -600,6 +598,7 @@ class MyWindow(QtWidgets.QMainWindow):
         # Right click header menu
         hh = self.moviesTableView.horizontalHeader()
         hh.setStyleSheet("background: #303030; color: white")
+        hh.setSectionsMovable(True)
         hh.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         hh.customContextMenuRequested[QtCore.QPoint].connect(
             lambda: self.headerRightMenuShow(QtCore.QPoint,
@@ -962,8 +961,10 @@ class MyWindow(QtWidgets.QMainWindow):
 
         for c in tableModel.Columns:
             index = c.value
+            self.watchListColumnsVisible[index] = True
             if c not in columnsToShow:
                 tableView.hideColumn(index)
+                self.watchListColumnsVisible[index] = False
 
         # Set rank as the first column
         tableView.horizontalHeader().moveSection(tableModel.Columns.Rank.value, 0)
@@ -1004,8 +1005,10 @@ class MyWindow(QtWidgets.QMainWindow):
 
         for c in tableModel.Columns:
             index = c.value
+            self.backupListColumnsVisible[index] = True
             if c not in columnsToShow:
                 tableView.hideColumn(index)
+                self.backupListColumnsVisible[index] = False
 
         tableView.verticalHeader().setMinimumSectionSize(10)
         tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
@@ -2467,24 +2470,6 @@ class MyWindow(QtWidgets.QMainWindow):
                                self.backupListTableProxyModel)
 
         rightMenu.exec_(QtGui.QCursor.pos())
-
-    def moviesTableHeaderRightMenuShow(self, QPos):
-        menu = QtWidgets.QMenu(self.moviesTableView.horizontalHeader())
-
-        showAllAction = QtWidgets.QAction("Show All")
-        menu.addAction(showAllAction)
-
-        actions = []
-        headers = self.moviesTableModel.getHeaders()
-        for c in self.moviesTableModel.Columns:
-            header = headers[c.value]
-            action = QtWidgets.QAction(header)
-            action.setCheckable(True)
-            action.setChecked(self.moviesTableColumnsVisible[c.value])
-            actions.append(action)
-            menu.addAction(action)
-
-        menu.exec_(QtGui.QCursor.pos())
 
     def moviesTableRightMenuShow(self, QPos):
         moviesTableRightMenu = QtWidgets.QMenu(self.moviesTableView)
