@@ -897,6 +897,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         for c in tableModel.Columns:
             index = c.value
+            self.moviesTableColumnsVisible[index] = True
             if c not in columnsToShow:
                 tableView.hideColumn(index)
                 self.moviesTableColumnsVisible[index] = False
@@ -948,7 +949,6 @@ class MyWindow(QtWidgets.QMainWindow):
             index = c.value
             if c not in columnsToShow:
                 tableView.hideColumn(index)
-                self.moviesTableColumnsVisible[index] = False
 
         # Set rank as the first column
         tableView.horizontalHeader().moveSection(tableModel.Columns.Rank.value, 0)
@@ -991,7 +991,6 @@ class MyWindow(QtWidgets.QMainWindow):
             index = c.value
             if c not in columnsToShow:
                 tableView.hideColumn(index)
-                self.moviesTableColumnsVisible[index] = False
 
         tableView.verticalHeader().setMinimumSectionSize(10)
         tableView.verticalHeader().setDefaultSectionSize(18)
