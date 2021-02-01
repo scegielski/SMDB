@@ -2575,10 +2575,11 @@ class MyWindow(QtWidgets.QMainWindow):
         removeCoversAction.triggered.connect(self.removeCoverFilesMenu)
         moviesTableRightMenu.addAction(removeCoversAction)
 
-        modelIndex = self.moviesTableView.selectionModel().selectedRows()[0]
-        self.clickedMovieTable(modelIndex,
-                               self.moviesTableModel,
-                               self.moviesTableProxyModel)
+        if self.moviesTableView.selectionModel().selectedRows():
+            modelIndex = self.moviesTableView.selectionModel().selectedRows()[0]
+            self.clickedMovieTable(modelIndex,
+                                   self.moviesTableModel,
+                                   self.moviesTableProxyModel)
 
         moviesTableRightMenu.exec_(QtGui.QCursor.pos())
 
