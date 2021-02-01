@@ -56,65 +56,9 @@ def getMovieKey(movie, key):
         return None
 
 
-def toggleColumn(c, tableView, visibleList):
-    visibleList[c.value] = not visibleList[c.value]
-    if visibleList[c.value]:
-        tableView.showColumn(c.value)
-    else:
-        tableView.hideColumn(c.value)
-
-
-def showAllColumns(tableView, visibleList):
-    for i, c in enumerate(visibleList):
-        visibleList[i] = True
-        tableView.showColumn(i)
-
-
-def hideAllColumns(tableView, visibleList):
-    for i, c in enumerate(visibleList):
-        if i != 0:  # leave the first column visible
-            visibleList[i] = False
-            tableView.hideColumn(i)
-
-
 def openYearImdbPage(year):
     webbrowser.open('https://www.imdb.com/search/title/?release_date=%s-01-01,%s-12-31' % (year, year), new=2)
 
-
-def headerRightMenuShow(QPos, tableView, visibleColumnsList, model):
-    menu = QtWidgets.QMenu(tableView.horizontalHeader())
-
-    showAllAction = QtWidgets.QAction("Show All")
-    showAllAction.triggered.connect(lambda a,
-                                    tv=tableView,
-                                    vcl=visibleColumnsList:
-                                    showAllColumns(tv, vcl))
-    menu.addAction(showAllAction)
-
-    hideAllAction = QtWidgets.QAction("Hide All")
-    hideAllAction.triggered.connect(lambda a,
-                                    tv=tableView,
-                                    vcl=visibleColumnsList:
-                                    hideAllColumns(tv, vcl))
-    menu.addAction(hideAllAction)
-
-    headers = model.getHeaders()
-
-    actionsList = []
-    for c in model.Columns:
-        header = headers[c.value]
-        action = QtWidgets.QAction(header)
-        action.setCheckable(True)
-        action.setChecked(visibleColumnsList[c.value])
-        action.triggered.connect(lambda a,
-                                 column=c,
-                                 tv=tableView,
-                                 vcl=visibleColumnsList:
-                                 toggleColumn(column, tv, vcl))
-        menu.addAction(action)
-        actionsList.append(action)
-
-    menu.exec_(QtGui.QCursor.pos())
 
 
 class FilterTable(QtWidgets.QTableWidget):
@@ -561,6 +505,65 @@ class MyWindow(QtWidgets.QMainWindow):
         filtersSearchHLayout.addWidget(filterTableSearchBox)
         filterTableSearchBox.textChanged.connect(lambda: searchTableWidget(filterTableSearchBox, self.filterTable))
 
+    def toggleColumn(self, c, tableView, visibleList):
+        visibleList[c.value] = not visibleList[c.value]
+        if visibleList[c.value]:
+            tableView.showColumn(c.value)
+            if c.value == self.moviesTableModel.Columns.Cover.value:
+                self.moviesTableView.verticalHeader().setDefaultSectionSize(50)
+        else:
+            tableView.hideColumn(c.value)
+            if c.value == self.moviesTableModel.Columns.Cover.value:
+                self.moviesTableView.verticalHeader().setDefaultSectionSize(18)
+
+    def showAllColumns(self, tableView, visibleList):
+        self.moviesTableView.verticalHeader().setDefaultSectionSize(50)
+        for i, c in enumerate(visibleList):
+            visibleList[i] = True
+            tableView.showColumn(i)
+
+    def hideAllColumns(self, tableView, visibleList):
+        self.moviesTableView.verticalHeader().setDefaultSectionSize(18)
+        for i, c in enumerate(visibleList):
+            if i != self.moviesTableModel.Columns.Year.value:  # leave the year column visible
+                visibleList[i] = False
+                tableView.hideColumn(i)
+
+    def headerRightMenuShow(self, QPos, tableView, visibleColumnsList, model):
+        menu = QtWidgets.QMenu(tableView.horizontalHeader())
+
+        showAllAction = QtWidgets.QAction("Show All")
+        showAllAction.triggered.connect(lambda a,
+                                               tv=tableView,
+                                               vcl=visibleColumnsList:
+                                        self.showAllColumns(tv, vcl))
+        menu.addAction(showAllAction)
+
+        hideAllAction = QtWidgets.QAction("Hide All")
+        hideAllAction.triggered.connect(lambda a,
+                                               tv=tableView,
+                                               vcl=visibleColumnsList:
+                                        self.hideAllColumns(tv, vcl))
+        menu.addAction(hideAllAction)
+
+        headers = model.getHeaders()
+
+        actionsList = []
+        for c in model.Columns:
+            header = headers[c.value]
+            action = QtWidgets.QAction(header)
+            action.setCheckable(True)
+            action.setChecked(visibleColumnsList[c.value])
+            action.triggered.connect(lambda a,
+                                            column=c,
+                                            tv=tableView,
+                                            vcl=visibleColumnsList:
+                                     self.toggleColumn(column, tv, vcl))
+            menu.addAction(action)
+            actionsList.append(action)
+
+        menu.exec_(QtGui.QCursor.pos())
+
     def initUIMoviesTable(self):
         self.moviesTableWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
         self.moviesTableWidget.setLineWidth(5)
@@ -587,10 +590,10 @@ class MyWindow(QtWidgets.QMainWindow):
         hh.setStyleSheet("background: #303030; color: white")
         hh.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         hh.customContextMenuRequested[QtCore.QPoint].connect(
-            lambda: headerRightMenuShow(QtCore.QPoint,
-                                        self.moviesTableView,
-                                        self.moviesTableColumnsVisible,
-                                        self.moviesTableModel))
+            lambda: self.headerRightMenuShow(QtCore.QPoint,
+                                             self.moviesTableView,
+                                             self.moviesTableColumnsVisible,
+                                             self.moviesTableModel))
 
         # Right click menu
         self.moviesTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
