@@ -1105,12 +1105,12 @@ class MyWindow(QtWidgets.QMainWindow):
                                               bToGb(self.spaceFree)))
 
     def calculateFolderSizes(self):
-        numItems = self.moviesTableModel.rowCount()
-        self.progressBar.setMaximum(numItems)
+        numSelectedItems = len(self.moviesTableView.selectionModel().selectedRows())
+        self.progressBar.setMaximum(numSelectedItems)
         progress = 0
         self.isCanceled = False
         self.moviesTableModel.aboutToChangeLayout()
-        for row in range(numItems):
+        for proxyIndex in self.moviesTableView.selectionModel().selectedRows():
             QtCore.QCoreApplication.processEvents()
             if self.isCanceled:
                 self.statusBar().showMessage('Cancelled')
@@ -1122,10 +1122,9 @@ class MyWindow(QtWidgets.QMainWindow):
             progress += 1
             self.progressBar.setValue(progress)
 
-            proxyIndex = self.moviesTableModel.index(row, 0)
             sourceIndex = self.moviesTableProxyModel.mapToSource(proxyIndex)
-            moviePath = self.moviesTableModel.getPath(row)
-            movieFolderName = self.moviesTableModel.getFolderName(row)
+            moviePath = self.moviesTableModel.getPath(sourceIndex.row())
+            movieFolderName = self.moviesTableModel.getFolderName(sourceIndex.row())
             folderSize = '%05d Mb' % bToMb(getFolderSize(moviePath))
 
             jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
@@ -1141,7 +1140,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
             data["size"] = folderSize
 
-            self.moviesTableModel.setMovieData(sourceIndex.row(), data, moviePath, movieFolderName)
+            self.moviesTableModel.setSize(sourceIndex, folderSize)
 
             try:
                 with open(jsonFile, "w") as f:
