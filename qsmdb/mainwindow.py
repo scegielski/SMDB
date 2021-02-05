@@ -2485,14 +2485,42 @@ class MyWindow(QtWidgets.QMainWindow):
     def moviesTableRightMenuShow(self, QPos):
         moviesTableRightMenu = QtWidgets.QMenu(self.moviesTableView)
 
-        selectAllAction = QtWidgets.QAction("Select All", self)
-        selectAllAction.triggered.connect(lambda: self.tableSelectAll(self.moviesTableView))
-        moviesTableRightMenu.addAction(selectAllAction)
-
         playAction = QtWidgets.QAction("Play")
         playAction.triggered.connect(lambda: self.playMovie(self.moviesTableView,
                                                             self.moviesTableProxyModel))
         moviesTableRightMenu.addAction(playAction)
+
+        openFolderAction = QtWidgets.QAction("Open Folder", self)
+        openFolderAction.triggered.connect(self.openMovieFolder)
+        moviesTableRightMenu.addAction(openFolderAction)
+
+        selectAllAction = QtWidgets.QAction("Select All", self)
+        selectAllAction.triggered.connect(lambda: self.tableSelectAll(self.moviesTableView))
+        moviesTableRightMenu.addAction(selectAllAction)
+
+        openJsonAction = QtWidgets.QAction("Open Json File", self)
+        openJsonAction.triggered.connect(self.openMovieJson)
+        moviesTableRightMenu.addAction(openJsonAction)
+
+        removeJsonFilesAction = QtWidgets.QAction("Remove .json files", self)
+        removeJsonFilesAction.triggered.connect(self.removeJsonFilesMenu)
+        moviesTableRightMenu.addAction(removeJsonFilesAction)
+
+        removeCoversAction = QtWidgets.QAction("Remove cover files", self)
+        removeCoversAction.triggered.connect(self.removeCoverFilesMenu)
+        moviesTableRightMenu.addAction(removeCoversAction)
+
+        moviesTableRightMenu.addSeparator()
+
+        openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
+        openImdbAction.triggered.connect(self.openMovieImdbPage)
+        moviesTableRightMenu.addAction(openImdbAction)
+
+        overrideImdbAction = QtWidgets.QAction("Override IMDB ID", self)
+        overrideImdbAction.triggered.connect(self.overrideID)
+        moviesTableRightMenu.addAction(overrideImdbAction)
+
+        moviesTableRightMenu.addSeparator()
 
         addToWatchListAction = QtWidgets.QAction("Add To Watch List", self)
         addToWatchListAction.triggered.connect(self.watchListAdd)
@@ -2501,6 +2529,8 @@ class MyWindow(QtWidgets.QMainWindow):
         addToBackupListAction = QtWidgets.QAction("Add To Backup List", self)
         addToBackupListAction.triggered.connect(self.backupListAdd)
         moviesTableRightMenu.addAction(addToBackupListAction)
+
+        moviesTableRightMenu.addSeparator()
 
         calculateSizesAction = QtWidgets.QAction("Calculate Folder Sizes", self)
         calculateSizesAction.triggered.connect(self.calculateFolderSizes)
@@ -2514,6 +2544,12 @@ class MyWindow(QtWidgets.QMainWindow):
         findDuplicatesAction.triggered.connect(self.findDuplicates)
         moviesTableRightMenu.addAction(findDuplicatesAction)
 
+        searchForOtherVersionsAction = QtWidgets.QAction("Search for other versions", self)
+        searchForOtherVersionsAction.triggered.connect(self.searchForOtherVersions)
+        moviesTableRightMenu.addAction(searchForOtherVersionsAction)
+
+        moviesTableRightMenu.addSeparator()
+
         addNewUserTagAction = QtWidgets.QAction("Add New User Tag", self)
         addNewUserTagAction.triggered.connect(self.addNewUserTag)
         moviesTableRightMenu.addAction(addNewUserTagAction)
@@ -2526,25 +2562,7 @@ class MyWindow(QtWidgets.QMainWindow):
         clearUserTagsAction.triggered.connect(self.clearUserTags)
         moviesTableRightMenu.addAction(clearUserTagsAction)
 
-        openFolderAction = QtWidgets.QAction("Open Folder", self)
-        openFolderAction.triggered.connect(self.openMovieFolder)
-        moviesTableRightMenu.addAction(openFolderAction)
-
-        openJsonAction = QtWidgets.QAction("Open Json File", self)
-        openJsonAction.triggered.connect(self.openMovieJson)
-        moviesTableRightMenu.addAction(openJsonAction)
-
-        openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
-        openImdbAction.triggered.connect(self.openMovieImdbPage)
-        moviesTableRightMenu.addAction(openImdbAction)
-
-        searchForOtherVersionsAction = QtWidgets.QAction("Search for other versions", self)
-        searchForOtherVersionsAction.triggered.connect(self.searchForOtherVersions)
-        moviesTableRightMenu.addAction(searchForOtherVersionsAction)
-
-        overrideImdbAction = QtWidgets.QAction("Override IMDB ID", self)
-        overrideImdbAction.triggered.connect(self.overrideID)
-        moviesTableRightMenu.addAction(overrideImdbAction)
+        moviesTableRightMenu.addSeparator()
 
         downloadDataAction = QtWidgets.QAction("Download Data", self)
         downloadDataAction.triggered.connect(self.downloadDataMenu)
@@ -2565,14 +2583,6 @@ class MyWindow(QtWidgets.QMainWindow):
                                                                            doJson=False,
                                                                            doCover=True))
         moviesTableRightMenu.addAction(downloadDataAction)
-
-        removeJsonFilesAction = QtWidgets.QAction("Remove .json files", self)
-        removeJsonFilesAction.triggered.connect(self.removeJsonFilesMenu)
-        moviesTableRightMenu.addAction(removeJsonFilesAction)
-
-        removeCoversAction = QtWidgets.QAction("Remove cover files", self)
-        removeCoversAction.triggered.connect(self.removeCoverFilesMenu)
-        moviesTableRightMenu.addAction(removeCoversAction)
 
         if self.moviesTableView.selectionModel().selectedRows():
             modelIndex = self.moviesTableView.selectionModel().selectedRows()[0]
