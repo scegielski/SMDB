@@ -2485,6 +2485,8 @@ class MyWindow(QtWidgets.QMainWindow):
     def moviesTableRightMenuShow(self, QPos):
         moviesTableRightMenu = QtWidgets.QMenu(self.moviesTableView)
 
+        moviesTableRightMenu.setStyleSheet("""QMenu::separator { background: white; }""")
+
         playAction = QtWidgets.QAction("Play")
         playAction.triggered.connect(lambda: self.playMovie(self.moviesTableView,
                                                             self.moviesTableProxyModel))
