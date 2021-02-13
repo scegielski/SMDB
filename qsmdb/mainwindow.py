@@ -1132,6 +1132,9 @@ class MyWindow(QtWidgets.QMainWindow):
 
             sourceIndex = self.moviesTableProxyModel.mapToSource(proxyIndex)
             moviePath = self.moviesTableModel.getPath(sourceIndex.row())
+            if not os.path.exists(moviePath):
+                continue
+
             movieFolderName = self.moviesTableModel.getFolderName(sourceIndex.row())
             folderSize = '%05d Mb' % bToMb(getFolderSize(moviePath))
 
@@ -1179,6 +1182,8 @@ class MyWindow(QtWidgets.QMainWindow):
 
             sourceIndex = self.moviesTableProxyModel.mapToSource(proxyIndex)
             moviePath = self.moviesTableModel.getPath(sourceIndex.row())
+            if not os.path.exists(moviePath):
+                continue
             movieFolderName = self.moviesTableModel.getFolderName(sourceIndex.row())
             width, height = self.getMovieDimensions(moviePath)
 
