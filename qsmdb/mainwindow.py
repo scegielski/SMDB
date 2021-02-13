@@ -879,14 +879,10 @@ class MyWindow(QtWidgets.QMainWindow):
         tableView = self.moviesTableView
         tableModel = self.moviesTableModel
         proxyModel = self.moviesTableProxyModel
+        tableView.setModel(proxyModel)
 
         # If forScan, sort by exists otherwise year
-        if forceScan:
-            proxyModel.sort(tableModel.Columns.JsonExists.value)
-        else:
-            proxyModel.sort(tableModel.Columns.Year.value)
-
-        tableView.setModel(proxyModel)
+        proxyModel.sort(tableModel.Columns.Year.value)
 
         try:
             tableView.doubleClicked.disconnect()
@@ -901,6 +897,9 @@ class MyWindow(QtWidgets.QMainWindow):
 
         tableView.setWordWrap(False)
 
+        if forceScan:
+            return
+
         # Set the column widths
         self.moviesTableColumnsVisible = []
         for col in tableModel.Columns:
@@ -908,15 +907,12 @@ class MyWindow(QtWidgets.QMainWindow):
             self.moviesTableColumnsVisible.append(True)
 
         columnsToShow = [tableModel.Columns.Year,
-                         tableModel.Columns.Cover,
+                         tableModel.Columns.Title,
+                         tableModel.Columns.Rating,
+                         tableModel.Columns.MpaaRating,
                          tableModel.Columns.Width,
                          tableModel.Columns.Height,
-                         tableModel.Columns.Size,
-                         tableModel.Columns.Genres,
-                         tableModel.Columns.BoxOffice,
-                         tableModel.Columns.MpaaRating,
-                         tableModel.Columns.Title,
-                         tableModel.Columns.Rating]
+                         tableModel.Columns.Size]
 
         for c in tableModel.Columns:
             index = c.value
@@ -927,9 +923,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Make the row height smaller
         tableView.verticalHeader().setMinimumSectionSize(10)
-        tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
-        tableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
-        tableView.verticalScrollBar().setSingleStep(10)
+        tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
 
         self.numVisibleMovies = proxyModel.rowCount()
         self.showMoviesTableSelectionStatus()
