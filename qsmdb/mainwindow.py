@@ -4,6 +4,7 @@ from pathlib import Path
 import imdb
 from imdb import IMDb
 import json
+import fnmatch
 import collections
 import webbrowser
 import shutil
@@ -2474,10 +2475,11 @@ class MyWindow(QtWidgets.QMainWindow):
         moveDownWatchListAction.triggered.connect(lambda: self.backupListMoveRow(self.MoveTo.DOWN))
         rightMenu.addAction(moveDownWatchListAction)
 
-        modelIndex = self.backupListTableView.selectionModel().selectedRows()[0]
-        self.clickedMovieTable(modelIndex,
-                               self.backupListTableModel,
-                               self.backupListTableProxyModel)
+        if self.backupListTableProxyModel.rowCount() > 0:
+            modelIndex = self.backupListTableView.selectionModel().selectedRows()[0]
+            self.clickedMovieTable(modelIndex,
+                                   self.backupListTableModel,
+                                   self.backupListTableProxyModel)
 
         rightMenu.exec_(QtGui.QCursor.pos())
 
