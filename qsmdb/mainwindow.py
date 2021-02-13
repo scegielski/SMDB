@@ -2463,6 +2463,10 @@ class MyWindow(QtWidgets.QMainWindow):
         removeNoDifferenceAction.triggered.connect(self.backupListRemoveNoDifference)
         rightMenu.addAction(removeNoDifferenceAction)
 
+        removeMissingInSourceAction = QtWidgets.QAction("Remove destination folders missing in source", self)
+        removeMissingInSourceAction.triggered.connect(self.backupListRemoveMissingInSource)
+        rightMenu.addAction(removeMissingInSourceAction)
+
         moveToTopWatchListAction = QtWidgets.QAction("Move To Top", self)
         moveToTopWatchListAction.triggered.connect(lambda: self.backupListMoveRow(self.MoveTo.TOP))
         rightMenu.addAction(moveToTopWatchListAction)
@@ -2817,6 +2821,41 @@ class MyWindow(QtWidgets.QMainWindow):
             self.backupListTableModel.removeMovie(row)
 
         self.backupListTableModel.changedLayout()
+
+    def backupListRemoveMissingInSource(self):
+        if not self.backupFolder:
+            mb = QtWidgets.QMessageBox()
+            mb.setText("Destination folder is not set")
+            mb.setIcon(QtWidgets.QMessageBox.Critical)
+            mb.exec()
+            return
+
+        sourceFolders = list()
+        for row in range(self.backupListTableModel.rowCount()):
+            sourceFolders.append(self.backupListTableModel.getFolderName(row))
+
+        destPathsToDelete = list()
+        with os.scandir(self.backupFolder) as files:
+            for f in files:
+                if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
+                    destFolder = f.name
+                    if destFolder not in sourceFolders:
+                        destPath = os.path.join(self.backupFolder, destFolder)
+                        print(f'delete: {destPath}')
+                        destPathsToDelete.append(destPath)
+
+        if len(destPathsToDelete) != 0:
+            mb = QtWidgets.QMessageBox()
+            mb.setText("Delete these folders that do not exist in source list?")
+            mb.setInformativeText('\n'.join([p for p in destPathsToDelete]))
+            mb.setStandardButtons(QMessageBox.Ok|QMessageBox.Cancel)
+            mb.setDefaultButton(QMessageBox.Cancel)
+            if mb.exec() == QMessageBox.Ok:
+                for p in destPathsToDelete:
+                    print(f"Deleting: {p}")
+                    shutil.rmtree(p,
+                                  ignore_errors=False,
+                                  onerror=handleRemoveReadonly)
 
     class MoveTo(Enum):
         DOWN = 0
