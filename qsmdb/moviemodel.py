@@ -7,7 +7,11 @@ from .utilities import *
 
 
 class MoviesTableModel(QtCore.QAbstractTableModel):
-    def __init__(self, smdbData, moviesFolders, forceScan=False, neverScan=False):
+    def __init__(self, smdbData,
+                 moviesFolders,
+                 forceScan=False,
+                 neverScan=False):
+
         super().__init__()
 
         self.movieSet = set()
@@ -80,19 +84,25 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                 for moviesFolder in moviesFolders:
                     moviePath = os.path.join(moviesFolder, title)
                     if os.path.exists(moviePath):
-                        moviesFolderDict[title] = moviePath
+                        moviesFolderDict[title] = [title, moviePath]
                         break
         else:
             for moviesFolder in moviesFolders:
                 with os.scandir(moviesFolder) as files:
                     for f in files:
                         if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
-                            moviesFolderDict[f.name] = f.path
+                            folderName = f.name
+                            moviePath = f.path
+                            key = folderName
+                            if key in moviesFolderDict:
+                                key = key + "duplicate"
+                            moviesFolderDict[key] = [folderName, moviePath]
                         else:
                             print("Not adding %s to movie list" % f.name)
 
-        for movieFolderName in moviesFolderDict.keys():
-            moviePath = moviesFolderDict[movieFolderName]
+        for key in moviesFolderDict.keys():
+            movieFolderName = moviesFolderDict[key][0]
+            moviePath = moviesFolderDict[key][1]
             data = {}
             if useSmdbData:
                 data = smdbData['titles'][movieFolderName]
@@ -111,9 +121,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                              movieFolderName)
 
             folderName = movieData[self.Columns.Folder.value]
-            if folderName not in self.movieSet:
-                self.movieSet.add(folderName)
-                self._data.append(movieData)
+            self.movieSet.add(folderName)
+            self._data.append(movieData)
 
         # Sort by year
         self.sort(self.Columns.Year.value, QtCore.Qt.AscendingOrder)
@@ -262,6 +271,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                 if os.path.exists(jsonFile):
                     movieData.append("True")
                 else:
+                    print(f"jsonFile {jsonFile} does not exit exist")
                     movieData.append("False")
             elif column == self.Columns.Folder:
                 movieData.append(movieFolderName)
