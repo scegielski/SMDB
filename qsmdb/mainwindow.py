@@ -98,8 +98,19 @@ def getFolderSize(startPath='.'):
             # skip if it is symbolic link
             if not os.path.islink(fp):
                 total_size += os.path.getsize(fp)
-
     return total_size
+
+def getFolderSizes(path):
+    fileAndSizes = dict()
+    for f in os.listdir(path):
+        fullPath = os.path.join(path, f)
+        if os.path.isdir(fullPath):
+            fileSize = getFolderSize(fullPath)
+        else:
+            fileSize = os.path.getsize(fullPath)
+        fileAndSizes[f] = fileSize
+    return fileAndSizes
+
 
 
 class MyWindow(QtWidgets.QMainWindow):
@@ -123,7 +134,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Init UI
         self.setTitleBar()
-        self.setGeometry(50, 50, 1820, 980)
+        self.setGeometry(50, 50, 1820, 900)
 
         # Set foreground/background colors for item views
         self.setStyleSheet("""QAbstractItemView{ background: black; color: white; }; """)
@@ -135,7 +146,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.showMovieInfo = True
         self.showMovieSection = True
         self.showSummary = True
-        self.showWatchList = True
+        self.showWatchList = False
         self.showBackupList = False
 
         # Default state of cancel button
@@ -225,11 +236,23 @@ class MyWindow(QtWidgets.QMainWindow):
         self.backupListColumnsVisible = []
         self.backupListHeaderActions = []
         self.backupFolderEdit = QtWidgets.QLineEdit()
-        self.backupFolder = ''
+
+        self.backupFolder = 'K:\Movies'
+
         self.initUIBackupList()
         moviesWatchListBackupVSplitter.addWidget(self.backupListWidget)
         if not self.showBackupList:
             self.backupListWidget.hide()
+
+        drive = os.path.splitdrive(self.backupFolder)[0]
+        self.spaceTotal, self.spaceUsed, self.spaceFree = shutil.disk_usage(drive)
+        self.spaceUsedPercent = self.spaceUsed / self.spaceTotal
+        self.spaceBarLayout.setStretch(0, self.spaceUsedPercent * 1000)
+        self.spaceBarLayout.setStretch(2, (1.0 - self.spaceUsedPercent) * 1000)
+        self.spaceAvailableLabel.setText("%dGb  Of  %dGb  Used       %dGb Free" % \
+                                         (bToGb(self.spaceUsed),
+                                          bToGb(self.spaceTotal),
+                                          bToGb(self.spaceFree)))
 
         moviesWatchListBackupVSplitter.setSizes([500, 200, 200])
 
@@ -801,6 +824,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.backupFolderEdit.setStyleSheet("background: black; color: white; border-radius: 5px")
         self.backupFolderEdit.setFont(QtGui.QFont('TimesNew Roman', 12))
         self.backupFolderEdit.setReadOnly(True)
+        self.backupFolderEdit.setText(self.backupFolder)
         backupFolderHLayout.addWidget(self.backupFolderEdit)
 
         browseButton = QtWidgets.QPushButton("Browse")
@@ -1101,9 +1125,6 @@ class MyWindow(QtWidgets.QMainWindow):
             drive = os.path.splitdrive(self.backupFolder)[0]
 
             self.spaceTotal, self.spaceUsed, self.spaceFree = shutil.disk_usage(drive)
-            self.spaceTotal = self.spaceTotal
-            self.spaceUsed = self.spaceUsed
-            self.spaceFree = self.spaceFree
             self.spaceUsedPercent = self.spaceUsed / self.spaceTotal
             self.spaceBarLayout.setStretch(0, self.spaceUsedPercent * 1000)
             self.spaceBarLayout.setStretch(2, (1.0 - self.spaceUsedPercent) * 1000)
@@ -1301,18 +1322,9 @@ class MyWindow(QtWidgets.QMainWindow):
                 destFolderSize = getFolderSize(destPath)
             self.destFolderSizes[sourceFolderName] = destFolderSize
 
-            sourceFilesAndSizes = dict()
-            for f in os.listdir(sourcePath):
-                fullPath = os.path.join(sourcePath, f)
-                fileSize = os.path.getsize(fullPath)
-                sourceFilesAndSizes[f] = fileSize
-
-            destFilesAndSizes = dict()
+            sourceFilesAndSizes = getFolderSizes(sourcePath)
             if os.path.exists(destPath):
-                for f in os.listdir(destPath):
-                    fullPath = os.path.join(destPath, f)
-                    fileSize = os.path.getsize(fullPath)
-                    destFilesAndSizes[f] = fileSize
+                destFilesAndSizes = getFolderSizes(destPath)
 
             if not os.path.exists(destPath):
                 self.backupListTableModel.setBackupStatus(sourceIndex, "Folder Missing")
@@ -1334,9 +1346,11 @@ class MyWindow(QtWidgets.QMainWindow):
 
                 # Check if the destination file is the same size as the source file
                 if not replaceFolder:
-                    destFileSize = os.path.getsize(fullDestPath)
+                    #destFileSize = os.path.getsize(fullDestPath)
+                    destFileSize = destFilesAndSizes[f]
                     sourceFileSize = sourceFilesAndSizes[f]
                     if sourceFileSize != destFileSize:
+                        print(f'different size {fullDestPath} source={sourceFileSize} dest={destFileSize}')
                         self.backupListTableModel.setBackupStatus(sourceIndex, "File Size Difference")
                         replaceFolder = True
                         break
@@ -1347,6 +1361,7 @@ class MyWindow(QtWidgets.QMainWindow):
                     # Check if the destination file exists
                     fullSourcePath = os.path.join(sourcePath, f)
                     if not os.path.exists(fullSourcePath):
+                        print(f'missing source file {fullDestPath}')
                         self.backupListTableModel.setBackupStatus(sourceIndex, "Files Missing (Source)")
                         replaceFolder = True
                         break
@@ -1456,7 +1471,7 @@ class MyWindow(QtWidgets.QMainWindow):
                       "   Average rate = %06d Mb/s" \
                       "   %10d Mb Remaining" \
                       "   Time remaining: %03d Hours %02d minutes" % \
-                      (progress + 1,
+                      (progress,
                        numItems,
                        title,
                        bToMb(sourceFolderSize),
@@ -2435,12 +2450,35 @@ class MyWindow(QtWidgets.QMainWindow):
         else:
             print("Folder doesn't exist")
 
+    def backupListAddAllMoviesFrom(self, moviesFolder):
+        print(f'moviesFolder = {moviesFolder}')
+        self.backupListTableModel.layoutAboutToBeChanged.emit()
+        numItems = self.moviesTableModel.rowCount()
+        for row in range(numItems):
+            path = self.moviesTableModel.getPath(row)
+            if moviesFolder in path:
+                self.backupListTableModel.addMovie(self.moviesSmdbData,
+                                                   path)
+        self.backupListTableModel.changedLayout()
+        self.backupAnalysed = False
+
     def backupListTableRightMenuShow(self, QPos):
         rightMenu = QtWidgets.QMenu(self.moviesTableView)
+        rightMenu.clear()
 
         selectAllAction = QtWidgets.QAction("Select All", self)
         selectAllAction.triggered.connect(lambda: self.tableSelectAll(self.backupListTableView))
         rightMenu.addAction(selectAllAction)
+
+        movieFolders = list()
+        movieFolders.extend(self.additionalMoviesFolders)
+        movieFolders.append(self.moviesFolder)
+        actions = list()
+        for f in movieFolders:
+            tmpAction = QtWidgets.QAction(f"Add all movies from {f}")
+            tmpAction.triggered.connect(lambda a, folder=f: self.backupListAddAllMoviesFrom(folder))
+            rightMenu.addAction(tmpAction)
+            actions.append(tmpAction)
 
         playAction = QtWidgets.QAction("Play", self)
         playAction.triggered.connect(lambda: self.playMovie(self.backupListTableView,
