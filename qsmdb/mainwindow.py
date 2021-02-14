@@ -237,22 +237,10 @@ class MyWindow(QtWidgets.QMainWindow):
         self.backupListHeaderActions = []
         self.backupFolderEdit = QtWidgets.QLineEdit()
 
-        self.backupFolder = 'K:\Movies'
-
         self.initUIBackupList()
         moviesWatchListBackupVSplitter.addWidget(self.backupListWidget)
         if not self.showBackupList:
             self.backupListWidget.hide()
-
-        drive = os.path.splitdrive(self.backupFolder)[0]
-        self.spaceTotal, self.spaceUsed, self.spaceFree = shutil.disk_usage(drive)
-        self.spaceUsedPercent = self.spaceUsed / self.spaceTotal
-        self.spaceBarLayout.setStretch(0, self.spaceUsedPercent * 1000)
-        self.spaceBarLayout.setStretch(2, (1.0 - self.spaceUsedPercent) * 1000)
-        self.spaceAvailableLabel.setText("%dGb  Of  %dGb  Used       %dGb Free" % \
-                                         (bToGb(self.spaceUsed),
-                                          bToGb(self.spaceTotal),
-                                          bToGb(self.spaceFree)))
 
         moviesWatchListBackupVSplitter.setSizes([500, 200, 200])
 
