@@ -2617,6 +2617,10 @@ class MyWindow(QtWidgets.QMainWindow):
                                                                            doCover=True))
         moviesTableRightMenu.addAction(downloadDataAction)
 
+        downloadSubtitlesAction = QtWidgets.QAction("Download Subtitles", self)
+        downloadSubtitlesAction.triggered.connect(self.downloadSubtitles)
+        moviesTableRightMenu.addAction(downloadSubtitlesAction)
+
         if self.moviesTableView.selectionModel().selectedRows():
             modelIndex = self.moviesTableView.selectionModel().selectedRows()[0]
             self.clickedMovieTable(modelIndex,
@@ -3010,6 +3014,11 @@ class MyWindow(QtWidgets.QMainWindow):
         sourceRow = self.getSelectedRow()
         movieId = self.moviesTableModel.getId(sourceRow)
         webbrowser.open('http://imdb.com/title/tt%s' % movieId, new=2)
+
+    def downloadSubtitles(self):
+        sourceRow = self.getSelectedRow()
+        movieId = self.moviesTableModel.getId(sourceRow)
+        webbrowser.open(f'https://yifysubtitles.org/movie-imdb/tt{movieId}')
 
     def searchForOtherVersions(self):
         sourceRow = self.getSelectedRow()
