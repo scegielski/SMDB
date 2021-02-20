@@ -344,7 +344,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesSmdbData = None
         self.moviesTableModel = None
         self.moviesTableProxyModel = None
-        self.refreshMoviesList()
+        self.rescanMovieDirectories()
 
         self.populateFiltersTable()
 
@@ -366,6 +366,10 @@ class MyWindow(QtWidgets.QMainWindow):
         menuBar = self.menuBar()
         fileMenu = menuBar.addMenu('File')
 
+        rescanAction = QtWidgets.QAction("Rescan movie directories", self)
+        rescanAction.triggered.connect(lambda: self.rescanMovieDirectories(forceScan=True))
+        fileMenu.addAction(rescanAction)
+
         rebuildSmdbFileAction = QtWidgets.QAction("Rebuild SMDB file", self)
         rebuildSmdbFileAction.triggered.connect(lambda: self.writeSmdbFile(self.moviesSmdbFile,
                                                                            self.moviesTableModel))
@@ -382,10 +386,6 @@ class MyWindow(QtWidgets.QMainWindow):
         clearAdditionalMoviesFolderAction = QtWidgets.QAction("Clear additional movies folders", self)
         clearAdditionalMoviesFolderAction.triggered.connect(self.clearAdditionalMoviesFolders)
         fileMenu.addAction(clearAdditionalMoviesFolderAction)
-
-        refreshAction = QtWidgets.QAction("Refresh movies dir", self)
-        refreshAction.triggered.connect(lambda: self.refreshMoviesList(forceScan=True))
-        fileMenu.addAction(refreshAction)
 
         preferencesAction = QtWidgets.QAction("Preferences", self)
         preferencesAction.triggered.connect(self.preferences)
@@ -869,7 +869,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.movieCover.setStyleSheet("background-color: black;")
         movieVLayout.addWidget(self.movieCover)
 
-    def refreshMoviesList(self, forceScan=False):
+    def rescanMovieDirectories(self, forceScan=False):
         moviesFolders = [self.moviesFolder]
         moviesFolders += self.additionalMoviesFolders
         if os.path.exists(self.moviesSmdbFile):
@@ -1067,7 +1067,7 @@ class MyWindow(QtWidgets.QMainWindow):
             print("Saved: moviesFolder = %s" % self.moviesFolder)
             self.moviesSmdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
             readSmdbFile(self.moviesSmdbFile)
-            self.refreshMoviesList()
+            self.rescanMovieDirectories()
 
     def browseAdditionalMoviesFolder(self):
         browseDir = str(Path.home())
