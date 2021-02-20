@@ -1122,6 +1122,29 @@ class MyWindow(QtWidgets.QMainWindow):
                                               bToGb(self.spaceTotal),
                                               bToGb(self.spaceFree)))
 
+    def calculateFolderSize(self, sourceIndex, moviePath, movieFolderName):
+        folderSize = '%05d Mb' % bToMb(getFolderSize(moviePath))
+
+        jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
+        if not os.path.exists(jsonFile):
+            return
+
+        data = {}
+        with open(jsonFile) as f:
+            try:
+                data = json.load(f)
+            except UnicodeDecodeError:
+                print("Error reading %s" % jsonFile)
+
+        data["size"] = folderSize
+        try:
+            with open(jsonFile, "w") as f:
+                json.dump(data, f, indent=4)
+        except:
+            print("Error writing json file: %s" % jsonFile)
+
+        self.moviesTableModel.setSize(sourceIndex, folderSize)
+
     def calculateFolderSizes(self):
         numSelectedItems = len(self.moviesTableView.selectionModel().selectedRows())
         self.progressBar.setMaximum(numSelectedItems)
@@ -1141,36 +1164,45 @@ class MyWindow(QtWidgets.QMainWindow):
             self.progressBar.setValue(progress)
 
             sourceIndex = self.moviesTableProxyModel.mapToSource(proxyIndex)
+            movieFolderName = self.moviesTableModel.getFolderName(sourceIndex.row())
             moviePath = self.moviesTableModel.getPath(sourceIndex.row())
             if not os.path.exists(moviePath):
                 continue
 
-            movieFolderName = self.moviesTableModel.getFolderName(sourceIndex.row())
-            folderSize = '%05d Mb' % bToMb(getFolderSize(moviePath))
 
-            jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
-            if not os.path.exists(jsonFile):
-                return
-
-            data = {}
-            with open(jsonFile) as f:
-                try:
-                    data = json.load(f)
-                except UnicodeDecodeError:
-                    print("Error reading %s" % jsonFile)
-
-            data["size"] = folderSize
-
-            self.moviesTableModel.setSize(sourceIndex, folderSize)
-
-            try:
-                with open(jsonFile, "w") as f:
-                    json.dump(data, f, indent=4)
-            except:
-                print("Error writing json file: %s" % jsonFile)
+            self.calculateFolderSize(sourceIndex, moviePath, movieFolderName)
 
         self.moviesTableModel.changedLayout()
         self.progressBar.setValue(0)
+
+    def calculateMovieDimension(self, sourceIndex, moviePath, movieFolderName):
+        width, height = self.getMovieDimensions(moviePath)
+
+        jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
+        if not os.path.exists(jsonFile):
+            return
+
+        data = {}
+        with open(jsonFile) as f:
+            try:
+                data = json.load(f)
+            except UnicodeDecodeError:
+                print("Error reading %s" % jsonFile)
+
+        data["width"] = width
+        data["height"] = height
+
+        self.moviesTableModel.setMovieData(sourceIndex.row(),
+                                           data,
+                                           moviePath,
+                                           movieFolderName)
+
+        try:
+            with open(jsonFile, "w") as f:
+                json.dump(data, f, indent=4)
+        except:
+            print("Error writing json file: %s" % jsonFile)
+        pass
 
     def calculateMovieDimensions(self):
         numSelectedItems = len(self.moviesTableView.selectionModel().selectedRows())
@@ -1191,33 +1223,12 @@ class MyWindow(QtWidgets.QMainWindow):
             self.progressBar.setValue(progress)
 
             sourceIndex = self.moviesTableProxyModel.mapToSource(proxyIndex)
+            movieFolderName = self.moviesTableModel.getFolderName(sourceIndex.row())
             moviePath = self.moviesTableModel.getPath(sourceIndex.row())
             if not os.path.exists(moviePath):
                 continue
-            movieFolderName = self.moviesTableModel.getFolderName(sourceIndex.row())
-            width, height = self.getMovieDimensions(moviePath)
 
-            jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
-            if not os.path.exists(jsonFile):
-                return
-
-            data = {}
-            with open(jsonFile) as f:
-                try:
-                    data = json.load(f)
-                except UnicodeDecodeError:
-                    print("Error reading %s" % jsonFile)
-
-            data["width"] = width
-            data["height"] = height
-
-            self.moviesTableModel.setMovieData(sourceIndex.row(), data, moviePath, movieFolderName)
-
-            try:
-                with open(jsonFile, "w") as f:
-                    json.dump(data, f, indent=4)
-            except:
-                print("Error writing json file: %s" % jsonFile)
+            self.calculateMovieDimension(sourceIndex, moviePath, movieFolderName)
 
         self.moviesTableModel.changedLayout()
         self.progressBar.setValue(0)
@@ -3051,7 +3062,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.progressBar.setMaximum(numSelectedItems)
         progress = 0
         self.isCanceled = False
-        for modelIndex in self.moviesTableView.selectionModel().selectedRows():
+        for proxyIndex in self.moviesTableView.selectionModel().selectedRows():
             QtCore.QCoreApplication.processEvents()
             if self.isCanceled:
                 self.statusBar().showMessage('Cancelled')
@@ -3059,7 +3070,10 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.progressBar.setValue(0)
                 return
 
-            sourceRow = self.getSourceRow(modelIndex)
+            progress += 1
+            self.progressBar.setValue(progress)
+
+            sourceRow = self.getSourceRow(proxyIndex)
             title = self.moviesTableModel.getTitle(sourceRow)
             message = "Downloading data (%d/%d): %s" % (progress + 1,
                                                         numSelectedItems,
@@ -3067,15 +3081,19 @@ class MyWindow(QtWidgets.QMainWindow):
             self.statusBar().showMessage(message)
             QtCore.QCoreApplication.processEvents()
 
-            self.downloadMovieData(modelIndex, force, doJson=doJson, doCover=doCover)
-            self.moviesTableView.selectRow(modelIndex.row())
-            self.clickedMovieTable(modelIndex,
+            movieFolderName = self.moviesTableModel.getFolderName(sourceRow)
+            moviePath = self.moviesTableModel.getPath(sourceRow)
+            if not os.path.exists(moviePath):
+                continue
+
+            self.downloadMovieData(proxyIndex, force, doJson=doJson, doCover=doCover)
+            self.calculateFolderSize(proxyIndex, moviePath, movieFolderName)
+            self.calculateMovieDimension(proxyIndex, moviePath, movieFolderName)
+            self.moviesTableView.selectRow(proxyIndex.row())
+            self.clickedMovieTable(proxyIndex,
                                    self.moviesTableModel,
                                    self.moviesTableProxyModel)
 
-            progress += 1
-            self.progressBar.setValue(progress)
-        self.statusBar().showMessage("Done")
         self.progressBar.setValue(0)
 
     def removeJsonFilesMenu(self):
