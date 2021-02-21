@@ -13,6 +13,8 @@ import stat
 import time
 from pymediainfo import MediaInfo
 
+# pyinstaller --add-data ./MediaInfo.dll;. --onefile --noconsole --name SMDB run.py
+
 from .utilities import *
 from .moviemodel import MoviesTableModel
 
@@ -2662,10 +2664,6 @@ class MyWindow(QtWidgets.QMainWindow):
                 movieFiles.append(file)
         if len(movieFiles) == 1:
             fileToPlay = os.path.join(moviePath, movieFiles[0])
-            info = MediaInfo.parse(fileToPlay)
-            for track in info.tracks:
-                if track.track_type == 'Video':
-                    print("Width = %s Height = %s" % (track.width, track.height))
             if os.path.exists(fileToPlay):
                 runFile(fileToPlay)
         else:
