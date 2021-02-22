@@ -1235,6 +1235,37 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableModel.changedLayout()
         self.progressBar.setValue(0)
 
+    def findMovieInMovie(self):
+        numItems = self.moviesTableModel.rowCount()
+        self.progressBar.setMaximum(numItems)
+        progress = 0
+        self.isCanceled = False
+
+        self.moviesTableModel.aboutToChangeLayout()
+        titleYearSet = set()
+        duplicates = set()
+        for row in range(numItems):
+            QtCore.QCoreApplication.processEvents()
+            if self.isCanceled:
+                self.statusBar().showMessage('Cancelled')
+                self.isCanceled = False
+                self.progressBar.setValue(0)
+                self.movieTableModel.changedLayout()
+                return
+
+            progress += 1
+            self.progressBar.setValue(progress)
+
+            modelIndex = self.moviesTableModel.index(row, 0)
+            moviePath = self.moviesTableModel.getPath(modelIndex.row())
+            with os.scandir(moviePath) as files:
+                for f in files:
+                    if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
+                        print(f"Movie: {moviePath} contains other movie: {f.name}")
+
+        self.moviesTableModel.changedLayout()
+        self.progressBar.setValue(0)
+
     def findDuplicates(self):
         numItems = self.moviesTableModel.rowCount()
         self.progressBar.setMaximum(numItems)
@@ -2609,6 +2640,10 @@ class MyWindow(QtWidgets.QMainWindow):
         findDuplicatesAction = QtWidgets.QAction("Find Duplicates", self)
         findDuplicatesAction.triggered.connect(self.findDuplicates)
         moviesTableRightMenu.addAction(findDuplicatesAction)
+
+        findMovieInMovieAction = QtWidgets.QAction("Find Movie in Movie", self)
+        findMovieInMovieAction.triggered.connect(self.findMovieInMovie)
+        moviesTableRightMenu.addAction(findMovieInMovieAction)
 
         searchForOtherVersionsAction = QtWidgets.QAction("Search for other versions", self)
         searchForOtherVersionsAction.triggered.connect(self.searchForOtherVersions)
