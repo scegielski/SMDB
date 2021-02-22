@@ -1347,11 +1347,13 @@ class MyWindow(QtWidgets.QMainWindow):
 
                 # Check if the destination file is the same size as the source file
                 if not replaceFolder:
-                    #destFileSize = os.path.getsize(fullDestPath)
-                    destFileSize = destFilesAndSizes[f]
+                    if f in destFilesAndSizes:
+                        destFileSize = destFilesAndSizes[f]
+                    else:
+                        destFileSize = os.path.getsize(fullDestPath)
                     sourceFileSize = sourceFilesAndSizes[f]
                     if sourceFileSize != destFileSize:
-                        print(f'different size {fullDestPath} source={sourceFileSize} dest={destFileSize}')
+                        print(f'{title} file size difference.  File:{f} Source={sourceFileSize} Dest={destFileSize}')
                         self.backupListTableModel.setBackupStatus(sourceIndex, "File Size Difference")
                         replaceFolder = True
                         break
@@ -1497,12 +1499,14 @@ class MyWindow(QtWidgets.QMainWindow):
 
                 # Copy any files that are missing or have different sizes
                 for f in os.listdir(sourcePath):
+
                     sourceFilePath = os.path.join(sourcePath, f)
-                    sourceFileSize = os.path.getsize(sourceFilePath)
+                    if os.path.isdir(sourceFilePath):
+                        sourceFileSize = getFolderSize(sourceFilePath)
+                    else:
+                        sourceFileSize = os.path.getsize(sourceFilePath)
+
                     destFilePath = os.path.join(destPath, f)
-                    destFileSize = 0
-                    if os.path.exists(destFilePath):
-                        destFileSize = os.path.getsize(destFilePath)
 
                     if not os.path.exists(destFilePath):
                         bytesCopied += sourceFileSize
@@ -1510,10 +1514,24 @@ class MyWindow(QtWidgets.QMainWindow):
                             shutil.copytree(sourceFilePath, destFilePath)
                         else:
                             shutil.copy(sourceFilePath, destFilePath)
-                    elif sourceFileSize != destFileSize:
-                        bytesCopied += sourceFileSize
-                        if not os.path.isdir(sourceFilePath):
-                            shutil.copy(sourceFilePath, destFilePath)
+                    else:
+                        destFileSize = 0
+                        if os.path.exists(destFilePath):
+                            if os.path.isdir(destFilePath):
+                                destFileSize = getFolderSize(destFilePath)
+                            else:
+                                destFileSize = os.path.getsize(destFilePath)
+
+                        if sourceFileSize != destFileSize:
+                            bytesCopied += sourceFileSize
+                            if os.path.isdir(sourceFilePath):
+                                shutil.rmtree(destFilePath,
+                                              ignore_errors=False,
+                                              onerror=handleRemoveReadonly)
+
+                                shutil.copytree(sourceFilePath, destFilePath)
+                            else:
+                                shutil.copy(sourceFilePath, destFilePath)
 
                 # Remove any files in the destination dir that
                 # are not in the source dir
@@ -1546,9 +1564,10 @@ class MyWindow(QtWidgets.QMainWindow):
                 totalTimeToCopy += secondsToCopy
                 totalBytesCopied += bytesCopied
                 averageBytesPerSecond = totalBytesCopied / totalTimeToCopy
-                estimatedSecondsRemaining = bytesRemaining // averageBytesPerSecond
-                estimatedMinutesRemaining = (estimatedSecondsRemaining // 60) % 60
-                estimatedHoursRemaining = estimatedSecondsRemaining // 3600
+                if averageBytesPerSecond != 0:
+                    estimatedSecondsRemaining = bytesRemaining // averageBytesPerSecond
+                    estimatedMinutesRemaining = (estimatedSecondsRemaining // 60) % 60
+                    estimatedHoursRemaining = estimatedSecondsRemaining // 3600
 
         self.backupListTableModel.changedLayout()
         self.statusBar().showMessage("Done")
@@ -2519,10 +2538,11 @@ class MyWindow(QtWidgets.QMainWindow):
         rightMenu.addAction(moveDownWatchListAction)
 
         if self.backupListTableProxyModel.rowCount() > 0:
-            modelIndex = self.backupListTableView.selectionModel().selectedRows()[0]
-            self.clickedMovieTable(modelIndex,
-                                   self.backupListTableModel,
-                                   self.backupListTableProxyModel)
+            if len(self.backupListTableView.selectionModel().selectedRows()) > 0:
+                modelIndex = self.backupListTableView.selectionModel().selectedRows()[0]
+                self.clickedMovieTable(modelIndex,
+                                       self.backupListTableModel,
+                                       self.backupListTableProxyModel)
 
         rightMenu.exec_(QtGui.QCursor.pos())
 
