@@ -119,6 +119,76 @@ def getFolderSizes(path):
     return fileAndSizes
 
 
+class GlWidget(QtWidgets.QOpenGLWidget):
+    def initializeGL(self) -> None:
+        super().initializeGL()
+        gl_context = self.context()
+        version = QtGui.QOpenGLVersionProfile()
+        version.setVersion(2, 1)
+        self.gl = gl_context.versionFunctions(version)
+
+        self.gl.glEnable(self.gl.GL_DEPTH_TEST)
+        self.gl.glDepthFunc(self.gl.GL_LESS)
+        self.gl.glEnable(self.gl.GL_CULL_FACE)
+
+        self.program = QtGui.QOpenGLShaderProgram()
+        self.program.addShaderFromSourceFile(QtGui.QOpenGLShader.Vertex, 'vertex_shader.glsl')
+        self.program.addShaderFromSourceFile(QtGui.QOpenGLShader.Fragment, 'fragment_shader.glsl')
+        self.program.link()
+
+        self.vertex_location = self.program.attributeLocation('vertex')
+        self.matrix_location = self.program.uniformLocation('matrix')
+        self.color_location = self.program.attributeLocation('color_attr')
+
+        self.view_matrix = QtGui.QMatrix4x4()
+        self.view_matrix.perspective(
+            45, # Angle
+            self.width() / self.height(), # Aspect Ratio
+            0.1, # Near clipping plane
+            100.0, # Far clipping plane
+        )
+        self.view_matrix.translate(0, 0, -5)
+
+    def paintGL(self) -> None:
+        self.gl.glClearColor(0.1, 0.0, 0.2, 1.0)
+        self.gl.glClear(
+            self.gl.GL_COLOR_BUFFER_BIT | self.gl.GL_DEPTH_BUFFER_BIT
+        )
+        self.program.bind()
+
+        front_vertices = [
+            QtGui.QVector3D(0.0, 1.0, 0.0),
+            QtGui.QVector3D(-1.0, 0.0, 0.0),
+            QtGui.QVector3D(1.0, 0.0, 0.0),
+        ]
+
+        face_colors = [
+            QtGui.QColor('red'),
+            QtGui.QColor('orange'),
+            QtGui.QColor('yellow'),
+        ]
+
+        gl_colors = [
+            self.qcolor_to_glvec(color)
+            for color in face_colors
+        ]
+
+        self.program.setUniformValue(self.matrix_location, self.view_matrix)
+
+        self.program.enableAttributeArray(self.vertex_location)
+        self.program.setAttributeArray(self.vertex_location, front_vertices)
+        self.program.enableAttributeArray(self.color_location)
+        self.program.setAttributeArray(self.color_location, gl_colors)
+
+        self.gl.glDrawArrays(self.gl.GL_TRIANGLES, 0, 3)
+
+    def qcolor_to_glvec(self, qcolor):
+        return QtGui.QVector3D(
+            qcolor.red() / 255,
+            qcolor.green() / 255,
+            qcolor.blue() / 255
+        )
+
 
 class MyWindow(QtWidgets.QMainWindow):
     def __init__(self):
@@ -298,13 +368,23 @@ class MyWindow(QtWidgets.QMainWindow):
         if not self.showMovieInfo:
             self.movieInfoWidget.hide()
 
+
         # Cover
         self.coverWidget = QtWidgets.QWidget()
         self.movieCover = QtWidgets.QLabel()
         self.initUICover()
-        coverInfoHSplitter.addWidget(self.coverWidget)
         if not self.showCover:
             self.coverWidget.hide()
+
+        # GL
+        self.openGlWidget = GlWidget()
+
+        # Cover / GL Tabs
+        coverTabWidget = QtWidgets.QTabWidget()
+        coverTabWidget.addTab(self.coverWidget, "Cover")
+        coverTabWidget.addTab(self.openGlWidget, "OpenGL Test")
+
+        coverInfoHSplitter.addWidget(coverTabWidget)
 
         coverInfoHSplitter.setSizes([250, 450])
 
