@@ -12,6 +12,7 @@ import os
 import stat
 import time
 from pymediainfo import MediaInfo
+import numpy as np
 
 # TODO List
 # OpenGL cover viewer
@@ -135,10 +136,13 @@ class GlWidget(QtWidgets.QOpenGLWidget):
         self.program.addShaderFromSourceFile(QtGui.QOpenGLShader.Vertex, 'vertex_shader.glsl')
         self.program.addShaderFromSourceFile(QtGui.QOpenGLShader.Fragment, 'fragment_shader.glsl')
         self.program.link()
+        self.program.bind()
+        self.program.setUniformValue('texture', 0)
 
         self.vertex_location = self.program.attributeLocation('vertex')
         self.matrix_location = self.program.uniformLocation('matrix')
         self.color_location = self.program.attributeLocation('color_attr')
+        self.texture_coordinates_location = self.program.attributeLocation('texture_coordinates')
 
         self.view_matrix = QtGui.QMatrix4x4()
         self.view_matrix.perspective(
@@ -148,6 +152,9 @@ class GlWidget(QtWidgets.QOpenGLWidget):
             100.0, # Far clipping plane
         )
         self.view_matrix.translate(0, 0, -5)
+
+        self.test_texture = QtGui.QOpenGLTexture(QtGui.QImage("test.jpg"))
+        self.test_texture.setMaximumAnisotropy(16)
 
         self.rotation = [1, 0, 1, 0]
 
@@ -162,7 +169,21 @@ class GlWidget(QtWidgets.QOpenGLWidget):
             QtGui.QVector3D(-1.0, 1.5, 0.0),
             QtGui.QVector3D(1.0, 1.5, 0.0),
             QtGui.QVector3D(1.0, -1.5, 0.0),
-            QtGui.QVector3D(-1.0, -1.5, 0.0),
+            QtGui.QVector3D(-1.0, -1.5, 0.0)
+        ]
+
+        front_texture_coordinates = [
+            QtGui.QVector2D(1.0, 0.0),
+            QtGui.QVector2D(0.0, 0.0),
+            QtGui.QVector2D(0.0, 1.0),
+            QtGui.QVector2D(1.0, 1.0)
+        ]
+
+        back_texture_coordinates = [
+            QtGui.QVector2D(0.0, 1.0),
+            QtGui.QVector2D(1.0, 1.0),
+            QtGui.QVector2D(1.0, 0.0),
+            QtGui.QVector2D(0.0, 0.0)
         ]
 
         face_colors = [
@@ -180,15 +201,25 @@ class GlWidget(QtWidgets.QOpenGLWidget):
         self.program.setUniformValue(self.matrix_location, self.view_matrix)
 
         self.program.enableAttributeArray(self.vertex_location)
-        self.program.setAttributeArray(self.vertex_location, front_vertices)
+        self.program.setAttributeArray(self.vertex_location,
+                                       front_vertices)
         self.program.enableAttributeArray(self.color_location)
         self.program.setAttributeArray(self.color_location, gl_colors)
+        self.program.enableAttributeArray(self.texture_coordinates_location)
+        self.program.setAttributeArray(self.texture_coordinates_location,
+                                       front_texture_coordinates)
+
+        # Bind the texture
+        self.test_texture.bind()
 
         # Draw the front
         self.gl.glDrawArrays(self.gl.GL_QUADS, 0, 4)
 
         # Draw the back
-        self.program.setAttributeArray(self.vertex_location, reversed(front_vertices))
+        self.program.setAttributeArray(self.vertex_location,
+                                       reversed(front_vertices))
+        self.program.setAttributeArray(self.texture_coordinates_location,
+                                       back_texture_coordinates)
         self.gl.glDrawArrays(self.gl.GL_QUADS, 0, 4)
 
         self.program.disableAttributeArray(self.vertex_location)
