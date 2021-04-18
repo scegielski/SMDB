@@ -13,6 +13,11 @@ import stat
 import time
 from pymediainfo import MediaInfo
 
+# TODO List
+# OpenGL cover viewer
+# Delete movie menu
+# Pick random movie
+
 # pyinstaller --add-data ./MediaInfo.dll;. --onefile --noconsole --name SMDB run.py
 
 from .utilities import *
@@ -3094,7 +3099,8 @@ class MyWindow(QtWidgets.QMainWindow):
         url1337x = f"https://1337x.to/search/{titlePlus}+{year}/1/"
         urlRarBG = f"http://rarbg.to/torrents.php?search={titlePlus}+%28{year}%29"
         usrlLimeTorrents = f"https://www.limetorrents.info/search/all/{titleMinus}-%20{year}%20/"
-        urls = [urlPirateBay, url1337x, urlRarBG, usrlLimeTorrents]
+        urlYts = f"https://yts.mx/movies/{titleMinus.lower()}-{year}"
+        urls = [urlPirateBay, url1337x, urlRarBG, usrlLimeTorrents, urlYts]
         for u in urls:
             webbrowser.open(u, new=2)
 
