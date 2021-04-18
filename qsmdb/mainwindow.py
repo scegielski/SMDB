@@ -153,10 +153,13 @@ class GlWidget(QtWidgets.QOpenGLWidget):
         )
         self.view_matrix.translate(0, 0, -5)
 
-        self.test_texture = QtGui.QOpenGLTexture(QtGui.QImage("test.jpg"))
         self.test_texture.setMaximumAnisotropy(16)
+        self.test_texture.setMagnificationFilter(QtGui.QOpenGLTexture.Linear)
 
         self.rotation = [1, 0, 1, 0]
+
+    def setTexture(self, imageName):
+        self.test_texture = QtGui.QOpenGLTexture(QtGui.QImage(imageName))
 
     def paintGL(self) -> None:
         self.gl.glClearColor(0.1, 0.0, 0.2, 1.0)
@@ -2047,6 +2050,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def showCoverFile(self, coverFile):
         if os.path.exists(coverFile):
+            self.openGlWidget.setTexture(coverFile)
             pixMap = QtGui.QPixmap(coverFile)
             sz = self.movieCover.size()
             self.movieCover.setPixmap(pixMap.scaled(sz.width(), sz.height(),
