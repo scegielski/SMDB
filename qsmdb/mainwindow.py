@@ -159,20 +159,17 @@ class GlWidget(QtWidgets.QOpenGLWidget):
         self.program.bind()
 
         front_vertices = [
-            QtGui.QVector3D(0.0, 1.0, 0.0),
-            QtGui.QVector3D(-1.0, 0.0, 0.0),
-            QtGui.QVector3D(1.0, 0.0, 0.0),
-        ]
-
-        back_vertices = [
-            QtGui.QVector3D(x.toVector2D(), -0.5)
-            for x in front_vertices
+            QtGui.QVector3D(-1.0, 1.5, 0.0),
+            QtGui.QVector3D(1.0, 1.5, 0.0),
+            QtGui.QVector3D(1.0, -1.5, 0.0),
+            QtGui.QVector3D(-1.0, -1.5, 0.0),
         ]
 
         face_colors = [
-            QtGui.QColor('red'),
-            QtGui.QColor('orange'),
-            QtGui.QColor('yellow'),
+            QtGui.QColor('white'),
+            QtGui.QColor('white'),
+            QtGui.QColor('blue'),
+            QtGui.QColor('blue')
         ]
 
         gl_colors = [
@@ -188,36 +185,11 @@ class GlWidget(QtWidgets.QOpenGLWidget):
         self.program.setAttributeArray(self.color_location, gl_colors)
 
         # Draw the front
-        self.gl.glDrawArrays(self.gl.GL_TRIANGLES, 0, 3)
+        self.gl.glDrawArrays(self.gl.GL_QUADS, 0, 4)
 
         # Draw the back
-        self.program.setAttributeArray(self.vertex_location, reversed(back_vertices))
-        self.gl.glDrawArrays(self.gl.GL_TRIANGLES, 0, 3)
-
-        sides = [(0, 1), (1, 2), (2, 0)]
-        side_vertices = list()
-        for index1, index2 in sides:
-            side_vertices += [
-                front_vertices[index1],
-                back_vertices[index1],
-                back_vertices[index2],
-                front_vertices[index2],
-            ]
-
-        side_colors = [
-            QtGui.QColor('blue'),
-            QtGui.QColor('purple'),
-            QtGui.QColor('cyan'),
-            QtGui.QColor('magenta')
-        ]
-        gl_colors = [
-            self.qcolor_to_glvec(color)
-            for color in side_colors
-        ] * 3
-
-        self.program.setAttributeArray(self.color_location, gl_colors)
-        self.program.setAttributeArray(self.vertex_location, side_vertices)
-        self.gl.glDrawArrays(self.gl.GL_QUADS, 0, len(side_vertices))
+        self.program.setAttributeArray(self.vertex_location, reversed(front_vertices))
+        self.gl.glDrawArrays(self.gl.GL_QUADS, 0, 4)
 
         self.program.disableAttributeArray(self.vertex_location)
         self.program.disableAttributeArray(self.color_location)
