@@ -149,15 +149,6 @@ class GlWidget(QtWidgets.QOpenGLWidget):
         self.colorLocation = self.program.attributeLocation('color_attr')
         self.textureCoordinatesLocation = self.program.attributeLocation('texture_coordinates')
 
-        self.viewMatrix = QtGui.QMatrix4x4()
-        self.viewMatrix.perspective(
-            45, # Angle
-            self.width() / self.height(), # Aspect Ratio
-            0.1, # Near clipping plane
-            100.0, # Far clipping plane
-        )
-        self.viewMatrix.translate(0, 0, -5)
-
         if self.coverFile:
             self.coverTexture = QtGui.QOpenGLTexture(QtGui.QImage(self.coverFile))
         else:
@@ -167,13 +158,29 @@ class GlWidget(QtWidgets.QOpenGLWidget):
         self.coverTexture.setMaximumAnisotropy(16)
         self.coverTexture.setMagnificationFilter(QtGui.QOpenGLTexture.Linear)
 
-        self.rotation = [1, 0, 1, 0]
+        self.rotationAngle = 0
+        self.setView()
 
     def setTexture(self, coverFile):
-        print("Set Texture")
         self.coverFile = coverFile
         self.coverTexture = QtGui.QOpenGLTexture(QtGui.QImage(coverFile))
         self.coverTexture.setMaximumAnisotropy(16)
+
+    def resizeGL(self, w: int, h: int) -> None:
+        self.setView()
+        self.rotationAngle += 1
+
+    def setView(self):
+        self.viewMatrix = QtGui.QMatrix4x4()
+        self.viewMatrix.perspective(
+            45, # Angle
+            self.width() / self.height(), # Aspect Ratio
+            0.1, # Near clipping plane
+            100.0, # Far clipping plane
+        )
+        self.viewMatrix.translate(0, 0, -5)
+        rot = [self.rotationAngle, 0, 1, 0]
+        self.viewMatrix.rotate(*rot)
 
     def paintGL(self) -> None:
         self.gl.glClearColor(0.0, 0.0, 0.0, 1.0)
@@ -243,7 +250,8 @@ class GlWidget(QtWidgets.QOpenGLWidget):
         self.program.disableAttributeArray(self.colorLocation)
         self.program.release()
 
-        self.viewMatrix.rotate(*self.rotation)
+        self.setView()
+        self.rotationAngle += 1
 
         self.update()
 
