@@ -133,6 +133,27 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         super(QtWidgets.QOpenGLWidget, self).__init__()
         self.coverFile = str()
         self.position = QtGui.QVector3D(0.0, 0.0, -4.0)
+        self.zoomAngle = 45.0
+        self.rotationAngle = 0
+        self.setFocusPolicy(QtCore.Qt.StrongFocus)
+
+    def setView(self):
+        self.viewMatrix = QtGui.QMatrix4x4()
+        self.viewMatrix.perspective(
+            self.zoomAngle, # Angle
+            self.width() / self.height(), # Aspect Ratio
+            0.1, # Near clipping plane
+            100.0, # Far clipping plane
+        )
+        rot = [self.rotationAngle, 0, 1, 0]
+        self.viewMatrix.rotate(*rot)
+        self.viewMatrix.translate(self.position)
+
+    def keyPressEvent(self, a0: QtGui.QKeyEvent) -> None:
+        if a0.key() == QtCore.Qt.Key_Home:
+            self.position = QtGui.QVector3D(0.0, 0.0, -4.0)
+            self.zoomAngle = 45.0
+            self.rotationAngle = 0
 
     def mousePressEvent(self, a0: QtGui.QMouseEvent) -> None:
         self.lastPos = a0.pos()
@@ -141,10 +162,19 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         dx = a0.x() - self.lastPos.x()
         dy = a0.y() - self.lastPos.y()
 
-        if a0.buttons() & QtCore.Qt.LeftButton:
+
+        if QtGui.QGuiApplication.keyboardModifiers() == QtCore.Qt.ShiftModifier:
             self.rotationAngle += dx * 0.25
+        else:
+            zoomFactor = self.zoomAngle / 45.0
+            scaleFactor = 0.008 / zoomFactor * zoomFactor * zoomFactor
+            self.position.setX(self.position.x() + dx * scaleFactor)
+            self.position.setY(self.position.y() - dy * scaleFactor)
 
         self.lastPos = a0.pos()
+
+    def wheelEvent(self, a0: QtGui.QWheelEvent) -> None:
+        self.zoomAngle -= a0.angleDelta().y() / 60.0 # angle delta returns 120
 
     def initializeGL(self) -> None:
         print("initializeGL")
@@ -179,7 +209,6 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         self.coverTexture.setMaximumAnisotropy(16)
         self.coverTexture.setMagnificationFilter(QtGui.QOpenGLTexture.Linear)
 
-        self.rotationAngle = 0
         self.setView()
 
     def setTexture(self, coverFile):
@@ -190,17 +219,6 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
     def resizeGL(self, w: int, h: int) -> None:
         self.setView()
 
-    def setView(self):
-        self.viewMatrix = QtGui.QMatrix4x4()
-        self.viewMatrix.perspective(
-            45, # Angle
-            self.width() / self.height(), # Aspect Ratio
-            0.1, # Near clipping plane
-            100.0, # Far clipping plane
-        )
-        self.viewMatrix.translate(self.position)
-        rot = [self.rotationAngle, 0, 1, 0]
-        self.viewMatrix.rotate(*rot)
 
     def paintGL(self) -> None:
         self.gl.glClearColor(0.0, 0.0, 0.0, 1.0)
@@ -297,7 +315,8 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Init UI
         self.setTitleBar()
-        self.setGeometry(50, 50, 1820, 900)
+        #self.setGeometry(50, 50, 1820, 900)
+        self.setGeometry(50, 50, 1820, 700)
 
         # Set foreground/background colors for item views
         self.setStyleSheet("""QAbstractItemView{ background: black; color: white; }; """)
