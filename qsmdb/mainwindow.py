@@ -120,10 +120,11 @@ def getFolderSizes(path):
     return fileAndSizes
 
 
-class GlWidget(QtWidgets.QOpenGLWidget):
+class CoverGLWidget(QtWidgets.QOpenGLWidget):
     def __init__(self):
         super(QtWidgets.QOpenGLWidget, self).__init__()
         self.coverFile = str()
+        self.position = QtGui.QVector3D(0.0, 0.0, -4.0)
 
     def initializeGL(self) -> None:
         print("initializeGL")
@@ -177,7 +178,7 @@ class GlWidget(QtWidgets.QOpenGLWidget):
             0.1, # Near clipping plane
             100.0, # Far clipping plane
         )
-        self.viewMatrix.translate(0, 0, -5)
+        self.viewMatrix.translate(self.position)
         rot = [self.rotationAngle, 0, 1, 0]
         self.viewMatrix.rotate(*rot)
 
@@ -460,13 +461,13 @@ class MyWindow(QtWidgets.QMainWindow):
         if not self.showCover:
             self.coverWidget.hide()
 
-        # GL
-        self.openGlWidget = GlWidget()
+        # Cover GL
+        self.openGlWidget = CoverGLWidget()
 
         # Cover / GL Tabs
         coverTabWidget = QtWidgets.QTabWidget()
+        coverTabWidget.addTab(self.openGlWidget, "Cover GL")
         coverTabWidget.addTab(self.coverWidget, "Cover")
-        coverTabWidget.addTab(self.openGlWidget, "OpenGL Test")
 
         coverInfoHSplitter.addWidget(coverTabWidget)
 
