@@ -1701,22 +1701,25 @@ class MyWindow(QtWidgets.QMainWindow):
         numRowsProxy = self.moviesTableProxyModel.rowCount()
 
         if direction == -1:
-            currentRow += 1
-            if currentRow == numRowsProxy:
+            if currentRow == numRowsProxy - 1:
                 currentRow = 0
+            else:
+                currentRow += 1
             while self.moviesTableView.isRowHidden(currentRow):
                 currentRow += 1
                 if currentRow == numRowsProxy:
                     currentRow = 0
         else:
-            currentRow = max(0, currentRow - 1)
             if currentRow == 0:
                 currentRow = numRowsProxy - 1
+            else:
+                currentRow = max(0, currentRow - 1)
             while self.moviesTableView.isRowHidden(currentRow):
                 currentRow = max(0, currentRow - 1)
                 if currentRow == 0:
                     currentRow = numRowsProxy - 1
 
+        print(f"currentRow = {currentRow}")
         self.moviesTableView.selectRow(currentRow)
 
     def tableSelectionChanged(self, table, model, proxyModel):
