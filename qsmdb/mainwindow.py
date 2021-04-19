@@ -129,6 +129,8 @@ def qcolor_to_glvec(qcolor):
 
 
 class CoverGLWidget(QtWidgets.QOpenGLWidget):
+    coverChanged = QtCore.pyqtSignal(int)
+
     def __init__(self):
         super(QtWidgets.QOpenGLWidget, self).__init__()
         self.coverFile = str()
@@ -291,8 +293,10 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         px = self.coverPosition.x()
         if px > self.coverXBoundary:
             px = self.coverXBoundary * -1.0
+            self.coverChanged.emit(1)
         elif px < self.coverXBoundary * -1.0:
             px = self.coverXBoundary
+            self.coverChanged.emit(-1)
         self.coverPosition.setX(px + self.coverVelocity.x())
 
         # Rotate when in this zone
@@ -505,6 +509,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Cover GL
         self.openGlWidget = CoverGLWidget()
+        self.openGlWidget.coverChanged.connect(self.coverChanged)
 
         # Cover / GL Tabs
         coverTabWidget = QtWidgets.QTabWidget()
@@ -1884,6 +1889,34 @@ class MyWindow(QtWidgets.QMainWindow):
     def showMoviesTableSelectionStatus(self):
         numSelected = len(self.moviesTableView.selectionModel().selectedRows())
         self.statusBar().showMessage('%s/%s' % (numSelected, self.numVisibleMovies))
+
+    def coverChanged(self, direction):
+        if (len(self.moviesTableView.selectionModel().selectedRows()) > 0):
+            currentRow = self.moviesTableView.selectionModel().selectedRows()[0].row()
+        else:
+            currentRow = 0
+
+        numRows = self.moviesTableModel.rowCount()
+        numRowsProxy = self.moviesTableProxyModel.rowCount()
+
+        if direction == -1:
+            currentRow += 1
+            if currentRow == numRowsProxy:
+                currentRow = 0
+            while self.moviesTableView.isRowHidden(currentRow):
+                currentRow += 1
+                if currentRow == numRowsProxy:
+                    currentRow = 0
+        else:
+            currentRow = max(0, currentRow - 1)
+            if currentRow == 0:
+                currentRow = numRowsProxy - 1
+            while self.moviesTableView.isRowHidden(currentRow):
+                currentRow = max(0, currentRow - 1)
+                if currentRow == 0:
+                    currentRow = numRowsProxy - 1
+
+        self.moviesTableView.selectRow(currentRow)
 
     def tableSelectionChanged(self, table, model, proxyModel):
         self.showMoviesTableSelectionStatus()
