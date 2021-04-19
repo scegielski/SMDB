@@ -30,7 +30,6 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         )
         self.viewMatrix.translate(self.cameraPosition)
 
-
     def resizeGL(self, w: int, h: int) -> None:
         self.aspectRatio = self.width() / self.height()
         self.coverXBoundary = self.aspectRatio * 2.5 * (self.cameraZoomAngle / 45.0)
@@ -91,8 +90,6 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
                 px = self.coverXBoundary
                 self.coverChanged.emit(-1)
             c.setPosition(QtGui.QVector3D(px, 0.0, 0.0))
-
-            # Animate and draw the cover
             c.animate(self.drag,
                       self.aspectRatio,
                       self.coverXBoundary)
