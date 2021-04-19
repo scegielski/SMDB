@@ -7,6 +7,12 @@ def qcolor_to_glvec(qcolor):
         qcolor.blue() / 255
     )
 
+class CoverGLObject:
+    def __init__(self, textureFile):
+        pass
+
+
+
 
 class CoverGLWidget(QtWidgets.QOpenGLWidget):
     coverChanged = QtCore.pyqtSignal(int)
@@ -69,8 +75,8 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         self.gl.glEnable(self.gl.GL_CULL_FACE)
 
         self.program = QtGui.QOpenGLShaderProgram()
-        self.program.addShaderFromSourceFile(QtGui.QOpenGLShader.Vertex, 'vertex_shader.glsl')
-        self.program.addShaderFromSourceFile(QtGui.QOpenGLShader.Fragment, 'fragment_shader.glsl')
+        self.program.addShaderFromSourceFile(QtGui.QOpenGLShader.Vertex, 'qsmdb/cover_vertex_shader.glsl')
+        self.program.addShaderFromSourceFile(QtGui.QOpenGLShader.Fragment, 'qsmdb/cover_fragment_shader.glsl')
         self.program.link()
         self.program.bind()
         self.program.setUniformValue('texture', 0)
