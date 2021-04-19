@@ -141,20 +141,19 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         self.coverVelocity = QtGui.QVector3D(0.0, 0.0, 0.0)
         self.coverXBoundary = 1.0
         self.setFocusPolicy(QtCore.Qt.StrongFocus)
+        self.aspectRatio = self.width() / self.height()
 
     def setView(self):
         self.viewMatrix = QtGui.QMatrix4x4()
         self.viewMatrix.perspective(
             self.cameraZoomAngle, # Angle
-            self.width() / self.height(), # Aspect Ratio
+            self.aspectRatio,
             0.1, # Near clipping plane
             100.0, # Far clipping plane
         )
         self.viewMatrix.translate(self.cameraPosition)
 
-        self.coverXBoundary = 2.5 * (self.cameraZoomAngle / 45.0)
-        #rot = [self.rotationAngle, 0, 1, 0]
-        #self.viewMatrix.rotate(*rot)
+        self.coverXBoundary = self.aspectRatio * 2.5 * (self.cameraZoomAngle / 45.0)
 
     def keyPressEvent(self, a0: QtGui.QKeyEvent) -> None:
         if a0.key() == QtCore.Qt.Key_Home:
@@ -169,27 +168,14 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
 
     def mouseMoveEvent(self, a0: QtGui.QMouseEvent) -> None:
         dx = a0.x() - self.lastPos.x()
-        dy = a0.y() - self.lastPos.y()
-
-        zoomFactor = self.cameraZoomAngle / 45.0
-        scaleFactor = 0.008 / zoomFactor * zoomFactor * zoomFactor
-        #scaleFactor = 1
-        self.coverVelocity.setX(dx * scaleFactor)
-
-        #if QtGui.QGuiApplication.keyboardModifiers() == QtCore.Qt.ShiftModifier:
-        #    self.coverRotationAngle += dx * 0.25
-        #else:
-        #    zoomFactor = self.cameraZoomAngle / 45.0
-        #    scaleFactor = 0.008 / zoomFactor * zoomFactor * zoomFactor
-        #    self.position.setX(self.position.x() + dx * scaleFactor)
-        #    self.position.setY(self.position.y() - dy * scaleFactor)
-
+        self.coverVelocity.setX(self.aspectRatio * dx * 0.01)
         self.lastPos = a0.pos()
 
     def wheelEvent(self, a0: QtGui.QWheelEvent) -> None:
-        # angle delta returns 120
-        newZoomAngle = 1.0 * (self.cameraZoomAngle - a0.angleDelta().y() / 120.0)
-        self.cameraZoomAngle = min(90.0, max(1.0, newZoomAngle))
+        if a0.angleDelta().y() > 0:
+            self.coverVelocity.setX(self.coverVelocity.x() + 0.15 * self.aspectRatio)
+        elif a0.angleDelta().y() < 0:
+            self.coverVelocity.setX(self.coverVelocity.x() - 0.15 * self.aspectRatio)
 
     def initializeGL(self) -> None:
         super().initializeGL()
@@ -231,6 +217,7 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         self.coverTexture.setMaximumAnisotropy(16)
 
     def resizeGL(self, w: int, h: int) -> None:
+        self.aspectRatio = self.width() / self.height()
         self.setView()
 
     def drawCover(self, translation: QtGui.QVector3D, angle: float, axis: QtGui.QVector3D) -> None:
@@ -300,20 +287,26 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         self.coverPosition.setX(px + self.coverVelocity.x())
 
         # Rotate when in this zone
-        minX = 0.5
-        maxX = 1.0
-        t = max(0.0, (abs(px) - minX) / (self.coverXBoundary * (maxX - minX)))
+        minX = 0.1
+        maxX = 0.75
+        ratio = abs(px) / self.coverXBoundary
+        # remap minX..maxX to 0..1
+        t = min(1.0, max(0.0, (ratio - minX) / (maxX - minX)))
+        # ease in
+        t = t * t
+
         self.coverRotationAngle = t * -90.0
         if px < 0: self.coverRotationAngle *= -1.0
         axis = QtGui.QVector3D(0.0, 1.0, 0.0)
 
         self.drawCover(self.coverPosition, self.coverRotationAngle, axis)
         self.coverVelocity *= 0.97
-        if self.coverVelocity.length() < 0.05:
-            if self.coverPosition.x() > 0.05:
-                self.coverVelocity = QtGui.QVector3D(-0.05, 0.0, 0.0)
-            elif self.coverPosition.x() < -0.05:
-                self.coverVelocity = QtGui.QVector3D(0.05, 0.0, 0.0)
+
+        if self.coverVelocity.length() < 0.025:
+            if self.coverPosition.x() > 0.01:
+                self.coverVelocity.setX(self.coverVelocity.x() - 0.001 * self.aspectRatio)
+            elif self.coverPosition.x() < -0.01:
+                self.coverVelocity.setX(self.coverVelocity.x() + 0.001 * self.aspectRatio)
             else:
                 self.coverVelocity *= 0.0
 
