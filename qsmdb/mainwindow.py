@@ -121,6 +121,10 @@ def getFolderSizes(path):
 
 
 class GlWidget(QtWidgets.QOpenGLWidget):
+    def __init__(self):
+        super(QtWidgets.QOpenGLWidget, self).__init__()
+        self.coverFile = str()
+
     def initializeGL(self) -> None:
         print("initializeGL")
         super().initializeGL()
@@ -154,15 +158,21 @@ class GlWidget(QtWidgets.QOpenGLWidget):
         )
         self.viewMatrix.translate(0, 0, -5)
 
-        image = QtGui.QPixmap(10, 10).toImage()
-        self.coverTexture = QtGui.QOpenGLTexture(image)
+        if self.coverFile:
+            self.coverTexture = QtGui.QOpenGLTexture(QtGui.QImage(self.coverFile))
+        else:
+            image = QtGui.QPixmap(10, 10).toImage()
+            self.coverTexture = QtGui.QOpenGLTexture(image)
+
+        self.coverTexture.setMaximumAnisotropy(16)
         self.coverTexture.setMagnificationFilter(QtGui.QOpenGLTexture.Linear)
 
         self.rotation = [1, 0, 1, 0]
 
-    def setTexture(self, imageName):
+    def setTexture(self, coverFile):
         print("Set Texture")
-        self.coverTexture = QtGui.QOpenGLTexture(QtGui.QImage(imageName))
+        self.coverFile = coverFile
+        self.coverTexture = QtGui.QOpenGLTexture(QtGui.QImage(coverFile))
         self.coverTexture.setMaximumAnisotropy(16)
 
     def paintGL(self) -> None:
