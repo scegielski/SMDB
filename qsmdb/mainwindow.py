@@ -143,8 +143,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Init UI
         self.setTitleBar()
-        #self.setGeometry(50, 50, 1820, 900)
-        self.setGeometry(50, 50, 1820, 700)
+        self.setGeometry(50, 50, 1820, 900)
 
         # Set foreground/background colors for item views
         self.setStyleSheet("""QAbstractItemView{ background: black; color: white; }; """)
