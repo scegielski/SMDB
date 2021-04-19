@@ -12,16 +12,15 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         self.cameraPosition = QtGui.QVector3D(0.0, 0.0, -4.0)
         self.cameraZoomAngle = 45.0
         self.coverVelocity = QtGui.QVector3D(0.0, 0.0, 0.0)
-        self.coverXBoundary = 1.0
         self.setFocusPolicy(QtCore.Qt.StrongFocus)
         self.aspectRatio = self.width() / self.height()
-
+        self.coverXBoundary = self.aspectRatio * 2.5 * (self.cameraZoomAngle / 45.0)
         self.drag = 0.97
-
         self.coverObject = CoverGLObject(self.coverFile)
+        self.viewMatrix = QtGui.QMatrix4x4()
 
     def setView(self):
-        self.viewMatrix = QtGui.QMatrix4x4()
+        self.viewMatrix.setToIdentity()
         self.viewMatrix.perspective(
             self.cameraZoomAngle,  # Angle
             self.aspectRatio,
@@ -30,7 +29,11 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         )
         self.viewMatrix.translate(self.cameraPosition)
 
+
+    def resizeGL(self, w: int, h: int) -> None:
+        self.aspectRatio = self.width() / self.height()
         self.coverXBoundary = self.aspectRatio * 2.5 * (self.cameraZoomAngle / 45.0)
+        self.setView()
 
     def keyPressEvent(self, a0: QtGui.QKeyEvent) -> None:
         if a0.key() == QtCore.Qt.Key_Home:
@@ -72,15 +75,13 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
     def setTexture(self, coverFile):
         self.coverObject.setTexture(coverFile)
 
-    def resizeGL(self, w: int, h: int) -> None:
-        self.aspectRatio = self.width() / self.height()
-        self.setView()
-
     def paintGL(self) -> None:
         self.gl.glClearColor(0.0, 0.0, 0.0, 1.0)
         self.gl.glClear(
             self.gl.GL_COLOR_BUFFER_BIT | self.gl.GL_DEPTH_BUFFER_BIT
         )
+
+        self.setView()
 
         px = self.coverObject.getPosition().x()
         if px > self.coverXBoundary:
@@ -91,12 +92,11 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
             self.coverChanged.emit(-1)
         self.coverObject.setPosition(QtGui.QVector3D(px, 0.0, 0.0))
 
-        # Rotate the cover as it approaches the screen boundary
-        self.coverObject.rotateByBoundry(self.coverXBoundary)
+        # Animate and draw the cover
+        self.coverObject.simulate(self.drag,
+                                  self.aspectRatio,
+                                  self.coverXBoundary)
+        self.coverObject.draw(self.gl,
+                              self.viewMatrix)
 
-        # Draw the cover
-        self.coverObject.simulate(self.drag, self.aspectRatio)
-        self.coverObject.draw(self.gl, self.viewMatrix)
-
-        self.setView()
         self.update()

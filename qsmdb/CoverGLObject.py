@@ -65,10 +65,25 @@ class CoverGLObject:
                 v *= 0.0
                 self.velocity = v
 
-    def simulate(self, drag, aspectRatio : float) -> None:
+    def rotateByBoundry(self, boundary):
+        # Rotate when in this zone
+        minX = 0.1
+        maxX = 0.75
+        ratio = abs(self.position.x()) / boundary
+        # remap minX..maxX to 0..1
+        t = min(1.0, max(0.0, (ratio - minX) / (maxX - minX)))
+        # ease in
+        t = t * t
+
+        self.rotationAngle = t * -90.0
+        if self.position.x() < 0:
+            self.rotationAngle *= -1.0
+
+    def simulate(self, drag, aspectRatio, boundary : float) -> None:
         self.position += self.velocity
         self.pushTowardsCenter(aspectRatio)
         self.velocity *= drag
+        self.rotateByBoundry(boundary)
 
 
     def reset(self):
@@ -96,20 +111,6 @@ class CoverGLObject:
 
     def setRotationAngle(self, angle):
         self.rotationAngle = angle
-
-    def rotateByBoundry(self, boundary):
-        # Rotate when in this zone
-        minX = 0.1
-        maxX = 0.75
-        ratio = abs(self.position.x()) / boundary
-        # remap minX..maxX to 0..1
-        t = min(1.0, max(0.0, (ratio - minX) / (maxX - minX)))
-        # ease in
-        t = t * t
-
-        self.rotationAngle = t * -90.0
-        if self.position.x() < 0:
-            self.rotationAngle *= -1.0
 
     def draw(self, gl, viewMatrix : QtGui.QMatrix4x4) -> None:
         # Bind the shader programs
