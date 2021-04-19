@@ -53,9 +53,23 @@ class CoverGLObject:
         self.coverTexture = QtGui.QOpenGLTexture(QtGui.QImage(coverFile))
         self.coverTexture.setMaximumAnisotropy(16)
 
-    def simulate(self, drag : float) -> None:
+    def pushTowardsCenter(self, aspectRatio : float) -> None:
+        v = self.velocity
+        px = self.position.x()
+        if v.length() < 0.025:
+            if px > 0.01:
+                self.addAcceleration(QtGui.QVector3D(-0.001 * aspectRatio, 0.0, 0.0))
+            elif px < -0.01:
+                self.addAcceleration(QtGui.QVector3D(0.001 * aspectRatio, 0.0, 0.0))
+            else:
+                v *= 0.0
+                self.velocity = v
+
+    def simulate(self, drag, aspectRatio : float) -> None:
         self.position += self.velocity
+        self.pushTowardsCenter(aspectRatio)
         self.velocity *= drag
+
 
     def reset(self):
         self.position = QtGui.QVector3D(0.0, 0.0, 0.0)
@@ -110,6 +124,7 @@ class CoverGLObject:
 
         gl.glPushMatrix()
 
+        # Set the object transformation
         objectMatrix = QtGui.QMatrix4x4()
         objectMatrix.translate(self.position)
         axis = QtGui.QVector3D(0.0, 1.0, 0.0)

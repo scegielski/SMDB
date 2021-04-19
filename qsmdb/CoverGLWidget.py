@@ -94,18 +94,8 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         # Rotate the cover as it approaches the screen boundary
         self.coverObject.rotateByBoundry(self.coverXBoundary)
 
-        coverVelocity = self.coverObject.getVelocity()
-        if coverVelocity.length() < 0.025:
-            if px > 0.01:
-                coverVelocity.setX(coverVelocity.x() - 0.001 * self.aspectRatio)
-            elif px < -0.01:
-                coverVelocity.setX(coverVelocity.x() + 0.001 * self.aspectRatio)
-            else:
-                coverVelocity *= 0.0
-        self.coverObject.setVelocity(coverVelocity)
-
         # Draw the cover
-        self.coverObject.simulate(self.drag)
+        self.coverObject.simulate(self.drag, self.aspectRatio)
         self.coverObject.draw(self.gl, self.viewMatrix)
 
         self.setView()
