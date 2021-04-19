@@ -53,8 +53,11 @@ class CoverGLObject:
         self.coverTexture = QtGui.QOpenGLTexture(QtGui.QImage(coverFile))
         self.coverTexture.setMaximumAnisotropy(16)
 
-    def setPosition(self, position : QtGui.QVector3D) -> None:
-        self.position = position
+    def simulate(self):
+        self.position += self.velocity
+
+    def addAcceleration(self, acceleration : QtGui.QVector3D) -> None:
+        self.velocity += acceleration
 
     def setVelocity(self, velocity : QtGui.QVector3D) -> None:
         self.velocity = velocity
@@ -64,6 +67,12 @@ class CoverGLObject:
 
     def getPosition(self):
         return self.position
+
+    def setPosition(self, position : QtGui.QVector3D) -> None:
+        self.position = position
+
+    def getRotationAngle(self):
+        return self.rotationAngle
 
     def setRotationAngle(self, angle):
         self.rotationAngle = angle
