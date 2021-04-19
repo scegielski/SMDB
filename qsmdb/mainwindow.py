@@ -309,8 +309,13 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
 
         self.drawCover(self.coverPosition, self.coverRotationAngle, axis)
         self.coverVelocity *= 0.97
-        if self.coverVelocity.length() < 0.01:
-            self.coverVelocity *= 0.0
+        if self.coverVelocity.length() < 0.05:
+            if self.coverPosition.x() > 0.05:
+                self.coverVelocity = QtGui.QVector3D(-0.05, 0.0, 0.0)
+            elif self.coverPosition.x() < -0.05:
+                self.coverVelocity = QtGui.QVector3D(0.05, 0.0, 0.0)
+            else:
+                self.coverVelocity *= 0.0
 
         self.program.disableAttributeArray(self.vertexLocation)
         self.program.disableAttributeArray(self.colorLocation)
