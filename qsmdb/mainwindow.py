@@ -219,14 +219,7 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
     def resizeGL(self, w: int, h: int) -> None:
         self.setView()
 
-
-    def paintGL(self) -> None:
-        self.gl.glClearColor(0.0, 0.0, 0.0, 1.0)
-        self.gl.glClear(
-            self.gl.GL_COLOR_BUFFER_BIT | self.gl.GL_DEPTH_BUFFER_BIT
-        )
-        self.program.bind()
-
+    def drawCover(self):
         front_vertices = [
             QtGui.QVector3D(-1.0, 1.5, 0.0),
             QtGui.QVector3D(1.0, 1.5, 0.0),
@@ -260,16 +253,12 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
             for color in face_colors
         ]
 
-        self.program.setUniformValue(self.matrixLocation, self.viewMatrix)
-
         self.program.enableAttributeArray(self.vertexLocation)
-        self.program.setAttributeArray(self.vertexLocation,
-                                       front_vertices)
+        self.program.setAttributeArray(self.vertexLocation, front_vertices)
         self.program.enableAttributeArray(self.colorLocation)
         self.program.setAttributeArray(self.colorLocation, gl_colors)
         self.program.enableAttributeArray(self.textureCoordinatesLocation)
-        self.program.setAttributeArray(self.textureCoordinatesLocation,
-                                       front_texture_coordinates)
+        self.program.setAttributeArray(self.textureCoordinatesLocation, front_texture_coordinates)
 
         # Bind the texture
         self.coverTexture.bind()
@@ -283,6 +272,17 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         self.program.setAttributeArray(self.textureCoordinatesLocation,
                                        back_texture_coordinates)
         self.gl.glDrawArrays(self.gl.GL_QUADS, 0, 4)
+
+    def paintGL(self) -> None:
+        self.gl.glClearColor(0.0, 0.0, 0.0, 1.0)
+        self.gl.glClear(
+            self.gl.GL_COLOR_BUFFER_BIT | self.gl.GL_DEPTH_BUFFER_BIT
+        )
+        self.program.bind()
+
+        self.program.setUniformValue(self.matrixLocation, self.viewMatrix)
+
+        self.drawCover()
 
         self.program.disableAttributeArray(self.vertexLocation)
         self.program.disableAttributeArray(self.colorLocation)
