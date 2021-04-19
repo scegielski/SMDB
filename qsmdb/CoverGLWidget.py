@@ -91,20 +91,8 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
             self.coverChanged.emit(-1)
         self.coverObject.setPosition(QtGui.QVector3D(px, 0.0, 0.0))
 
-        # Rotate when in this zone
-        minX = 0.1
-        maxX = 0.75
-        ratio = abs(px) / self.coverXBoundary
-        # remap minX..maxX to 0..1
-        t = min(1.0, max(0.0, (ratio - minX) / (maxX - minX)))
-        # ease in
-        t = t * t
-
-        coverRotationAngle = t * -90.0
-        if px < 0:
-            coverRotationAngle *= -1.0
-
-        self.coverObject.setRotationAngle(coverRotationAngle)
+        # Rotate the cover as it approaches the screen boundary
+        self.coverObject.rotateByBoundry(self.coverXBoundary)
 
         coverVelocity = self.coverObject.getVelocity()
         if coverVelocity.length() < 0.025:
