@@ -16,7 +16,8 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         self.aspectRatio = self.width() / self.height()
         self.coverXBoundary = self.aspectRatio * 2.5 * (self.cameraZoomAngle / 45.0)
         self.drag = 0.97
-        self.coverObject = CoverGLObject(self.coverFile)
+        self.coverObjects = list()
+        self.coverObjects.append(CoverGLObject(self.coverFile))
         self.viewMatrix = QtGui.QMatrix4x4()
 
     def setView(self):
@@ -39,14 +40,16 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         if a0.key() == QtCore.Qt.Key_Home:
             self.cameraPosition = QtGui.QVector3D(0.0, 0.0, -4.0)
             self.cameraZoomAngle = 45.0
-            self.coverObject.reset()
+            for c in self.coverObjects:
+                c.reset()
 
     def mousePressEvent(self, a0: QtGui.QMouseEvent) -> None:
         self.lastPos = a0.pos()
 
     def mouseMoveEvent(self, a0: QtGui.QMouseEvent) -> None:
         dx = a0.x() - self.lastPos.x()
-        self.coverObject.setVelocity(QtGui.QVector3D(self.aspectRatio * dx * 0.01, 0.0, 0.0))
+        for c in self.coverObjects:
+            c.setVelocity(QtGui.QVector3D(self.aspectRatio * dx * 0.01, 0.0, 0.0))
         self.lastPos = a0.pos()
 
     def wheelEvent(self, a0: QtGui.QWheelEvent) -> None:
@@ -55,7 +58,8 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
             acceleration.setX(0.15 * self.aspectRatio)
         elif a0.angleDelta().y() < 0:
             acceleration.setX(-0.15 * self.aspectRatio)
-        self.coverObject.addAcceleration(acceleration)
+        for c in self.coverObjects:
+            c.addAcceleration(acceleration)
 
     def initializeGL(self) -> None:
         super().initializeGL()
@@ -68,36 +72,36 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         self.gl.glDepthFunc(self.gl.GL_LESS)
         self.gl.glEnable(self.gl.GL_CULL_FACE)
 
-        self.coverObject.init()
+        for c in self.coverObjects:
+            c.init()
 
         self.setView()
 
     def setTexture(self, coverFile):
-        self.coverObject.setTexture(coverFile)
+        for c in self.coverObjects:
+            c.setTexture(coverFile)
 
     def animate(self):
-        px = self.coverObject.getPosition().x()
-        if px > self.coverXBoundary:
-            px = self.coverXBoundary * -1.0
-            self.coverChanged.emit(1)
-        elif px < self.coverXBoundary * -1.0:
-            px = self.coverXBoundary
-            self.coverChanged.emit(-1)
-        self.coverObject.setPosition(QtGui.QVector3D(px, 0.0, 0.0))
+        for c in self.coverObjects:
+            px = c.getPosition().x()
+            if px > self.coverXBoundary:
+                px = self.coverXBoundary * -1.0
+                self.coverChanged.emit(1)
+            elif px < self.coverXBoundary * -1.0:
+                px = self.coverXBoundary
+                self.coverChanged.emit(-1)
+            c.setPosition(QtGui.QVector3D(px, 0.0, 0.0))
 
-        # Animate and draw the cover
-        self.coverObject.animate(self.drag,
-                                 self.aspectRatio,
-                                 self.coverXBoundary)
+            # Animate and draw the cover
+            c.animate(self.drag,
+                      self.aspectRatio,
+                      self.coverXBoundary)
 
     def paintGL(self) -> None:
         self.gl.glClearColor(0.0, 0.0, 0.0, 1.0)
-        self.gl.glClear(
-            self.gl.GL_COLOR_BUFFER_BIT | self.gl.GL_DEPTH_BUFFER_BIT
-        )
-
+        self.gl.glClear(self.gl.GL_COLOR_BUFFER_BIT | self.gl.GL_DEPTH_BUFFER_BIT)
         self.setView()
         self.animate()
-        self.coverObject.draw(self.gl, self.viewMatrix)
-
+        for c in self.coverObjects:
+            c.draw(self.gl, self.viewMatrix)
         self.update()
