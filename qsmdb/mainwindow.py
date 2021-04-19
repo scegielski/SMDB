@@ -122,6 +122,7 @@ def getFolderSizes(path):
 
 class GlWidget(QtWidgets.QOpenGLWidget):
     def initializeGL(self) -> None:
+        print("initializeGL")
         super().initializeGL()
         gl_context = self.context()
         version = QtGui.QOpenGLVersionProfile()
@@ -139,30 +140,33 @@ class GlWidget(QtWidgets.QOpenGLWidget):
         self.program.bind()
         self.program.setUniformValue('texture', 0)
 
-        self.vertex_location = self.program.attributeLocation('vertex')
-        self.matrix_location = self.program.uniformLocation('matrix')
-        self.color_location = self.program.attributeLocation('color_attr')
-        self.texture_coordinates_location = self.program.attributeLocation('texture_coordinates')
+        self.vertexLocation = self.program.attributeLocation('vertex')
+        self.matrixLocation = self.program.uniformLocation('matrix')
+        self.colorLocation = self.program.attributeLocation('color_attr')
+        self.textureCoordinatesLocation = self.program.attributeLocation('texture_coordinates')
 
-        self.view_matrix = QtGui.QMatrix4x4()
-        self.view_matrix.perspective(
+        self.viewMatrix = QtGui.QMatrix4x4()
+        self.viewMatrix.perspective(
             45, # Angle
             self.width() / self.height(), # Aspect Ratio
             0.1, # Near clipping plane
             100.0, # Far clipping plane
         )
-        self.view_matrix.translate(0, 0, -5)
+        self.viewMatrix.translate(0, 0, -5)
 
-        self.test_texture.setMaximumAnisotropy(16)
-        self.test_texture.setMagnificationFilter(QtGui.QOpenGLTexture.Linear)
+        image = QtGui.QPixmap(10, 10).toImage()
+        self.coverTexture = QtGui.QOpenGLTexture(image)
+        self.coverTexture.setMagnificationFilter(QtGui.QOpenGLTexture.Linear)
 
         self.rotation = [1, 0, 1, 0]
 
     def setTexture(self, imageName):
-        self.test_texture = QtGui.QOpenGLTexture(QtGui.QImage(imageName))
+        print("Set Texture")
+        self.coverTexture = QtGui.QOpenGLTexture(QtGui.QImage(imageName))
+        self.coverTexture.setMaximumAnisotropy(16)
 
     def paintGL(self) -> None:
-        self.gl.glClearColor(0.1, 0.0, 0.2, 1.0)
+        self.gl.glClearColor(0.0, 0.0, 0.0, 1.0)
         self.gl.glClear(
             self.gl.GL_COLOR_BUFFER_BIT | self.gl.GL_DEPTH_BUFFER_BIT
         )
@@ -201,35 +205,35 @@ class GlWidget(QtWidgets.QOpenGLWidget):
             for color in face_colors
         ]
 
-        self.program.setUniformValue(self.matrix_location, self.view_matrix)
+        self.program.setUniformValue(self.matrixLocation, self.viewMatrix)
 
-        self.program.enableAttributeArray(self.vertex_location)
-        self.program.setAttributeArray(self.vertex_location,
+        self.program.enableAttributeArray(self.vertexLocation)
+        self.program.setAttributeArray(self.vertexLocation,
                                        front_vertices)
-        self.program.enableAttributeArray(self.color_location)
-        self.program.setAttributeArray(self.color_location, gl_colors)
-        self.program.enableAttributeArray(self.texture_coordinates_location)
-        self.program.setAttributeArray(self.texture_coordinates_location,
+        self.program.enableAttributeArray(self.colorLocation)
+        self.program.setAttributeArray(self.colorLocation, gl_colors)
+        self.program.enableAttributeArray(self.textureCoordinatesLocation)
+        self.program.setAttributeArray(self.textureCoordinatesLocation,
                                        front_texture_coordinates)
 
         # Bind the texture
-        self.test_texture.bind()
+        self.coverTexture.bind()
 
         # Draw the front
         self.gl.glDrawArrays(self.gl.GL_QUADS, 0, 4)
 
         # Draw the back
-        self.program.setAttributeArray(self.vertex_location,
+        self.program.setAttributeArray(self.vertexLocation,
                                        reversed(front_vertices))
-        self.program.setAttributeArray(self.texture_coordinates_location,
+        self.program.setAttributeArray(self.textureCoordinatesLocation,
                                        back_texture_coordinates)
         self.gl.glDrawArrays(self.gl.GL_QUADS, 0, 4)
 
-        self.program.disableAttributeArray(self.vertex_location)
-        self.program.disableAttributeArray(self.color_location)
+        self.program.disableAttributeArray(self.vertexLocation)
+        self.program.disableAttributeArray(self.colorLocation)
         self.program.release()
 
-        self.view_matrix.rotate(*self.rotation)
+        self.viewMatrix.rotate(*self.rotation)
 
         self.update()
 
@@ -499,6 +503,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.refreshBackupList()
 
         self.showMoviesTableSelectionStatus()
+
 
     def initUIFileMenu(self):
         menuBar = self.menuBar()
