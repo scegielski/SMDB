@@ -1719,7 +1719,6 @@ class MyWindow(QtWidgets.QMainWindow):
                 if currentRow == 0:
                     currentRow = numRowsProxy - 1
 
-        print(f"currentRow = {currentRow}")
         self.moviesTableView.selectRow(currentRow)
 
     def tableSelectionChanged(self, table, model, proxyModel):
