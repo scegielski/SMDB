@@ -31,7 +31,7 @@ class CoverGLObject:
             QtGui.QVector2D(0.0, 0.0)
         ]
 
-    def init(self):
+    def initGl(self):
         self.program = QtGui.QOpenGLShaderProgram()
         self.program.addShaderFromSourceFile(QtGui.QOpenGLShader.Vertex, self.vertexShader)
         self.program.addShaderFromSourceFile(QtGui.QOpenGLShader.Fragment, self.fragmentShader)

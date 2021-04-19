@@ -73,7 +73,7 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         self.gl.glEnable(self.gl.GL_CULL_FACE)
 
         for c in self.coverObjects:
-            c.init()
+            c.initGl()
 
         self.setView()
 
