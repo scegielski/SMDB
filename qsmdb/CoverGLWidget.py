@@ -75,14 +75,7 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
     def setTexture(self, coverFile):
         self.coverObject.setTexture(coverFile)
 
-    def paintGL(self) -> None:
-        self.gl.glClearColor(0.0, 0.0, 0.0, 1.0)
-        self.gl.glClear(
-            self.gl.GL_COLOR_BUFFER_BIT | self.gl.GL_DEPTH_BUFFER_BIT
-        )
-
-        self.setView()
-
+    def animate(self):
         px = self.coverObject.getPosition().x()
         if px > self.coverXBoundary:
             px = self.coverXBoundary * -1.0
@@ -96,7 +89,15 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         self.coverObject.animate(self.drag,
                                  self.aspectRatio,
                                  self.coverXBoundary)
-        self.coverObject.draw(self.gl,
-                              self.viewMatrix)
+
+    def paintGL(self) -> None:
+        self.gl.glClearColor(0.0, 0.0, 0.0, 1.0)
+        self.gl.glClear(
+            self.gl.GL_COLOR_BUFFER_BIT | self.gl.GL_DEPTH_BUFFER_BIT
+        )
+
+        self.setView()
+        self.animate()
+        self.coverObject.draw(self.gl, self.viewMatrix)
 
         self.update()
