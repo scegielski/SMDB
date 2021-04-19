@@ -162,7 +162,6 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         dx = a0.x() - self.lastPos.x()
         dy = a0.y() - self.lastPos.y()
 
-
         if QtGui.QGuiApplication.keyboardModifiers() == QtCore.Qt.ShiftModifier:
             self.rotationAngle += dx * 0.25
         else:
@@ -174,7 +173,9 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         self.lastPos = a0.pos()
 
     def wheelEvent(self, a0: QtGui.QWheelEvent) -> None:
-        self.zoomAngle -= a0.angleDelta().y() / 60.0 # angle delta returns 120
+        # angle delta returns 120
+        newZoomAngle = 1.0 * (self.zoomAngle - a0.angleDelta().y() / 120.0)
+        self.zoomAngle = min(90.0, max(1.0, newZoomAngle))
 
     def initializeGL(self) -> None:
         super().initializeGL()
