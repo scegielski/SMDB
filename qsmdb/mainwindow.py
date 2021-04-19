@@ -168,7 +168,6 @@ class GlWidget(QtWidgets.QOpenGLWidget):
 
     def resizeGL(self, w: int, h: int) -> None:
         self.setView()
-        self.rotationAngle += 1
 
     def setView(self):
         self.viewMatrix = QtGui.QMatrix4x4()
@@ -251,9 +250,21 @@ class GlWidget(QtWidgets.QOpenGLWidget):
         self.program.release()
 
         self.setView()
-        self.rotationAngle += 1
+        #self.rotationAngle += 1
 
         self.update()
+
+    def mousePressEvent(self, a0: QtGui.QMouseEvent) -> None:
+        self.lastPos = a0.pos()
+
+    def mouseMoveEvent(self, a0: QtGui.QMouseEvent) -> None:
+        dx = a0.x() - self.lastPos.x()
+        dy = a0.y() - self.lastPos.y()
+
+        if a0.buttons() & QtCore.Qt.LeftButton:
+            self.rotationAngle += dx * 0.25
+
+        self.lastPos = a0.pos()
 
     def qcolor_to_glvec(self, qcolor):
         return QtGui.QVector3D(
