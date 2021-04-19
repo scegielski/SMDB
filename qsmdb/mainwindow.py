@@ -145,9 +145,9 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
             0.1, # Near clipping plane
             100.0, # Far clipping plane
         )
+        self.viewMatrix.translate(self.position)
         rot = [self.rotationAngle, 0, 1, 0]
         self.viewMatrix.rotate(*rot)
-        self.viewMatrix.translate(self.position)
 
     def keyPressEvent(self, a0: QtGui.QKeyEvent) -> None:
         if a0.key() == QtCore.Qt.Key_Home:
@@ -177,7 +177,6 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         self.zoomAngle -= a0.angleDelta().y() / 60.0 # angle delta returns 120
 
     def initializeGL(self) -> None:
-        print("initializeGL")
         super().initializeGL()
         gl_context = self.context()
         version = QtGui.QOpenGLVersionProfile()
