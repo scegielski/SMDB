@@ -93,9 +93,9 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         self.coverObject.setPosition(QtGui.QVector3D(px, 0.0, 0.0))
 
         # Animate and draw the cover
-        self.coverObject.simulate(self.drag,
-                                  self.aspectRatio,
-                                  self.coverXBoundary)
+        self.coverObject.animate(self.drag,
+                                 self.aspectRatio,
+                                 self.coverXBoundary)
         self.coverObject.draw(self.gl,
                               self.viewMatrix)
 

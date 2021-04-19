@@ -79,12 +79,11 @@ class CoverGLObject:
         if self.position.x() < 0:
             self.rotationAngle *= -1.0
 
-    def simulate(self, drag, aspectRatio, boundary : float) -> None:
+    def animate(self, drag, aspectRatio, boundary : float) -> None:
         self.position += self.velocity
         self.pushTowardsCenter(aspectRatio)
         self.velocity *= drag
         self.rotateByBoundry(boundary)
-
 
     def reset(self):
         self.position = QtGui.QVector3D(0.0, 0.0, 0.0)
