@@ -132,28 +132,35 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
     def __init__(self):
         super(QtWidgets.QOpenGLWidget, self).__init__()
         self.coverFile = str()
-        self.position = QtGui.QVector3D(0.0, 0.0, -4.0)
-        self.zoomAngle = 45.0
-        self.rotationAngle = 0
+        self.cameraPosition = QtGui.QVector3D(0.0, 0.0, -4.0)
+        self.cameraZoomAngle = 45.0
+        self.coverRotationAngle = 0
+        self.coverPosition = QtGui.QVector3D(0.0, 0.0, 0.0)
+        self.coverVelocity = QtGui.QVector3D(0.0, 0.0, 0.0)
+        self.coverXBoundary = 1.0
         self.setFocusPolicy(QtCore.Qt.StrongFocus)
 
     def setView(self):
         self.viewMatrix = QtGui.QMatrix4x4()
         self.viewMatrix.perspective(
-            self.zoomAngle, # Angle
+            self.cameraZoomAngle, # Angle
             self.width() / self.height(), # Aspect Ratio
             0.1, # Near clipping plane
             100.0, # Far clipping plane
         )
-        self.viewMatrix.translate(self.position)
-        rot = [self.rotationAngle, 0, 1, 0]
-        self.viewMatrix.rotate(*rot)
+        self.viewMatrix.translate(self.cameraPosition)
+
+        self.coverXBoundary = 2.5 * (self.cameraZoomAngle / 45.0)
+        #rot = [self.rotationAngle, 0, 1, 0]
+        #self.viewMatrix.rotate(*rot)
 
     def keyPressEvent(self, a0: QtGui.QKeyEvent) -> None:
         if a0.key() == QtCore.Qt.Key_Home:
-            self.position = QtGui.QVector3D(0.0, 0.0, -4.0)
-            self.zoomAngle = 45.0
-            self.rotationAngle = 0
+            self.cameraPosition = QtGui.QVector3D(0.0, 0.0, -4.0)
+            self.cameraZoomAngle = 45.0
+            self.coverPosition = QtGui.QVector3D(0.0, 0.0, 0.0)
+            self.coverVelocity = QtGui.QVector3D(0.0, 0.0, 0.0)
+            self.coverRotationAngle = 0
 
     def mousePressEvent(self, a0: QtGui.QMouseEvent) -> None:
         self.lastPos = a0.pos()
@@ -162,20 +169,25 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         dx = a0.x() - self.lastPos.x()
         dy = a0.y() - self.lastPos.y()
 
-        if QtGui.QGuiApplication.keyboardModifiers() == QtCore.Qt.ShiftModifier:
-            self.rotationAngle += dx * 0.25
-        else:
-            zoomFactor = self.zoomAngle / 45.0
-            scaleFactor = 0.008 / zoomFactor * zoomFactor * zoomFactor
-            self.position.setX(self.position.x() + dx * scaleFactor)
-            self.position.setY(self.position.y() - dy * scaleFactor)
+        zoomFactor = self.cameraZoomAngle / 45.0
+        scaleFactor = 0.008 / zoomFactor * zoomFactor * zoomFactor
+        #scaleFactor = 1
+        self.coverVelocity.setX(dx * scaleFactor)
+
+        #if QtGui.QGuiApplication.keyboardModifiers() == QtCore.Qt.ShiftModifier:
+        #    self.coverRotationAngle += dx * 0.25
+        #else:
+        #    zoomFactor = self.cameraZoomAngle / 45.0
+        #    scaleFactor = 0.008 / zoomFactor * zoomFactor * zoomFactor
+        #    self.position.setX(self.position.x() + dx * scaleFactor)
+        #    self.position.setY(self.position.y() - dy * scaleFactor)
 
         self.lastPos = a0.pos()
 
     def wheelEvent(self, a0: QtGui.QWheelEvent) -> None:
         # angle delta returns 120
-        newZoomAngle = 1.0 * (self.zoomAngle - a0.angleDelta().y() / 120.0)
-        self.zoomAngle = min(90.0, max(1.0, newZoomAngle))
+        newZoomAngle = 1.0 * (self.cameraZoomAngle - a0.angleDelta().y() / 120.0)
+        self.cameraZoomAngle = min(90.0, max(1.0, newZoomAngle))
 
     def initializeGL(self) -> None:
         super().initializeGL()
@@ -219,7 +231,8 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
     def resizeGL(self, w: int, h: int) -> None:
         self.setView()
 
-    def drawCover(self):
+    def drawCover(self, translation: QtGui.QVector3D, angle: float, axis: QtGui.QVector3D) -> None:
+
         front_vertices = [
             QtGui.QVector3D(-1.0, 1.5, 0.0),
             QtGui.QVector3D(1.0, 1.5, 0.0),
@@ -241,37 +254,30 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
             QtGui.QVector2D(0.0, 0.0)
         ]
 
-        face_colors = [
-            QtGui.QColor('white'),
-            QtGui.QColor('white'),
-            QtGui.QColor('blue'),
-            QtGui.QColor('blue')
-        ]
-
-        gl_colors = [
-            qcolor_to_glvec(color)
-            for color in face_colors
-        ]
-
-        self.program.enableAttributeArray(self.vertexLocation)
-        self.program.setAttributeArray(self.vertexLocation, front_vertices)
-        self.program.enableAttributeArray(self.colorLocation)
-        self.program.setAttributeArray(self.colorLocation, gl_colors)
-        self.program.enableAttributeArray(self.textureCoordinatesLocation)
-        self.program.setAttributeArray(self.textureCoordinatesLocation, front_texture_coordinates)
-
         # Bind the texture
         self.coverTexture.bind()
 
+        # Enable locations and texture coordinates
+        self.program.enableAttributeArray(self.vertexLocation)
+        self.program.enableAttributeArray(self.textureCoordinatesLocation)
+
+        self.gl.glPushMatrix()
+        self.viewMatrix.translate(translation)
+        self.viewMatrix.rotate(angle, axis)
+
+        self.program.setUniformValue(self.matrixLocation, self.viewMatrix)
+
         # Draw the front
+        self.program.setAttributeArray(self.vertexLocation, front_vertices)
+        self.program.setAttributeArray(self.textureCoordinatesLocation, front_texture_coordinates)
         self.gl.glDrawArrays(self.gl.GL_QUADS, 0, 4)
 
         # Draw the back
-        self.program.setAttributeArray(self.vertexLocation,
-                                       reversed(front_vertices))
-        self.program.setAttributeArray(self.textureCoordinatesLocation,
-                                       back_texture_coordinates)
+        self.program.setAttributeArray(self.vertexLocation, reversed(front_vertices))
+        self.program.setAttributeArray(self.textureCoordinatesLocation, back_texture_coordinates)
         self.gl.glDrawArrays(self.gl.GL_QUADS, 0, 4)
+
+        self.gl.glPopMatrix()
 
     def paintGL(self) -> None:
         self.gl.glClearColor(0.0, 0.0, 0.0, 1.0)
@@ -280,17 +286,33 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         )
         self.program.bind()
 
-        self.program.setUniformValue(self.matrixLocation, self.viewMatrix)
+        # Draw the cover
 
-        self.drawCover()
+        px = self.coverPosition.x()
+        if px > self.coverXBoundary:
+            px = self.coverXBoundary * -1.0
+        elif px < self.coverXBoundary * -1.0:
+            px = self.coverXBoundary
+        self.coverPosition.setX(px + self.coverVelocity.x())
+
+        # Rotate when in this zone
+        minX = 0.5
+        maxX = 1.0
+        t = max(0.0, (abs(px) - minX) / (self.coverXBoundary * (maxX - minX)))
+        self.coverRotationAngle = t * -90.0
+        if px < 0: self.coverRotationAngle *= -1.0
+        axis = QtGui.QVector3D(0.0, 1.0, 0.0)
+
+        self.drawCover(self.coverPosition, self.coverRotationAngle, axis)
+        self.coverVelocity *= 0.97
+        if self.coverVelocity.length() < 0.01:
+            self.coverVelocity *= 0.0
 
         self.program.disableAttributeArray(self.vertexLocation)
         self.program.disableAttributeArray(self.colorLocation)
         self.program.release()
 
         self.setView()
-        #self.rotationAngle += 1
-
         self.update()
 
 
