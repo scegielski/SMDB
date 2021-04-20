@@ -1,3 +1,5 @@
+import random
+
 from PyQt5 import QtGui, QtWidgets, QtCore
 from enum import Enum
 from pathlib import Path
@@ -1692,33 +1694,45 @@ class MyWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage('%s/%s' % (numSelected, self.numVisibleMovies))
 
     def coverChanged(self, direction):
+        numRowsProxy = self.moviesTableProxyModel.rowCount()
+
         if (len(self.moviesTableView.selectionModel().selectedRows()) > 0):
             currentRow = self.moviesTableView.selectionModel().selectedRows()[0].row()
         else:
             currentRow = 0
 
-        numRowsProxy = self.moviesTableProxyModel.rowCount()
-
-        if direction == -1:
-            if currentRow == numRowsProxy - 1:
-                currentRow = 0
-            else:
-                currentRow += 1
-            while self.moviesTableView.isRowHidden(currentRow):
-                currentRow += 1
-                if currentRow == numRowsProxy:
-                    currentRow = 0
+        if self.randomizeCheckbox.isChecked():
+            visibleRows = list()
+            for row in range(numRowsProxy):
+                if not self.moviesTableView.isRowHidden(row):
+                    visibleRows.append(row)
+            randomRow = currentRow
+            while randomRow == currentRow:
+                randomIndex = random.randint(0, len(visibleRows) - 1)
+                randomRow = visibleRows[randomIndex]
+            self.moviesTableView.selectRow(randomRow)
         else:
-            if currentRow == 0:
-                currentRow = numRowsProxy - 1
+
+            if direction == -1:
+                if currentRow == numRowsProxy - 1:
+                    currentRow = 0
+                else:
+                    currentRow += 1
+                while self.moviesTableView.isRowHidden(currentRow):
+                    currentRow += 1
+                    if currentRow == numRowsProxy:
+                        currentRow = 0
             else:
-                currentRow = max(0, currentRow - 1)
-            while self.moviesTableView.isRowHidden(currentRow):
-                currentRow = max(0, currentRow - 1)
                 if currentRow == 0:
                     currentRow = numRowsProxy - 1
+                else:
+                    currentRow = max(0, currentRow - 1)
+                while self.moviesTableView.isRowHidden(currentRow):
+                    currentRow = max(0, currentRow - 1)
+                    if currentRow == 0:
+                        currentRow = numRowsProxy - 1
 
-        self.moviesTableView.selectRow(currentRow)
+            self.moviesTableView.selectRow(currentRow)
 
     def tableSelectionChanged(self, table, model, proxyModel):
         self.showMoviesTableSelectionStatus()
