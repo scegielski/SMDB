@@ -35,7 +35,7 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
 
     def resizeGL(self, w: int, h: int) -> None:
         self.aspectRatio = self.width() / self.height()
-        self.coverXBoundary = self.aspectRatio * 2.5 * (self.cameraZoomAngle / 45.0)
+        self.coverXBoundary = self.aspectRatio * 2.2 * (self.cameraZoomAngle / 45.0)
         self.setView()
 
     def keyPressEvent(self, a0: QtGui.QKeyEvent) -> None:
@@ -92,7 +92,6 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
 
         newCoverPosition = QtGui.QVector3D(0.0, 0.0, 0.0)
         epsilon = 0.5
-        print(f"self.coverXBoundary = {self.coverXBoundary}")
         if self.lastSideRemoved == "right":
             newCoverPosition = QtGui.QVector3D(-self.coverXBoundary + epsilon, 0.0, 0.0)
         elif self.lastSideRemoved == "left":
@@ -101,7 +100,6 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         newCoverObject = CoverGLObject(coverFile, newCoverPosition, self.lastVelocity)
         newCoverObject.initGl()
         newCoverObject.rotateByBoundry(self.coverXBoundary)
-        print(f"Emitted: {coverFile}")
         self.coverObjects.append(newCoverObject)
 
     def animate(self):
@@ -115,13 +113,11 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
                 self.lastSideRemoved = "right"
                 self.coverObjects.remove(c)
                 self.coverChanged.emit(1)
-                print(f"Removed: {c.coverFile}")
             elif px < self.coverXBoundary * -1.0:
                 self.lastVelocity = c.getVelocity()
                 self.lastSideRemoved = "left"
                 self.coverObjects.remove(c)
                 self.coverChanged.emit(-1)
-                print(f"Removed: {c.coverFile}")
             else:
                 self.lastSideRemoved = "center"
                 c.animate(self.drag,
