@@ -143,7 +143,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Init UI
         self.setTitleBar()
-        self.setGeometry(50, 50, 1820, 900)
+        self.setGeometry(50, 50, 1820, 700)
 
         # Set foreground/background colors for item views
         self.setStyleSheet("""QAbstractItemView{ background: black; color: white; }; """)
@@ -961,9 +961,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.numVisibleMovies = proxyModel.rowCount()
         self.showMoviesTableSelectionStatus()
-
         tableView.selectRow(0)
-        self.tableSelectionChanged(tableView, tableModel, proxyModel)
 
     def refreshWatchList(self):
         if os.path.exists(self.watchListSmdbFile):
@@ -1051,9 +1049,6 @@ class MyWindow(QtWidgets.QMainWindow):
 
         tableView.verticalHeader().setMinimumSectionSize(10)
         tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
-
-    def backupMoviesFolder(self):
-        pass
 
     def preferences(self):
         pass
@@ -1697,7 +1692,6 @@ class MyWindow(QtWidgets.QMainWindow):
         else:
             currentRow = 0
 
-        numRows = self.moviesTableModel.rowCount()
         numRowsProxy = self.moviesTableProxyModel.rowCount()
 
         if direction == -1:
@@ -1963,7 +1957,8 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def showCoverFile(self, coverFile):
         if os.path.exists(coverFile):
-            self.openGlWidget.setTexture(coverFile)
+            self.openGlWidget.emitCover(coverFile)
+
             pixMap = QtGui.QPixmap(coverFile)
             sz = self.movieCover.size()
             self.movieCover.setPixmap(pixMap.scaled(sz.width(), sz.height(),

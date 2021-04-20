@@ -1,35 +1,39 @@
 from PyQt5 import QtGui, QtWidgets, QtCore
 
 class CoverGLObject:
-    def __init__(self, textureFile):
-        self.vertexShader = 'qsmdb/cover_vertex_shader.glsl'
-        self.fragmentShader = 'qsmdb/cover_fragment_shader.glsl'
+    front_vertices = [
+        QtGui.QVector3D(-1.0, 1.5, 0.0),
+        QtGui.QVector3D(1.0, 1.5, 0.0),
+        QtGui.QVector3D(1.0, -1.5, 0.0),
+        QtGui.QVector3D(-1.0, -1.5, 0.0)
+    ]
+
+    front_texture_coordinates = [
+        QtGui.QVector2D(1.0, 0.0),
+        QtGui.QVector2D(0.0, 0.0),
+        QtGui.QVector2D(0.0, 1.0),
+        QtGui.QVector2D(1.0, 1.0)
+    ]
+
+    back_texture_coordinates = [
+        QtGui.QVector2D(0.0, 1.0),
+        QtGui.QVector2D(1.0, 1.0),
+        QtGui.QVector2D(1.0, 0.0),
+        QtGui.QVector2D(0.0, 0.0)
+    ]
+
+    vertexShader = 'qsmdb/cover_vertex_shader.glsl'
+    fragmentShader = 'qsmdb/cover_fragment_shader.glsl'
+
+    def __init__(self,
+                 textureFile: str,
+                 position: QtGui.QVector3D,
+                 velocity=QtGui.QVector3D(0.0, 0.0, 0.0)):
+
         self.coverFile = textureFile
-
-        self.position = QtGui.QVector3D(0.0, 0.0, 0.0)
-        self.velocity = QtGui.QVector3D(0.0, 0.0, 0.0)
+        self.position = position
+        self.velocity = velocity
         self.rotationAngle = 0
-
-        self.front_vertices = [
-            QtGui.QVector3D(-1.0, 1.5, 0.0),
-            QtGui.QVector3D(1.0, 1.5, 0.0),
-            QtGui.QVector3D(1.0, -1.5, 0.0),
-            QtGui.QVector3D(-1.0, -1.5, 0.0)
-        ]
-
-        self.front_texture_coordinates = [
-            QtGui.QVector2D(1.0, 0.0),
-            QtGui.QVector2D(0.0, 0.0),
-            QtGui.QVector2D(0.0, 1.0),
-            QtGui.QVector2D(1.0, 1.0)
-        ]
-
-        self.back_texture_coordinates = [
-            QtGui.QVector2D(0.0, 1.0),
-            QtGui.QVector2D(1.0, 1.0),
-            QtGui.QVector2D(1.0, 0.0),
-            QtGui.QVector2D(0.0, 0.0)
-        ]
 
     def initGl(self):
         self.program = QtGui.QOpenGLShaderProgram()
@@ -82,6 +86,12 @@ class CoverGLObject:
     def animate(self, drag, aspectRatio, boundary : float) -> None:
         self.position += self.velocity
         self.pushTowardsCenter(aspectRatio)
+
+        maxSpeed = 1.0
+        speed = self.velocity.length()
+        if speed > maxSpeed:
+            self.velocity = self.velocity / speed * maxSpeed
+
         self.velocity *= drag
         self.rotateByBoundry(boundary)
 
