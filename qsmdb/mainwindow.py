@@ -145,7 +145,10 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Init UI
         self.setTitleBar()
-        self.setGeometry(50, 50, 1820, 900)
+        geometry = self.settings.value('geometry',
+                                       QtCore.QRect(50, 50, 1820, 900),
+                                       type=QtCore.QRect)
+        self.setGeometry(geometry)
 
         # Set foreground/background colors for item views
         self.setStyleSheet("""QAbstractItemView{ background: black; color: white; }; """)
@@ -389,6 +392,8 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.showMoviesTableSelectionStatus()
 
+    def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
+        self.settings.setValue('geometry', self.geometry())
 
     def initUIFileMenu(self):
         menuBar = self.menuBar()
@@ -414,6 +419,10 @@ class MyWindow(QtWidgets.QMainWindow):
         clearAdditionalMoviesFolderAction = QtWidgets.QAction("Clear additional movies folders", self)
         clearAdditionalMoviesFolderAction.triggered.connect(self.clearAdditionalMoviesFolders)
         fileMenu.addAction(clearAdditionalMoviesFolderAction)
+
+        restoreDefaultWindowsAction = QtWidgets.QAction("Restore default window configuration", self)
+        restoreDefaultWindowsAction.triggered.connect(self.restoreDefaultWindows)
+        fileMenu.addAction(restoreDefaultWindowsAction)
 
         preferencesAction = QtWidgets.QAction("Preferences", self)
         preferencesAction.triggered.connect(self.preferences)
@@ -1059,6 +1068,9 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def preferences(self):
         pass
+
+    def restoreDefaultWindows(self):
+        self.setGeometry(QtCore.QRect(50, 50, 1820, 900))
 
     def setTitleBar(self):
         additionalMoviesFoldersString = ""
