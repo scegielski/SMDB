@@ -143,7 +143,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Init UI
         self.setTitleBar()
-        self.setGeometry(50, 50, 1820, 700)
+        self.setGeometry(50, 50, 1820, 900)
 
         # Set foreground/background colors for item views
         self.setStyleSheet("""QAbstractItemView{ background: black; color: white; }; """)
@@ -300,6 +300,21 @@ class MyWindow(QtWidgets.QMainWindow):
         if not self.showMovieInfo:
             self.movieInfoWidget.hide()
 
+        # Cover / GL Tabs
+        coverTabWidget = QtWidgets.QTabWidget()
+        coverInfoHSplitter.addWidget(coverTabWidget)
+
+        # Cover GL
+        coverGLWidget = QtWidgets.QWidget()
+        coverGLWidget.setLayout(QtWidgets.QVBoxLayout())
+        coverTabWidget.addTab(coverGLWidget, "Cover GL")
+
+        self.randomizeCheckbox = QtWidgets.QCheckBox("Randomize")
+        coverGLWidget.layout().addWidget(self.randomizeCheckbox)
+
+        self.openGlWidget = CoverGLWidget()
+        self.openGlWidget.coverChanged.connect(self.coverChanged)
+        coverGLWidget.layout().addWidget(self.openGlWidget)
 
         # Cover
         self.coverWidget = QtWidgets.QWidget()
@@ -307,19 +322,9 @@ class MyWindow(QtWidgets.QMainWindow):
         self.initUICover()
         if not self.showCover:
             self.coverWidget.hide()
-
-        # Cover GL
-        self.openGlWidget = CoverGLWidget()
-        self.openGlWidget.coverChanged.connect(self.coverChanged)
-
-        # Cover / GL Tabs
-        coverTabWidget = QtWidgets.QTabWidget()
-        coverTabWidget.addTab(self.openGlWidget, "Cover GL")
         coverTabWidget.addTab(self.coverWidget, "Cover")
 
-        coverInfoHSplitter.addWidget(coverTabWidget)
-
-        coverInfoHSplitter.setSizes([250, 450])
+        coverInfoHSplitter.setSizes([200, 600])
 
         # Summary
         self.summary = QtWidgets.QTextBrowser()
@@ -337,7 +342,7 @@ class MyWindow(QtWidgets.QMainWindow):
         mainHSplitter.splitterMoved.connect(self.resizeCoverFile)
 
         # Main horizontal sizes
-        mainHSplitter.setSizes([270, 950, 600])
+        mainHSplitter.setSizes([270, 750, 800])
 
         # Bottom
         bottomLayout = QtWidgets.QHBoxLayout(self)
