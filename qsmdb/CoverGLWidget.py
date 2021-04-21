@@ -86,15 +86,21 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
 
         self.setView()
 
-    def emitCover(self, coverFile):
+    def emitCover(self, coverFile, emitSide=None):
+        if emitSide==None:
+            if self.lastSideRemoved == "right":
+                emitSide = "left"
+            else:
+                emitSide = "right"
+
         # Delete any existing cover objects
         self.coverObjects.clear()
 
         newCoverPosition = QtGui.QVector3D(0.0, 0.0, 0.0)
         epsilon = 0.5
-        if self.lastSideRemoved == "right":
+        if emitSide == "left":
             newCoverPosition = QtGui.QVector3D(-self.coverXBoundary + epsilon, 0.0, 0.0)
-        elif self.lastSideRemoved == "left":
+        elif emitSide == "right":
             newCoverPosition = QtGui.QVector3D(self.coverXBoundary - epsilon, 0.0, 0.0)
 
         newCoverObject = CoverGLObject(coverFile, newCoverPosition, self.lastVelocity)

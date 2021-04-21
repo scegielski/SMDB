@@ -940,6 +940,7 @@ class MyWindow(QtWidgets.QMainWindow):
             pass
 
         tableView.selectionModel().selectionChanged.connect(lambda: self.tableSelectionChanged(tableView, tableModel, proxyModel))
+        tableView.clicked.connect(self.clickedMovieTable)
         tableView.doubleClicked.connect(lambda: self.playMovie(tableView, proxyModel))
 
         # Don't sort the table when the data changes
@@ -978,6 +979,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.numVisibleMovies = proxyModel.rowCount()
         self.showMoviesTableSelectionStatus()
         tableView.selectRow(0)
+        self.emitCover(emitSide='center')
 
     def refreshWatchList(self):
         if os.path.exists(self.watchListSmdbFile):
@@ -1724,7 +1726,6 @@ class MyWindow(QtWidgets.QMainWindow):
                 randomRow = visibleRows[randomIndex]
             self.moviesTableView.selectRow(randomRow)
         else:
-
             if direction == -1:
                 if currentRow == numRowsProxy - 1:
                     currentRow = 0
@@ -1745,17 +1746,34 @@ class MyWindow(QtWidgets.QMainWindow):
                         currentRow = numRowsProxy - 1
 
             self.moviesTableView.selectRow(currentRow)
+            self.emitCover()
+
+    def clickedMovieTable(self):
+        self.emitCover(emitSide='right')
+
+    def emitCover(self, emitSide=None):
+        modelIndex = self.moviesTableView.selectionModel().selectedRows()[0]
+        sourceIndex = self.moviesTableProxyModel.mapToSource(modelIndex)
+        sourceRow = sourceIndex.row()
+        moviePath = self.moviesTableModel.getPath(sourceRow)
+        folderName = self.moviesTableModel.getFolderName(sourceRow)
+        coverFile = os.path.join(moviePath, '%s.jpg' % folderName)
+        if not os.path.exists(coverFile):
+            coverFilePng = os.path.join(moviePath, '%s.png' % folderName)
+            if os.path.exists(coverFilePng):
+                coverFile = coverFilePng
+        self.openGlWidget.emitCover(coverFile, emitSide)
 
     def tableSelectionChanged(self, table, model, proxyModel):
         self.showMoviesTableSelectionStatus()
         numSelected = len(table.selectionModel().selectedRows())
         if numSelected == 1:
             modelIndex = table.selectionModel().selectedRows()[0]
-            self.clickedMovieTable(modelIndex,
-                                   model,
-                                   proxyModel)
+            self.clickedTable(modelIndex,
+                              model,
+                              proxyModel)
 
-    def clickedMovieTable(self, modelIndex, model, proxyModel):
+    def clickedTable(self, modelIndex, model, proxyModel):
         sourceIndex = proxyModel.mapToSource(modelIndex)
         sourceRow = sourceIndex.row()
         title = model.getTitle(sourceRow)
@@ -1988,8 +2006,6 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def showCoverFile(self, coverFile):
         if os.path.exists(coverFile):
-            self.openGlWidget.emitCover(coverFile)
-
             pixMap = QtGui.QPixmap(coverFile)
             sz = self.movieCover.size()
             self.movieCover.setPixmap(pixMap.scaled(sz.width(), sz.height(),
@@ -2548,9 +2564,9 @@ class MyWindow(QtWidgets.QMainWindow):
         rightMenu.addAction(moveDownWatchListAction)
 
         modelIndex = self.watchListTableView.selectionModel().selectedRows()[0]
-        self.clickedMovieTable(modelIndex,
-                               self.watchListTableModel,
-                               self.watchListTableProxyModel)
+        self.clickedTable(modelIndex,
+                          self.watchListTableModel,
+                          self.watchListTableProxyModel)
 
         rightMenu.exec_(QtGui.QCursor.pos())
 
@@ -2647,9 +2663,9 @@ class MyWindow(QtWidgets.QMainWindow):
         if self.backupListTableProxyModel.rowCount() > 0:
             if len(self.backupListTableView.selectionModel().selectedRows()) > 0:
                 modelIndex = self.backupListTableView.selectionModel().selectedRows()[0]
-                self.clickedMovieTable(modelIndex,
-                                       self.backupListTableModel,
-                                       self.backupListTableProxyModel)
+                self.clickedTable(modelIndex,
+                                  self.backupListTableModel,
+                                  self.backupListTableProxyModel)
 
         rightMenu.exec_(QtGui.QCursor.pos())
 
@@ -2767,9 +2783,9 @@ class MyWindow(QtWidgets.QMainWindow):
 
         if self.moviesTableView.selectionModel().selectedRows():
             modelIndex = self.moviesTableView.selectionModel().selectedRows()[0]
-            self.clickedMovieTable(modelIndex,
-                                   self.moviesTableModel,
-                                   self.moviesTableProxyModel)
+            self.clickedTable(modelIndex,
+                              self.moviesTableModel,
+                              self.moviesTableProxyModel)
 
         moviesTableRightMenu.exec_(QtGui.QCursor.pos())
 
@@ -3229,9 +3245,9 @@ class MyWindow(QtWidgets.QMainWindow):
             self.calculateFolderSize(proxyIndex, moviePath, movieFolderName)
             self.calculateMovieDimension(proxyIndex, moviePath, movieFolderName)
             self.moviesTableView.selectRow(proxyIndex.row())
-            self.clickedMovieTable(proxyIndex,
-                                   self.moviesTableModel,
-                                   self.moviesTableProxyModel)
+            self.clickedTable(proxyIndex,
+                              self.moviesTableModel,
+                              self.moviesTableProxyModel)
 
         self.progressBar.setValue(0)
 
