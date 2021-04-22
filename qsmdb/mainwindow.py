@@ -1725,6 +1725,7 @@ class MyWindow(QtWidgets.QMainWindow):
                 randomIndex = random.randint(0, len(visibleRows) - 1)
                 randomRow = visibleRows[randomIndex]
             self.moviesTableView.selectRow(randomRow)
+            self.emitCover()
         else:
             if direction == -1:
                 if currentRow == numRowsProxy - 1:
@@ -1749,9 +1750,10 @@ class MyWindow(QtWidgets.QMainWindow):
             self.emitCover()
 
     def clickedMovieTable(self):
-        self.emitCover(emitSide='right')
+        self.openGlWidget.clearCovers('left')
+        self.emitCover(emitSide='right',emitVelocity=QtGui.QVector3D(-0.02, 0.0, 0.0))
 
-    def emitCover(self, emitSide=None):
+    def emitCover(self, emitSide=None, emitVelocity=None):
         modelIndex = self.moviesTableView.selectionModel().selectedRows()[0]
         sourceIndex = self.moviesTableProxyModel.mapToSource(modelIndex)
         sourceRow = sourceIndex.row()
@@ -1762,7 +1764,7 @@ class MyWindow(QtWidgets.QMainWindow):
             coverFilePng = os.path.join(moviePath, '%s.png' % folderName)
             if os.path.exists(coverFilePng):
                 coverFile = coverFilePng
-        self.openGlWidget.emitCover(coverFile, emitSide)
+        self.openGlWidget.emitCover(coverFile, emitSide, emitVelocity)
 
     def tableSelectionChanged(self, table, model, proxyModel):
         self.showMoviesTableSelectionStatus()

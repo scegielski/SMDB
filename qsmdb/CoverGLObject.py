@@ -34,6 +34,7 @@ class CoverGLObject:
         self.position = position
         self.velocity = velocity
         self.rotationAngle = 0
+        self.emit = True
 
     def initGl(self):
         self.program = QtGui.QOpenGLShaderProgram()
@@ -139,8 +140,7 @@ class CoverGLObject:
         objectMatrix.translate(self.position)
         axis = QtGui.QVector3D(0.0, 1.0, 0.0)
         objectMatrix.rotate(self.rotationAngle, axis)
-        viewMatrix *= objectMatrix
-        self.program.setUniformValue(self.matrixLocation, viewMatrix)
+        self.program.setUniformValue(self.matrixLocation, viewMatrix * objectMatrix)
 
         # Draw the front
         self.program.setAttributeArray(self.vertexLocation, self.front_vertices)

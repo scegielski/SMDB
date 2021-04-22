@@ -86,7 +86,18 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
 
         self.setView()
 
-    def emitCover(self, coverFile, emitSide=None):
+    def clearCovers(self, clearSide):
+        acceleration = QtGui.QVector3D()
+        accelX = 0.1
+        if clearSide == "right":
+            acceleration.setX(accelX * self.aspectRatio)
+        else:
+            acceleration.setX(-accelX * self.aspectRatio)
+        for c in self.coverObjects:
+            c.emit = False
+            c.addAcceleration(acceleration)
+
+    def emitCover(self, coverFile, emitSide=None, emitVelocity=None):
         if emitSide==None:
             if self.lastSideRemoved == "right":
                 emitSide = "left"
@@ -94,7 +105,8 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
                 emitSide = "right"
 
         # Delete any existing cover objects
-        self.coverObjects.clear()
+        #self.clearCovers(clearSide)
+        #self.coverObjects.clear()
 
         newCoverPosition = QtGui.QVector3D(0.0, 0.0, 0.0)
         epsilon = 0.5
@@ -103,7 +115,9 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         elif emitSide == "right":
             newCoverPosition = QtGui.QVector3D(self.coverXBoundary - epsilon, 0.0, 0.0)
 
-        newCoverObject = CoverGLObject(coverFile, newCoverPosition, self.lastVelocity)
+        if emitVelocity == None:
+            emitVelocity = self.lastVelocity
+        newCoverObject = CoverGLObject(coverFile, newCoverPosition, emitVelocity)
         newCoverObject.initGl()
         newCoverObject.rotateByBoundry(self.coverXBoundary)
         self.coverObjects.append(newCoverObject)
@@ -118,12 +132,14 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
                 self.lastVelocity = c.getVelocity()
                 self.lastSideRemoved = "right"
                 self.coverObjects.remove(c)
-                self.coverChanged.emit(1)
+                if c.emit:
+                    self.coverChanged.emit(1)
             elif px < self.coverXBoundary * -1.0:
                 self.lastVelocity = c.getVelocity()
                 self.lastSideRemoved = "left"
                 self.coverObjects.remove(c)
-                self.coverChanged.emit(-1)
+                if c.emit:
+                    self.coverChanged.emit(-1)
             else:
                 self.lastSideRemoved = "center"
                 c.animate(self.drag,
