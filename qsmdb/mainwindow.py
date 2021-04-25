@@ -271,7 +271,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Title
         self.titleLabel = QtWidgets.QLabel()
-        self.titleLabel.setFont(QtGui.QFont('TimesNew Roman', 10))
+        self.titleLabel.setFont(QtGui.QFont('TimesNew Roman', 20))
         self.titleLabel.setStyleSheet("color: white; background: black")
         self.titleLabel.setWordWrap(True)
         self.titleLabel.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignTop)
@@ -1749,8 +1749,7 @@ class MyWindow(QtWidgets.QMainWindow):
             self.emitCover(direction)
 
     def clickedMovieTable(self):
-        self.openGlWidget.clearCovers('left')
-        self.emitCover()
+        pass
 
     def emitCover(self, direction=-1):
         modelIndex = self.moviesTableView.selectionModel().selectedRows()[0]

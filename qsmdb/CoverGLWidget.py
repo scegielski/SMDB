@@ -21,7 +21,8 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         self.positionX = 0
         self.coverSpacing = 1.0
         self.coverXBoundary = self.quantize(self.aspectRatio * 2.2 * (self.cameraZoomAngle / 45.0), self.coverSpacing)
-        print(f"self.coverXBoundary = {self.coverXBoundary}")
+        self.vX = 0
+        self.drag = 0.95
 
     def setView(self):
         self.viewMatrix.setToIdentity()
@@ -36,41 +37,23 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
     def resizeGL(self, w: int, h: int) -> None:
         self.aspectRatio = self.width() / self.height()
         self.coverXBoundary = self.quantize(self.aspectRatio * 2.2 * (self.cameraZoomAngle / 45.0), self.coverSpacing)
-        print(f"resize self.coverXBoundary = {self.coverXBoundary}")
         self.setView()
 
     def mousePressEvent(self, a0: QtGui.QMouseEvent) -> None:
         self.lastPos = a0.pos()
 
     def mouseMoveEvent(self, a0: QtGui.QMouseEvent) -> None:
-        dx = 0.01 * (a0.x() - self.lastPos.x())
+        maxDx = 0.5
+        dx = max(-maxDx, min(maxDx, 0.0025 * (a0.x() - self.lastPos.x())))
         self.positionX += dx
+        self.vX = dx
         self.lastPos = a0.pos()
 
-    def mouseReleaseEvent(self, a0: QtGui.QMouseEvent) -> None:
-        pass
-        #dx = a0.x() - self.lastPos.x()
-        #print(f"dx = {dx}")
-        #self.lastPos = a0.pos()
-        #if dx <= 0:
-        #    print(f"dx <= 0")
-        #    self.emitVelocity(-1)
-        #else:
-        #    print(f"dx > 0")
-        #    self.emitVelocity(1)
-
     def wheelEvent(self, a0: QtGui.QWheelEvent) -> None:
-        pass
-        #if len(self.coverObjects) <= 2:
-        #    if a0.angleDelta().y() <= 0:
-        #        self.coverChanged.emit(-1)
-        #    else:
-        #        self.coverChanged.emit(1)
-        #else:
-        #    if a0.angleDelta().y() <= 0:
-        #        self.emitVelocity(-1)
-        #    else:
-        #        self.emitVelocity(1)
+        if a0.angleDelta().y() <= 0:
+            self.vX = -0.1
+        else:
+            self.vX = 0.1
 
     def quantize(self, input, qt):
         return qt * round(input * (1/qt))
@@ -82,7 +65,6 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         # Don't emit if another cover is at the same offsetX
         for c in self.coverObjects:
             if abs(c.offsetX - coverOffsetX) < 0.01:
-                print("Cover offsetX value already occupied")
                 return
 
         x = self.positionX + coverOffsetX
@@ -122,6 +104,9 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
             cover.rotationAngle *= -1.0
 
     def animate(self):
+        self.positionX += self.vX
+        self.vX *= self.drag
+
         # Move the covers
         for i, cover in enumerate(self.coverObjects):
             self.rotateByBoundary(cover)
