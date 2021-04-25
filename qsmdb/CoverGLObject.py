@@ -26,6 +26,7 @@ class CoverGLObject:
     fragmentShader = 'qsmdb/cover_fragment_shader.glsl'
 
     def __init__(self,
+                 row: int,
                  textureFile: str,
                  position: QtGui.QVector3D,
                  offsetX: float):
@@ -35,6 +36,7 @@ class CoverGLObject:
         self.offsetX = offsetX
         self.rotationAngle = 0
         self.emit = True
+        self.row = row
 
     def initGl(self):
         self.program = QtGui.QOpenGLShaderProgram()

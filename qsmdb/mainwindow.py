@@ -313,12 +313,14 @@ class MyWindow(QtWidgets.QMainWindow):
         coverGLWidget = QtWidgets.QWidget()
         coverGLWidget.setLayout(QtWidgets.QVBoxLayout())
         coverTabWidget.addTab(coverGLWidget, "Cover GL")
+        self.coverRowHistory = list()
 
         self.randomizeCheckbox = QtWidgets.QCheckBox("Randomize")
         coverGLWidget.layout().addWidget(self.randomizeCheckbox)
 
         self.openGlWidget = CoverGLWidget()
-        self.openGlWidget.coverChanged.connect(self.coverChanged)
+        self.openGlWidget.emitCoverSignal.connect(self.coverChanged)
+        self.openGlWidget.showRowSignal.connect(self.showRow)
         coverGLWidget.layout().addWidget(self.openGlWidget)
 
         # Cover
@@ -979,7 +981,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.numVisibleMovies = proxyModel.rowCount()
         self.showMoviesTableSelectionStatus()
         tableView.selectRow(0)
-        self.emitCover()
+        self.emitCover(0, -1)
 
     def refreshWatchList(self):
         if os.path.exists(self.watchListSmdbFile):
@@ -1707,9 +1709,17 @@ class MyWindow(QtWidgets.QMainWindow):
         numSelected = len(self.moviesTableView.selectionModel().selectedRows())
         self.statusBar().showMessage('%s/%s' % (numSelected, self.numVisibleMovies))
 
+    def showRow(self, row):
+        self.moviesTableView.selectRow(row)
+
     def coverChanged(self, direction):
-        if (len(self.moviesTableView.selectionModel().selectedRows()) > 0):
-            currentRow = self.moviesTableView.selectionModel().selectedRows()[0].row()
+        #if (len(self.moviesTableView.selectionModel().selectedRows()) > 0):
+        #    currentRow = self.moviesTableView.selectionModel().selectedRows()[0].row()
+        #else:
+        #    currentRow = 0
+
+        if len(self.coverRowHistory) > 0:
+            currentRow = self.coverRowHistory[-1]
         else:
             currentRow = 0
 
@@ -1723,8 +1733,8 @@ class MyWindow(QtWidgets.QMainWindow):
             while randomRow == currentRow:
                 randomIndex = random.randint(0, len(visibleRows) - 1)
                 randomRow = visibleRows[randomIndex]
-            self.moviesTableView.selectRow(randomRow)
-            self.emitCover()
+            #self.moviesTableView.selectRow(randomRow)
+            self.emitCover(randomRow, direction)
         else:
             if direction == -1:
                 if currentRow == numRowsProxy - 1:
@@ -1745,14 +1755,16 @@ class MyWindow(QtWidgets.QMainWindow):
                     if currentRow == 0:
                         currentRow = numRowsProxy - 1
 
-            self.moviesTableView.selectRow(currentRow)
-            self.emitCover(direction)
+            #self.moviesTableView.selectRow(currentRow)
+            self.emitCover(currentRow, direction)
 
     def clickedMovieTable(self):
         pass
 
-    def emitCover(self, direction=-1):
-        modelIndex = self.moviesTableView.selectionModel().selectedRows()[0]
+    def emitCover(self, row, direction):
+        self.coverRowHistory.append(row)
+        #modelIndex = self.moviesTableView.selectionModel().selectedRows()[0]
+        modelIndex = self.moviesTableProxyModel.index(row, 0)
         sourceIndex = self.moviesTableProxyModel.mapToSource(modelIndex)
         sourceRow = sourceIndex.row()
         moviePath = self.moviesTableModel.getPath(sourceRow)
@@ -1762,7 +1774,7 @@ class MyWindow(QtWidgets.QMainWindow):
             coverFilePng = os.path.join(moviePath, '%s.png' % folderName)
             if os.path.exists(coverFilePng):
                 coverFile = coverFilePng
-        self.openGlWidget.emitCover(coverFile, direction)
+        self.openGlWidget.emitCover(row, coverFile, direction)
 
     def tableSelectionChanged(self, table, model, proxyModel):
         self.showMoviesTableSelectionStatus()

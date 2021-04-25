@@ -5,7 +5,8 @@ from .CoverGLObject import CoverGLObject
 
 
 class CoverGLWidget(QtWidgets.QOpenGLWidget):
-    coverChanged = QtCore.pyqtSignal(int)
+    emitCoverSignal = QtCore.pyqtSignal(int)
+    showRowSignal = QtCore.pyqtSignal(int)
 
     def __init__(self):
         super(QtWidgets.QOpenGLWidget, self).__init__()
@@ -58,7 +59,7 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
     def quantize(self, input, qt):
         return qt * round(input * (1/qt))
 
-    def emitCover(self, coverFile, direction=1):
+    def emitCover(self, row, coverFile, direction=1):
         x = -self.coverXBoundary if direction == 1 else self.coverXBoundary
         coverOffsetX = self.quantize(x - self.positionX, self.coverSpacing)
 
@@ -69,10 +70,10 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
 
         x = self.positionX + coverOffsetX
         coverPosition = QtGui.QVector3D(x, 0.0, 0.0)
-        self.createCover(coverFile, coverPosition, coverOffsetX)
+        self.createCover(row, coverFile, coverPosition, coverOffsetX)
 
-    def createCover(self, coverFile, position, offset):
-        cover = CoverGLObject(coverFile, position, offset)
+    def createCover(self, row, coverFile, position, offset):
+        cover = CoverGLObject(row, coverFile, position, offset)
         cover.initGl()
         self.rotateByBoundary(cover)
         self.coverObjects.append(cover)
@@ -117,18 +118,25 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
             if px > self.coverXBoundary + 0.1:
                 self.coverObjects.remove(cover)
                 if len(self.coverObjects) == 0:
-                    self.coverChanged.emit(1)
+                    self.emitCoverSignal.emit(1)
             elif px < self.coverXBoundary * -1.0 - 0.1:
                 self.coverObjects.remove(cover)
                 if len(self.coverObjects) == 0:
-                    self.coverChanged.emit(-1)
+                    self.emitCoverSignal.emit(-1)
 
+            # Emit covers when emitX is crossed
             lastPx = cover.lastPosition.x()
             emitX = self.coverXBoundary - self.coverSpacing * 2.0
-            if lastPx >= emitX and px < emitX:
-                self.coverChanged.emit(-1)
-            elif lastPx <= -emitX and px > -emitX:
-                self.coverChanged.emit(1)
+            if lastPx >= emitX > px:
+                self.emitCoverSignal.emit(-1)
+            elif lastPx <= -emitX < px:
+                self.emitCoverSignal.emit(1)
+
+            # Show cover when in center zone
+            lastPx = cover.lastPosition.x()
+            showX = 0.5
+            if lastPx >= showX > px or lastPx <= -showX < px:
+                self.showRowSignal.emit(cover.row)
 
             cover.lastPosition = cover.position
 

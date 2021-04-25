@@ -80,12 +80,12 @@ def searchTableWidget(searchBoxWidget, tableWidget):
     searchText = searchBoxWidget.text()
     if searchText == "":
         for row in range(tableWidget.rowCount()):
-            tableWidget.showRow(row)
+            tableWidget.showRowSignal(row)
     else:
         for row in range(tableWidget.rowCount()):
             tableWidget.hideRow(row)
         for foundItem in tableWidget.findItems(searchText, QtCore.Qt.MatchContains):
-            tableWidget.showRow(foundItem.row())
+            tableWidget.showRowSignal(foundItem.row())
 
 
 def searchTableView(searchBoxWidget, tableView):
