@@ -27,12 +27,9 @@ class CoverGLObject:
 
     def __init__(self,
                  textureFile: str,
-                 position: QtGui.QVector3D,
-                 velocity=QtGui.QVector3D(0.0, 0.0, 0.0)):
-
+                 position: QtGui.QVector3D):
         self.coverFile = textureFile
         self.position = position
-        self.velocity = velocity
         self.rotationAngle = 0
         self.emit = True
 
@@ -58,69 +55,6 @@ class CoverGLObject:
         self.coverTexture = QtGui.QOpenGLTexture(QtGui.QImage(coverFile))
         self.coverTexture.setMaximumAnisotropy(16)
 
-    def pushTowardsCenter(self, aspectRatio : float) -> None:
-        v = self.velocity
-        px = self.position.x()
-        if v.length() < 0.025:
-            if px > 0.01:
-                self.addAcceleration(QtGui.QVector3D(-0.001 * aspectRatio, 0.0, 0.0))
-            elif px < -0.01:
-                self.addAcceleration(QtGui.QVector3D(0.001 * aspectRatio, 0.0, 0.0))
-            else:
-                v *= 0.0
-                self.velocity = v
-
-    def rotateByBoundry(self, boundary):
-        # Rotate when in this zone
-        minX = 0.1
-        maxX = 0.75
-        ratio = abs(self.position.x()) / boundary
-        # remap minX..maxX to 0..1
-        t = min(1.0, max(0.0, (ratio - minX) / (maxX - minX)))
-        # ease in
-        t = t * t
-
-        self.rotationAngle = t * -90.0
-        if self.position.x() < 0:
-            self.rotationAngle *= -1.0
-
-    def animate(self, drag, aspectRatio, boundary : float) -> None:
-        self.position += self.velocity
-        self.pushTowardsCenter(aspectRatio)
-
-        maxSpeed = 1.0
-        speed = self.velocity.length()
-        if speed > maxSpeed:
-            self.velocity = self.velocity / speed * maxSpeed
-
-        self.velocity *= drag
-        self.rotateByBoundry(boundary)
-
-    def reset(self):
-        self.position = QtGui.QVector3D(0.0, 0.0, 0.0)
-        self.velocity = QtGui.QVector3D(0.0, 0.0, 0.0)
-        self.rotationAngle = 0.0
-
-    def addAcceleration(self, acceleration : QtGui.QVector3D) -> None:
-        self.velocity += acceleration
-
-    def setVelocity(self, velocity : QtGui.QVector3D) -> None:
-        self.velocity = velocity
-
-    def getVelocity(self):
-        return self.velocity
-
-    def getPosition(self):
-        return self.position
-
-    def setPosition(self, position : QtGui.QVector3D) -> None:
-        self.position = position
-
-    def getRotationAngle(self):
-        return self.rotationAngle
-
-    def setRotationAngle(self, angle):
-        self.rotationAngle = angle
 
     def draw(self, gl, viewMatrix : QtGui.QMatrix4x4) -> None:
         # Bind the shader programs

@@ -15,10 +15,12 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         self.setFocusPolicy(QtCore.Qt.StrongFocus)
         self.aspectRatio = self.width() / self.height()
         self.coverXBoundary = self.aspectRatio * 2.5 * (self.cameraZoomAngle / 45.0)
-        self.drag = 0.97
+        self.drag = 0.95
         self.coverObjects = list()
         self.viewMatrix = QtGui.QMatrix4x4()
         self.lastSideRemoved = "center"
+        self.position = QtGui.QVector3D(0.0, 0.0, 0.0)
+        self.velocity = QtGui.QVector3D(0.0, 0.0, 0.0)
 
         # Velocity of last cover when it was removed
         self.lastVelocity = QtGui.QVector3D(0.0, 0.0, 0.0)
@@ -38,37 +40,27 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         self.coverXBoundary = self.aspectRatio * 2.2 * (self.cameraZoomAngle / 45.0)
         self.setView()
 
-    def keyPressEvent(self, a0: QtGui.QKeyEvent) -> None:
-        if a0.key() == QtCore.Qt.Key_Home:
-            self.cameraPosition = QtGui.QVector3D(0.0, 0.0, -4.0)
-            self.cameraZoomAngle = 45.0
-            for c in self.coverObjects:
-                c.reset()
-
     def mousePressEvent(self, a0: QtGui.QMouseEvent) -> None:
         self.lastPos = a0.pos()
 
-    def mouseMoveEvent(self, a0: QtGui.QMouseEvent) -> None:
+    def mouseReleaseEvent(self, a0: QtGui.QMouseEvent) -> None:
         dx = a0.x() - self.lastPos.x()
-        for c in self.coverObjects:
-            c.setVelocity(QtGui.QVector3D(self.aspectRatio * dx * 0.01, 0.0, 0.0))
+        #self.velocity.setX(self.aspectRatio * dx * 0.000001)
         self.lastPos = a0.pos()
-
-    def advanceOneMovie(self, forward):
-        acceleration = QtGui.QVector3D()
-        accelX = 0.1
-        if forward:
-            acceleration.setX(accelX * self.aspectRatio)
-        else:
-            acceleration.setX(-accelX * self.aspectRatio)
-        for c in self.coverObjects:
-            c.addAcceleration(acceleration)
+        if len(self.coverObjects) <= 2:
+            if dx <= 0:
+                self.coverChanged.emit(-1)
+            else:
+                self.coverChanged.emit(1)
 
     def wheelEvent(self, a0: QtGui.QWheelEvent) -> None:
-        if a0.angleDelta().y() > 0:
-            self.advanceOneMovie(True)
-        elif a0.angleDelta().y() < 0:
-            self.advanceOneMovie(False)
+        #dx = 0.01 if a0.angleDelta().y() > 0 else -0.01
+        #self.velocity.setX(self.aspectRatio * dx)
+        if len(self.coverObjects) <= 2:
+            if a0.angleDelta().y() <= 0:
+                self.coverChanged.emit(-1)
+            else:
+                self.coverChanged.emit(1)
 
     def initializeGL(self) -> None:
         super().initializeGL()
@@ -87,64 +79,84 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         self.setView()
 
     def clearCovers(self, clearSide):
-        acceleration = QtGui.QVector3D()
-        accelX = 0.1
-        if clearSide == "right":
-            acceleration.setX(accelX * self.aspectRatio)
-        else:
-            acceleration.setX(-accelX * self.aspectRatio)
         for c in self.coverObjects:
             c.emit = False
-            c.addAcceleration(acceleration)
 
-    def emitCover(self, coverFile, emitSide=None, emitVelocity=None):
-        if emitSide==None:
-            if self.lastSideRemoved == "right":
-                emitSide = "left"
-            else:
-                emitSide = "right"
+    def createCover(self, position, coverFile):
+        cover = CoverGLObject(coverFile, position)
+        cover.initGl()
+        self.rotateByBoundary(cover)
+        self.coverObjects.append(cover)
 
-        # Delete any existing cover objects
-        #self.clearCovers(clearSide)
-        #self.coverObjects.clear()
+    def emitCover(self, coverFile):
+        v = self.velocity
+        a = 0.15
+        a = a if v.x() > 0 else -a
+        self.velocity.setX(v.x() + a)
 
-        newCoverPosition = QtGui.QVector3D(0.0, 0.0, 0.0)
-        epsilon = 0.5
-        if emitSide == "left":
-            newCoverPosition = QtGui.QVector3D(-self.coverXBoundary + epsilon, 0.0, 0.0)
-        elif emitSide == "right":
-            newCoverPosition = QtGui.QVector3D(self.coverXBoundary - epsilon, 0.0, 0.0)
+        if v.x() > 0.0:
+            emitSide = "left"
+        else:
+            emitSide = "right"
 
-        if emitVelocity == None:
-            emitVelocity = self.lastVelocity
-        newCoverObject = CoverGLObject(coverFile, newCoverPosition, emitVelocity)
-        newCoverObject.initGl()
-        newCoverObject.rotateByBoundry(self.coverXBoundary)
-        self.coverObjects.append(newCoverObject)
+        e = 0.5 # x offset epsilon to prevent infinite emit loop
+        cb = self.coverXBoundary
+        x = -cb + e if emitSide == "left" else cb - e
+        self.createCover(QtGui.QVector3D(x, 0.0, 0.0), coverFile)
+
+    def pushTowardsCenter(self, speedThreshold=0.025, deadZone=0.01):
+        speed = self.velocity.length()
+        if 0.0 < speed < speedThreshold:
+            for cover in self.coverObjects:
+                px = cover.position.x()
+                if px > deadZone:
+                    self.velocity += QtGui.QVector3D(-0.001 * self.aspectRatio, 0.0, 0.0)
+                elif px < -deadZone:
+                    self.velocity += QtGui.QVector3D(0.001 * self.aspectRatio, 0.0, 0.0)
+                else:
+                    self.velocity *= 0.0
+
+    def rotateByBoundary(self, cover):
+        # Rotate when in this zone
+        minX = 0.1
+        maxX = 0.75
+        ratio = abs(cover.position.x()) / self.coverXBoundary
+        # remap minX..maxX to 0..1
+        t = min(1.0, max(0.0, (ratio - minX) / (maxX - minX)))
+        # ease in
+        t = t * t
+
+        cover.rotationAngle = t * -90.0
+        if cover.position.x() < 0:
+            cover.rotationAngle *= -1.0
 
     def animate(self):
-        if len(self.coverObjects) == 0:
-            return
+        # Apply dray
+        self.velocity *= self.drag
 
-        for c in self.coverObjects:
-            px = c.getPosition().x()
+        # Apply speed limit
+        maxSpeed = 1.0
+        speed = self.velocity.length()
+        if speed > maxSpeed:
+            self.velocity = self.velocity / speed * maxSpeed
+
+        # Apply push towards center
+        self.pushTowardsCenter()
+
+        self.position += self.velocity
+
+        # Move the covers
+        for cover in self.coverObjects:
+            self.rotateByBoundary(cover)
+            px = cover.position.x()
+
+            # Remove covers at the window boundries
             if px > self.coverXBoundary:
-                self.lastVelocity = c.getVelocity()
-                self.lastSideRemoved = "right"
-                self.coverObjects.remove(c)
-                if c.emit:
-                    self.coverChanged.emit(1)
+                self.coverObjects.remove(cover)
             elif px < self.coverXBoundary * -1.0:
-                self.lastVelocity = c.getVelocity()
-                self.lastSideRemoved = "left"
-                self.coverObjects.remove(c)
-                if c.emit:
-                    self.coverChanged.emit(-1)
-            else:
-                self.lastSideRemoved = "center"
-                c.animate(self.drag,
-                          self.aspectRatio,
-                          self.coverXBoundary)
+                self.coverObjects.remove(cover)
+            cover.position += self.velocity
+
 
     def paintGL(self) -> None:
         self.gl.glClearColor(0.0, 0.0, 0.0, 1.0)

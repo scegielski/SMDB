@@ -979,7 +979,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.numVisibleMovies = proxyModel.rowCount()
         self.showMoviesTableSelectionStatus()
         tableView.selectRow(0)
-        self.emitCover(emitSide='center')
+        self.emitCover()
 
     def refreshWatchList(self):
         if os.path.exists(self.watchListSmdbFile):
@@ -1751,9 +1751,9 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def clickedMovieTable(self):
         self.openGlWidget.clearCovers('left')
-        self.emitCover(emitSide='right',emitVelocity=QtGui.QVector3D(-0.02, 0.0, 0.0))
+        self.emitCover()
 
-    def emitCover(self, emitSide=None, emitVelocity=None):
+    def emitCover(self):
         modelIndex = self.moviesTableView.selectionModel().selectedRows()[0]
         sourceIndex = self.moviesTableProxyModel.mapToSource(modelIndex)
         sourceRow = sourceIndex.row()
@@ -1764,7 +1764,7 @@ class MyWindow(QtWidgets.QMainWindow):
             coverFilePng = os.path.join(moviePath, '%s.png' % folderName)
             if os.path.exists(coverFilePng):
                 coverFile = coverFilePng
-        self.openGlWidget.emitCover(coverFile, emitSide, emitVelocity)
+        self.openGlWidget.emitCover(coverFile)
 
     def tableSelectionChanged(self, table, model, proxyModel):
         self.showMoviesTableSelectionStatus()
