@@ -22,6 +22,7 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         self.position = QtGui.QVector3D(0.0, 0.0, 0.0)
         self.lastPosition = QtGui.QVector3D(0.0, 0.0, 0.0)
         self.velocity = QtGui.QVector3D(0.0, 0.0, 0.0)
+        self.pdx = 0.0
 
         # Velocity of last cover when it was removed
         self.lastVelocity = QtGui.QVector3D(0.0, 0.0, 0.0)
@@ -45,20 +46,22 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         self.lastPos = a0.pos()
 
     def mouseMoveEvent(self, a0: QtGui.QMouseEvent) -> None:
-        #dx = a0.x() - self.lastPos.x()
-        #self.position.setX(self.position.x() + dx)
+        dx = a0.x() - self.lastPos.x()
+        self.pdx = dx * 0.001
+        print(f"dx={dx}")
+        self.position.setX(self.position.x() + dx)
         self.lastPos = a0.pos()
 
     def mouseReleaseEvent(self, a0: QtGui.QMouseEvent) -> None:
         dx = a0.x() - self.lastPos.x()
         print(f"dx = {dx}")
         self.lastPos = a0.pos()
-        if dx <= 0:
-            print(f"dx <= 0")
-            self.emitVelocity(-1)
-        else:
-            print(f"dx > 0")
-            self.emitVelocity(1)
+        #if dx <= 0:
+        #    print(f"dx <= 0")
+        #    self.emitVelocity(-1)
+        #else:
+        #    print(f"dx > 0")
+        #    self.emitVelocity(1)
 
     def wheelEvent(self, a0: QtGui.QWheelEvent) -> None:
         if len(self.coverObjects) <= 2:
@@ -98,7 +101,7 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         self.rotateByBoundary(cover)
         self.coverObjects.append(cover)
 
-    def emitVelocity(self, direction=None):
+    def emitVVelocity(self, direction=None):
         v = self.velocity
         a = 0.2
         if direction:
@@ -109,7 +112,6 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
 
     def emitCover(self, coverFile, direction=None):
         self.emitVelocity(direction)
-
 
         e = 0.5 # x offset epsilon from boundaries
         cb = self.coverXBoundary
@@ -156,10 +158,9 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         # Apply push towards center
         self.pushTowardsCenter()
 
-        newPosition = self.position + self.velocity
+        newPosition = self.lastPosition + QtGui.QVector3D(self.pdx, 0.0, 0.0) + self.velocity
         positionDelta = newPosition - self.lastPosition
         self.lastPosition = newPosition
-        self.position = newPosition
 
         # Move the covers
         for cover in self.coverObjects:
