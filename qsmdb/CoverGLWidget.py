@@ -15,11 +15,13 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         self.coverVelocity = QtGui.QVector3D(0.0, 0.0, 0.0)
         self.setFocusPolicy(QtCore.Qt.StrongFocus)
         self.aspectRatio = self.width() / self.height()
-        self.coverXBoundary = self.aspectRatio * 2.5 * (self.cameraZoomAngle / 45.0)
         self.drag = 0.95
         self.coverObjects = list()
         self.viewMatrix = QtGui.QMatrix4x4()
         self.positionX = 0
+        self.coverSpacing = 1.0
+        self.coverXBoundary = self.quantize(self.aspectRatio * 2.2 * (self.cameraZoomAngle / 45.0), self.coverSpacing)
+        print(f"self.coverXBoundary = {self.coverXBoundary}")
 
     def setView(self):
         self.viewMatrix.setToIdentity()
@@ -33,7 +35,8 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
 
     def resizeGL(self, w: int, h: int) -> None:
         self.aspectRatio = self.width() / self.height()
-        self.coverXBoundary = self.aspectRatio * 2.2 * (self.cameraZoomAngle / 45.0)
+        self.coverXBoundary = self.quantize(self.aspectRatio * 2.2 * (self.cameraZoomAngle / 45.0), self.coverSpacing)
+        print(f"resize self.coverXBoundary = {self.coverXBoundary}")
         self.setView()
 
     def mousePressEvent(self, a0: QtGui.QMouseEvent) -> None:
@@ -73,15 +76,16 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         return qt * round(input * (1/qt))
 
     def emitCover(self, coverFile, direction=1):
-        e = 0.01 # x offset epsilon from boundaries
-        cb = self.coverXBoundary
-        print("\n")
-        print(f"direction={direction}")
-        print(f"cb = {cb}")
-        x = -cb + e if direction == 1 else cb - e
-        coverOffsetX = self.quantize(x - self.positionX, 0.1)
+        x = -self.coverXBoundary if direction == 1 else self.coverXBoundary
+        coverOffsetX = self.quantize(x - self.positionX, self.coverSpacing)
+
+        # Don't emit if another cover is at the same offsetX
+        for c in self.coverObjects:
+            if abs(c.offsetX - coverOffsetX) < 0.01:
+                print("Cover offsetX value already occupied")
+                return
+
         x = self.positionX + coverOffsetX
-        print(f"coverOffsetX = {coverOffsetX}")
         coverPosition = QtGui.QVector3D(x, 0.0, 0.0)
         self.createCover(coverFile, coverPosition, coverOffsetX)
 
@@ -119,18 +123,29 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
 
     def animate(self):
         # Move the covers
-        for cover in self.coverObjects:
+        for i, cover in enumerate(self.coverObjects):
             self.rotateByBoundary(cover)
             px = self.positionX + cover.offsetX
             cover.position = QtGui.QVector3D(px, 0.0, 0.0)
 
             # Remove covers at the window boundaries
-            if px > self.coverXBoundary:
+            if px > self.coverXBoundary + 0.1:
                 self.coverObjects.remove(cover)
-                self.coverChanged.emit(1)
-            elif px < self.coverXBoundary * -1.0:
+                if len(self.coverObjects) == 0:
+                    self.coverChanged.emit(1)
+            elif px < self.coverXBoundary * -1.0 - 0.1:
                 self.coverObjects.remove(cover)
+                if len(self.coverObjects) == 0:
+                    self.coverChanged.emit(-1)
+
+            lastPx = cover.lastPosition.x()
+            emitX = self.coverXBoundary - self.coverSpacing * 2.0
+            if lastPx >= emitX and px < emitX:
                 self.coverChanged.emit(-1)
+            elif lastPx <= -emitX and px > -emitX:
+                self.coverChanged.emit(1)
+
+            cover.lastPosition = cover.position
 
     def initializeGL(self) -> None:
         super().initializeGL()

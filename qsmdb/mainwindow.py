@@ -271,7 +271,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Title
         self.titleLabel = QtWidgets.QLabel()
-        self.titleLabel.setFont(QtGui.QFont('TimesNew Roman', 20))
+        self.titleLabel.setFont(QtGui.QFont('TimesNew Roman', 10))
         self.titleLabel.setStyleSheet("color: white; background: black")
         self.titleLabel.setWordWrap(True)
         self.titleLabel.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignTop)
@@ -1708,7 +1708,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage('%s/%s' % (numSelected, self.numVisibleMovies))
 
     def coverChanged(self, direction):
-
         if (len(self.moviesTableView.selectionModel().selectedRows()) > 0):
             currentRow = self.moviesTableView.selectionModel().selectedRows()[0].row()
         else:

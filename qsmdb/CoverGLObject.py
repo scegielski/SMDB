@@ -31,6 +31,7 @@ class CoverGLObject:
                  offsetX: float):
         self.coverFile = textureFile
         self.position = position
+        self.lastPosition = position
         self.offsetX = offsetX
         self.rotationAngle = 0
         self.emit = True
