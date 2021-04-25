@@ -1,4 +1,5 @@
 from PyQt5 import QtGui, QtWidgets, QtCore
+import math
 
 from .CoverGLObject import CoverGLObject
 
@@ -18,14 +19,7 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         self.drag = 0.95
         self.coverObjects = list()
         self.viewMatrix = QtGui.QMatrix4x4()
-        self.lastSideRemoved = "center"
-        self.position = QtGui.QVector3D(0.0, 0.0, 0.0)
-        self.lastPosition = QtGui.QVector3D(0.0, 0.0, 0.0)
-        self.velocity = QtGui.QVector3D(0.0, 0.0, 0.0)
-        self.pdx = 0.0
-
-        # Velocity of last cover when it was removed
-        self.lastVelocity = QtGui.QVector3D(0.0, 0.0, 0.0)
+        self.positionX = 0
 
     def setView(self):
         self.viewMatrix.setToIdentity()
@@ -46,16 +40,15 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         self.lastPos = a0.pos()
 
     def mouseMoveEvent(self, a0: QtGui.QMouseEvent) -> None:
-        dx = a0.x() - self.lastPos.x()
-        self.pdx = dx * 0.001
-        print(f"dx={dx}")
-        self.position.setX(self.position.x() + dx)
+        dx = 0.01 * (a0.x() - self.lastPos.x())
+        self.positionX += dx
         self.lastPos = a0.pos()
 
     def mouseReleaseEvent(self, a0: QtGui.QMouseEvent) -> None:
-        dx = a0.x() - self.lastPos.x()
-        print(f"dx = {dx}")
-        self.lastPos = a0.pos()
+        pass
+        #dx = a0.x() - self.lastPos.x()
+        #print(f"dx = {dx}")
+        #self.lastPos = a0.pos()
         #if dx <= 0:
         #    print(f"dx <= 0")
         #    self.emitVelocity(-1)
@@ -64,60 +57,39 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         #    self.emitVelocity(1)
 
     def wheelEvent(self, a0: QtGui.QWheelEvent) -> None:
-        if len(self.coverObjects) <= 2:
-            if a0.angleDelta().y() <= 0:
-                self.coverChanged.emit(-1)
-            else:
-                self.coverChanged.emit(1)
-        else:
-            if a0.angleDelta().y() <= 0:
-                self.emitVelocity(-1)
-            else:
-                self.emitVelocity(1)
+        pass
+        #if len(self.coverObjects) <= 2:
+        #    if a0.angleDelta().y() <= 0:
+        #        self.coverChanged.emit(-1)
+        #    else:
+        #        self.coverChanged.emit(1)
+        #else:
+        #    if a0.angleDelta().y() <= 0:
+        #        self.emitVelocity(-1)
+        #    else:
+        #        self.emitVelocity(1)
 
-    def initializeGL(self) -> None:
-        super().initializeGL()
-        gl_context = self.context()
-        version = QtGui.QOpenGLVersionProfile()
-        version.setVersion(2, 1)
-        self.gl = gl_context.versionFunctions(version)
+    def quantize(self, input, qt):
+        return qt * round(input * (1/qt))
 
-        self.gl.glEnable(self.gl.GL_DEPTH_TEST)
-        self.gl.glDepthFunc(self.gl.GL_LESS)
-        self.gl.glEnable(self.gl.GL_CULL_FACE)
+    def emitCover(self, coverFile, direction=1):
+        e = 0.01 # x offset epsilon from boundaries
+        cb = self.coverXBoundary
+        print("\n")
+        print(f"direction={direction}")
+        print(f"cb = {cb}")
+        x = -cb + e if direction == 1 else cb - e
+        coverOffsetX = self.quantize(x - self.positionX, 0.1)
+        x = self.positionX + coverOffsetX
+        print(f"coverOffsetX = {coverOffsetX}")
+        coverPosition = QtGui.QVector3D(x, 0.0, 0.0)
+        self.createCover(coverFile, coverPosition, coverOffsetX)
 
-        for c in self.coverObjects:
-            c.initGl()
-
-        self.setView()
-
-    def clearCovers(self, clearSide):
-        for c in self.coverObjects:
-            c.emit = False
-
-    def createCover(self, position, coverFile):
-        cover = CoverGLObject(coverFile, position)
+    def createCover(self, coverFile, position, offset):
+        cover = CoverGLObject(coverFile, position, offset)
         cover.initGl()
         self.rotateByBoundary(cover)
         self.coverObjects.append(cover)
-
-    def emitVVelocity(self, direction=None):
-        v = self.velocity
-        a = 0.2
-        if direction:
-            a = a if direction > 0 else -a
-        else:
-            a = a if v.x() > 0 else -a
-        self.velocity.setX(a)
-
-    def emitCover(self, coverFile, direction=None):
-        self.emitVelocity(direction)
-
-        e = 0.5 # x offset epsilon from boundaries
-        cb = self.coverXBoundary
-        x = -cb + e if self.velocity.x() > 0.0 else cb - e
-
-        self.createCover(QtGui.QVector3D(x, 0.0, 0.0), coverFile)
 
     def pushTowardsCenter(self, speedThreshold=0.025, deadZone=0.01):
         speed = self.velocity.length()
@@ -146,33 +118,35 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
             cover.rotationAngle *= -1.0
 
     def animate(self):
-        # Apply dray
-        self.velocity *= self.drag
-
-        # Apply speed limit
-        maxSpeed = 1.0
-        speed = self.velocity.length()
-        if speed > maxSpeed:
-            self.velocity = self.velocity / speed * maxSpeed
-
-        # Apply push towards center
-        self.pushTowardsCenter()
-
-        newPosition = self.lastPosition + QtGui.QVector3D(self.pdx, 0.0, 0.0) + self.velocity
-        positionDelta = newPosition - self.lastPosition
-        self.lastPosition = newPosition
-
         # Move the covers
         for cover in self.coverObjects:
             self.rotateByBoundary(cover)
-            px = cover.position.x()
+            px = self.positionX + cover.offsetX
+            cover.position = QtGui.QVector3D(px, 0.0, 0.0)
 
             # Remove covers at the window boundaries
             if px > self.coverXBoundary:
                 self.coverObjects.remove(cover)
+                self.coverChanged.emit(1)
             elif px < self.coverXBoundary * -1.0:
                 self.coverObjects.remove(cover)
-            cover.position += positionDelta
+                self.coverChanged.emit(-1)
+
+    def initializeGL(self) -> None:
+        super().initializeGL()
+        gl_context = self.context()
+        version = QtGui.QOpenGLVersionProfile()
+        version.setVersion(2, 1)
+        self.gl = gl_context.versionFunctions(version)
+
+        self.gl.glEnable(self.gl.GL_DEPTH_TEST)
+        self.gl.glDepthFunc(self.gl.GL_LESS)
+        self.gl.glEnable(self.gl.GL_CULL_FACE)
+
+        for c in self.coverObjects:
+            c.initGl()
+
+        self.setView()
 
     def paintGL(self) -> None:
         self.gl.glClearColor(0.0, 0.0, 0.0, 1.0)

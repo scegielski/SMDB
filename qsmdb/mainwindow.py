@@ -1753,7 +1753,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.openGlWidget.clearCovers('left')
         self.emitCover()
 
-    def emitCover(self, direction=None):
+    def emitCover(self, direction=-1):
         modelIndex = self.moviesTableView.selectionModel().selectedRows()[0]
         sourceIndex = self.moviesTableProxyModel.mapToSource(modelIndex)
         sourceRow = sourceIndex.row()

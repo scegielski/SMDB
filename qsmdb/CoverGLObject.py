@@ -27,9 +27,11 @@ class CoverGLObject:
 
     def __init__(self,
                  textureFile: str,
-                 position: QtGui.QVector3D):
+                 position: QtGui.QVector3D,
+                 offsetX: float):
         self.coverFile = textureFile
         self.position = position
+        self.offsetX = offsetX
         self.rotationAngle = 0
         self.emit = True
 
