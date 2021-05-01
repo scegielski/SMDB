@@ -309,20 +309,6 @@ class MyWindow(QtWidgets.QMainWindow):
         coverTabWidget = QtWidgets.QTabWidget()
         coverInfoHSplitter.addWidget(coverTabWidget)
 
-        # Cover GL
-        coverGLWidget = QtWidgets.QWidget()
-        coverGLWidget.setLayout(QtWidgets.QVBoxLayout())
-        coverTabWidget.addTab(coverGLWidget, "Cover GL")
-        self.coverRowHistory = list()
-
-        self.randomizeCheckbox = QtWidgets.QCheckBox("Randomize")
-        coverGLWidget.layout().addWidget(self.randomizeCheckbox)
-
-        self.openGlWidget = CoverGLWidget()
-        self.openGlWidget.emitCoverSignal.connect(self.coverChanged)
-        self.openGlWidget.showRowSignal.connect(self.showRow)
-        coverGLWidget.layout().addWidget(self.openGlWidget)
-
         # Cover
         self.coverWidget = QtWidgets.QWidget()
         self.movieCover = QtWidgets.QLabel()
@@ -330,6 +316,21 @@ class MyWindow(QtWidgets.QMainWindow):
         if not self.showCover:
             self.coverWidget.hide()
         coverTabWidget.addTab(self.coverWidget, "Cover")
+
+        # Cover GL
+        #coverGLWidget = QtWidgets.QWidget()
+        #coverGLWidget.setLayout(QtWidgets.QVBoxLayout())
+        #coverTabWidget.addTab(coverGLWidget, "Cover GL")
+        #self.coverRowHistory = list()
+
+        #self.randomizeCheckbox = QtWidgets.QCheckBox("Randomize")
+        #coverGLWidget.layout().addWidget(self.randomizeCheckbox)
+
+        #self.openGlWidget = CoverGLWidget()
+        #self.openGlWidget.emitCoverSignal.connect(self.coverChanged)
+        #self.openGlWidget.showRowSignal.connect(self.showRow)
+        #coverGLWidget.layout().addWidget(self.openGlWidget)
+
 
         coverInfoHSplitter.setSizes([200, 600])
 
@@ -981,7 +982,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.numVisibleMovies = proxyModel.rowCount()
         self.showMoviesTableSelectionStatus()
         tableView.selectRow(0)
-        self.emitCover(0, -1)
+        #self.emitCover(0, -1)
 
     def refreshWatchList(self):
         if os.path.exists(self.watchListSmdbFile):
