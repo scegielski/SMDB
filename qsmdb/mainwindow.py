@@ -21,7 +21,11 @@ import numpy as np
 # Delete movie menu
 # Pick random movie
 
+# PC
 # pyinstaller --add-data ./MediaInfo.dll;. --onefile --noconsole --name SMDB run.py
+
+# MAC
+# /Users/House/Library/Python/3.9/bin/pyinstaller --onefile --noconsole --name SMDB run.py
 
 from .utilities import *
 from .moviemodel import MoviesTableModel
