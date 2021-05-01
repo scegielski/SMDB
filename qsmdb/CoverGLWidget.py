@@ -23,7 +23,7 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         self.coverSpacing = 1.0
         self.coverXBoundary = self.quantize(self.aspectRatio * 2.2 * (self.cameraZoomAngle / 45.0), self.coverSpacing)
         self.vX = 0
-        self.drag = 0.95
+        self.drag = 0.97
 
     def setView(self):
         self.viewMatrix.setToIdentity()
@@ -51,10 +51,8 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         self.lastPos = a0.pos()
 
     def wheelEvent(self, a0: QtGui.QWheelEvent) -> None:
-        if a0.angleDelta().y() <= 0:
-            self.vX = -0.1
-        else:
-            self.vX = 0.1
+        a = 0.1
+        self.vX += a if a0.angleDelta().y() > 0 else -a
 
     def quantize(self, input, qt):
         return qt * round(input * (1/qt))
@@ -78,17 +76,18 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
         self.rotateByBoundary(cover)
         self.coverObjects.append(cover)
 
-    def pushTowardsCenter(self, speedThreshold=0.025, deadZone=0.01):
-        speed = self.velocity.length()
-        if 0.0 < speed < speedThreshold:
-            for cover in self.coverObjects:
-                px = cover.position.x()
-                if px > deadZone:
-                    self.velocity += QtGui.QVector3D(-0.001 * self.aspectRatio, 0.0, 0.0)
-                elif px < -deadZone:
-                    self.velocity += QtGui.QVector3D(0.001 * self.aspectRatio, 0.0, 0.0)
-                else:
-                    self.velocity *= 0.0
+    def pushTowardsCenter(self):
+        for cover in self.coverObjects:
+            zoneStart = 0.01
+            zoneEnd = self.coverXBoundary * 0.5
+
+            px = cover.position.x()
+
+            a = 0.0005
+            if zoneStart < abs(px) < zoneEnd:
+                self.vX += self.aspectRatio * a if px <= 0 else -a
+            elif abs(px) < zoneStart and abs(self.vX) > 0:
+                self.vX *= 0.5
 
     def rotateByBoundary(self, cover):
         # Rotate when in this zone
@@ -106,6 +105,7 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
 
     def animate(self):
         self.positionX += self.vX
+        self.pushTowardsCenter()
         self.vX *= self.drag
 
         # Move the covers
