@@ -310,31 +310,30 @@ class MyWindow(QtWidgets.QMainWindow):
             self.movieInfoWidget.hide()
 
         # Cover / GL Tabs
-        coverTabWidget = QtWidgets.QTabWidget()
-        coverInfoHSplitter.addWidget(coverTabWidget)
+        self.coverTabWidget = QtWidgets.QTabWidget()
+        coverInfoHSplitter.addWidget(self.coverTabWidget)
+
+        # Cover GL
+        coverGLTab = QtWidgets.QWidget()
+        coverGLTab.setLayout(QtWidgets.QVBoxLayout())
+        self.coverRowHistory = list()
+
+        self.randomizeCheckbox = QtWidgets.QCheckBox("Randomize")
+        coverGLTab.layout().addWidget(self.randomizeCheckbox)
+
+        self.openGlWidget = CoverGLWidget()
+        self.openGlWidget.emitCoverSignal.connect(self.coverChanged)
+        self.openGlWidget.showRowSignal.connect(self.showRow)
+        coverGLTab.layout().addWidget(self.openGlWidget)
+        self.coverTabWidget.addTab(coverGLTab, "Cover GL")
 
         # Cover
-        self.coverWidget = QtWidgets.QWidget()
+        self.coverTab = QtWidgets.QWidget()
         self.movieCover = QtWidgets.QLabel()
         self.initUICover()
         if not self.showCover:
-            self.coverWidget.hide()
-        coverTabWidget.addTab(self.coverWidget, "Cover")
-
-        # Cover GL
-        #coverGLWidget = QtWidgets.QWidget()
-        #coverGLWidget.setLayout(QtWidgets.QVBoxLayout())
-        #coverTabWidget.addTab(coverGLWidget, "Cover GL")
-        #self.coverRowHistory = list()
-
-        #self.randomizeCheckbox = QtWidgets.QCheckBox("Randomize")
-        #coverGLWidget.layout().addWidget(self.randomizeCheckbox)
-
-        #self.openGlWidget = CoverGLWidget()
-        #self.openGlWidget.emitCoverSignal.connect(self.coverChanged)
-        #self.openGlWidget.showRowSignal.connect(self.showRow)
-        #coverGLWidget.layout().addWidget(self.openGlWidget)
-
+            self.coverTab.hide()
+        self.coverTabWidget.addTab(self.coverTab, "Cover")
 
         coverInfoHSplitter.setSizes([200, 600])
 
@@ -905,9 +904,9 @@ class MyWindow(QtWidgets.QMainWindow):
         self.spaceBarLayout.setStretch(2, 1000)
 
     def initUICover(self):
-        self.coverWidget.setStyleSheet("background-color: black;")
+        self.coverTab.setStyleSheet("background-color: black;")
         movieVLayout = QtWidgets.QVBoxLayout()
-        self.coverWidget.setLayout(movieVLayout)
+        self.coverTab.setLayout(movieVLayout)
         self.movieCover.setScaledContents(False)
         self.movieCover.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored)
         self.movieCover.setStyleSheet("background-color: black;")
@@ -986,7 +985,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.numVisibleMovies = proxyModel.rowCount()
         self.showMoviesTableSelectionStatus()
         tableView.selectRow(0)
-        #self.emitCover(0, -1)
+        self.emitCover(0, -1)
 
     def refreshWatchList(self):
         if os.path.exists(self.watchListSmdbFile):
@@ -1880,12 +1879,12 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.movieSectionWidget.show()
 
     def showCoverMenu(self):
-        if self.coverWidget:
+        if self.coverTabWidget:
             self.showCover = not self.showCover
             if not self.showCover:
-                self.coverWidget.hide()
+                self.coverTabWidget.hide()
             else:
-                self.coverWidget.show()
+                self.coverTabWidget.show()
 
     def showMovieInfoMenu(self):
         if self.movieInfoWidget:

@@ -53,7 +53,7 @@ class CoverGLObject:
 
         self.coverTexture = QtGui.QOpenGLTexture(QtGui.QImage(self.coverFile))
         self.coverTexture.setMaximumAnisotropy(16)
-        self.coverTexture.setMagnificationFilter(QtGui.QOpenGLTexture.Linear)
+        #self.coverTexture.setMagnificationFilter(QtGui.QOpenGLTexture.Linear)
 
     def setTexture(self, coverFile):
         self.coverFile = coverFile
