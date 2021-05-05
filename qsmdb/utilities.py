@@ -1,5 +1,6 @@
 import re
 import os
+import shutil
 import sys
 import subprocess
 import urllib.request
@@ -48,6 +49,20 @@ def runFile(file):
     else:
         opener = "open" if sys.platform == "darwin" else "xdg-open"
         subprocess.call([opener, file])
+
+
+def removeFolders(parent, foldersToDelete):
+    if len(foldersToDelete) > 0:
+        ret = QMessageBox.question(parent,
+                                   'Confirm Delete',
+                                   'Really remove %d movie folders?' % (len(foldersToDelete)),
+                                   QMessageBox.Yes | QMessageBox.No,
+                                   QMessageBox.No)
+
+        if ret == QMessageBox.Yes:
+            for f in foldersToDelete:
+                print('Deleting folder: %s' % f)
+                shutil.rmtree((f))
 
 
 def removeFiles(parent, filesToDelete, extension):

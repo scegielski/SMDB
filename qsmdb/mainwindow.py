@@ -2716,6 +2716,10 @@ class MyWindow(QtWidgets.QMainWindow):
         removeCoversAction.triggered.connect(self.removeCoverFilesMenu)
         moviesTableRightMenu.addAction(removeCoversAction)
 
+        removeMovieAction = QtWidgets.QAction("Remove movie", self)
+        removeMovieAction.triggered.connect(self.removeMovieMenu)
+        moviesTableRightMenu.addAction(removeMovieAction)
+
         moviesTableRightMenu.addSeparator()
 
         openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
@@ -3295,3 +3299,12 @@ class MyWindow(QtWidgets.QMainWindow):
                     filesToDelete.append(coverFile)
 
         removeFiles(self, filesToDelete, '.jpg')
+
+    def removeMovieMenu(self):
+        foldersToDelete = []
+        for modelIndex in self.moviesTableView.selectionModel().selectedRows():
+            sourceRow = self.getSourceRow(modelIndex)
+            moviePath = self.moviesTableModel.getPath(sourceRow)
+            foldersToDelete.append(moviePath)
+
+        removeFolders(self, foldersToDelete)
