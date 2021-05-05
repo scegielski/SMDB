@@ -79,12 +79,12 @@ class CoverGLWidget(QtWidgets.QOpenGLWidget):
     def pushTowardsCenter(self):
         for cover in self.coverObjects:
             zoneStart = 0.01
-            zoneEnd = self.coverXBoundary * 0.5
+            zoneEnd = self.coverXBoundary * 1.0
 
             px = cover.position.x()
 
             a = 0.0005
-            if zoneStart < abs(px) < zoneEnd:
+            if zoneStart <= abs(px) <= zoneEnd:
                 self.vX += self.aspectRatio * a if px <= 0 else -a
             elif abs(px) < zoneStart and abs(self.vX) > 0:
                 self.vX *= 0.5
