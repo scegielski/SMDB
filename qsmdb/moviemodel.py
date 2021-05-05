@@ -1,5 +1,7 @@
 import json
 import fnmatch
+import pathlib
+import datetime
 from enum import Enum
 from PyQt5 import QtGui
 
@@ -7,7 +9,8 @@ from .utilities import *
 
 
 class MoviesTableModel(QtCore.QAbstractTableModel):
-    def __init__(self, smdbData,
+    def __init__(self,
+                 smdbData,
                  moviesFolders,
                  forceScan=False,
                  neverScan=False):
@@ -38,7 +41,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                         'Duplicate',
                                         'Width',
                                         'Height',
-                                        'Size'], start=0)
+                                        'Size',
+                                        'DateModified'], start=0)
 
         self.defaultWidths = {self.Columns.Cover: 150,
                               self.Columns.Year: 50,
@@ -61,8 +65,10 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                               self.Columns.Duplicate: 60,
                               self.Columns.Width: 50,
                               self.Columns.Height: 50,
-                              self.Columns.Size: 100}
+                              self.Columns.Size: 100,
+                              self.Columns.DateModified: 150}
 
+        # Create the header text from the enums
         self._headers = []
         for c in self.Columns:
             tokens = splitCamelCase(c.name)
@@ -72,7 +78,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
             if not os.path.exists(moviesFolder):
                 return
 
-        # Either read the list of movie folders from the smdb data
+        # Either read the list of movies from the smdb data
         # or scan the movies folder
         moviesFolderDict = dict()
         useSmdbData = False
@@ -264,7 +270,11 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
         movieData = []
         for column in self.Columns:
-            if column == self.Columns.Path:
+            if column == self.Columns.DateModified:
+                fname = pathlib.Path(moviePath)
+                dateModified = datetime.datetime.fromtimestamp(fname.stat().st_mtime)
+                movieData.append(f"{dateModified.month}/{dateModified.day}/{dateModified.year}")
+            elif column == self.Columns.Path:
                 movieData.append(moviePath)
             elif column == self.Columns.JsonExists:
                 jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
