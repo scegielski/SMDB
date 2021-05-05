@@ -133,138 +133,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
         # Sort by year
         self.sort(self.Columns.Year.value, QtCore.Qt.AscendingOrder)
 
-    def getHeaders(self):
-        return self._headers
-
-    def getNumColumns(self):
-        return len(self.Columns)
-
-    def getLastColumn(self):
-        return len(self.Columns) - 1
-
-    def getMpaaRating(self, row):
-        return self._data[row][self.Columns.MpaaRating.value]
-
-    def getBackupStatus(self, row):
-        return self._data[row][self.Columns.BackupStatus.value]
-
-    def getYear(self, row):
-        return self._data[row][self.Columns.Year.value]
-
-    def getTitle(self, row):
-        return self._data[row][self.Columns.Title.value]
-
-    def getRating(self, row):
-        return self._data[row][self.Columns.Rating.value]
-
-    def getBoxOffice(self, row):
-        return self._data[row][self.Columns.BoxOffice.value]
-
-    def getRuntime(self, row):
-        return self._data[row][self.Columns.Runtime.value]
-
-    def getId(self, row):
-        return self._data[row][self.Columns.Id.value]
-
-    def getDimensions(self, row):
-        width = self._data[row][self.Columns.Width.value]
-        height = self._data[row][self.Columns.Height.value]
-        return width, height
-
-    def getFolderName(self, row):
-        return self._data[row][self.Columns.Folder.value]
-
-    def getPath(self, row):
-        return self._data[row][self.Columns.Path.value]
-
-    def getJsonExists(self, row):
-        return self._data[row][self.Columns.JsonExists.value]
-
-    def getRank(self, row):
-        return self._data[row][self.Columns.Rank.value]
-
-    def getSize(self, row):
-        return self._data[row][self.Columns.Size.value]
-
-    def getDuplicate(self, row):
-        return self._data[row][self.Columns.Duplicate.value]
-
-    def getDataSize(self):
-        return len(self._data)
-
-    def aboutToChangeLayout(self):
-        self.layoutAboutToBeChanged.emit()
-
-    def changedLayout(self):
-        self.layoutChanged.emit()
-
-    def addMovie(self, smdbData, moviePath):
-        movieFolderName = os.path.basename(moviePath)
-        if movieFolderName not in smdbData['titles']:
-            return
-
-        data = smdbData['titles'][movieFolderName]
-        movieData = self.createMovieData(data,
-                                         moviePath,
-                                         movieFolderName,
-                                         generateNewRank=True)
-        folderName = movieData[self.Columns.Folder.value]
-        if folderName not in self.movieSet:
-            self.movieSet.add(folderName)
-            self._data.append(movieData)
-
-    def removeMovie(self, row):
-        folderName = self.getFolderName(row)
-        if folderName in self.movieSet:
-            self.movieSet.remove(folderName)
-        del self._data[row]
-
-    def removeMovies(self, minRow, maxRow):
-        # Remove folderName from movieSet
-        for row in range(minRow, maxRow + 1, 1):
-            folderName = self.getFolderName(row)
-            if folderName in self.movieSet:
-                self.movieSet.remove(folderName)
-
-        self.layoutAboutToBeChanged.emit()
-        del self._data[minRow:maxRow+1]
-
-        # Re-number ranks
-        for i in range(len(self._data)):
-            self._data[i][9] = i
-
-        self.layoutChanged.emit()
-
-    def moveRow(self, minRow, maxRow, dstRow):
-        maxRow = maxRow + 1
-        tmpData = self._data[minRow:maxRow]
-        self.layoutAboutToBeChanged.emit()
-        del self._data[minRow:maxRow]
-        self._data[dstRow:dstRow] = tmpData
-
-        # Re-number ranks
-        for i in range(len(self._data)):
-            self._data[i][self.Columns.Rank.value] = i
-
-        self.layoutChanged.emit()
-
-    def setMovieDataWithJson(self, row, jsonFile, moviePath, movieFolderName):
-        if os.path.exists(jsonFile):
-            with open(jsonFile) as f:
-                try:
-                    data = json.load(f)
-                except UnicodeDecodeError:
-                    print("Error reading %s" % jsonFile)
-        self.setMovieData(row, data, moviePath, movieFolderName)
-
-    def setMovieData(self, row, data, moviePath, movieFolderName):
-        movieData = self.createMovieData(data, moviePath, movieFolderName)
-        self._data[row] = movieData
-        minIndex = self.index(row, 0)
-        maxIndex = self.index(row, self.getLastColumn())
-        self.dataChanged.emit(minIndex, maxIndex)
-
     def createMovieData(self, data, moviePath, movieFolderName, generateNewRank=False):
+        # For box office $
         reMoneyValue = re.compile(r'(\d+(?:,\d+)*(?:\.\d+)?)')
         reCurrency = re.compile(r'^([A-Z][A-Z][A-Z])(.*)')
 
@@ -273,7 +143,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
             if column == self.Columns.DateModified:
                 fname = pathlib.Path(moviePath)
                 dateModified = datetime.datetime.fromtimestamp(fname.stat().st_mtime)
-                movieData.append(f"{dateModified.month}/{dateModified.day}/{dateModified.year}")
+                movieData.append(f"{dateModified.year}/{str(dateModified.month).zfill(2)}/{str(dateModified.day).zfill(2)}")
             elif column == self.Columns.Path:
                 movieData.append(moviePath)
             elif column == self.Columns.JsonExists:
@@ -400,6 +270,137 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                     else:
                         movieData.append(data[headerLower])
         return movieData
+
+    def setMovieDataWithJson(self, row, jsonFile, moviePath, movieFolderName):
+        if os.path.exists(jsonFile):
+            with open(jsonFile) as f:
+                try:
+                    data = json.load(f)
+                except UnicodeDecodeError:
+                    print("Error reading %s" % jsonFile)
+        self.setMovieData(row, data, moviePath, movieFolderName)
+
+    def setMovieData(self, row, data, moviePath, movieFolderName):
+        movieData = self.createMovieData(data, moviePath, movieFolderName)
+        self._data[row] = movieData
+        minIndex = self.index(row, 0)
+        maxIndex = self.index(row, self.getLastColumn())
+        self.dataChanged.emit(minIndex, maxIndex)
+
+    def getHeaders(self):
+        return self._headers
+
+    def getNumColumns(self):
+        return len(self.Columns)
+
+    def getLastColumn(self):
+        return len(self.Columns) - 1
+
+    def getMpaaRating(self, row):
+        return self._data[row][self.Columns.MpaaRating.value]
+
+    def getBackupStatus(self, row):
+        return self._data[row][self.Columns.BackupStatus.value]
+
+    def getYear(self, row):
+        return self._data[row][self.Columns.Year.value]
+
+    def getTitle(self, row):
+        return self._data[row][self.Columns.Title.value]
+
+    def getRating(self, row):
+        return self._data[row][self.Columns.Rating.value]
+
+    def getBoxOffice(self, row):
+        return self._data[row][self.Columns.BoxOffice.value]
+
+    def getRuntime(self, row):
+        return self._data[row][self.Columns.Runtime.value]
+
+    def getId(self, row):
+        return self._data[row][self.Columns.Id.value]
+
+    def getDimensions(self, row):
+        width = self._data[row][self.Columns.Width.value]
+        height = self._data[row][self.Columns.Height.value]
+        return width, height
+
+    def getFolderName(self, row):
+        return self._data[row][self.Columns.Folder.value]
+
+    def getPath(self, row):
+        return self._data[row][self.Columns.Path.value]
+
+    def getJsonExists(self, row):
+        return self._data[row][self.Columns.JsonExists.value]
+
+    def getRank(self, row):
+        return self._data[row][self.Columns.Rank.value]
+
+    def getSize(self, row):
+        return self._data[row][self.Columns.Size.value]
+
+    def getDuplicate(self, row):
+        return self._data[row][self.Columns.Duplicate.value]
+
+    def getDataSize(self):
+        return len(self._data)
+
+    def aboutToChangeLayout(self):
+        self.layoutAboutToBeChanged.emit()
+
+    def changedLayout(self):
+        self.layoutChanged.emit()
+
+    def addMovie(self, smdbData, moviePath):
+        movieFolderName = os.path.basename(moviePath)
+        if movieFolderName not in smdbData['titles']:
+            return
+
+        data = smdbData['titles'][movieFolderName]
+        movieData = self.createMovieData(data,
+                                         moviePath,
+                                         movieFolderName,
+                                         generateNewRank=True)
+        folderName = movieData[self.Columns.Folder.value]
+        if folderName not in self.movieSet:
+            self.movieSet.add(folderName)
+            self._data.append(movieData)
+
+    def removeMovie(self, row):
+        folderName = self.getFolderName(row)
+        if folderName in self.movieSet:
+            self.movieSet.remove(folderName)
+        del self._data[row]
+
+    def removeMovies(self, minRow, maxRow):
+        # Remove folderName from movieSet
+        for row in range(minRow, maxRow + 1, 1):
+            folderName = self.getFolderName(row)
+            if folderName in self.movieSet:
+                self.movieSet.remove(folderName)
+
+        self.layoutAboutToBeChanged.emit()
+        del self._data[minRow:maxRow+1]
+
+        # Re-number ranks
+        for i in range(len(self._data)):
+            self._data[i][9] = i
+
+        self.layoutChanged.emit()
+
+    def moveRow(self, minRow, maxRow, dstRow):
+        maxRow = maxRow + 1
+        tmpData = self._data[minRow:maxRow]
+        self.layoutAboutToBeChanged.emit()
+        del self._data[minRow:maxRow]
+        self._data[dstRow:dstRow] = tmpData
+
+        # Re-number ranks
+        for i in range(len(self._data)):
+            self._data[i][self.Columns.Rank.value] = i
+
+        self.layoutChanged.emit()
 
     def rowCount(self, parent=None):
         return len(self._data)
