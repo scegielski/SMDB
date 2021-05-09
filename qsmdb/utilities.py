@@ -51,6 +51,26 @@ def runFile(file):
         subprocess.call([opener, file])
 
 
+def handleRemoveReadonly(func, path, exc_info):
+    """
+    Error handler for ``shutil.rmtree``.
+
+    If the error is due to an access error (read only file)
+    it attempts to add write permission and then retries.
+
+    If the error is for another reason it re-raises the error.
+
+    Usage : ``shutil.rmtree(path, onerror=onerror)``
+    """
+    import stat
+    if not os.access(path, os.W_OK):
+        # Is the error an access error ?
+        os.chmod(path, stat.S_IWUSR)
+        func(path)
+    else:
+        raise
+
+
 def removeFolders(parent, foldersToDelete):
     if len(foldersToDelete) > 0:
         ret = QMessageBox.question(parent,
@@ -62,7 +82,9 @@ def removeFolders(parent, foldersToDelete):
         if ret == QMessageBox.Yes:
             for f in foldersToDelete:
                 print('Deleting folder: %s' % f)
-                shutil.rmtree((f))
+                shutil.rmtree(f,
+                              ignore_errors=False,
+                              onerror=handleRemoveReadonly)
 
 
 def removeFiles(parent, filesToDelete, extension):
@@ -95,7 +117,7 @@ def searchTableWidget(searchBoxWidget, tableWidget):
     searchText = searchBoxWidget.text()
     if searchText == "":
         for row in range(tableWidget.rowCount()):
-            tableWidget.showRowSignal(row)
+            tableWidget.showRow(row)
     else:
         for row in range(tableWidget.rowCount()):
             tableWidget.hideRow(row)
