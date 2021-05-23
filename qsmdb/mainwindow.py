@@ -380,6 +380,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesSmdbData = None
         self.moviesTableModel = None
         self.moviesTableProxyModel = None
+        return
         self.rescanMovieDirectories()
 
         self.populateFiltersTable()
@@ -429,6 +430,10 @@ class MyWindow(QtWidgets.QMainWindow):
         restoreDefaultWindowsAction = QtWidgets.QAction("Restore default window configuration", self)
         restoreDefaultWindowsAction.triggered.connect(self.restoreDefaultWindows)
         fileMenu.addAction(restoreDefaultWindowsAction)
+
+        conformMoviesAction = QtWidgets.QAction("Conform movies in folder", self)
+        conformMoviesAction.triggered.connect(self.conformMovies)
+        fileMenu.addAction(conformMoviesAction)
 
         preferencesAction = QtWidgets.QAction("Preferences", self)
         preferencesAction.triggered.connect(self.preferences)
@@ -1079,6 +1084,91 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def restoreDefaultWindows(self):
         self.setGeometry(QtCore.QRect(50, 50, 1820, 900))
+
+    def conformMovies(self):
+        browseDir = str(Path.home())
+        if os.path.exists('E:/MoviesToOrganize'):
+            browseDir = 'E:/MoviesToOrganize'
+        elif os.path.exists('%s/Desktop' % browseDir):
+            browseDir = '%s/Desktop' % browseDir
+        else:
+            return
+        moviesFolder = QtWidgets.QFileDialog.getExistingDirectory(
+            self,
+            "Select Movies Directory",
+            browseDir,
+            QtWidgets.QFileDialog.ShowDirsOnly |
+            QtWidgets.QFileDialog.DontResolveSymlinks)
+        if not os.path.exists(moviesFolder):
+            return
+
+        foldersRenamed = 0
+        foldersRejected = 0
+        renamedFolders = set()
+        rejectedFolders = set()
+        with os.scandir(moviesFolder) as files:
+            for f in files:
+                folderName = f.name
+                folderPath = f.path
+                parentPath = os.path.dirname(f.path)
+                if f.is_dir() and (fnmatch.fnmatch(f, '*(*)') or fnmatch.fnmatch(f, '*(*)*')):
+                    foldersRenamed += 1
+                    tokens = folderName.split()
+                    if len(tokens) == 1:
+                        rejectedFolders.add(folderPath)
+                        foldersRejected += 1
+                        continue
+                    newFolderName = ''
+                    end = False
+                    for t in tokens:
+                        if end:
+                            break
+                        if t[0] == '(' and t[-1] == ')' and len(t) == 6:
+                            end = True
+                        else:
+                            t = t.lower().capitalize()
+                        newFolderName += t
+
+                    if newFolderName == folderName:
+                        print(f"Skipping. New name same as old name: {newFolderName}")
+                        continue
+                    newFolderPath = os.path.join(parentPath, newFolderName)
+                    if os.path.exists(newFolderPath) or newFolderName in renamedFolders:
+                        newFolderName = newFolderName + '2'
+                        newFolderPath = newFolderPath + '2'
+                        print(f"Duplicate folder renamed to: {newFolderName}")
+                    renamedFolders.add(newFolderName)
+                    print(f"Renaming folder: \"{folderPath}\"    to    \"{newFolderPath}\"")
+
+                    with os.scandir(f.path) as childFiles:
+                        for c in childFiles:
+                            fileName, extension = os.path.splitext(c.name)
+                            if extension == '.mp4' or extension == '.srt' or extension == '.mkv':
+                                newFilePath = os.path.join(folderPath, newFolderName + extension)
+                                if c.path != newFilePath:
+                                    print(f"\tRenaming file: {c.path} to {newFilePath}")
+                                    try:
+                                        os.rename(c.path, newFilePath)
+                                    except FileExistsError:
+                                        print(f"Can't Rename file {c.path, newFilePath}")
+                                        continue
+                            elif extension == '.jpg':
+                                print(f"\tRemoving file: {c.path}")
+                                os.remove(c.path)
+                            else:
+                                print(f"\tNot touching file: {c.path}")
+
+                    try:
+                        os.rename(folderPath, newFolderPath)
+                    except FileExistsError:
+                        print(f"Can't Rename folder {folderPath, newFolderPath}")
+                        continue
+                else:
+                    rejectedFolders.add(folderPath)
+                    foldersRejected += 1
+        for f in rejectedFolders:
+            print(f"Rejected folder: {f}")
+        print(f"foldersRenamed={foldersRenamed} foldersRejected={foldersRejected}")
 
     def setTitleBar(self):
         additionalMoviesFoldersString = ""
