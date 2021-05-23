@@ -380,7 +380,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesSmdbData = None
         self.moviesTableModel = None
         self.moviesTableProxyModel = None
-        return
         self.rescanMovieDirectories()
 
         self.populateFiltersTable()
