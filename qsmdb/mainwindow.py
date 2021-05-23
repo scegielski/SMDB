@@ -1126,6 +1126,10 @@ class MyWindow(QtWidgets.QMainWindow):
                             end = True
                         else:
                             t = t.lower().capitalize()
+                            t = t.replace(',', '')
+                            t = t.replace('\'', '')
+                            t = t.replace('.', '')
+
                         newFolderName += t
 
                     if newFolderName == folderName:
