@@ -14,6 +14,7 @@ import os
 import stat
 import time
 from pymediainfo import MediaInfo
+import re
 import numpy as np
 
 # TODO List
@@ -217,7 +218,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.rowHeightWithCover = 200
         self.moviesTableWidget = QtWidgets.QFrame()
         self.moviesTableView = QtWidgets.QTableView()
-        self.moviesTableSearchBox = QtWidgets.QLineEdit()
+        self.moviesTableTitleFilterBox = QtWidgets.QLineEdit()
+        self.moviesTableSearchPlotsBox = QtWidgets.QLineEdit()
         self.moviesTableColumnsVisible = []
         self.moviesListHeaderActions = []
         self.initUIMoviesTable()
@@ -313,6 +315,14 @@ class MyWindow(QtWidgets.QMainWindow):
         self.coverTabWidget = QtWidgets.QTabWidget()
         coverInfoHSplitter.addWidget(self.coverTabWidget)
 
+        # Cover
+        self.coverTab = QtWidgets.QWidget()
+        self.movieCover = QtWidgets.QLabel()
+        self.initUICover()
+        if not self.showCover:
+            self.coverTab.hide()
+        self.coverTabWidget.addTab(self.coverTab, "Cover")
+
         # Cover GL
         coverGLTab = QtWidgets.QWidget()
         coverGLTab.setLayout(QtWidgets.QVBoxLayout())
@@ -326,14 +336,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.openGlWidget.showRowSignal.connect(self.showRow)
         coverGLTab.layout().addWidget(self.openGlWidget)
         self.coverTabWidget.addTab(coverGLTab, "Cover GL")
-
-        # Cover
-        self.coverTab = QtWidgets.QWidget()
-        self.movieCover = QtWidgets.QLabel()
-        self.initUICover()
-        if not self.showCover:
-            self.coverTab.hide()
-        self.coverTabWidget.addTab(self.coverTab, "Cover")
 
         coverInfoHSplitter.setSizes([200, 600])
 
@@ -677,7 +679,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Show all button
         showAllButton = QtWidgets.QPushButton("Show All")
-        showAllButton.setFixedSize(100, 20)
+        showAllButton.setFixedSize(100, 40)
         showAllButton.setSizePolicy(QtWidgets.QSizePolicy.Fixed,
                                     QtWidgets.QSizePolicy.Maximum)
         showAllButton.clicked.connect(self.showAllMoviesTableView)
@@ -685,20 +687,45 @@ class MyWindow(QtWidgets.QMainWindow):
         showAllButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
         moviesTableSearchHLayout.addWidget(showAllButton)
 
-        # Search box
-        searchText = QtWidgets.QLabel("Search")
-        searchText.setFont(QtGui.QFont('TimesNew Roman', 12))
-        searchText.setSizePolicy(QtWidgets.QSizePolicy.Maximum,
-                                 QtWidgets.QSizePolicy.Maximum)
-        moviesTableSearchHLayout.addWidget(searchText)
+        moviesTableSearchVLayout = QtWidgets.QVBoxLayout()
+        moviesTableSearchHLayout.addLayout(moviesTableSearchVLayout)
 
-        self.moviesTableSearchBox.setStyleSheet("background: black; color: white; border-radius: 5px")
-        self.moviesTableSearchBox.setFont(QtGui.QFont('TimesNew Roman', 12))
-        self.moviesTableSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored,
+        moviesTableFilterHLayout = QtWidgets.QHBoxLayout()
+        moviesTableSearchVLayout.addLayout(moviesTableFilterHLayout)
+
+        # Filter box
+        titleFilterText = QtWidgets.QLabel("Filter Titles")
+        titleFilterText.setFont(QtGui.QFont('TimesNew Roman', 12))
+        titleFilterText.setSizePolicy(QtWidgets.QSizePolicy.Maximum,
+                                      QtWidgets.QSizePolicy.Maximum)
+        moviesTableFilterHLayout.addWidget(titleFilterText)
+
+        self.moviesTableTitleFilterBox.setStyleSheet("background: black; color: white; border-radius: 5px")
+        self.moviesTableTitleFilterBox.setFont(QtGui.QFont('TimesNew Roman', 12))
+        self.moviesTableTitleFilterBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored,
                                                 QtWidgets.QSizePolicy.Maximum)
-        self.moviesTableSearchBox.setClearButtonEnabled(True)
-        self.moviesTableSearchBox.textChanged.connect(self.searchMoviesTableView)
-        moviesTableSearchHLayout.addWidget(self.moviesTableSearchBox)
+        self.moviesTableTitleFilterBox.setClearButtonEnabled(True)
+        self.moviesTableTitleFilterBox.textChanged.connect(self.searchMoviesTableView)
+        self.moviesTableTitleFilterBox.editingFinished.connect(self.searchPlots)
+        moviesTableFilterHLayout.addWidget(self.moviesTableTitleFilterBox)
+
+        # Search plots
+        moviesTableSearchPlotsHLayout = QtWidgets.QHBoxLayout()
+        moviesTableSearchVLayout.addLayout(moviesTableSearchPlotsHLayout)
+
+        searchPlotsText = QtWidgets.QLabel("Search Plots")
+        searchPlotsText.setFont(QtGui.QFont('TimesNew Roman', 12))
+        searchPlotsText.setSizePolicy(QtWidgets.QSizePolicy.Maximum,
+                                 QtWidgets.QSizePolicy.Maximum)
+        moviesTableSearchPlotsHLayout.addWidget(searchPlotsText)
+
+        self.moviesTableSearchPlotsBox.setStyleSheet("background: black; color: white; border-radius: 5px")
+        self.moviesTableSearchPlotsBox.setFont(QtGui.QFont('TimesNew Roman', 12))
+        self.moviesTableSearchPlotsBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored,
+                                                QtWidgets.QSizePolicy.Maximum)
+        self.moviesTableSearchPlotsBox.setClearButtonEnabled(True)
+        self.moviesTableSearchPlotsBox.returnPressed.connect(self.searchPlots)
+        moviesTableSearchPlotsHLayout.addWidget(self.moviesTableSearchPlotsBox)
 
     def initUIWatchList(self):
         self.watchListWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
@@ -1914,22 +1941,65 @@ class MyWindow(QtWidgets.QMainWindow):
         self.movieInfoRefresh(jsonData)
 
     def showAllMoviesTableView(self):
-        self.moviesTableSearchBox.clear()
+        self.moviesTableTitleFilterBox.clear()
         self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
         self.showMoviesTableSelectionStatus()
         for row in range(self.moviesTableProxyModel.rowCount()):
             self.moviesTableView.setRowHidden(row, False)
         self.moviesTableProxyModel.sort(0)
 
+    def searchPlots(self):
+        searchText = self.moviesTableSearchPlotsBox.text()
+        if len(searchText) == 0:
+            return
+
+        plotsRegex = re.compile(f'.*\s+{searchText}\s+.*', re.IGNORECASE)
+
+        self.showAllMoviesTableView()
+
+        rowCount = self.moviesTableModel.rowCount()
+        self.progressBar.setMaximum(rowCount)
+        progress = 0
+        self.moviesTableModel.aboutToChangeLayout()
+
+        for row in range(rowCount):
+            sourceRow = self.getSourceRow2(row)
+            if self.moviesTableView.isRowHidden(sourceRow):
+                continue
+
+            # Get Summary
+            title = self.moviesTableModel.getTitle(sourceRow)
+            moviePath = self.moviesTableModel.getPath(sourceRow)
+            folderName = self.moviesTableModel.getFolderName(sourceRow)
+            jsonFile = os.path.join(moviePath, '%s.json' % folderName)
+            jsonData = None
+            if os.path.exists(jsonFile):
+                with open(jsonFile) as f:
+                    try:
+                        jsonData = json.load(f)
+                    except UnicodeDecodeError:
+                        print("Error reading %s" % jsonFile)
+
+            summary = self.getPlot(jsonData)
+
+            if not plotsRegex.match(summary) and not plotsRegex.match(title):
+                self.moviesTableView.setRowHidden(sourceRow, True)
+
+            progress += 1
+            self.progressBar.setValue(progress)
+
+        self.moviesTableModel.changedLayout()
+
     def searchMoviesTableView(self):
-        searchText = self.moviesTableSearchBox.text()
+        searchText = self.moviesTableTitleFilterBox.text()
+        if not searchText:
+            self.filterTableSelectionChanged()
+
         self.moviesTableProxyModel.setFilterKeyColumn(self.moviesTableModel.Columns.Title.value)
         self.moviesTableProxyModel.setFilterRegExp(
             QtCore.QRegExp(searchText,
                            QtCore.Qt.CaseInsensitive,
                            QtCore.QRegExp.FixedString))
-        if not searchText:
-            self.filterTableSelectionChanged()
 
     def showFiltersMenu(self):
         if self.filterWidget:
@@ -1999,7 +2069,7 @@ class MyWindow(QtWidgets.QMainWindow):
         if len(self.movieInfoListView.selectedItems()) == 0:
             return
 
-        self.moviesTableSearchBox.clear()
+        self.moviesTableTitleFilterBox.clear()
 
         movieList = []
         for item in self.movieInfoListView.selectedItems():
@@ -2216,7 +2286,23 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.movieInfoListView.setCurrentRow(0)
 
-    def summaryShow(self, jsonData):
+    def getPlot(self, jsonData):
+        if not jsonData:
+            return
+
+        infoText = ''
+        if 'plot' in jsonData and jsonData['plot']:
+            infoText += '<br>Plot:<br>'
+            if isinstance(jsonData['plot'], list):
+                plot = jsonData['plot'][0]
+            else:
+                plot = jsonData['plot']
+            # Remove the author of the plot's name
+            plot = plot.split('::')[0]
+            infoText += '%s<br>' % plot
+        return infoText
+
+    def getSummary(self, jsonData):
         if not jsonData:
             return
 
@@ -2240,6 +2326,10 @@ class MyWindow(QtWidgets.QMainWindow):
             synopsis = synopsis.split('::')[0]
             infoText += '%s<br>' % synopsis
         # infoText = '<span style=\" color: #ffffff; font-size: 8pt\">%s</span>' % infoText
+        return infoText
+
+    def summaryShow(self, jsonData):
+        infoText = self.getSummary(jsonData)
         self.summary.setText(infoText)
 
     def writeMovieJson(self, movie, jsonFile):
@@ -3260,6 +3350,9 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def getSourceRow(self, proxyIndex):
         return self.moviesTableProxyModel.mapToSource(proxyIndex).row()
+
+    def getSourceRow2(self, row):
+        return self.moviesTableProxyModel.mapToSource(self.moviesTableProxyModel.index(row, 0)).row()
 
     def openMovieFolder(self):
         sourceRow = self.getSelectedRow()
