@@ -706,7 +706,6 @@ class MyWindow(QtWidgets.QMainWindow):
                                                 QtWidgets.QSizePolicy.Maximum)
         self.moviesTableTitleFilterBox.setClearButtonEnabled(True)
         self.moviesTableTitleFilterBox.textChanged.connect(self.searchMoviesTableView)
-        self.moviesTableTitleFilterBox.editingFinished.connect(self.searchPlots)
         moviesTableFilterHLayout.addWidget(self.moviesTableTitleFilterBox)
 
         # Search plots
@@ -1953,7 +1952,7 @@ class MyWindow(QtWidgets.QMainWindow):
         if len(searchText) == 0:
             return
 
-        plotsRegex = re.compile(f'.*\s+{searchText}\s+.*', re.IGNORECASE)
+        plotsRegex = re.compile(f'.*{searchText}.*', re.IGNORECASE)
 
         self.showAllMoviesTableView()
 
