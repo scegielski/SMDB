@@ -1911,6 +1911,8 @@ class MyWindow(QtWidgets.QMainWindow):
     def clickedTable(self, modelIndex, model, proxyModel):
         sourceIndex = proxyModel.mapToSource(modelIndex)
         sourceRow = sourceIndex.row()
+        print(f"modelIndex.row() = {modelIndex.row()}")
+        print(f"sourceRow = {sourceRow}")
         title = model.getTitle(sourceRow)
 
         moviePath = model.getPath(sourceRow)
@@ -1948,22 +1950,28 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableProxyModel.sort(0)
 
     def searchPlots(self):
+        self.moviesTableTitleFilterBox.clear()
+
         searchText = self.moviesTableSearchPlotsBox.text()
         if len(searchText) == 0:
             return
 
         plotsRegex = re.compile(f'.*{searchText}.*', re.IGNORECASE)
 
-        self.showAllMoviesTableView()
-
-        rowCount = self.moviesTableModel.rowCount()
-        self.progressBar.setMaximum(rowCount)
+        rowCount = self.moviesTableProxyModel.rowCount()
+        visibleRowCount = 0
+        for row in range(rowCount):
+            proxyRow = self.moviesTableProxyModel.index(row, 0).row()
+            if not self.moviesTableView.isRowHidden(proxyRow):
+                visibleRowCount += 1
+        self.progressBar.setMaximum(visibleRowCount)
         progress = 0
-        self.moviesTableModel.aboutToChangeLayout()
 
         for row in range(rowCount):
-            sourceRow = self.getSourceRow2(row)
-            if self.moviesTableView.isRowHidden(sourceRow):
+            proxyRow = self.moviesTableProxyModel.index(row, 0).row()
+            sourceRow = self.getSourceRow2(proxyRow)
+
+            if self.moviesTableView.isRowHidden(proxyRow):
                 continue
 
             # Get Summary
@@ -1982,12 +1990,10 @@ class MyWindow(QtWidgets.QMainWindow):
             summary = self.getPlot(jsonData)
 
             if not plotsRegex.match(summary) and not plotsRegex.match(title):
-                self.moviesTableView.setRowHidden(sourceRow, True)
+                self.moviesTableView.hideRow(proxyRow)
 
             progress += 1
             self.progressBar.setValue(progress)
-
-        self.moviesTableModel.changedLayout()
 
     def searchMoviesTableView(self):
         searchText = self.moviesTableTitleFilterBox.text()
@@ -3352,6 +3358,9 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def getSourceRow2(self, row):
         return self.moviesTableProxyModel.mapToSource(self.moviesTableProxyModel.index(row, 0)).row()
+
+    def getProxyRow(self, sourceRow):
+        return self.moviesTableProxyModel.mapFromSource(self.moviesTableModel.index(sourceRow, 0)).row()
 
     def openMovieFolder(self):
         sourceRow = self.getSelectedRow()
