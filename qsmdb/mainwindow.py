@@ -1911,8 +1911,6 @@ class MyWindow(QtWidgets.QMainWindow):
     def clickedTable(self, modelIndex, model, proxyModel):
         sourceIndex = proxyModel.mapToSource(modelIndex)
         sourceRow = sourceIndex.row()
-        print(f"modelIndex.row() = {modelIndex.row()}")
-        print(f"sourceRow = {sourceRow}")
         title = model.getTitle(sourceRow)
 
         moviePath = model.getPath(sourceRow)
