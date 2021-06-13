@@ -2614,8 +2614,8 @@ class MyWindow(QtWidgets.QMainWindow):
 
         return data
 
-    def downloadMovieData(self, modelIndex, force=False, movieId=None, doJson=True, doCover=True):
-        sourceIndex = self.moviesTableProxyModel.mapToSource(modelIndex)
+    def downloadMovieData(self, proxyIndex, force=False, movieId=None, doJson=True, doCover=True):
+        sourceIndex = self.moviesTableProxyModel.mapToSource(proxyIndex)
         sourceRow = sourceIndex.row()
         moviePath = self.moviesTableModel.getPath(sourceRow)
         movieFolderName = self.moviesTableModel.getFolderName(sourceRow)
@@ -2641,8 +2641,12 @@ class MyWindow(QtWidgets.QMainWindow):
 
             if doJson:
                 self.writeMovieJson(movie, jsonFile)
+                self.calculateFolderSize(proxyIndex, moviePath, movieFolderName)
+                self.calculateMovieDimension(proxyIndex, moviePath, movieFolderName)
+
             if doCover:
                 coverFile = copyCoverImage(movie, coverFile)
+
             self.moviesTableModel.setMovieDataWithJson(sourceRow,
                                                        jsonFile,
                                                        moviePath,
@@ -3454,8 +3458,6 @@ class MyWindow(QtWidgets.QMainWindow):
                 continue
 
             self.downloadMovieData(proxyIndex, force, doJson=doJson, doCover=doCover)
-            self.calculateFolderSize(proxyIndex, moviePath, movieFolderName)
-            self.calculateMovieDimension(proxyIndex, moviePath, movieFolderName)
             self.moviesTableView.selectRow(proxyIndex.row())
             self.clickedTable(proxyIndex,
                               self.moviesTableModel,
