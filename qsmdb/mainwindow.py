@@ -677,6 +677,16 @@ class MyWindow(QtWidgets.QMainWindow):
         moviesTableSearchHLayout = QtWidgets.QHBoxLayout()
         moviesTableViewVLayout.addLayout(moviesTableSearchHLayout)
 
+        # Pick random button
+        pickRandomButton = QtWidgets.QPushButton("Random")
+        pickRandomButton.setFixedSize(100, 40)
+        pickRandomButton.setSizePolicy(QtWidgets.QSizePolicy.Fixed,
+                                       QtWidgets.QSizePolicy.Maximum)
+        pickRandomButton.clicked.connect(self.pickRandomMovie)
+        pickRandomButton.setFont(QtGui.QFont('TimesNew Roman', 12))
+        pickRandomButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        moviesTableSearchHLayout.addWidget(pickRandomButton)
+
         # Show all button
         showAllButton = QtWidgets.QPushButton("Show All")
         showAllButton.setFixedSize(100, 40)
@@ -1014,8 +1024,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.numVisibleMovies = proxyModel.rowCount()
         self.showMoviesTableSelectionStatus()
-        tableView.selectRow(0)
-        self.emitCover(0, -1)
+        self.pickRandomMovie()
 
     def refreshWatchList(self):
         if os.path.exists(self.watchListSmdbFile):
@@ -1938,6 +1947,17 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.summaryShow(jsonData)
         self.movieInfoRefresh(jsonData)
+
+    def pickRandomMovie(self):
+        numRowsProxy = self.moviesTableProxyModel.rowCount()
+        visibleRows = list()
+        for row in range(numRowsProxy):
+            if not self.moviesTableView.isRowHidden(row):
+                visibleRows.append(row)
+        randomIndex = random.randint(0, len(visibleRows) - 1)
+        randomRow = visibleRows[randomIndex]
+        self.moviesTableView.selectRow(randomRow)
+        #self.emitCover(randomRow, -1)
 
     def showAllMoviesTableView(self):
         self.moviesTableTitleFilterBox.clear()
