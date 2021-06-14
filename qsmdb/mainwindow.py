@@ -2083,6 +2083,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
             progress += 1
             self.progressBar.setValue(progress)
+        self.progressBar.setValue(0)
 
     def searchMoviesTableView(self):
         searchText = self.moviesTableTitleFilterBox.text()
