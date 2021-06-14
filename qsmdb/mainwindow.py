@@ -148,6 +148,11 @@ class MyWindow(QtWidgets.QMainWindow):
         for af in self.additionalMoviesFolders:
             print("Additional movies folder = %s" % af)
 
+        # Movie selection history
+        self.selectionHistory = list()
+        self.selectionHistoryIndex = 0
+        self.modifySelectionHistory = True
+
         # Init UI
         self.setTitleBar()
         geometry = self.settings.value('geometry',
@@ -677,25 +682,54 @@ class MyWindow(QtWidgets.QMainWindow):
         moviesTableSearchHLayout = QtWidgets.QHBoxLayout()
         moviesTableViewVLayout.addLayout(moviesTableSearchHLayout)
 
+        buttonsVLayout = QtWidgets.QVBoxLayout()
+        moviesTableSearchHLayout.addLayout(buttonsVLayout)
+
+        backForwardHLayout = QtWidgets.QHBoxLayout()
+        buttonsVLayout.addLayout(backForwardHLayout)
+
+        # Back button
+        backButton = QtWidgets.QPushButton("Back")
+        backButton.setFixedSize(70, 20)
+        backButton.setSizePolicy(QtWidgets.QSizePolicy.Fixed,
+                                       QtWidgets.QSizePolicy.Maximum)
+        backButton.clicked.connect(self.moviesTableBack)
+        backButton.setFont(QtGui.QFont('TimesNew Roman', 10))
+        backButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        backForwardHLayout.addWidget(backButton)
+
+        # Forward button
+        forwardButton = QtWidgets.QPushButton("Forward")
+        forwardButton.setFixedSize(70, 20)
+        forwardButton.setSizePolicy(QtWidgets.QSizePolicy.Fixed,
+                                 QtWidgets.QSizePolicy.Maximum)
+        forwardButton.clicked.connect(self.moviesTableForward)
+        forwardButton.setFont(QtGui.QFont('TimesNew Roman', 10))
+        forwardButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        backForwardHLayout.addWidget(forwardButton)
+
+        randomAllHLayout = QtWidgets.QHBoxLayout()
+        buttonsVLayout.addLayout(randomAllHLayout)
+
         # Pick random button
         pickRandomButton = QtWidgets.QPushButton("Random")
-        pickRandomButton.setFixedSize(100, 40)
+        pickRandomButton.setFixedSize(70, 20)
         pickRandomButton.setSizePolicy(QtWidgets.QSizePolicy.Fixed,
                                        QtWidgets.QSizePolicy.Maximum)
         pickRandomButton.clicked.connect(self.pickRandomMovie)
-        pickRandomButton.setFont(QtGui.QFont('TimesNew Roman', 12))
+        pickRandomButton.setFont(QtGui.QFont('TimesNew Roman', 10))
         pickRandomButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
-        moviesTableSearchHLayout.addWidget(pickRandomButton)
+        randomAllHLayout.addWidget(pickRandomButton)
 
         # Show all button
         showAllButton = QtWidgets.QPushButton("Show All")
-        showAllButton.setFixedSize(100, 40)
+        showAllButton.setFixedSize(70, 20)
         showAllButton.setSizePolicy(QtWidgets.QSizePolicy.Fixed,
                                     QtWidgets.QSizePolicy.Maximum)
         showAllButton.clicked.connect(self.showAllMoviesTableView)
-        showAllButton.setFont(QtGui.QFont('TimesNew Roman', 12))
+        showAllButton.setFont(QtGui.QFont('TimesNew Roman', 10))
         showAllButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
-        moviesTableSearchHLayout.addWidget(showAllButton)
+        randomAllHLayout.addWidget(showAllButton)
 
         moviesTableSearchVLayout = QtWidgets.QVBoxLayout()
         moviesTableSearchHLayout.addLayout(moviesTableSearchVLayout)
@@ -985,7 +1019,7 @@ class MyWindow(QtWidgets.QMainWindow):
         except Exception:
             pass
 
-        tableView.selectionModel().selectionChanged.connect(lambda: self.tableSelectionChanged(tableView, tableModel, proxyModel))
+        tableView.selectionModel().selectionChanged.connect(self.moviesTableSelectionChanged)
         tableView.clicked.connect(self.clickedMovieTable)
         tableView.doubleClicked.connect(lambda: self.playMovie(tableView, proxyModel))
 
@@ -1908,6 +1942,19 @@ class MyWindow(QtWidgets.QMainWindow):
                 coverFile = coverFilePng
         self.openGlWidget.emitCover(row, coverFile, direction)
 
+    def moviesTableSelectionChanged(self):
+        if (self.modifySelectionHistory):
+            selectedRows = [r.row() for r in self.moviesTableView.selectionModel().selectedRows()]
+            if len(selectedRows) != 0:
+                # Delete everything after the selectionHistoryIndex
+                del self.selectionHistory[self.selectionHistoryIndex + 1:len(self.selectionHistory)]
+                self.selectionHistory.append(selectedRows)
+                self.selectionHistoryIndex = len(self.selectionHistory) - 1
+
+        self.tableSelectionChanged(self.moviesTableView,
+                                   self.moviesTableModel,
+                                   self.moviesTableProxyModel)
+
     def tableSelectionChanged(self, table, model, proxyModel):
         self.showMoviesTableSelectionStatus()
         numSelected = len(table.selectionModel().selectedRows())
@@ -1947,6 +1994,30 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.summaryShow(jsonData)
         self.movieInfoRefresh(jsonData)
+
+    def moviesTableBack(self):
+        if self.selectionHistoryIndex != 0:
+            self.moviesTableView.clearSelection()
+            self.selectionHistoryIndex -= 1
+            selectedRows = self.selectionHistory[self.selectionHistoryIndex]
+            self.modifySelectionHistory = False
+            indexes = [self.moviesTableProxyModel.index(r, 0) for r in selectedRows]
+            mode = QtCore.QItemSelectionModel.Select | QtCore.QItemSelectionModel.Rows
+            self.moviesTableView.selectRow(selectedRows[0])
+            [self.moviesTableView.selectionModel().select(i, mode) for i in indexes]
+            self.modifySelectionHistory = True
+
+    def moviesTableForward(self):
+        if self.selectionHistoryIndex != (len(self.selectionHistory) - 1):
+            self.moviesTableView.clearSelection()
+            self.selectionHistoryIndex += 1
+            selectedRows = self.selectionHistory[self.selectionHistoryIndex]
+            self.modifySelectionHistory = False
+            indexes = [self.moviesTableProxyModel.index(r, 0) for r in selectedRows]
+            mode = QtCore.QItemSelectionModel.Select | QtCore.QItemSelectionModel.Rows
+            self.moviesTableView.selectRow(selectedRows[0])
+            [self.moviesTableView.selectionModel().select(i, mode) for i in indexes]
+            self.modifySelectionHistory = True
 
     def pickRandomMovie(self):
         numRowsProxy = self.moviesTableProxyModel.rowCount()
