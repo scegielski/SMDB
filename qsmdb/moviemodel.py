@@ -104,7 +104,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                 key = key + "duplicate"
                             moviesFolderDict[key] = [folderName, moviePath]
                         else:
-                            print("Not adding %s to movie list" % f.name)
+                            print("Not adding: %s to movie list" % f.path)
 
         for key in moviesFolderDict.keys():
             movieFolderName = moviesFolderDict[key][0]
@@ -151,7 +151,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                 if os.path.exists(jsonFile):
                     movieData.append("True")
                 else:
-                    print(f"jsonFile {jsonFile} does not exit exist")
+                    print(f"jsonFile {jsonFile} does not exist")
                     movieData.append("False")
             elif column == self.Columns.Folder:
                 movieData.append(movieFolderName)
