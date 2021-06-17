@@ -190,9 +190,9 @@ class MyWindow(QtWidgets.QMainWindow):
         centralWidget.setLayout(mainVLayout)
 
         # Main H Splitter for criteria, movies list, and cover/info
-        mainHSplitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
-        mainHSplitter.setHandleWidth(10)
-        mainVLayout.addWidget(mainHSplitter)
+        self.mainHSplitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
+        self.mainHSplitter.setHandleWidth(10)
+        mainVLayout.addWidget(self.mainHSplitter)
 
         # Filter Table
         self.filterByDict = {
@@ -215,8 +215,8 @@ class MyWindow(QtWidgets.QMainWindow):
             self.filterWidget.hide()
 
         # Splitter for Movies Table and Watch List
-        moviesWatchListBackupVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
-        moviesWatchListBackupVSplitter.setHandleWidth(20)
+        self.moviesWatchListBackupVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
+        self.moviesWatchListBackupVSplitter.setHandleWidth(20)
 
         # Movies Table
         self.rowHeightWithoutCover = 18
@@ -228,7 +228,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableColumnsVisible = []
         self.moviesListHeaderActions = []
         self.initUIMoviesTable()
-        moviesWatchListBackupVSplitter.addWidget(self.moviesTableWidget)
+        self.moviesWatchListBackupVSplitter.addWidget(self.moviesTableWidget)
         if not self.showMoviesTable:
             self.moviesTableWidget.hide()
 
@@ -238,7 +238,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.watchListColumnsVisible = []
         self.watchListHeaderActions = []
         self.initUIWatchList()
-        moviesWatchListBackupVSplitter.addWidget(self.watchListWidget)
+        self.moviesWatchListBackupVSplitter.addWidget(self.watchListWidget)
         if not self.showWatchList:
             self.watchListWidget.hide()
 
@@ -263,11 +263,12 @@ class MyWindow(QtWidgets.QMainWindow):
         self.backupFolderEdit = QtWidgets.QLineEdit()
 
         self.initUIBackupList()
-        moviesWatchListBackupVSplitter.addWidget(self.backupListWidget)
+        self.moviesWatchListBackupVSplitter.addWidget(self.backupListWidget)
         if not self.showBackupList:
             self.backupListWidget.hide()
 
-        moviesWatchListBackupVSplitter.setSizes([500, 200, 200])
+        sizes = [int(x) for x in self.settings.value('moviesWatchListBackupVSplitterSizes', [500, 200, 200], type=list)]
+        self.moviesWatchListBackupVSplitter.setSizes(sizes)
 
         # Movie section widget
         self.movieSectionWidget = QtWidgets.QFrame()
@@ -290,20 +291,20 @@ class MyWindow(QtWidgets.QMainWindow):
         movieSectionVLayout.addWidget(self.titleLabel)
 
         # Cover and Summary V Splitter
-        coverSummaryVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
-        movieSectionVLayout.addWidget(coverSummaryVSplitter)
-        coverSummaryVSplitter.setHandleWidth(20)
-        coverSummaryVSplitter.splitterMoved.connect(self.resizeCoverFile)
+        self.coverSummaryVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
+        movieSectionVLayout.addWidget(self.coverSummaryVSplitter)
+        self.coverSummaryVSplitter.setHandleWidth(20)
+        self.coverSummaryVSplitter.splitterMoved.connect(self.resizeCoverFile)
 
         # Cover and Movie Info H Splitter
-        coverInfoHSplitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
+        self.coverInfoHSplitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
 
-        coverSummaryVSplitter.addWidget(coverInfoHSplitter)
+        self.coverSummaryVSplitter.addWidget(self.coverInfoHSplitter)
 
         # Movie Info
         self.movieInfoWidget = QtWidgets.QWidget()
-        coverInfoHSplitter.addWidget(self.movieInfoWidget)
-        coverInfoHSplitter.splitterMoved.connect(self.resizeCoverFile)
+        self.coverInfoHSplitter.addWidget(self.movieInfoWidget)
+        self.coverInfoHSplitter.splitterMoved.connect(self.resizeCoverFile)
         movieInfoVLayout = QtWidgets.QVBoxLayout()
         self.movieInfoWidget.setLayout(movieInfoVLayout)
         self.movieInfoListView = MovieInfoListview()
@@ -318,7 +319,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Cover / GL Tabs
         self.coverTabWidget = QtWidgets.QTabWidget()
-        coverInfoHSplitter.addWidget(self.coverTabWidget)
+        self.coverInfoHSplitter.addWidget(self.coverTabWidget)
 
         # Cover
         self.coverTab = QtWidgets.QWidget()
@@ -342,25 +343,29 @@ class MyWindow(QtWidgets.QMainWindow):
         coverGLTab.layout().addWidget(self.openGlWidget)
         self.coverTabWidget.addTab(coverGLTab, "Cover GL")
 
-        coverInfoHSplitter.setSizes([200, 600])
+        sizes = [int(x) for x in self.settings.value('coverInfoHSplitterSizes', [200, 600], type=list)]
+        self.coverInfoHSplitter.setSizes(sizes)
 
         # Summary
         self.summary = QtWidgets.QTextBrowser()
         self.summary.setFont(QtGui.QFont('TimesNew Roman', 12))
         self.summary.setStyleSheet("color:white; background-color: black;")
-        coverSummaryVSplitter.addWidget(self.summary)
-        coverSummaryVSplitter.setSizes([600, 200])
+        self.coverSummaryVSplitter.addWidget(self.summary)
         if not self.showSummary:
             self.summary.hide()
 
-        # Add the sub-layouts to the mainHSplitter
-        mainHSplitter.addWidget(self.filterWidget)
-        mainHSplitter.addWidget(moviesWatchListBackupVSplitter)
-        mainHSplitter.addWidget(self.movieSectionWidget)
-        mainHSplitter.splitterMoved.connect(self.resizeCoverFile)
+        sizes = [int(x) for x in self.settings.value('coverSummaryVSplitterSizes', [600, 200], type=list)]
+        self.coverSummaryVSplitter.setSizes(sizes)
+
+        # Add the sub-layouts to the self.mainHSplitter
+        self.mainHSplitter.addWidget(self.filterWidget)
+        self.mainHSplitter.addWidget(self.moviesWatchListBackupVSplitter)
+        self.mainHSplitter.addWidget(self.movieSectionWidget)
+        self.mainHSplitter.splitterMoved.connect(self.resizeCoverFile)
 
         # Main horizontal sizes
-        mainHSplitter.setSizes([270, 750, 800])
+        sizes = [int(x) for x in self.settings.value('mainHSplitterSizes', [270, 750, 800], type=list)]
+        self.mainHSplitter.setSizes(sizes)
 
         # Bottom
         bottomLayout = QtWidgets.QHBoxLayout(self)
@@ -407,6 +412,10 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
         self.settings.setValue('geometry', self.geometry())
+        self.settings.setValue('mainHSplitterSizes', self.mainHSplitter.sizes())
+        self.settings.setValue('coverInfoHSplitterSizes', self.coverInfoHSplitter.sizes())
+        self.settings.setValue('coverSummaryVSplitterSizes', self.coverSummaryVSplitter.sizes())
+        self.settings.setValue('moviesWatchListBackupVSplitterSizes', self.moviesWatchListBackupVSplitter.sizes())
 
     def initUIFileMenu(self):
         menuBar = self.menuBar()
@@ -432,10 +441,6 @@ class MyWindow(QtWidgets.QMainWindow):
         clearAdditionalMoviesFolderAction = QtWidgets.QAction("Clear additional movies folders", self)
         clearAdditionalMoviesFolderAction.triggered.connect(self.clearAdditionalMoviesFolders)
         fileMenu.addAction(clearAdditionalMoviesFolderAction)
-
-        restoreDefaultWindowsAction = QtWidgets.QAction("Restore default window configuration", self)
-        restoreDefaultWindowsAction.triggered.connect(self.restoreDefaultWindows)
-        fileMenu.addAction(restoreDefaultWindowsAction)
 
         conformMoviesAction = QtWidgets.QAction("Conform movies in folder", self)
         conformMoviesAction.triggered.connect(self.conformMovies)
@@ -500,6 +505,10 @@ class MyWindow(QtWidgets.QMainWindow):
         showSummaryAction.setChecked(self.showSummary)
         showSummaryAction.triggered.connect(self.showSummaryMenu)
         viewMenu.addAction(showSummaryAction)
+
+        restoreDefaultWindowsAction = QtWidgets.QAction("Restore default window configuration", self)
+        restoreDefaultWindowsAction.triggered.connect(self.restoreDefaultWindows)
+        viewMenu.addAction(restoreDefaultWindowsAction)
 
     def initUIFilterTable(self):
         self.filterWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
@@ -1152,6 +1161,10 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def restoreDefaultWindows(self):
         self.setGeometry(QtCore.QRect(50, 50, 1820, 900))
+        self.mainHSplitter.setSizes([270, 750, 800])
+        self.coverInfoHSplitter.setSizes([200, 600])
+        self.coverSummaryVSplitter.setSizes([600, 200])
+        self.moviesWatchListBackupVSplitter.setSizes([500, 200, 200])
 
     def conformMovies(self):
         browseDir = str(Path.home())
