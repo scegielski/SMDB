@@ -164,14 +164,15 @@ class MyWindow(QtWidgets.QMainWindow):
         self.setStyleSheet("""QAbstractItemView{ background: black; color: white; }; """)
 
         # Default view state of UI sections
-        self.showFilters = True
-        self.showMoviesTable = True
-        self.showCover = True
-        self.showMovieInfo = True
-        self.showMovieSection = True
-        self.showSummary = True
-        self.showWatchList = False
-        self.showBackupList = False
+        #self.showFilters = True
+        self.showFilters = bool(self.settings.value('showFilters', True))
+        self.showMoviesTable = bool(self.settings.value('showMoviesTable', True))
+        self.showCover = bool(self.settings.value('showCover', True))
+        self.showMovieInfo = bool(self.settings.value('showMovieInfo', True))
+        self.showMovieSection = bool(self.settings.value('showMovieSection', True))
+        self.showSummary = bool(self.settings.value('showSummary', True))
+        self.showWatchList = bool(self.settings.value('showWatchList', False))
+        self.showBackupList = bool(self.settings.value('showBackupList', False))
 
         # Default state of cancel button
         self.isCanceled = False
@@ -416,6 +417,14 @@ class MyWindow(QtWidgets.QMainWindow):
         self.settings.setValue('coverInfoHSplitterSizes', self.coverInfoHSplitter.sizes())
         self.settings.setValue('coverSummaryVSplitterSizes', self.coverSummaryVSplitter.sizes())
         self.settings.setValue('moviesWatchListBackupVSplitterSizes', self.moviesWatchListBackupVSplitter.sizes())
+        self.settings.setValue('showFilters', self.showFilters)
+        self.settings.setValue('showMoviesTable', self.showMoviesTable)
+        self.settings.setValue('showCover', self.showCover)
+        self.settings.setValue('showMovieInfo', self.showMovieInfo)
+        self.settings.setValue('showMovieSection', self.showMovieSection)
+        self.settings.setValue('showSummary', self.showSummary)
+        self.settings.setValue('showWatchList', self.showWatchList)
+        self.settings.setValue('showBackupList', self.showBackupList)
 
     def initUIFileMenu(self):
         menuBar = self.menuBar()
@@ -1165,6 +1174,22 @@ class MyWindow(QtWidgets.QMainWindow):
         self.coverInfoHSplitter.setSizes([200, 600])
         self.coverSummaryVSplitter.setSizes([600, 200])
         self.moviesWatchListBackupVSplitter.setSizes([500, 200, 200])
+        self.showFilters = True
+        self.filterWidget.show()
+        self.showMoviesTable = True
+        self.moviesTableWidget.show()
+        self.showWatchList = False
+        self.watchListWidget.hide()
+        self.showBackupList = False
+        self.backupListWidget.hide()
+        self.showMovieSection = True
+        self.movieSectionWidget.show()
+        self.showMovieInfo = True
+        self.movieInfoWidget.show()
+        self.showCover = True
+        self.coverTab.show()
+        self.showSummary = True
+        self.summary.show()
 
     def conformMovies(self):
         browseDir = str(Path.home())
