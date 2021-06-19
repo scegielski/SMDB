@@ -3,12 +3,14 @@ import fnmatch
 import pathlib
 import datetime
 from enum import Enum
-from PyQt5 import QtGui
+from PyQt5 import QtGui, QtCore
 
 from .utilities import *
 
 
 class MoviesTableModel(QtCore.QAbstractTableModel):
+    emitCoverSignal = QtCore.pyqtSignal(int)
+
     def __init__(self,
                  smdbData,
                  moviesFolders,
@@ -87,11 +89,15 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
         elif not forceScan and smdbData and 'titles' in smdbData:
             useSmdbData = True
             for title in smdbData['titles']:
-                for moviesFolder in moviesFolders:
-                    moviePath = os.path.join(moviesFolder, title)
-                    if os.path.exists(moviePath):
-                        moviesFolderDict[title] = [title, moviePath]
-                        break
+                if 'path' in smdbData['titles'][title]:
+                    moviesFolderDict[title] = [title, smdbData['titles'][title]['path']]
+                else:
+                    print(f"No path for title: {title}")
+                    for moviesFolder in moviesFolders:
+                        moviePath = os.path.join(moviesFolder, title)
+                        if os.path.exists(moviePath):
+                            moviesFolderDict[title] = [title, moviePath]
+                            break
         else:
             for moviesFolder in moviesFolders:
                 with os.scandir(moviesFolder) as files:
@@ -147,6 +153,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
             elif column == self.Columns.Path:
                 movieData.append(moviePath)
             elif column == self.Columns.JsonExists:
+                movieData.append("")
                 jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
                 if os.path.exists(jsonFile):
                     movieData.append("True")

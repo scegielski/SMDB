@@ -131,7 +131,6 @@ def getFolderSizes(path):
 
 class MyWindow(QtWidgets.QMainWindow):
     def __init__(self):
-        print("running init")
         super(MyWindow, self).__init__()
 
         self.numVisibleMovies = 0
@@ -393,6 +392,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesSmdbData = None
         self.moviesTableModel = None
         self.moviesTableProxyModel = None
+
         self.rescanMovieDirectories()
 
         self.populateFiltersTable()
@@ -2063,6 +2063,8 @@ class MyWindow(QtWidgets.QMainWindow):
         for row in range(numRowsProxy):
             if not self.moviesTableView.isRowHidden(row):
                 visibleRows.append(row)
+        if len(visibleRows) == 0:
+            return
         randomIndex = random.randint(0, len(visibleRows) - 1)
         randomRow = visibleRows[randomIndex]
         self.moviesTableView.selectRow(randomRow)
@@ -2715,7 +2717,8 @@ class MyWindow(QtWidgets.QMainWindow):
                                           'rank': rank,
                                           'width': jsonWidth,
                                           'height': jsonHeight,
-                                          'size': size}
+                                          'size': size,
+                                          'path': moviePath}
 
         self.progressBar.setValue(0)
 
