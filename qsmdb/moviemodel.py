@@ -130,7 +130,9 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
             movieData = self.createMovieData(data,
                                              moviePath,
-                                             movieFolderName)
+                                             movieFolderName,
+                                             False,  # Don't generate new rank here, it's for watch list
+                                             forceScan)
 
             folderName = movieData[self.Columns.Folder.value]
             self.movieSet.add(folderName)
@@ -139,27 +141,30 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
         # Sort by year
         self.sort(self.Columns.Year.value, QtCore.Qt.AscendingOrder)
 
-    def createMovieData(self, data, moviePath, movieFolderName, generateNewRank=False):
-        # For box office $
-        reMoneyValue = re.compile(r'(\d+(?:,\d+)*(?:\.\d+)?)')
-        reCurrency = re.compile(r'^([A-Z][A-Z][A-Z])(.*)')
+    def createMovieData(self,
+                        data,
+                        moviePath,
+                        movieFolderName,
+                        generateNewRank=False,
+                        force=False):
 
         movieData = []
         for column in self.Columns:
             if column == self.Columns.DateModified:
-                fname = pathlib.Path(moviePath)
-                dateModified = datetime.datetime.fromtimestamp(fname.stat().st_mtime)
-                movieData.append(f"{dateModified.year}/{str(dateModified.month).zfill(2)}/{str(dateModified.day).zfill(2)}")
+                if 'date' in data:
+                    movieData.append(data['date'])
             elif column == self.Columns.Path:
                 movieData.append(moviePath)
             elif column == self.Columns.JsonExists:
-                movieData.append("")
-                jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
-                if os.path.exists(jsonFile):
-                    movieData.append("True")
+                if force:
+                    jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
+                    if os.path.exists(jsonFile):
+                        movieData.append("True")
+                    else:
+                        print(f"jsonFile {jsonFile} does not exist")
+                        movieData.append("False")
                 else:
-                    print(f"jsonFile {jsonFile} does not exist")
-                    movieData.append("False")
+                    movieData.append("")
             elif column == self.Columns.Folder:
                 movieData.append(movieFolderName)
             elif column == self.Columns.Rank and generateNewRank:
@@ -256,24 +261,6 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                         if 'mpaa rating' in data and data['mpaa rating']:
                             mpaaRating = data['mpaa rating']
                         movieData.append(mpaaRating)
-                    elif column == self.Columns.BoxOffice:
-                        boxOffice = data[headerLower]
-                        currency = 'USD'
-                        if boxOffice:
-                            boxOffice = boxOffice.replace(' (estimated)', '')
-                            match = re.match(reCurrency, boxOffice)
-                            if match:
-                                currency = match.group(1)
-                                boxOffice = '$%s' % match.group(2)
-                            results = re.findall(reMoneyValue, boxOffice)
-                            if currency == 'USD':
-                                amount = '$%s' % results[0]
-                            else:
-                                amount = '%s' % results[0]
-                        else:
-                            amount = '$0'
-                        displayText = '%-3s %15s' % (currency, amount)
-                        movieData.append(displayText)
                     else:
                         movieData.append(data[headerLower])
         return movieData

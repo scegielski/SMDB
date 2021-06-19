@@ -7,6 +7,8 @@ import imdb
 from imdb import IMDb
 import json
 import fnmatch
+import pathlib
+import datetime
 import collections
 import webbrowser
 import shutil
@@ -2543,6 +2545,10 @@ class MyWindow(QtWidgets.QMainWindow):
         progress = 0
         self.isCanceled = False
 
+        # For box office $
+        reMoneyValue = re.compile(r'(\d+(?:,\d+)*(?:\.\d+)?)')
+        reCurrency = re.compile(r'^([A-Z][A-Z][A-Z])(.*)')
+
         for row in range(count):
 
             QtCore.QCoreApplication.processEvents()
@@ -2566,6 +2572,11 @@ class MyWindow(QtWidgets.QMainWindow):
 
             rank = model.getRank(row)
             moviePath = model.getPath(row)
+            if not os.path.exists(moviePath):
+                continue
+            fname = pathlib.Path(moviePath)
+            dateModified = datetime.datetime.fromtimestamp(fname.stat().st_mtime)
+            dateModified = f"{dateModified.year}/{str(dateModified.month).zfill(2)}/{str(dateModified.day).zfill(2)}"
             folderName = model.getFolderName(row)
             jsonFile = os.path.join(moviePath, '%s.json' % folderName)
             if os.path.exists(jsonFile):
@@ -2697,6 +2708,22 @@ class MyWindow(QtWidgets.QMainWindow):
                     if 'box office' in jsonData and jsonData['box office']:
                         jsonBoxOffice = jsonData['box office']
 
+                        currency = 'USD'
+                        if jsonBoxOffice:
+                            jsonBoxOffice = jsonBoxOffice.replace(' (estimated)', '')
+                            match = re.match(reCurrency, jsonBoxOffice)
+                            if match:
+                                currency = match.group(1)
+                                jsonBoxOffice = '$%s' % match.group(2)
+                            results = re.findall(reMoneyValue, jsonBoxOffice)
+                            if currency == 'USD':
+                                amount = '$%s' % results[0]
+                            else:
+                                amount = '%s' % results[0]
+                        else:
+                            amount = '$0'
+                        jsonBoxOffice = '%-3s %15s' % (currency, amount)
+
                     jsonRuntime = None
                     if 'runtime' in jsonData and jsonData['runtime']:
                         jsonRuntime = jsonData['runtime']
@@ -2718,7 +2745,8 @@ class MyWindow(QtWidgets.QMainWindow):
                                           'width': jsonWidth,
                                           'height': jsonHeight,
                                           'size': size,
-                                          'path': moviePath}
+                                          'path': moviePath,
+                                          'date': dateModified}
 
         self.progressBar.setValue(0)
 
