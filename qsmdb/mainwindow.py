@@ -712,7 +712,7 @@ class MyWindow(QtWidgets.QMainWindow):
         backButton = QtWidgets.QPushButton("Back")
         backButton.setFixedSize(70, 20)
         backButton.setSizePolicy(QtWidgets.QSizePolicy.Fixed,
-                                       QtWidgets.QSizePolicy.Maximum)
+                                 QtWidgets.QSizePolicy.Maximum)
         backButton.clicked.connect(self.moviesTableBack)
         backButton.setFont(QtGui.QFont('TimesNew Roman', 10))
         backButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
@@ -3583,9 +3583,9 @@ class MyWindow(QtWidgets.QMainWindow):
                                                      "Enter new ID",
                                                      QtWidgets.QLineEdit.Normal,
                                                      "")
-        if 'tt' in movieId:
-            movieId = movieId.replace('tt', '')
         if movieId and ok:
+            if 'tt' in movieId:
+                movieId = movieId.replace('tt', '')
             modelIndex = self.moviesTableView.selectionModel().selectedRows()[0]
             self.downloadMovieData(modelIndex, True, movieId)
 
