@@ -100,6 +100,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                             break
         else:
             for moviesFolder in moviesFolders:
+                numMovies = 0
                 with os.scandir(moviesFolder) as files:
                     for f in files:
                         if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
@@ -109,8 +110,10 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                             if key in moviesFolderDict:
                                 key = key + "duplicate"
                             moviesFolderDict[key] = [folderName, moviePath]
+                            numMovies += 1
                         else:
                             print("Not adding: %s to movie list" % f.path)
+                print(f"Scanned {numMovies} movies for {moviesFolder}")
 
         for key in moviesFolderDict.keys():
             movieFolderName = moviesFolderDict[key][0]

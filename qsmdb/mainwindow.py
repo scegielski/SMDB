@@ -1734,114 +1734,118 @@ class MyWindow(QtWidgets.QMainWindow):
             sourceIndex = self.backupListTableProxyModel.mapToSource(modelIndex)
             sourceRow = sourceIndex.row()
             title = self.backupListTableModel.getTitle(sourceRow)
-            sourcePath = self.backupListTableModel.getPath(sourceRow)
-            sourceFolderName = self.backupListTableModel.getFolderName(sourceRow)
-            sourceFolderSize = self.sourceFolderSizes[sourceFolderName]
-            destFolderSize = self.destFolderSizes[sourceFolderName]
-            destPath = os.path.join(self.backupFolder, sourceFolderName)
 
-            backupStatus = self.backupListTableModel.getBackupStatus(sourceIndex.row())
+            try:
+                sourcePath = self.backupListTableModel.getPath(sourceRow)
+                sourceFolderName = self.backupListTableModel.getFolderName(sourceRow)
+                sourceFolderSize = self.sourceFolderSizes[sourceFolderName]
+                destFolderSize = self.destFolderSizes[sourceFolderName]
+                destPath = os.path.join(self.backupFolder, sourceFolderName)
 
-            message = "Backing up folder (%05d/%05d): %-50s" \
-                      "   Size: %06d Mb" \
-                      "   Last rate = %06d Mb/s" \
-                      "   Average rate = %06d Mb/s" \
-                      "   %10d Mb Remaining" \
-                      "   Time remaining: %03d Hours %02d minutes" % \
-                      (progress,
-                       numItems,
-                       title,
-                       bToMb(sourceFolderSize),
-                       bToMb(lastBytesPerSecond),
-                       bToMb(averageBytesPerSecond),
-                       bToMb(bytesRemaining),
-                       estimatedHoursRemaining,
-                       estimatedMinutesRemaining)
+                backupStatus = self.backupListTableModel.getBackupStatus(sourceIndex.row())
 
-            self.statusBar().showMessage(message)
-            QtCore.QCoreApplication.processEvents()
+                message = "Backing up folder (%05d/%05d): %-50s" \
+                          "   Size: %06d Mb" \
+                          "   Last rate = %06d Mb/s" \
+                          "   Average rate = %06d Mb/s" \
+                          "   %10d Mb Remaining" \
+                          "   Time remaining: %03d Hours %02d minutes" % \
+                          (progress,
+                           numItems,
+                           title,
+                           bToMb(sourceFolderSize),
+                           bToMb(lastBytesPerSecond),
+                           bToMb(averageBytesPerSecond),
+                           bToMb(bytesRemaining),
+                           estimatedHoursRemaining,
+                           estimatedMinutesRemaining)
 
-            # Time the copy
-            startTime = time.perf_counter()
-            bytesCopied = 0
+                self.statusBar().showMessage(message)
+                QtCore.QCoreApplication.processEvents()
 
-            if backupStatus == 'File Size Difference' or \
-               backupStatus == 'Files Missing (Source)' or \
-               backupStatus == 'Files Missing (Destination)':
-
+                # Time the copy
                 startTime = time.perf_counter()
+                bytesCopied = 0
 
-                # Copy any files that are missing or have different sizes
-                for f in os.listdir(sourcePath):
+                if backupStatus == 'File Size Difference' or \
+                   backupStatus == 'Files Missing (Source)' or \
+                   backupStatus == 'Files Missing (Destination)':
 
-                    sourceFilePath = os.path.join(sourcePath, f)
-                    if os.path.isdir(sourceFilePath):
-                        sourceFileSize = getFolderSize(sourceFilePath)
-                    else:
-                        sourceFileSize = os.path.getsize(sourceFilePath)
+                    startTime = time.perf_counter()
 
-                    destFilePath = os.path.join(destPath, f)
+                    # Copy any files that are missing or have different sizes
+                    for f in os.listdir(sourcePath):
 
-                    if not os.path.exists(destFilePath):
-                        bytesCopied += sourceFileSize
+                        sourceFilePath = os.path.join(sourcePath, f)
                         if os.path.isdir(sourceFilePath):
-                            shutil.copytree(sourceFilePath, destFilePath)
+                            sourceFileSize = getFolderSize(sourceFilePath)
                         else:
-                            shutil.copy(sourceFilePath, destFilePath)
-                    else:
-                        destFileSize = 0
-                        if os.path.exists(destFilePath):
-                            if os.path.isdir(destFilePath):
-                                destFileSize = getFolderSize(destFilePath)
-                            else:
-                                destFileSize = os.path.getsize(destFilePath)
+                            sourceFileSize = os.path.getsize(sourceFilePath)
 
-                        if sourceFileSize != destFileSize:
+                        destFilePath = os.path.join(destPath, f)
+
+                        if not os.path.exists(destFilePath):
                             bytesCopied += sourceFileSize
                             if os.path.isdir(sourceFilePath):
-                                shutil.rmtree(destFilePath,
-                                              ignore_errors=False,
-                                              onerror=handleRemoveReadonly)
-
                                 shutil.copytree(sourceFilePath, destFilePath)
                             else:
                                 shutil.copy(sourceFilePath, destFilePath)
-
-                # Remove any files in the destination dir that
-                # are not in the source dir
-                for f in os.listdir(destPath):
-                    destFilePath = os.path.join(destPath, f)
-                    sourceFilePath = os.path.join(sourcePath, f)
-                    if not os.path.exists(sourceFilePath):
-                        if os.path.isdir(destFilePath):
-                            shutil.rmtree(destFilePath,
-                                          ignore_errors=False,
-                                          onerror=handleRemoveReadonly)
                         else:
-                            os.chmod(destFilePath, stat.S_IWRITE)
-                            os.remove(destFilePath)
+                            destFileSize = 0
+                            if os.path.exists(destFilePath):
+                                if os.path.isdir(destFilePath):
+                                    destFileSize = getFolderSize(destFilePath)
+                                else:
+                                    destFileSize = os.path.getsize(destFilePath)
 
-                bytesRemaining += destFolderSize
-                bytesRemaining -= sourceFolderSize
-            elif backupStatus == 'Folder Missing':
-                shutil.copytree(sourcePath, destPath)
-                bytesCopied = sourceFolderSize
-                bytesRemaining -= sourceFolderSize
-            else:
-                bytesCopied = 0
-                sourceFolderSize = 0
+                            if sourceFileSize != destFileSize:
+                                bytesCopied += sourceFileSize
+                                if os.path.isdir(sourceFilePath):
+                                    shutil.rmtree(destFilePath,
+                                                  ignore_errors=False,
+                                                  onerror=handleRemoveReadonly)
 
-            if sourceFolderSize != 0:
-                endTime = time.perf_counter()
-                secondsToCopy = endTime - startTime
-                lastBytesPerSecond = bytesCopied / secondsToCopy
-                totalTimeToCopy += secondsToCopy
-                totalBytesCopied += bytesCopied
-                averageBytesPerSecond = totalBytesCopied / totalTimeToCopy
-                if averageBytesPerSecond != 0:
-                    estimatedSecondsRemaining = bytesRemaining // averageBytesPerSecond
-                    estimatedMinutesRemaining = (estimatedSecondsRemaining // 60) % 60
-                    estimatedHoursRemaining = estimatedSecondsRemaining // 3600
+                                    shutil.copytree(sourceFilePath, destFilePath)
+                                else:
+                                    shutil.copy(sourceFilePath, destFilePath)
+
+                    # Remove any files in the destination dir that
+                    # are not in the source dir
+                    for f in os.listdir(destPath):
+                        destFilePath = os.path.join(destPath, f)
+                        sourceFilePath = os.path.join(sourcePath, f)
+                        if not os.path.exists(sourceFilePath):
+                            if os.path.isdir(destFilePath):
+                                shutil.rmtree(destFilePath,
+                                              ignore_errors=False,
+                                              onerror=handleRemoveReadonly)
+                            else:
+                                os.chmod(destFilePath, stat.S_IWRITE)
+                                os.remove(destFilePath)
+
+                    bytesRemaining += destFolderSize
+                    bytesRemaining -= sourceFolderSize
+                elif backupStatus == 'Folder Missing':
+                    shutil.copytree(sourcePath, destPath)
+                    bytesCopied = sourceFolderSize
+                    bytesRemaining -= sourceFolderSize
+                else:
+                    bytesCopied = 0
+                    sourceFolderSize = 0
+
+                if sourceFolderSize != 0:
+                    endTime = time.perf_counter()
+                    secondsToCopy = endTime - startTime
+                    lastBytesPerSecond = bytesCopied / secondsToCopy
+                    totalTimeToCopy += secondsToCopy
+                    totalBytesCopied += bytesCopied
+                    averageBytesPerSecond = totalBytesCopied / totalTimeToCopy
+                    if averageBytesPerSecond != 0:
+                        estimatedSecondsRemaining = bytesRemaining // averageBytesPerSecond
+                        estimatedMinutesRemaining = (estimatedSecondsRemaining // 60) % 60
+                        estimatedHoursRemaining = estimatedSecondsRemaining // 3600
+            except:
+                print(f"Problem copying movie: {title}")
 
         self.backupListTableModel.changedLayout()
         self.statusBar().showMessage("Done")
@@ -2550,7 +2554,6 @@ class MyWindow(QtWidgets.QMainWindow):
         reCurrency = re.compile(r'^([A-Z][A-Z][A-Z])(.*)')
 
         for row in range(count):
-
             QtCore.QCoreApplication.processEvents()
             if self.isCanceled:
                 self.statusBar().showMessage('Cancelled')
@@ -2573,7 +2576,9 @@ class MyWindow(QtWidgets.QMainWindow):
             rank = model.getRank(row)
             moviePath = model.getPath(row)
             if not os.path.exists(moviePath):
+                print(f"path does not exist: {moviePath}")
                 continue
+
             fname = pathlib.Path(moviePath)
             dateModified = datetime.datetime.fromtimestamp(fname.stat().st_mtime)
             dateModified = f"{dateModified.year}/{str(dateModified.month).zfill(2)}/{str(dateModified.day).zfill(2)}"
@@ -2877,7 +2882,6 @@ class MyWindow(QtWidgets.QMainWindow):
         rightMenu = QtWidgets.QMenu(self.movieInfoListView)
         selectedItem = self.movieInfoListView.itemAt(self.movieInfoListView.mouseLocation)
         category = selectedItem.data(QtCore.Qt.UserRole)[0]
-        print("category = %s" % category)
         if category == 'director' or category == 'actor' or category == 'year':
             openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
             itemText = selectedItem.text()
