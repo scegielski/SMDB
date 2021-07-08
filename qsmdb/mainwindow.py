@@ -2733,7 +2733,8 @@ class MyWindow(QtWidgets.QMainWindow):
                     if 'runtime' in jsonData and jsonData['runtime']:
                         jsonRuntime = jsonData['runtime']
 
-                    titles[folderName] = {'id': jsonId,
+                    titles[moviePath] = {'folder': folderName,
+                                          'id': jsonId,
                                           'title': jsonTitle,
                                           'year': jsonYear,
                                           'rating': jsonRating,

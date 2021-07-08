@@ -88,16 +88,9 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
             return
         elif not forceScan and smdbData and 'titles' in smdbData:
             useSmdbData = True
-            for title in smdbData['titles']:
-                if 'path' in smdbData['titles'][title]:
-                    moviesFolderDict[title] = [title, smdbData['titles'][title]['path']]
-                else:
-                    print(f"No path for title: {title}")
-                    for moviesFolder in moviesFolders:
-                        moviePath = os.path.join(moviesFolder, title)
-                        if os.path.exists(moviePath):
-                            moviesFolderDict[title] = [title, moviePath]
-                            break
+            for path in smdbData['titles']:
+                folder = smdbData['titles'][path]['folder']
+                moviesFolderDict[path] = [folder, path]
         else:
             for moviesFolder in moviesFolders:
                 numMovies = 0
@@ -106,7 +99,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                         if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
                             folderName = f.name
                             moviePath = f.path
-                            key = folderName
+                            key = moviePath
                             if key in moviesFolderDict:
                                 key = key + "duplicate"
                             moviesFolderDict[key] = [folderName, moviePath]
@@ -120,7 +113,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
             moviePath = moviesFolderDict[key][1]
             data = {}
             if useSmdbData:
-                data = smdbData['titles'][movieFolderName]
+                data = smdbData['titles'][moviePath]
             else:
                 jsonFile = os.path.join(moviePath,
                                         '%s.json' % movieFolderName)
