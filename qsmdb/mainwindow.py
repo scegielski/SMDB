@@ -2966,7 +2966,6 @@ class MyWindow(QtWidgets.QMainWindow):
             print("Folder doesn't exist")
 
     def backupListAddAllMoviesFrom(self, moviesFolder):
-        print(f'moviesFolder = {moviesFolder}')
         self.backupListTableModel.layoutAboutToBeChanged.emit()
         numItems = self.moviesTableModel.rowCount()
         for row in range(numItems):
