@@ -20,9 +20,19 @@ import re
 import numpy as np
 
 # TODO List
-# OpenGL cover viewer
-# Delete movie menu
-# Pick random movie
+# OpenGL cover viewer (wip)
+# Multiple filters
+# Rating filter (1-10)
+# Play button under cover view and double click cover to play
+# Save visible columns and column widths
+# Font sizes and color preference
+# Background color preference
+# Preset layouts
+# Fix status bar num visible and num selected when filtered, etc.
+# Add selected and total runtime to status bar
+# Use PyQt chart to show movies per year broken down by genre
+
+# Commands to make stand alone executable.  Run rom Console inside PyCharm
 
 # PC
 # pyinstaller --add-data ./MediaInfo.dll;. --onefile --noconsole --name SMDB run.py
