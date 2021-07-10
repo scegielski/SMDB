@@ -22,7 +22,6 @@ import numpy as np
 # TODO List
 # OpenGL cover viewer (wip)
 # Multiple filters
-# Rating filter (1-10)
 # Play button under cover view and double click cover to play
 # Save visible columns and column widths
 # Font sizes and color preference
@@ -215,7 +214,8 @@ class MyWindow(QtWidgets.QMainWindow):
             'User Tags': 'user tags',
             'Year': 'years',
             'Companies': 'companies',
-            'Country': 'countries'
+            'Country': 'countries',
+            'Ratings': 'ratings'
         }
         self.filterWidget = QtWidgets.QFrame()
         self.filterByComboBox = QtWidgets.QComboBox()
@@ -2548,6 +2548,7 @@ class MyWindow(QtWidgets.QMainWindow):
         directors = {}
         actors = {}
         mpaaRatings = {}
+        ratings = {}
         genres = {}
         years = {}
         companies = {}
@@ -2707,6 +2708,13 @@ class MyWindow(QtWidgets.QMainWindow):
                     jsonRating = None
                     if 'rating' in jsonData and jsonData['rating']:
                         jsonRating = jsonData['rating']
+                        if jsonRating not in ratings:
+                            ratings[jsonRating] = {}
+                            ratings[jsonRating]['num movies'] = 0
+                            ratings[jsonRating]['movies'] = []
+                        if titleYear not in ratings[jsonRating]['movies']:
+                            ratings[jsonRating]['movies'].append(titleYear)
+                            ratings[jsonRating]['num movies'] += 1
 
                     jsonMpaaRating = None
                     if 'mpaa rating' in jsonData and jsonData['mpaa rating']:
@@ -2779,6 +2787,7 @@ class MyWindow(QtWidgets.QMainWindow):
             data['countries'] = collections.OrderedDict(sorted(countries.items()))
             data['user tags'] = collections.OrderedDict(sorted(userTags.items()))
             data['mpaa ratings'] = collections.OrderedDict(sorted(mpaaRatings.items()))
+            data['ratings'] = collections.OrderedDict(sorted(ratings.items()))
 
         self.statusBar().showMessage('Writing %s' % fileName)
         QtCore.QCoreApplication.processEvents()
