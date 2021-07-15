@@ -946,8 +946,16 @@ class MyWindow(QtWidgets.QMainWindow):
                                    "color: white;"
                                    "border-radius: 5px")
         backupButton.setFont(QtGui.QFont('TimesNew Roman', 12))
-        backupButton.clicked.connect(self.backupRun)
+        backupButton.clicked.connect(lambda: self.backupRun(moveFiles=False))
         backupListButtonsHLayout.addWidget(backupButton)
+
+        moveButton = QtWidgets.QPushButton("Move")
+        moveButton.setStyleSheet("background: rgb(50, 50, 50);"
+                                 "color: white;"
+                                 "border-radius: 5px")
+        moveButton.setFont(QtGui.QFont('TimesNew Roman', 12))
+        moveButton.clicked.connect(lambda: self.backupRun(moveFiles=True))
+        backupListButtonsHLayout.addWidget(moveButton)
 
         backupFolderHLayout = QtWidgets.QHBoxLayout()
         backupListVLayout.addLayout(backupFolderHLayout)
@@ -1356,12 +1364,12 @@ class MyWindow(QtWidgets.QMainWindow):
                                                        QtWidgets.QFileDialog.ShowDirsOnly |
                                                        QtWidgets.QFileDialog.DontResolveSymlinks)
 
-        if self.backupFolder == self.moviesFolder:
-            mb = QtWidgets.QMessageBox()
-            mb.setText("Error: Backup folder must be different from movies folder")
-            mb.setIcon(QtWidgets.QMessageBox.Critical)
-            mb.exec()
-            return
+        #if self.backupFolder == self.moviesFolder:
+        #    mb = QtWidgets.QMessageBox()
+        #    mb.setText("Error: Backup folder must be different from movies folder")
+        #    mb.setIcon(QtWidgets.QMessageBox.Critical)
+        #    mb.exec()
+        #    return
 
         if os.path.exists(self.backupFolder):
             self.backupFolderEdit.setText(self.backupFolder)
@@ -1698,7 +1706,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.backupAnalysed = True
 
-    def backupRun(self):
+    def backupRun(self, moveFiles=False):
         if not self.backupFolder:
             mb = QtWidgets.QMessageBox()
             mb.setText("Destination folder is not set")
@@ -1754,21 +1762,22 @@ class MyWindow(QtWidgets.QMainWindow):
 
                 backupStatus = self.backupListTableModel.getBackupStatus(sourceIndex.row())
 
-                message = "Backing up folder (%05d/%05d): %-50s" \
-                          "   Size: %06d Mb" \
-                          "   Last rate = %06d Mb/s" \
-                          "   Average rate = %06d Mb/s" \
-                          "   %10d Mb Remaining" \
-                          "   Time remaining: %03d Hours %02d minutes" % \
-                          (progress,
-                           numItems,
-                           title,
-                           bToMb(sourceFolderSize),
-                           bToMb(lastBytesPerSecond),
-                           bToMb(averageBytesPerSecond),
-                           bToMb(bytesRemaining),
-                           estimatedHoursRemaining,
-                           estimatedMinutesRemaining)
+                message = "Backing up" if not moveFiles else "Moving "
+                message += " folder (%05d/%05d): %-50s" \
+                           "   Size: %06d Mb" \
+                           "   Last rate = %06d Mb/s" \
+                           "   Average rate = %06d Mb/s" \
+                           "   %10d Mb Remaining" \
+                           "   Time remaining: %03d Hours %02d minutes" % \
+                           (progress,
+                            numItems,
+                            title,
+                            bToMb(sourceFolderSize),
+                            bToMb(lastBytesPerSecond),
+                            bToMb(averageBytesPerSecond),
+                            bToMb(bytesRemaining),
+                            estimatedHoursRemaining,
+                            estimatedMinutesRemaining)
 
                 self.statusBar().showMessage(message)
                 QtCore.QCoreApplication.processEvents()
@@ -1783,7 +1792,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
                     startTime = time.perf_counter()
 
-                    # Copy any files that are missing or have different sizes
+                    # Copy/move any files that are missing or have different sizes
                     for f in os.listdir(sourcePath):
 
                         sourceFilePath = os.path.join(sourcePath, f)
@@ -1818,6 +1827,11 @@ class MyWindow(QtWidgets.QMainWindow):
                                     shutil.copytree(sourceFilePath, destFilePath)
                                 else:
                                     shutil.copy(sourceFilePath, destFilePath)
+
+                        if moveFiles:
+                            shutil.rmtree(sourceFilePath,
+                                          ignore_errors=False,
+                                          onerror=handleRemoveReadonly)
 
                     # Remove any files in the destination dir that
                     # are not in the source dir
