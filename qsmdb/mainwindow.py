@@ -88,7 +88,6 @@ def openYearImdbPage(year):
     webbrowser.open('https://www.imdb.com/search/title/?release_date=%s-01-01,%s-12-31' % (year, year), new=2)
 
 
-
 class FilterTable(QtWidgets.QTableWidget):
     def __init__(self):
         super(FilterTable, self).__init__()
@@ -102,6 +101,15 @@ class FilterTable(QtWidgets.QTableWidget):
             else:
                 super(FilterTable, self).mousePressEvent(event)
 
+class MovieCover(QtWidgets.QLabel):
+
+    doubleClicked = QtCore.pyqtSignal()
+
+    def __init__(self):
+        super(MovieCover, self).__init__()
+
+    def mouseDoubleClickEvent(self, a0: QtGui.QMouseEvent) -> None:
+        self.doubleClicked.emit()
 
 class MovieInfoListview(QtWidgets.QListWidget):
     def __init__(self):
@@ -335,7 +343,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Cover
         self.coverTab = QtWidgets.QWidget()
-        self.movieCover = QtWidgets.QLabel()
+        self.movieCover = MovieCover()
         self.initUICover()
         if not self.showCover:
             self.coverTab.hide()
@@ -1022,6 +1030,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.movieCover.setScaledContents(False)
         self.movieCover.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored)
         self.movieCover.setStyleSheet("background-color: black;")
+        self.movieCover.doubleClicked.connect(lambda: self.playMovie(self.moviesTableView, self.moviesTableProxyModel))
+
         movieVLayout.addWidget(self.movieCover)
 
     def rescanMovieDirectories(self, forceScan=False):
