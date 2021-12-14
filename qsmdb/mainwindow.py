@@ -16,8 +16,6 @@ import os
 import stat
 import time
 from pymediainfo import MediaInfo
-import re
-import numpy as np
 
 # TODO List
 # OpenGL cover viewer (wip)
@@ -30,6 +28,9 @@ import numpy as np
 # Fix status bar num visible and num selected when filtered, etc.
 # Add selected and total runtime to status bar
 # Use PyQt chart to show movies per year broken down by genre
+
+# Required modules
+# pyqt5, imdbpy, pymediainfo
 
 # Commands to make stand alone executable.  Run rom Console inside PyCharm
 
@@ -152,6 +153,7 @@ class MyWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super(MyWindow, self).__init__()
 
+        print("Running!!!!!")
         self.numVisibleMovies = 0
 
         # Create IMDB database
@@ -1442,7 +1444,6 @@ class MyWindow(QtWidgets.QMainWindow):
             if not os.path.exists(moviePath):
                 continue
 
-
             self.calculateFolderSize(sourceIndex, moviePath, movieFolderName)
 
         self.moviesTableModel.changedLayout()
@@ -1878,8 +1879,8 @@ class MyWindow(QtWidgets.QMainWindow):
                         estimatedSecondsRemaining = bytesRemaining // averageBytesPerSecond
                         estimatedMinutesRemaining = (estimatedSecondsRemaining // 60) % 60
                         estimatedHoursRemaining = estimatedSecondsRemaining // 3600
-            except:
-                print(f"Problem copying movie: {title}")
+            except Exception as e:
+                print(f"Problem copying movie: {title} - {e}")
 
         self.backupListTableModel.changedLayout()
         self.statusBar().showMessage("Done")
@@ -2600,7 +2601,6 @@ class MyWindow(QtWidgets.QMainWindow):
             self.progressBar.setValue(progress)
 
             title = model.getTitle(row)
-            size = model.getSize(row)
 
             message = "Processing item (%d/%d): %s" % (progress + 1,
                                                        count,
@@ -2639,6 +2639,10 @@ class MyWindow(QtWidgets.QMainWindow):
                     jsonHeight = 0
                     if 'height' in jsonData and jsonData['height']:
                         jsonHeight = jsonData['height']
+
+                    jsonSize = 0
+                    if 'size' in jsonData and jsonData['size']:
+                        jsonSize = jsonData['size']
 
                     jsonYear = None
                     if 'year' in jsonData and jsonData['year']:
@@ -2792,7 +2796,7 @@ class MyWindow(QtWidgets.QMainWindow):
                                           'rank': rank,
                                           'width': jsonWidth,
                                           'height': jsonHeight,
-                                          'size': size,
+                                          'size': jsonSize,
                                           'path': moviePath,
                                           'date': dateModified}
 

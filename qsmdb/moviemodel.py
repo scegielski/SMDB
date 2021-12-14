@@ -149,6 +149,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
             if column == self.Columns.DateModified:
                 if 'date' in data:
                     movieData.append(data['date'])
+                else:
+                    movieData.append('no date')
             elif column == self.Columns.Path:
                 movieData.append(moviePath)
             elif column == self.Columns.JsonExists:
