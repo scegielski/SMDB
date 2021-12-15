@@ -352,18 +352,18 @@ class MyWindow(QtWidgets.QMainWindow):
         self.coverTabWidget.addTab(self.coverTab, "Cover")
 
         # Cover GL
-        coverGLTab = QtWidgets.QWidget()
-        coverGLTab.setLayout(QtWidgets.QVBoxLayout())
-        self.coverRowHistory = list()
+        #coverGLTab = QtWidgets.QWidget()
+        #coverGLTab.setLayout(QtWidgets.QVBoxLayout())
+        #self.coverRowHistory = list()
 
-        self.randomizeCheckbox = QtWidgets.QCheckBox("Randomize")
-        coverGLTab.layout().addWidget(self.randomizeCheckbox)
+        #self.randomizeCheckbox = QtWidgets.QCheckBox("Randomize")
+        #coverGLTab.layout().addWidget(self.randomizeCheckbox)
 
-        self.openGlWidget = CoverGLWidget()
-        self.openGlWidget.emitCoverSignal.connect(self.coverChanged)
-        self.openGlWidget.showRowSignal.connect(self.showRow)
-        coverGLTab.layout().addWidget(self.openGlWidget)
-        self.coverTabWidget.addTab(coverGLTab, "Cover GL")
+        #self.openGlWidget = CoverGLWidget()
+        #self.openGlWidget.emitCoverSignal.connect(self.coverChanged)
+        #self.openGlWidget.showRowSignal.connect(self.showRow)
+        #coverGLTab.layout().addWidget(self.openGlWidget)
+        #self.coverTabWidget.addTab(coverGLTab, "Cover GL")
 
         sizes = [int(x) for x in self.settings.value('coverInfoHSplitterSizes', [200, 600], type=list)]
         self.coverInfoHSplitter.setSizes(sizes)
