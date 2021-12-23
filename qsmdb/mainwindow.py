@@ -153,7 +153,6 @@ class MyWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super(MyWindow, self).__init__()
 
-        print("Running!!!!!")
         self.numVisibleMovies = 0
 
         # Create IMDB database
@@ -165,10 +164,7 @@ class MyWindow(QtWidgets.QMainWindow):
         if self.moviesFolder == "":
             self.moviesFolder = "No movies folder set.  Use the \"File->Set movies folder\" menu to set it."
         self.backupFolder = ""
-
         self.additionalMoviesFolders = self.settings.value('additional_movies_folders', [], type=list)
-        for af in self.additionalMoviesFolders:
-            print("Additional movies folder = %s" % af)
 
         # Movie selection history
         self.selectionHistory = list()
