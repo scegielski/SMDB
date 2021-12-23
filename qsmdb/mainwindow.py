@@ -161,7 +161,9 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Read the movies folder from the settings
         self.settings = QtCore.QSettings("STC", "SMDB")
-        self.moviesFolder = self.settings.value('movies_folder', "J:/Movies", type=str)
+        self.moviesFolder = self.settings.value('movies_folder', "", type=str)
+        if self.moviesFolder == "":
+            self.moviesFolder = "No movies folder set.  Use the \"File->Set movies folder\" menu to set it."
         self.backupFolder = ""
 
         self.additionalMoviesFolders = self.settings.value('additional_movies_folders', [], type=list)
@@ -462,12 +464,16 @@ class MyWindow(QtWidgets.QMainWindow):
         fileMenu.addAction(rebuildSmdbFileAction)
 
         setMovieFolderAction = QtWidgets.QAction("Set movies folder", self)
-        setMovieFolderAction.triggered.connect(self.browseMoviesFolder)
+        setMovieFolderAction.triggered.connect(self.setPrimaryMoviesFolder)
         fileMenu.addAction(setMovieFolderAction)
 
         addAdditionalMoviesFolderAction = QtWidgets.QAction("Add additional movies folder", self)
         addAdditionalMoviesFolderAction.triggered.connect(self.browseAdditionalMoviesFolder)
         fileMenu.addAction(addAdditionalMoviesFolderAction)
+
+        clearPrimaryMoviesFolderAction = QtWidgets.QAction("Clear primary movies folders", self)
+        clearPrimaryMoviesFolderAction.triggered.connect(self.clearPrimaryMoviesFolder)
+        fileMenu.addAction(clearPrimaryMoviesFolderAction)
 
         clearAdditionalMoviesFolderAction = QtWidgets.QAction("Clear additional movies folders", self)
         clearAdditionalMoviesFolderAction.triggered.connect(self.clearAdditionalMoviesFolders)
@@ -1325,7 +1331,7 @@ class MyWindow(QtWidgets.QMainWindow):
         else:
             self.setWindowTitle("SMDB - Primary Movies Folder = %s" % (self.moviesFolder))
 
-    def browseMoviesFolder(self):
+    def setPrimaryMoviesFolder(self):
         browseDir = str(Path.home())
         if os.path.exists('%s/Desktop' % browseDir):
             browseDir = '%s/Desktop' % browseDir
@@ -1362,8 +1368,15 @@ class MyWindow(QtWidgets.QMainWindow):
 
     def clearAdditionalMoviesFolders(self):
         self.additionalMoviesFolders = []
-        self.settings.setValue('additional_movies_folders', self.additionalMoviesFolders)
+        self.settings.remove('additional_movies_folders')
         self.setTitleBar()
+
+    def clearPrimaryMoviesFolder(self):
+        self.moviesFolder = ""
+        self.settings.remove('movies_folder')
+        self.moviesFolder = "No movies folder set.  Use the \"File->Set movies folder\" menu to set it."
+        self.setTitleBar()
+        self.rescanMovieDirectories()
 
     def backupBrowseFolder(self):
         browseDir = str(Path.home())
