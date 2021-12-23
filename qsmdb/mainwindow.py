@@ -450,6 +450,22 @@ class MyWindow(QtWidgets.QMainWindow):
         menuBar = self.menuBar()
         fileMenu = menuBar.addMenu('File')
 
+        setMovieFolderAction = QtWidgets.QAction("Set primary movies folder", self)
+        setMovieFolderAction.triggered.connect(self.setPrimaryMoviesFolder)
+        fileMenu.addAction(setMovieFolderAction)
+
+        clearPrimaryMoviesFolderAction = QtWidgets.QAction("Clear primary movies folder", self)
+        clearPrimaryMoviesFolderAction.triggered.connect(self.clearPrimaryMoviesFolder)
+        fileMenu.addAction(clearPrimaryMoviesFolderAction)
+
+        addAdditionalMoviesFolderAction = QtWidgets.QAction("Add additional movies folder", self)
+        addAdditionalMoviesFolderAction.triggered.connect(self.browseAdditionalMoviesFolder)
+        fileMenu.addAction(addAdditionalMoviesFolderAction)
+
+        clearAdditionalMoviesFolderAction = QtWidgets.QAction("Clear additional movies folders", self)
+        clearAdditionalMoviesFolderAction.triggered.connect(self.clearAdditionalMoviesFolders)
+        fileMenu.addAction(clearAdditionalMoviesFolderAction)
+
         rescanAction = QtWidgets.QAction("Rescan movie folders", self)
         rescanAction.triggered.connect(lambda: self.rescanMovieDirectories(forceScan=True))
         fileMenu.addAction(rescanAction)
@@ -459,21 +475,6 @@ class MyWindow(QtWidgets.QMainWindow):
                                                                            self.moviesTableModel))
         fileMenu.addAction(rebuildSmdbFileAction)
 
-        setMovieFolderAction = QtWidgets.QAction("Set movies folder", self)
-        setMovieFolderAction.triggered.connect(self.setPrimaryMoviesFolder)
-        fileMenu.addAction(setMovieFolderAction)
-
-        addAdditionalMoviesFolderAction = QtWidgets.QAction("Add additional movies folder", self)
-        addAdditionalMoviesFolderAction.triggered.connect(self.browseAdditionalMoviesFolder)
-        fileMenu.addAction(addAdditionalMoviesFolderAction)
-
-        clearPrimaryMoviesFolderAction = QtWidgets.QAction("Clear primary movies folder", self)
-        clearPrimaryMoviesFolderAction.triggered.connect(self.clearPrimaryMoviesFolder)
-        fileMenu.addAction(clearPrimaryMoviesFolderAction)
-
-        clearAdditionalMoviesFolderAction = QtWidgets.QAction("Clear additional movies folders", self)
-        clearAdditionalMoviesFolderAction.triggered.connect(self.clearAdditionalMoviesFolders)
-        fileMenu.addAction(clearAdditionalMoviesFolderAction)
 
         conformMoviesAction = QtWidgets.QAction("Conform movies in folder", self)
         conformMoviesAction.triggered.connect(self.conformMovies)
