@@ -3267,11 +3267,12 @@ class MyWindow(QtWidgets.QMainWindow):
     def watchListAdd(self):
         self.watchListTableModel.aboutToChangeLayout()
         for modelIndex in self.moviesTableView.selectionModel().selectedRows():
-            sourceIndex = self.moviesTableProxyModel.mapToSource(modelIndex)
-            sourceRow = sourceIndex.row()
-            moviePath = self.moviesTableModel.getPath(sourceRow)
-            self.watchListTableModel.addMovie(self.moviesSmdbData,
-                                              moviePath)
+            if not self.moviesTableView.isRowHidden(modelIndex.row()):
+                sourceIndex = self.moviesTableProxyModel.mapToSource(modelIndex)
+                sourceRow = sourceIndex.row()
+                moviePath = self.moviesTableModel.getPath(sourceRow)
+                self.watchListTableModel.addMovie(self.moviesSmdbData,
+                                                  moviePath)
 
         self.watchListTableModel.changedLayout()
         self.writeSmdbFile(self.watchListSmdbFile,
@@ -3281,11 +3282,12 @@ class MyWindow(QtWidgets.QMainWindow):
     def backupListAdd(self):
         self.backupListTableModel.layoutAboutToBeChanged.emit()
         for modelIndex in self.moviesTableView.selectionModel().selectedRows():
-            sourceIndex = self.moviesTableProxyModel.mapToSource(modelIndex)
-            sourceRow = sourceIndex.row()
-            moviePath = self.moviesTableModel.getPath(sourceRow)
-            self.backupListTableModel.addMovie(self.moviesSmdbData,
-                                               moviePath)
+            if not self.moviesTableView.isRowHidden(modelIndex.row()):
+                sourceIndex = self.moviesTableProxyModel.mapToSource(modelIndex)
+                sourceRow = sourceIndex.row()
+                moviePath = self.moviesTableModel.getPath(sourceRow)
+                self.backupListTableModel.addMovie(self.moviesSmdbData,
+                                                   moviePath)
 
         self.backupListTableModel.changedLayout()
         self.backupAnalysed = False
