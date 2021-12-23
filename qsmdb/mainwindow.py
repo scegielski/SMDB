@@ -32,7 +32,7 @@ from pymediainfo import MediaInfo
 # Required modules
 # pyqt5, imdbpy, pymediainfo
 
-# Commands to make stand alone executable.  Run rom Console inside PyCharm
+# Commands to make stand alone executable.  Run from Console inside PyCharm
 
 # PC
 # pyinstaller --add-data ./MediaInfo.dll;. --onefile --noconsole --name SMDB run.py
@@ -454,7 +454,7 @@ class MyWindow(QtWidgets.QMainWindow):
         menuBar = self.menuBar()
         fileMenu = menuBar.addMenu('File')
 
-        rescanAction = QtWidgets.QAction("Rescan movie directories", self)
+        rescanAction = QtWidgets.QAction("Rescan movie folders", self)
         rescanAction.triggered.connect(lambda: self.rescanMovieDirectories(forceScan=True))
         fileMenu.addAction(rescanAction)
 
@@ -471,7 +471,7 @@ class MyWindow(QtWidgets.QMainWindow):
         addAdditionalMoviesFolderAction.triggered.connect(self.browseAdditionalMoviesFolder)
         fileMenu.addAction(addAdditionalMoviesFolderAction)
 
-        clearPrimaryMoviesFolderAction = QtWidgets.QAction("Clear primary movies folders", self)
+        clearPrimaryMoviesFolderAction = QtWidgets.QAction("Clear primary movies folder", self)
         clearPrimaryMoviesFolderAction.triggered.connect(self.clearPrimaryMoviesFolder)
         fileMenu.addAction(clearPrimaryMoviesFolderAction)
 
