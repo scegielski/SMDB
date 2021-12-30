@@ -89,6 +89,21 @@ def openYearImdbPage(year):
     webbrowser.open('https://www.imdb.com/search/title/?release_date=%s-01-01,%s-12-31' % (year, year), new=2)
 
 
+def openPersonImdbPage(personName):
+    db = IMDb()
+    personId = db.name2imdbID(personName)
+    if not personId:
+        results = db.search_person(personName)
+        if not results:
+            print('No matches for: %s' % personName)
+            return
+        person = results[0]
+        if isinstance(person, imdb.Person.Person):
+            personId = person.getID()
+
+    if personId:
+        webbrowser.open('http://imdb.com/name/nm%s' % personId, new=2)
+
 class FilterTable(QtWidgets.QTableWidget):
     def __init__(self):
         super(FilterTable, self).__init__()
@@ -101,6 +116,169 @@ class FilterTable(QtWidgets.QTableWidget):
                 return
             else:
                 super(FilterTable, self).mousePressEvent(event)
+
+class FilterWidget(QtWidgets.QFrame):
+
+    tableSelectionChangedSignal = QtCore.pyqtSignal()
+
+    def __init__(self):
+        super(FilterWidget, self).__init__()
+
+        self.moviesSmdbData = None
+
+        self.filterByDict = {
+            'Director': 'directors',
+            'Actor': 'actors',
+            'Genre': 'genres',
+            'Mpaa Rating': 'mpaa ratings',
+            'User Tags': 'user tags',
+            'Year': 'years',
+            'Companies': 'companies',
+            'Country': 'countries',
+            'Ratings': 'ratings'
+        }
+
+        self.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
+        self.setLineWidth(5)
+        self.setStyleSheet("background: rgb(25, 25, 25); color: white; border-radius: 10px")
+
+        filtersVLayout = QtWidgets.QVBoxLayout()
+        self.setLayout(filtersVLayout)
+
+        filterByHLayout = QtWidgets.QHBoxLayout()
+        self.layout().addLayout(filterByHLayout)
+
+        filterByLabel = QtWidgets.QLabel("Filter By")
+        filterByLabel.setFont(QtGui.QFont('TimesNew Roman', 12))
+        filterByLabel.setSizePolicy(QtWidgets.QSizePolicy.Maximum,
+                                    QtWidgets.QSizePolicy.Maximum)
+        filterByHLayout.addWidget(filterByLabel)
+
+        self.filterByComboBox = QtWidgets.QComboBox()
+        self.filterByComboBox.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        self.filterByComboBox.setFont(QtGui.QFont('TimesNewY Roman', 12))
+        for i in self.filterByDict.keys():
+            self.filterByComboBox.addItem(i)
+        self.filterByComboBox.setCurrentIndex(0)
+        self.filterByComboBox.activated.connect(self.populateFiltersTable)
+        filterByHLayout.addWidget(self.filterByComboBox)
+
+        minCountHLayout = QtWidgets.QHBoxLayout()
+        self.layout().addLayout(minCountHLayout)
+        self.filterMinCountCheckbox = QtWidgets.QCheckBox()
+        self.filterMinCountCheckbox.setText("Enable Min Count")
+        self.filterMinCountCheckbox.setFont(QtGui.QFont('TimesNewY Roman', 12))
+        self.filterMinCountCheckbox.setChecked(True)
+        self.filterMinCountSpinBox = QtWidgets.QSpinBox()
+        self.filterMinCountCheckbox.stateChanged.connect(self.filterMinCountSpinBox.setEnabled)
+        self.filterMinCountCheckbox.stateChanged.connect(self.populateFiltersTable)
+        minCountHLayout.addWidget(self.filterMinCountCheckbox)
+
+        self.filterMinCountSpinBox.setMinimum(0)
+        self.filterMinCountSpinBox.setValue(2)
+        self.filterMinCountSpinBox.setFont(QtGui.QFont('TimesNewY Roman', 12))
+        self.filterMinCountSpinBox.setStyleSheet("background: black; color: white; border-radius: 5px")
+        self.filterMinCountSpinBox.valueChanged.connect(self.populateFiltersTable)
+        minCountHLayout.addWidget(self.filterMinCountSpinBox)
+
+        self.filterTable = FilterTable()
+        self.filterTable.setColumnCount(2)
+        self.filterTable.verticalHeader().hide()
+        self.filterTable.setHorizontalHeaderLabels(['Name', 'Count'])
+        self.filterTable.setColumnWidth(0, 170)
+        self.filterTable.setColumnWidth(1, 60)
+        self.filterTable.verticalHeader().setMinimumSectionSize(10)
+        self.filterTable.verticalHeader().setDefaultSectionSize(18)
+        self.filterTable.setWordWrap(False)
+        self.filterTable.setStyleSheet("background: black; alternate-background-color: #151515; color: white")
+        self.filterTable.setAlternatingRowColors(True)
+        self.filterTable.itemSelectionChanged.connect(lambda: self.tableSelectionChangedSignal.emit())
+        hh = self.filterTable.horizontalHeader()
+        hh.setStyleSheet("background: #303030; color: white")
+        filtersVLayout.addWidget(self.filterTable)
+
+        filtersSearchHLayout = QtWidgets.QHBoxLayout()
+        filtersVLayout.addLayout(filtersSearchHLayout)
+
+        searchText = QtWidgets.QLabel("Search")
+        searchText.setFont(QtGui.QFont('TimesNew Roman', 12))
+        searchText.setSizePolicy(QtWidgets.QSizePolicy.Maximum,
+                                 QtWidgets.QSizePolicy.Maximum)
+        filtersSearchHLayout.addWidget(searchText)
+
+        filterTableSearchBox = QtWidgets.QLineEdit(self)
+        filterTableSearchBox.setStyleSheet("background: black; color: white; border-radius: 5px")
+        filterTableSearchBox.setFont(QtGui.QFont('TimesNew Roman', 12))
+        filterTableSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
+        filterTableSearchBox.setClearButtonEnabled(True)
+        filtersSearchHLayout.addWidget(filterTableSearchBox)
+        filterTableSearchBox.textChanged.connect(lambda: searchTableWidget(filterTableSearchBox, self.filterTable))
+
+    def filterRightMenu(self):
+        rightMenu = QtWidgets.QMenu(self.filterTable)
+        selectedItem = self.filterTable.itemAt(self.filterTable.mouseLocation)
+        row = selectedItem.row()
+        openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
+        itemText = self.filterTable.item(row, 0).text()
+        filterByText = self.filterByComboBox.currentText()
+        if filterByText == 'Director' or filterByText == 'Actor':
+            openImdbAction.triggered.connect(lambda: openPersonImdbPage(itemText))
+        else:
+            openImdbAction.triggered.connect(lambda: openYearImdbPage(itemText))
+        rightMenu.addAction(openImdbAction)
+        rightMenu.exec_(QtGui.QCursor.pos())
+
+    def populateFiltersTable(self):
+        if not self.moviesSmdbData:
+            print("Error: No smbdData")
+            return
+
+        filterByText = self.filterByComboBox.currentText()
+        filterByKey = self.filterByDict[filterByText]
+
+        showMenuTexts = ['Director', 'Actor', 'Year']
+        if filterByText in showMenuTexts:
+            self.filterTable.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+            try:
+                self.filterTable.customContextMenuRequested[QtCore.QPoint].disconnect()
+            except Exception:
+                pass
+            self.filterTable.customContextMenuRequested[QtCore.QPoint].connect(
+                self.filterRightMenu)
+        else:
+            self.filterTable.setContextMenuPolicy(QtCore.Qt.NoContextMenu)
+
+        if filterByKey not in self.moviesSmdbData:
+            print("Error: '%s' not in smdbData" % filterByKey)
+            return
+
+        numEntries = len(self.moviesSmdbData[filterByKey].keys())
+
+        self.filterTable.clear()
+        self.filterTable.setHorizontalHeaderLabels(['Name', 'Count'])
+
+        row = 0
+        numActualRows = 0
+        numRows = len(self.moviesSmdbData[filterByKey].keys())
+        self.filterTable.setRowCount(numRows)
+        self.filterTable.setSortingEnabled(False)
+        for name in self.moviesSmdbData[filterByKey].keys():
+            count = self.moviesSmdbData[filterByKey][name]['num movies']
+
+            if self.filterMinCountCheckbox.isChecked() and count < self.filterMinCountSpinBox.value():
+                continue
+
+            nameItem = QtWidgets.QTableWidgetItem(name)
+            self.filterTable.setItem(row, 0, nameItem)
+            countItem = QtWidgets.QTableWidgetItem('%04d' % count)
+            self.filterTable.setItem(row, 1, countItem)
+            row += 1
+            numActualRows += 1
+
+        self.filterTable.setRowCount(numActualRows)
+        self.filterTable.sortItems(1, QtCore.Qt.DescendingOrder)
+        self.filterTable.setSortingEnabled(True)
+
 
 class MovieCover(QtWidgets.QLabel):
 
@@ -208,29 +386,13 @@ class MyWindow(QtWidgets.QMainWindow):
         mainVLayout = QtWidgets.QVBoxLayout(self)
         centralWidget.setLayout(mainVLayout)
 
-        # Main H Splitter for criteria, movies list, and cover/info
+        # Main H Splitter for filter, movies list, and cover/info
         self.mainHSplitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
         self.mainHSplitter.setHandleWidth(10)
         mainVLayout.addWidget(self.mainHSplitter)
 
         # Filter Table
-        self.filterByDict = {
-            'Director': 'directors',
-            'Actor': 'actors',
-            'Genre': 'genres',
-            'Mpaa Rating': 'mpaa ratings',
-            'User Tags': 'user tags',
-            'Year': 'years',
-            'Companies': 'companies',
-            'Country': 'countries',
-            'Ratings': 'ratings'
-        }
-        self.filterWidget = QtWidgets.QFrame()
-        self.filterByComboBox = QtWidgets.QComboBox()
-        self.filterMinCountCheckbox = QtWidgets.QCheckBox()
-        self.filterMinCountSpinBox = QtWidgets.QSpinBox()
-        self.filterTable = FilterTable()
-        self.initUIFilterTable()
+        self.filterWidget = FilterWidget()
         if not self.showFilters:
             self.filterWidget.hide()
 
@@ -415,7 +577,10 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.rescanMovieDirectories()
 
-        self.populateFiltersTable()
+        self.filterWidget.moviesSmdbData = self.moviesSmdbData
+        self.filterWidget.populateFiltersTable()
+        self.filterWidget.tableSelectionChangedSignal.connect(lambda: self.filterTableSelectionChanged(self.filterWidget))
+        #self.populateFiltersTable()
 
         self.watchListSmdbFile = os.path.join(self.moviesFolder, "smdb_data_watch_list.json")
         self.watchListSmdbData = None
@@ -1896,67 +2061,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage("Done")
         self.progressBar.setValue(0)
 
-    def populateFiltersTable(self):
-        if not self.moviesSmdbData:
-            print("Error: No smbdData")
-            return
-
-        filterByText = self.filterByComboBox.currentText()
-        filterByKey = self.filterByDict[filterByText]
-
-        showMenuTexts = ['Director', 'Actor', 'Year']
-        if filterByText in showMenuTexts:
-            self.filterTable.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-            try:
-                self.filterTable.customContextMenuRequested[QtCore.QPoint].disconnect()
-            except Exception:
-                pass
-            self.filterTable.customContextMenuRequested[QtCore.QPoint].connect(
-                self.filterRightMenu)
-        else:
-            self.filterTable.setContextMenuPolicy(QtCore.Qt.NoContextMenu)
-
-        if filterByKey not in self.moviesSmdbData:
-            print("Error: '%s' not in smdbData" % filterByKey)
-            return
-
-        numEntries = len(self.moviesSmdbData[filterByKey].keys())
-        message = "Populating list: %s with %s entries" % (filterByKey, numEntries)
-        self.statusBar().showMessage(message)
-        QtCore.QCoreApplication.processEvents()
-
-        self.progressBar.setMaximum(len(self.moviesSmdbData[filterByKey].keys()))
-        progress = 0
-
-        self.filterTable.clear()
-        self.filterTable.setHorizontalHeaderLabels(['Name', 'Count'])
-
-        row = 0
-        numActualRows = 0
-        numRows = len(self.moviesSmdbData[filterByKey].keys())
-        self.filterTable.setRowCount(numRows)
-        self.filterTable.setSortingEnabled(False)
-        for name in self.moviesSmdbData[filterByKey].keys():
-            count = self.moviesSmdbData[filterByKey][name]['num movies']
-
-            if self.filterMinCountCheckbox.isChecked() and count < self.filterMinCountSpinBox.value():
-                continue
-
-            nameItem = QtWidgets.QTableWidgetItem(name)
-            self.filterTable.setItem(row, 0, nameItem)
-            countItem = QtWidgets.QTableWidgetItem('%04d' % count)
-            self.filterTable.setItem(row, 1, countItem)
-            row += 1
-            progress += 1
-            numActualRows += 1
-            self.progressBar.setValue(progress)
-
-        self.filterTable.setRowCount(numActualRows)
-        self.filterTable.sortItems(1, QtCore.Qt.DescendingOrder)
-        self.filterTable.setSortingEnabled(True)
-
-        self.progressBar.setValue(0)
-
     def cancelButtonClicked(self):
         self.isCanceled = True
 
@@ -2310,17 +2414,17 @@ class MyWindow(QtWidgets.QMainWindow):
         self.progressBar.setValue(0)
         self.showMoviesTableSelectionStatus()
 
-    def filterTableSelectionChanged(self):
-        if len(self.filterTable.selectedItems()) == 0:
+    def filterTableSelectionChanged(self, filterWidget):
+        if len(filterWidget.filterTable.selectedItems()) == 0:
             self.showAllMoviesTableView()
             return
 
-        filterByText = self.filterByComboBox.currentText()
-        filterByKey = self.filterByDict[filterByText]
+        filterByText = filterWidget.filterByComboBox.currentText()
+        filterByKey = filterWidget.filterByDict[filterByText]
 
         movieList = []
-        for item in self.filterTable.selectedItems():
-            name = self.filterTable.item(item.row(), 0).text()
+        for item in filterWidget.filterTable.selectedItems():
+            name = filterWidget.filterTable.item(item.row(), 0).text()
             movies = self.moviesSmdbData[filterByKey][name]['movies']
             for movie in movies:
                 movieList.append(movie)
@@ -2922,20 +3026,6 @@ class MyWindow(QtWidgets.QMainWindow):
 
     # Context Menus -----------------------------------------------------------
 
-    def filterRightMenu(self):
-        rightMenu = QtWidgets.QMenu(self.filterTable)
-        selectedItem = self.filterTable.itemAt(self.filterTable.mouseLocation)
-        row = selectedItem.row()
-        openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
-        itemText = self.filterTable.item(row, 0).text()
-        filterByText = self.filterByComboBox.currentText()
-        if filterByText == 'Director' or filterByText == 'Actor':
-            openImdbAction.triggered.connect(lambda: self.openPersonImdbPage(itemText))
-        else:
-            openImdbAction.triggered.connect(lambda: openYearImdbPage(itemText))
-        rightMenu.addAction(openImdbAction)
-        rightMenu.exec_(QtGui.QCursor.pos())
-
     def movieInfoRightMenu(self):
         rightMenu = QtWidgets.QMenu(self.movieInfoListView)
         selectedItem = self.movieInfoListView.itemAt(self.movieInfoListView.mouseLocation)
@@ -2944,25 +3034,11 @@ class MyWindow(QtWidgets.QMainWindow):
             openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
             itemText = selectedItem.text()
             if category == 'director' or category == 'actor':
-                openImdbAction.triggered.connect(lambda: self.openPersonImdbPage(itemText))
+                openImdbAction.triggered.connect(lambda: openPersonImdbPage(itemText))
             elif category == 'year':
                 openImdbAction.triggered.connect(lambda: openYearImdbPage(itemText))
             rightMenu.addAction(openImdbAction)
             rightMenu.exec_(QtGui.QCursor.pos())
-
-    def openPersonImdbPage(self, personName):
-        personId = self.db.name2imdbID(personName)
-        if not personId:
-            results = self.db.search_person(personName)
-            if not results:
-                print('No matches for: %s' % personName)
-                return
-            person = results[0]
-            if isinstance(person, imdb.Person.Person):
-                personId = person.getID()
-
-        if personId:
-            webbrowser.open('http://imdb.com/name/nm%s' % personId, new=2)
 
     def watchListTableRightMenuShow(self, QPos):
         rightMenu = QtWidgets.QMenu(self.moviesTableView)
