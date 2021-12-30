@@ -252,8 +252,6 @@ class FilterWidget(QtWidgets.QFrame):
             print("Error: '%s' not in smdbData" % filterByKey)
             return
 
-        numEntries = len(self.moviesSmdbData[filterByKey].keys())
-
         self.filterTable.clear()
         self.filterTable.setHorizontalHeaderLabels(['Name', 'Count'])
 
@@ -391,8 +389,17 @@ class MyWindow(QtWidgets.QMainWindow):
         self.mainHSplitter.setHandleWidth(10)
         mainVLayout.addWidget(self.mainHSplitter)
 
+        # Splitter for filters
+        self.filtersVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
+        self.filtersVSplitter.setHandleWidth(20)
+
         # Filter Table
         self.filterWidget = FilterWidget()
+        self.filtersVSplitter.addWidget(self.filterWidget)
+
+        self.filter2Widget = FilterWidget()
+        self.filtersVSplitter.addWidget(self.filter2Widget)
+
         if not self.showFilters:
             self.filterWidget.hide()
 
@@ -540,7 +547,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.coverSummaryVSplitter.setSizes(sizes)
 
         # Add the sub-layouts to the self.mainHSplitter
-        self.mainHSplitter.addWidget(self.filterWidget)
+        self.mainHSplitter.addWidget(self.filtersVSplitter)
         self.mainHSplitter.addWidget(self.moviesWatchListBackupVSplitter)
         self.mainHSplitter.addWidget(self.movieSectionWidget)
         self.mainHSplitter.splitterMoved.connect(self.resizeCoverFile)
@@ -581,7 +588,11 @@ class MyWindow(QtWidgets.QMainWindow):
         self.filterWidget.db = self.db
         self.filterWidget.populateFiltersTable()
         self.filterWidget.tableSelectionChangedSignal.connect(lambda: self.filterTableSelectionChanged(self.filterWidget))
-        #self.populateFiltersTable()
+
+        self.filter2Widget.moviesSmdbData = self.moviesSmdbData
+        self.filter2Widget.db = self.db
+        self.filter2Widget.populateFiltersTable()
+        self.filter2Widget.tableSelectionChangedSignal.connect(lambda: self.filterTableSelectionChanged(self.filter2Widget))
 
         self.watchListSmdbFile = os.path.join(self.moviesFolder, "smdb_data_watch_list.json")
         self.watchListSmdbData = None
