@@ -120,11 +120,13 @@ class FilterWidget(QtWidgets.QFrame):
 
     tableSelectionChangedSignal = QtCore.pyqtSignal()
 
-    def __init__(self, filterBy=0):
+    def __init__(self, filterBy=0, useMovieList=False, minCount=2):
         super(FilterWidget, self).__init__()
 
         self.moviesSmdbData = None
         self.db = None
+        self.movieList = list()
+        self.useMovieList = useMovieList
 
         self.filterByDict = {
             'Director': 'directors',
@@ -175,7 +177,7 @@ class FilterWidget(QtWidgets.QFrame):
         minCountHLayout.addWidget(self.filterMinCountCheckbox)
 
         self.filterMinCountSpinBox.setMinimum(0)
-        self.filterMinCountSpinBox.setValue(2)
+        self.filterMinCountSpinBox.setValue(minCount)
         self.filterMinCountSpinBox.setFont(QtGui.QFont('TimesNewY Roman', 12))
         self.filterMinCountSpinBox.setStyleSheet("background: black; color: white; border-radius: 5px")
         self.filterMinCountSpinBox.valueChanged.connect(self.populateFiltersTable)
@@ -233,6 +235,10 @@ class FilterWidget(QtWidgets.QFrame):
             print("Error: No smbdData")
             return
 
+        if self.useMovieList and len(self.movieList) == 0:
+            print("Error: no movie list")
+            return
+
         filterByText = self.filterByComboBox.currentText()
         filterByKey = self.filterByDict[filterByText]
 
@@ -261,7 +267,14 @@ class FilterWidget(QtWidgets.QFrame):
         self.filterTable.setRowCount(numRows)
         self.filterTable.setSortingEnabled(False)
         for name in self.moviesSmdbData[filterByKey].keys():
-            count = self.moviesSmdbData[filterByKey][name]['num movies']
+            if self.useMovieList:
+                movies = self.moviesSmdbData[filterByKey][name]['movies']
+                count = 0
+                for movie in self.movieList:
+                    if movie in movies:
+                        count = count + 1
+            else:
+                count = self.moviesSmdbData[filterByKey][name]['num movies']
 
             if self.filterMinCountCheckbox.isChecked() and count < self.filterMinCountSpinBox.value():
                 continue
@@ -274,7 +287,8 @@ class FilterWidget(QtWidgets.QFrame):
             numActualRows += 1
 
         self.filterTable.setRowCount(numActualRows)
-        self.filterTable.sortItems(1, QtCore.Qt.DescendingOrder)
+        if not self.useMovieList:
+            self.filterTable.sortItems(1, QtCore.Qt.DescendingOrder)
         self.filterTable.setSortingEnabled(True)
 
 
@@ -398,7 +412,9 @@ class MyWindow(QtWidgets.QMainWindow):
         self.filterWidget = FilterWidget()
         self.filtersVSplitter.addWidget(self.filterWidget)
 
-        self.filter2Widget = FilterWidget(5)
+        self.filter2Widget = FilterWidget(filterBy=5,
+                                          useMovieList=True,
+                                          minCount=1)
         self.filtersVSplitter.addWidget(self.filter2Widget)
 
         sizes = [int(x) for x in self.settings.value('filterVSplitterSizes', [200, 200], type=list)]
@@ -594,12 +610,12 @@ class MyWindow(QtWidgets.QMainWindow):
         self.filterWidget.moviesSmdbData = self.moviesSmdbData
         self.filterWidget.db = self.db
         self.filterWidget.populateFiltersTable()
-        self.filterWidget.tableSelectionChangedSignal.connect(self.filterTableSelectionChanged)
+        self.filterWidget.tableSelectionChangedSignal.connect(lambda: self.filterTableSelectionChanged())
 
         self.filter2Widget.moviesSmdbData = self.moviesSmdbData
         self.filter2Widget.db = self.db
         self.filter2Widget.populateFiltersTable()
-        self.filter2Widget.tableSelectionChangedSignal.connect(self.filterTableSelectionChanged)
+        self.filter2Widget.tableSelectionChangedSignal.connect(lambda: self.filterTableSelectionChanged(mainFilter=False))
 
         self.watchListSmdbFile = os.path.join(self.moviesFolder, "smdb_data_watch_list.json")
         self.watchListSmdbData = None
@@ -2375,7 +2391,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.progressBar.setValue(0)
         self.showMoviesTableSelectionStatus()
 
-    def filterTableSelectionChanged(self):
+    def filterTableSelectionChanged(self, mainFilter=True):
         if len(self.filterWidget.filterTable.selectedItems()) == 0:
             self.showAllMoviesTableView()
             return
@@ -2389,6 +2405,10 @@ class MyWindow(QtWidgets.QMainWindow):
             movies = self.moviesSmdbData[filterByKey][name]['movies']
             for movie in movies:
                 movieList.append(movie)
+
+        if mainFilter:
+            self.filter2Widget.movieList = movieList
+            self.filter2Widget.populateFiltersTable()
 
         filter2ByText = self.filter2Widget.filterByComboBox.currentText()
         filter2ByKey = self.filter2Widget.filterByDict[filter2ByText]
