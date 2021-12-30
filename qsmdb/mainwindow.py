@@ -89,8 +89,7 @@ def openYearImdbPage(year):
     webbrowser.open('https://www.imdb.com/search/title/?release_date=%s-01-01,%s-12-31' % (year, year), new=2)
 
 
-def openPersonImdbPage(personName):
-    db = IMDb()
+def openPersonImdbPage(personName, db):
     personId = db.name2imdbID(personName)
     if not personId:
         results = db.search_person(personName)
@@ -125,6 +124,7 @@ class FilterWidget(QtWidgets.QFrame):
         super(FilterWidget, self).__init__()
 
         self.moviesSmdbData = None
+        self.db = None
 
         self.filterByDict = {
             'Director': 'directors',
@@ -222,7 +222,7 @@ class FilterWidget(QtWidgets.QFrame):
         itemText = self.filterTable.item(row, 0).text()
         filterByText = self.filterByComboBox.currentText()
         if filterByText == 'Director' or filterByText == 'Actor':
-            openImdbAction.triggered.connect(lambda: openPersonImdbPage(itemText))
+            openImdbAction.triggered.connect(lambda: openPersonImdbPage(itemText, self.db))
         else:
             openImdbAction.triggered.connect(lambda: openYearImdbPage(itemText))
         rightMenu.addAction(openImdbAction)
@@ -578,6 +578,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.rescanMovieDirectories()
 
         self.filterWidget.moviesSmdbData = self.moviesSmdbData
+        self.filterWidget.db = self.db
         self.filterWidget.populateFiltersTable()
         self.filterWidget.tableSelectionChangedSignal.connect(lambda: self.filterTableSelectionChanged(self.filterWidget))
         #self.populateFiltersTable()
@@ -3034,7 +3035,7 @@ class MyWindow(QtWidgets.QMainWindow):
             openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
             itemText = selectedItem.text()
             if category == 'director' or category == 'actor':
-                openImdbAction.triggered.connect(lambda: openPersonImdbPage(itemText))
+                openImdbAction.triggered.connect(lambda: openPersonImdbPage(itemText, self.db))
             elif category == 'year':
                 openImdbAction.triggered.connect(lambda: openYearImdbPage(itemText))
             rightMenu.addAction(openImdbAction)
