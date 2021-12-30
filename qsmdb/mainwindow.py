@@ -120,7 +120,7 @@ class FilterWidget(QtWidgets.QFrame):
 
     tableSelectionChangedSignal = QtCore.pyqtSignal()
 
-    def __init__(self):
+    def __init__(self, filterBy=0):
         super(FilterWidget, self).__init__()
 
         self.moviesSmdbData = None
@@ -159,7 +159,7 @@ class FilterWidget(QtWidgets.QFrame):
         self.filterByComboBox.setFont(QtGui.QFont('TimesNewY Roman', 12))
         for i in self.filterByDict.keys():
             self.filterByComboBox.addItem(i)
-        self.filterByComboBox.setCurrentIndex(0)
+        self.filterByComboBox.setCurrentIndex(filterBy)
         self.filterByComboBox.activated.connect(self.populateFiltersTable)
         filterByHLayout.addWidget(self.filterByComboBox)
 
@@ -398,7 +398,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.filterWidget = FilterWidget()
         self.filtersVSplitter.addWidget(self.filterWidget)
 
-        self.filter2Widget = FilterWidget()
+        self.filter2Widget = FilterWidget(5)
         self.filtersVSplitter.addWidget(self.filter2Widget)
 
         sizes = [int(x) for x in self.settings.value('filterVSplitterSizes', [200, 200], type=list)]
