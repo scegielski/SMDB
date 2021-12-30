@@ -587,12 +587,12 @@ class MyWindow(QtWidgets.QMainWindow):
         self.filterWidget.moviesSmdbData = self.moviesSmdbData
         self.filterWidget.db = self.db
         self.filterWidget.populateFiltersTable()
-        self.filterWidget.tableSelectionChangedSignal.connect(lambda: self.filterTableSelectionChanged(self.filterWidget))
+        self.filterWidget.tableSelectionChangedSignal.connect(self.filterTableSelectionChanged)
 
         self.filter2Widget.moviesSmdbData = self.moviesSmdbData
         self.filter2Widget.db = self.db
         self.filter2Widget.populateFiltersTable()
-        self.filter2Widget.tableSelectionChangedSignal.connect(lambda: self.filterTableSelectionChanged(self.filter2Widget))
+        self.filter2Widget.tableSelectionChangedSignal.connect(self.filterTableSelectionChanged)
 
         self.watchListSmdbFile = os.path.join(self.moviesFolder, "smdb_data_watch_list.json")
         self.watchListSmdbData = None
@@ -720,80 +720,6 @@ class MyWindow(QtWidgets.QMainWindow):
         restoreDefaultWindowsAction = QtWidgets.QAction("Restore default window configuration", self)
         restoreDefaultWindowsAction.triggered.connect(self.restoreDefaultWindows)
         viewMenu.addAction(restoreDefaultWindowsAction)
-
-    def initUIFilterTable(self):
-        self.filterWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
-        self.filterWidget.setLineWidth(5)
-        self.filterWidget.setStyleSheet("background: rgb(25, 25, 25); color: white; border-radius: 10px")
-
-        filtersVLayout = QtWidgets.QVBoxLayout()
-        self.filterWidget.setLayout(filtersVLayout)
-
-        filterByHLayout = QtWidgets.QHBoxLayout()
-        self.filterWidget.layout().addLayout(filterByHLayout)
-
-        filterByLabel = QtWidgets.QLabel("Filter By")
-        filterByLabel.setFont(QtGui.QFont('TimesNew Roman', 12))
-        filterByLabel.setSizePolicy(QtWidgets.QSizePolicy.Maximum,
-                                    QtWidgets.QSizePolicy.Maximum)
-        filterByHLayout.addWidget(filterByLabel)
-
-        self.filterByComboBox.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
-        self.filterByComboBox.setFont(QtGui.QFont('TimesNewY Roman', 12))
-        for i in self.filterByDict.keys():
-            self.filterByComboBox.addItem(i)
-        self.filterByComboBox.setCurrentIndex(0)
-        self.filterByComboBox.activated.connect(self.populateFiltersTable)
-        filterByHLayout.addWidget(self.filterByComboBox)
-
-        minCountHLayout = QtWidgets.QHBoxLayout()
-        self.filterWidget.layout().addLayout(minCountHLayout)
-        self.filterMinCountCheckbox.setText("Enable Min Count")
-        self.filterMinCountCheckbox.setFont(QtGui.QFont('TimesNewY Roman', 12))
-        self.filterMinCountCheckbox.setChecked(True)
-        minCountHLayout.addWidget(self.filterMinCountCheckbox)
-
-        self.filterMinCountSpinBox.setMinimum(0)
-        self.filterMinCountSpinBox.setValue(2)
-        self.filterMinCountSpinBox.setFont(QtGui.QFont('TimesNewY Roman', 12))
-        self.filterMinCountSpinBox.setStyleSheet("background: black; color: white; border-radius: 5px")
-        self.filterMinCountSpinBox.valueChanged.connect(self.populateFiltersTable)
-        minCountHLayout.addWidget(self.filterMinCountSpinBox)
-
-        self.filterMinCountCheckbox.stateChanged.connect(self.filterMinCountSpinBox.setEnabled)
-        self.filterMinCountCheckbox.stateChanged.connect(self.populateFiltersTable)
-
-        self.filterTable.setColumnCount(2)
-        self.filterTable.verticalHeader().hide()
-        self.filterTable.setHorizontalHeaderLabels(['Name', 'Count'])
-        self.filterTable.setColumnWidth(0, 170)
-        self.filterTable.setColumnWidth(1, 60)
-        self.filterTable.verticalHeader().setMinimumSectionSize(10)
-        self.filterTable.verticalHeader().setDefaultSectionSize(18)
-        self.filterTable.setWordWrap(False)
-        self.filterTable.setStyleSheet("background: black; alternate-background-color: #151515; color: white")
-        self.filterTable.setAlternatingRowColors(True)
-        self.filterTable.itemSelectionChanged.connect(self.filterTableSelectionChanged)
-        hh = self.filterTable.horizontalHeader()
-        hh.setStyleSheet("background: #303030; color: white")
-        filtersVLayout.addWidget(self.filterTable)
-
-        filtersSearchHLayout = QtWidgets.QHBoxLayout()
-        filtersVLayout.addLayout(filtersSearchHLayout)
-
-        searchText = QtWidgets.QLabel("Search")
-        searchText.setFont(QtGui.QFont('TimesNew Roman', 12))
-        searchText.setSizePolicy(QtWidgets.QSizePolicy.Maximum,
-                                 QtWidgets.QSizePolicy.Maximum)
-        filtersSearchHLayout.addWidget(searchText)
-
-        filterTableSearchBox = QtWidgets.QLineEdit(self)
-        filterTableSearchBox.setStyleSheet("background: black; color: white; border-radius: 5px")
-        filterTableSearchBox.setFont(QtGui.QFont('TimesNew Roman', 12))
-        filterTableSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
-        filterTableSearchBox.setClearButtonEnabled(True)
-        filtersSearchHLayout.addWidget(filterTableSearchBox)
-        filterTableSearchBox.textChanged.connect(lambda: searchTableWidget(filterTableSearchBox, self.filterTable))
 
     def toggleColumn(self, c, tableView, visibleList):
         visibleList[c.value] = not visibleList[c.value]
@@ -2426,20 +2352,36 @@ class MyWindow(QtWidgets.QMainWindow):
         self.progressBar.setValue(0)
         self.showMoviesTableSelectionStatus()
 
-    def filterTableSelectionChanged(self, filterWidget):
-        if len(filterWidget.filterTable.selectedItems()) == 0:
+    def filterTableSelectionChanged(self):
+        if len(self.filterWidget.filterTable.selectedItems()) == 0:
             self.showAllMoviesTableView()
             return
 
-        filterByText = filterWidget.filterByComboBox.currentText()
-        filterByKey = filterWidget.filterByDict[filterByText]
+        filterByText = self.filterWidget.filterByComboBox.currentText()
+        filterByKey = self.filterWidget.filterByDict[filterByText]
 
         movieList = []
-        for item in filterWidget.filterTable.selectedItems():
-            name = filterWidget.filterTable.item(item.row(), 0).text()
+        for item in self.filterWidget.filterTable.selectedItems():
+            name = self.filterWidget.filterTable.item(item.row(), 0).text()
             movies = self.moviesSmdbData[filterByKey][name]['movies']
             for movie in movies:
                 movieList.append(movie)
+
+        filter2ByText = self.filter2Widget.filterByComboBox.currentText()
+        filter2ByKey = self.filter2Widget.filterByDict[filter2ByText]
+        if filterByText != filter2ByText and len(self.filter2Widget.filterTable.selectedItems()) != 0:
+            movieList2 = list()
+            for movie in movieList:
+                foundMovie = False
+                for item in self.filter2Widget.filterTable.selectedItems():
+                    name = self.filter2Widget.filterTable.item(item.row(), 0).text()
+                    movies = self.moviesSmdbData[filter2ByKey][name]['movies']
+                    if movie in movies:
+                        foundMovie = True
+                        break
+                if foundMovie:
+                    movieList2.append(movie)
+            movieList = movieList2
 
         for row in range(self.moviesTableProxyModel.rowCount()):
             self.moviesTableView.setRowHidden(row, True)
