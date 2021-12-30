@@ -359,7 +359,8 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Default view state of UI sections
         #self.showFilters = True
-        self.showFilters = bool(self.settings.value('showFilters', True))
+        self.showFilter = bool(self.settings.value('showFilter', True))
+        self.showFilter2 = bool(self.settings.value('showFilter2', False))
         self.showMoviesTable = bool(self.settings.value('showMoviesTable', True))
         self.showCover = bool(self.settings.value('showCover', True))
         self.showMovieInfo = bool(self.settings.value('showMovieInfo', True))
@@ -393,15 +394,21 @@ class MyWindow(QtWidgets.QMainWindow):
         self.filtersVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
         self.filtersVSplitter.setHandleWidth(20)
 
-        # Filter Table
+        # Filters
         self.filterWidget = FilterWidget()
         self.filtersVSplitter.addWidget(self.filterWidget)
 
         self.filter2Widget = FilterWidget()
         self.filtersVSplitter.addWidget(self.filter2Widget)
 
-        if not self.showFilters:
+        sizes = [int(x) for x in self.settings.value('filterVSplitterSizes', [200, 200], type=list)]
+        self.filtersVSplitter.setSizes(sizes)
+
+        if not self.showFilter:
             self.filterWidget.hide()
+
+        if not self.showFilter2:
+            self.filter2Widget.hide()
 
         # Splitter for Movies Table and Watch List
         self.moviesWatchListBackupVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
@@ -614,7 +621,9 @@ class MyWindow(QtWidgets.QMainWindow):
         self.settings.setValue('coverInfoHSplitterSizes', self.coverInfoHSplitter.sizes())
         self.settings.setValue('coverSummaryVSplitterSizes', self.coverSummaryVSplitter.sizes())
         self.settings.setValue('moviesWatchListBackupVSplitterSizes', self.moviesWatchListBackupVSplitter.sizes())
-        self.settings.setValue('showFilters', self.showFilters)
+        self.settings.setValue('filterVSplitterSizes', self.filtersVSplitter.sizes())
+        self.settings.setValue('showFilter', self.showFilter)
+        self.settings.setValue('showFilter2', self.showFilter2)
         self.settings.setValue('showMoviesTable', self.showMoviesTable)
         self.settings.setValue('showCover', self.showCover)
         self.settings.setValue('showMovieInfo', self.showMovieInfo)
@@ -669,11 +678,17 @@ class MyWindow(QtWidgets.QMainWindow):
         menuBar = self.menuBar()
         viewMenu = menuBar.addMenu('View')
 
-        showFiltersAction = QtWidgets.QAction("Show Filters", self)
-        showFiltersAction.setCheckable(True)
-        showFiltersAction.setChecked(self.showFilters)
-        showFiltersAction.triggered.connect(self.showFiltersMenu)
-        viewMenu.addAction(showFiltersAction)
+        showFilterAction = QtWidgets.QAction("Show Filter", self)
+        showFilterAction.setCheckable(True)
+        showFilterAction.setChecked(self.showFilter)
+        showFilterAction.triggered.connect(self.showFilterMenu)
+        viewMenu.addAction(showFilterAction)
+
+        showFilter2Action = QtWidgets.QAction("Show Filter2", self)
+        showFilter2Action.setCheckable(True)
+        showFilter2Action.setChecked(self.showFilter2)
+        showFilter2Action.triggered.connect(self.showFilter2Menu)
+        viewMenu.addAction(showFilter2Action)
 
         showMoviesTableAction = QtWidgets.QAction("Show Movies", self)
         showMoviesTableAction.setCheckable(True)
@@ -2229,13 +2244,21 @@ class MyWindow(QtWidgets.QMainWindow):
                            QtCore.Qt.CaseInsensitive,
                            QtCore.QRegExp.FixedString))
 
-    def showFiltersMenu(self):
+    def showFilterMenu(self):
         if self.filterWidget:
-            self.showFilters = not self.showFilters
-            if not self.showFilters:
+            self.showFilter = not self.showFilter
+            if not self.showFilter:
                 self.filterWidget.hide()
             else:
                 self.filterWidget.show()
+
+    def showFilter2Menu(self):
+        if self.filter2Widget:
+            self.showFilter2 = not self.showFilter2
+            if not self.showFilter2:
+                self.filter2Widget.hide()
+            else:
+                self.filter2Widget.show()
 
     def showMoviesTableMenu(self):
         if self.moviesTableWidget:
