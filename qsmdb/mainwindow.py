@@ -120,7 +120,7 @@ class FilterWidget(QtWidgets.QFrame):
 
     tableSelectionChangedSignal = QtCore.pyqtSignal()
 
-    def __init__(self, filterBy=0, useMovieList=False, minCount=2):
+    def __init__(self, filterName="filter", filterBy=0, useMovieList=False, minCount=2):
         super(FilterWidget, self).__init__()
 
         self.moviesSmdbData = None
@@ -146,6 +146,8 @@ class FilterWidget(QtWidgets.QFrame):
 
         filtersVLayout = QtWidgets.QVBoxLayout()
         self.setLayout(filtersVLayout)
+
+        filtersVLayout.addWidget(QtWidgets.QLabel(filterName))
 
         filterByHLayout = QtWidgets.QHBoxLayout()
         self.layout().addLayout(filterByHLayout)
@@ -409,10 +411,11 @@ class MyWindow(QtWidgets.QMainWindow):
         self.filtersVSplitter.setHandleWidth(20)
 
         # Filters
-        self.filterWidget = FilterWidget()
+        self.filterWidget = FilterWidget("Primary Filter")
         self.filtersVSplitter.addWidget(self.filterWidget)
 
-        self.filter2Widget = FilterWidget(filterBy=5,
+        self.filter2Widget = FilterWidget("Secondary Filter",
+                                          filterBy=5,
                                           useMovieList=True,
                                           minCount=1)
         self.filtersVSplitter.addWidget(self.filter2Widget)
