@@ -374,9 +374,9 @@ class MyWindow(QtWidgets.QMainWindow):
         self.setStyleSheet("""QAbstractItemView{ background: black; color: white; }; """)
 
         # Default view state of UI sections
-        #self.showFilters = True
-        self.showFilter = bool(self.settings.value('showFilter', True))
-        self.showFilter2 = bool(self.settings.value('showFilter2', False))
+        #self.showPrimaryFilters = True
+        self.showPrimaryFilter = bool(self.settings.value('showPrimaryFilter', True))
+        self.showSecondaryFilter = bool(self.settings.value('showSecondaryFilter', True))
         self.showMoviesTable = bool(self.settings.value('showMoviesTable', True))
         self.showCover = bool(self.settings.value('showCover', True))
         self.showMovieInfo = bool(self.settings.value('showMovieInfo', True))
@@ -411,23 +411,23 @@ class MyWindow(QtWidgets.QMainWindow):
         self.filtersVSplitter.setHandleWidth(20)
 
         # Filters
-        self.filterWidget = FilterWidget("Primary Filter")
-        self.filtersVSplitter.addWidget(self.filterWidget)
+        self.primaryFilterWidget = FilterWidget("Primary Filter")
+        self.filtersVSplitter.addWidget(self.primaryFilterWidget)
 
-        self.filter2Widget = FilterWidget("Secondary Filter",
+        self.secondaryFilterWidget = FilterWidget("Secondary Filter",
                                           filterBy=5,
                                           useMovieList=True,
                                           minCount=1)
-        self.filtersVSplitter.addWidget(self.filter2Widget)
+        self.filtersVSplitter.addWidget(self.secondaryFilterWidget)
 
         sizes = [int(x) for x in self.settings.value('filterVSplitterSizes', [200, 200], type=list)]
         self.filtersVSplitter.setSizes(sizes)
 
-        if not self.showFilter:
-            self.filterWidget.hide()
+        if not self.showPrimaryFilter:
+            self.primaryFilterWidget.hide()
 
-        if not self.showFilter2:
-            self.filter2Widget.hide()
+        if not self.showSecondaryFilter:
+            self.secondaryFilterWidget.hide()
 
         # Splitter for Movies Table and Watch List
         self.moviesWatchListBackupVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
@@ -610,15 +610,15 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.rescanMovieDirectories()
 
-        self.filterWidget.moviesSmdbData = self.moviesSmdbData
-        self.filterWidget.db = self.db
-        self.filterWidget.populateFiltersTable()
-        self.filterWidget.tableSelectionChangedSignal.connect(lambda: self.filterTableSelectionChanged())
+        self.primaryFilterWidget.moviesSmdbData = self.moviesSmdbData
+        self.primaryFilterWidget.db = self.db
+        self.primaryFilterWidget.populateFiltersTable()
+        self.primaryFilterWidget.tableSelectionChangedSignal.connect(lambda: self.filterTableSelectionChanged())
 
-        self.filter2Widget.moviesSmdbData = self.moviesSmdbData
-        self.filter2Widget.db = self.db
-        self.filter2Widget.populateFiltersTable()
-        self.filter2Widget.tableSelectionChangedSignal.connect(lambda: self.filterTableSelectionChanged(mainFilter=False))
+        self.secondaryFilterWidget.moviesSmdbData = self.moviesSmdbData
+        self.secondaryFilterWidget.db = self.db
+        self.secondaryFilterWidget.populateFiltersTable()
+        self.secondaryFilterWidget.tableSelectionChangedSignal.connect(lambda: self.filterTableSelectionChanged(mainFilter=False))
 
         self.watchListSmdbFile = os.path.join(self.moviesFolder, "smdb_data_watch_list.json")
         self.watchListSmdbData = None
@@ -641,8 +641,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.settings.setValue('coverSummaryVSplitterSizes', self.coverSummaryVSplitter.sizes())
         self.settings.setValue('moviesWatchListBackupVSplitterSizes', self.moviesWatchListBackupVSplitter.sizes())
         self.settings.setValue('filterVSplitterSizes', self.filtersVSplitter.sizes())
-        self.settings.setValue('showFilter', self.showFilter)
-        self.settings.setValue('showFilter2', self.showFilter2)
+        self.settings.setValue('showPrimaryFilter', self.showPrimaryFilter)
+        self.settings.setValue('showSecondaryFilter', self.showSecondaryFilter)
         self.settings.setValue('showMoviesTable', self.showMoviesTable)
         self.settings.setValue('showCover', self.showCover)
         self.settings.setValue('showMovieInfo', self.showMovieInfo)
@@ -697,17 +697,17 @@ class MyWindow(QtWidgets.QMainWindow):
         menuBar = self.menuBar()
         viewMenu = menuBar.addMenu('View')
 
-        showFilterAction = QtWidgets.QAction("Show Filter", self)
-        showFilterAction.setCheckable(True)
-        showFilterAction.setChecked(self.showFilter)
-        showFilterAction.triggered.connect(self.showFilterMenu)
-        viewMenu.addAction(showFilterAction)
+        showPrimaryFilterAction = QtWidgets.QAction("Show Primary Filter", self)
+        showPrimaryFilterAction.setCheckable(True)
+        showPrimaryFilterAction.setChecked(self.showPrimaryFilter)
+        showPrimaryFilterAction.triggered.connect(self.showPrimaryFilterMenu)
+        viewMenu.addAction(showPrimaryFilterAction)
 
-        showFilter2Action = QtWidgets.QAction("Show Filter2", self)
-        showFilter2Action.setCheckable(True)
-        showFilter2Action.setChecked(self.showFilter2)
-        showFilter2Action.triggered.connect(self.showFilter2Menu)
-        viewMenu.addAction(showFilter2Action)
+        showSecondaryFilterAction = QtWidgets.QAction("Show Secondary Filter", self)
+        showSecondaryFilterAction.setCheckable(True)
+        showSecondaryFilterAction.setChecked(self.showSecondaryFilter)
+        showSecondaryFilterAction.triggered.connect(self.showSecondaryFilterMenu)
+        viewMenu.addAction(showSecondaryFilterAction)
 
         showMoviesTableAction = QtWidgets.QAction("Show Movies", self)
         showMoviesTableAction.setCheckable(True)
@@ -1346,8 +1346,10 @@ class MyWindow(QtWidgets.QMainWindow):
         self.coverInfoHSplitter.setSizes([200, 600])
         self.coverSummaryVSplitter.setSizes([600, 200])
         self.moviesWatchListBackupVSplitter.setSizes([500, 200, 200])
-        self.showFilters = True
-        self.filterWidget.show()
+        self.showPrimaryFilter = True
+        self.showSecondaryFilter = True
+        self.primaryFilterWidget.show()
+        self.secondaryFilterWidget.show()
         self.showMoviesTable = True
         self.moviesTableWidget.show()
         self.showWatchList = False
@@ -2263,21 +2265,21 @@ class MyWindow(QtWidgets.QMainWindow):
                            QtCore.Qt.CaseInsensitive,
                            QtCore.QRegExp.FixedString))
 
-    def showFilterMenu(self):
-        if self.filterWidget:
-            self.showFilter = not self.showFilter
-            if not self.showFilter:
-                self.filterWidget.hide()
+    def showPrimaryFilterMenu(self):
+        if self.primaryFilterWidget:
+            self.showPrimaryFilter = not self.showPrimaryFilter
+            if not self.showPrimaryFilter:
+                self.primaryFilterWidget.hide()
             else:
-                self.filterWidget.show()
+                self.primaryFilterWidget.show()
 
-    def showFilter2Menu(self):
-        if self.filter2Widget:
-            self.showFilter2 = not self.showFilter2
-            if not self.showFilter2:
-                self.filter2Widget.hide()
+    def showSecondaryFilterMenu(self):
+        if self.secondaryFilterWidget:
+            self.showSecondaryFilter = not self.showSecondaryFilter
+            if not self.showSecondaryFilter:
+                self.secondaryFilterWidget.hide()
             else:
-                self.filter2Widget.show()
+                self.secondaryFilterWidget.show()
 
     def showMoviesTableMenu(self):
         if self.moviesTableWidget:
@@ -2395,32 +2397,32 @@ class MyWindow(QtWidgets.QMainWindow):
         self.showMoviesTableSelectionStatus()
 
     def filterTableSelectionChanged(self, mainFilter=True):
-        if len(self.filterWidget.filterTable.selectedItems()) == 0:
+        if len(self.primaryFilterWidget.filterTable.selectedItems()) == 0:
             self.showAllMoviesTableView()
             return
 
-        filterByText = self.filterWidget.filterByComboBox.currentText()
-        filterByKey = self.filterWidget.filterByDict[filterByText]
+        filterByText = self.primaryFilterWidget.filterByComboBox.currentText()
+        filterByKey = self.primaryFilterWidget.filterByDict[filterByText]
 
         movieList = []
-        for item in self.filterWidget.filterTable.selectedItems():
-            name = self.filterWidget.filterTable.item(item.row(), 0).text()
+        for item in self.primaryFilterWidget.filterTable.selectedItems():
+            name = self.primaryFilterWidget.filterTable.item(item.row(), 0).text()
             movies = self.moviesSmdbData[filterByKey][name]['movies']
             for movie in movies:
                 movieList.append(movie)
 
         if mainFilter:
-            self.filter2Widget.movieList = movieList
-            self.filter2Widget.populateFiltersTable()
+            self.secondaryFilterWidget.movieList = movieList
+            self.secondaryFilterWidget.populateFiltersTable()
 
-        filter2ByText = self.filter2Widget.filterByComboBox.currentText()
-        filter2ByKey = self.filter2Widget.filterByDict[filter2ByText]
-        if filterByText != filter2ByText and len(self.filter2Widget.filterTable.selectedItems()) != 0:
+        filter2ByText = self.secondaryFilterWidget.filterByComboBox.currentText()
+        filter2ByKey = self.secondaryFilterWidget.filterByDict[filter2ByText]
+        if filterByText != filter2ByText and len(self.secondaryFilterWidget.filterTable.selectedItems()) != 0:
             movieList2 = list()
             for movie in movieList:
                 foundMovie = False
-                for item in self.filter2Widget.filterTable.selectedItems():
-                    name = self.filter2Widget.filterTable.item(item.row(), 0).text()
+                for item in self.secondaryFilterWidget.filterTable.selectedItems():
+                    name = self.secondaryFilterWidget.filterTable.item(item.row(), 0).text()
                     movies = self.moviesSmdbData[filter2ByKey][name]['movies']
                     if movie in movies:
                         foundMovie = True
