@@ -78,10 +78,10 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
         for moviesFolder in moviesFolders:
             if not os.path.exists(moviesFolder):
-                return
+                print(f"Error: Movies folder {moviesFolder} does not exist")
 
         # Either read the list of movies from the smdb data
-        # or scan the movies folder
+        # or scan the movies folder(s)
         moviesFolderDict = dict()
         useSmdbData = False
         if neverScan and (not smdbData or 'titles' not in smdbData):
@@ -93,6 +93,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                 moviesFolderDict[path] = [folder, path]
         else:
             for moviesFolder in moviesFolders:
+                if not os.path.exists(moviesFolder):
+                    continue
                 numMovies = 0
                 with os.scandir(moviesFolder) as files:
                     for f in files:
