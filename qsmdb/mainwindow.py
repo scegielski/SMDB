@@ -238,7 +238,6 @@ class FilterWidget(QtWidgets.QFrame):
             return
 
         if self.useMovieList and len(self.movieList) == 0:
-            print("Error: no movie list")
             return
 
         filterByText = self.filterByComboBox.currentText()
