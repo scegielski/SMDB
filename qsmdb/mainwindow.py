@@ -335,6 +335,18 @@ def getFolderSizes(path):
 
 
 class MyWindow(QtWidgets.QMainWindow):
+    def wheelEvent(self, event):
+        if QtWidgets.QApplication.keyboardModifiers() == QtCore.Qt.ControlModifier:
+            numDegrees = event.angleDelta() / 120
+            self.setFontSize(numDegrees.y())
+        event.accept()
+
+    def setFontSize(self, delta):
+        if 5 <= self.fontSize <= 30:
+            self.fontSize = max(5, min(30, self.fontSize + delta))
+            self.setStyleSheet(f"background: black; color white; border-radius: 5px; font-size:{self.fontSize}px;")
+            self.titleLabel.setStyleSheet(f"color: white; background: black; font-size: {self.fontSize * 2}px;")
+
     def __init__(self):
         super(MyWindow, self).__init__()
 
@@ -363,7 +375,7 @@ class MyWindow(QtWidgets.QMainWindow):
                                        type=QtCore.QRect)
         self.setGeometry(geometry)
 
-        # Set foreground/background colors for item views
+        # Set default font size and foreground/background colors for item views
         self.fontSize = 12
         self.setStyleSheet(f"background: black; color white; border-radius: 5px; font-size:{self.fontSize}px;")
         self.menuBar().setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 0px;")
