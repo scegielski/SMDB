@@ -140,6 +140,7 @@ class FilterWidget(QtWidgets.QFrame):
             'Ratings': 'ratings'
         }
 
+
         self.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
         self.setLineWidth(5)
         self.setStyleSheet("background: rgb(25, 25, 25); color: white; border-radius: 10px")
@@ -153,14 +154,12 @@ class FilterWidget(QtWidgets.QFrame):
         self.layout().addLayout(filterByHLayout)
 
         filterByLabel = QtWidgets.QLabel("Filter By")
-        filterByLabel.setFont(QtGui.QFont('TimesNew Roman', 12))
         filterByLabel.setSizePolicy(QtWidgets.QSizePolicy.Maximum,
                                     QtWidgets.QSizePolicy.Maximum)
         filterByHLayout.addWidget(filterByLabel)
 
         self.filterByComboBox = QtWidgets.QComboBox()
-        self.filterByComboBox.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
-        self.filterByComboBox.setFont(QtGui.QFont('TimesNewY Roman', 12))
+        self.filterByComboBox.setStyleSheet("background: rgb(50, 50, 50);")
         for i in self.filterByDict.keys():
             self.filterByComboBox.addItem(i)
         self.filterByComboBox.setCurrentIndex(filterBy)
@@ -171,7 +170,6 @@ class FilterWidget(QtWidgets.QFrame):
         self.layout().addLayout(minCountHLayout)
         self.filterMinCountCheckbox = QtWidgets.QCheckBox()
         self.filterMinCountCheckbox.setText("Enable Min Count")
-        self.filterMinCountCheckbox.setFont(QtGui.QFont('TimesNewY Roman', 12))
         self.filterMinCountCheckbox.setChecked(True)
         self.filterMinCountSpinBox = QtWidgets.QSpinBox()
         self.filterMinCountCheckbox.stateChanged.connect(self.filterMinCountSpinBox.setEnabled)
@@ -180,8 +178,6 @@ class FilterWidget(QtWidgets.QFrame):
 
         self.filterMinCountSpinBox.setMinimum(0)
         self.filterMinCountSpinBox.setValue(minCount)
-        self.filterMinCountSpinBox.setFont(QtGui.QFont('TimesNewY Roman', 12))
-        self.filterMinCountSpinBox.setStyleSheet("background: black; color: white; border-radius: 5px")
         self.filterMinCountSpinBox.valueChanged.connect(self.populateFiltersTable)
         minCountHLayout.addWidget(self.filterMinCountSpinBox)
 
@@ -205,14 +201,12 @@ class FilterWidget(QtWidgets.QFrame):
         filtersVLayout.addLayout(filtersSearchHLayout)
 
         searchText = QtWidgets.QLabel("Search")
-        searchText.setFont(QtGui.QFont('TimesNew Roman', 12))
         searchText.setSizePolicy(QtWidgets.QSizePolicy.Maximum,
                                  QtWidgets.QSizePolicy.Maximum)
         filtersSearchHLayout.addWidget(searchText)
 
         filterTableSearchBox = QtWidgets.QLineEdit(self)
         filterTableSearchBox.setStyleSheet("background: black; color: white; border-radius: 5px")
-        filterTableSearchBox.setFont(QtGui.QFont('TimesNew Roman', 12))
         filterTableSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
         filterTableSearchBox.setClearButtonEnabled(True)
         filtersSearchHLayout.addWidget(filterTableSearchBox)
@@ -370,7 +364,10 @@ class MyWindow(QtWidgets.QMainWindow):
         self.setGeometry(geometry)
 
         # Set foreground/background colors for item views
-        self.setStyleSheet("""QAbstractItemView{ background: black; color: white; }; """)
+        self.fontSize = 12
+        self.setStyleSheet(f"background: black; color white; border-radius: 5px; font-size:{self.fontSize}px;")
+        self.menuBar().setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 0px;")
+        self.statusBar().setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 0px;")
 
         # Default view state of UI sections
         #self.showPrimaryFilters = True
@@ -394,7 +391,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Add the central widget
         centralWidget = QtWidgets.QWidget()
-        centralWidget.setStyleSheet("background: rgb(50, 50, 50); color: white;")
+        centralWidget.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 0px;")
         self.setCentralWidget(centralWidget)
 
         # Divides top h splitter and bottom progress bar
@@ -496,91 +493,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesWatchListBackupVSplitter.setSizes(sizes)
 
         # Movie section widget
-        self.movieSectionWidget = QtWidgets.QFrame()
-        self.movieSectionWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
-        self.movieSectionWidget.setLineWidth(5)
-        self.movieSectionWidget.setStyleSheet("background: rgb(25, 25, 25); border-radius: 10px")
-        if not self.showMovieSection:
-            self.movieSectionWidget.hide()
-
-        movieSectionVLayout = QtWidgets.QVBoxLayout()
-        self.movieSectionWidget.setLayout(movieSectionVLayout)
-
-        # Title
-        self.titleLabel = QtWidgets.QLabel()
-        self.titleLabel.setFont(QtGui.QFont('TimesNew Roman', 20))
-        self.titleLabel.setStyleSheet("color: white; background: black")
-        self.titleLabel.setWordWrap(True)
-        self.titleLabel.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignTop)
-        self.titleLabel.setSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Fixed)
-        movieSectionVLayout.addWidget(self.titleLabel)
-
-        # Cover and Summary V Splitter
-        self.coverSummaryVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
-        movieSectionVLayout.addWidget(self.coverSummaryVSplitter)
-        self.coverSummaryVSplitter.setHandleWidth(20)
-        self.coverSummaryVSplitter.splitterMoved.connect(self.resizeCoverFile)
-
-        # Cover and Movie Info H Splitter
-        self.coverInfoHSplitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
-
-        self.coverSummaryVSplitter.addWidget(self.coverInfoHSplitter)
-
-        # Movie Info
-        self.movieInfoWidget = QtWidgets.QWidget()
-        self.coverInfoHSplitter.addWidget(self.movieInfoWidget)
-        self.coverInfoHSplitter.splitterMoved.connect(self.resizeCoverFile)
-        movieInfoVLayout = QtWidgets.QVBoxLayout()
-        self.movieInfoWidget.setLayout(movieInfoVLayout)
-        self.movieInfoListView = MovieInfoListview()
-        self.movieInfoListView.setStyleSheet("background: black")
-        self.movieInfoListView.itemSelectionChanged.connect(self.movieInfoSelectionChanged)
-        self.movieInfoListView.setFont(QtGui.QFont('TimesNew Roman', 10))
-        self.movieInfoListView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self.movieInfoListView.customContextMenuRequested[QtCore.QPoint].connect(self.movieInfoRightMenu)
-        movieInfoVLayout.addWidget(self.movieInfoListView)
-        if not self.showMovieInfo:
-            self.movieInfoWidget.hide()
-
-        # Cover / GL Tabs
-        self.coverTabWidget = QtWidgets.QTabWidget()
-        self.coverInfoHSplitter.addWidget(self.coverTabWidget)
-
-        # Cover
-        self.coverTab = QtWidgets.QWidget()
-        self.movieCover = MovieCover()
-        self.initUICover()
-        if not self.showCover:
-            self.coverTab.hide()
-        self.coverTabWidget.addTab(self.coverTab, "Cover")
-
-        # Cover GL
-        #coverGLTab = QtWidgets.QWidget()
-        #coverGLTab.setLayout(QtWidgets.QVBoxLayout())
-        #self.coverRowHistory = list()
-
-        #self.randomizeCheckbox = QtWidgets.QCheckBox("Randomize")
-        #coverGLTab.layout().addWidget(self.randomizeCheckbox)
-
-        #self.openGlWidget = CoverGLWidget()
-        #self.openGlWidget.emitCoverSignal.connect(self.coverChanged)
-        #self.openGlWidget.showRowSignal.connect(self.showRow)
-        #coverGLTab.layout().addWidget(self.openGlWidget)
-        #self.coverTabWidget.addTab(coverGLTab, "Cover GL")
-
-        sizes = [int(x) for x in self.settings.value('coverInfoHSplitterSizes', [200, 600], type=list)]
-        self.coverInfoHSplitter.setSizes(sizes)
-
-        # Summary
-        self.summary = QtWidgets.QTextBrowser()
-        self.summary.setFont(QtGui.QFont('TimesNew Roman', 12))
-        self.summary.setStyleSheet("color:white; background-color: black;")
-        self.coverSummaryVSplitter.addWidget(self.summary)
-        if not self.showSummary:
-            self.summary.hide()
-
-        sizes = [int(x) for x in self.settings.value('coverSummaryVSplitterSizes', [600, 200], type=list)]
-        self.coverSummaryVSplitter.setSizes(sizes)
+        self.initUIMovieSection()
 
         # Add the sub-layouts to the self.mainHSplitter
         self.mainHSplitter.addWidget(self.filtersVSplitter)
@@ -597,14 +510,12 @@ class MyWindow(QtWidgets.QMainWindow):
         mainVLayout.addLayout(bottomLayout)
         self.progressBar = QtWidgets.QProgressBar()
         self.progressBar.setStyleSheet("background: rgb(0, 0, 0); color: white; border-radius: 5px")
-        self.progressBar.setFont(QtGui.QFont('TimesNew Roman', 12))
         self.progressBar.setMaximum(100)
         bottomLayout.addWidget(self.progressBar)
         cancelButton = QtWidgets.QPushButton("Cancel", self)
         cancelButton.clicked.connect(self.cancelButtonClicked)
         cancelButton.setStyleSheet("background: rgb(100, 100, 100); color: white; border-radius: 5px")
         cancelButton.setFixedSize(100, 25)
-        cancelButton.setFont(QtGui.QFont('TimesNew Roman', 12))
         bottomLayout.addWidget(cancelButton)
 
         # Show the window
@@ -853,7 +764,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableWidget.setLayout(moviesTableViewVLayout)
 
         moviesLabel = QtWidgets.QLabel("Movies")
-        moviesLabel.setFont(QtGui.QFont('TimesNew Roman', 12))
         moviesTableViewVLayout.addWidget(moviesLabel)
 
         self.moviesTableView.setSortingEnabled(True)
@@ -896,8 +806,7 @@ class MyWindow(QtWidgets.QMainWindow):
         backButton.setSizePolicy(QtWidgets.QSizePolicy.Fixed,
                                  QtWidgets.QSizePolicy.Maximum)
         backButton.clicked.connect(self.moviesTableBack)
-        backButton.setFont(QtGui.QFont('TimesNew Roman', 10))
-        backButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        backButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px;")
         backForwardHLayout.addWidget(backButton)
 
         # Forward button
@@ -906,7 +815,6 @@ class MyWindow(QtWidgets.QMainWindow):
         forwardButton.setSizePolicy(QtWidgets.QSizePolicy.Fixed,
                                  QtWidgets.QSizePolicy.Maximum)
         forwardButton.clicked.connect(self.moviesTableForward)
-        forwardButton.setFont(QtGui.QFont('TimesNew Roman', 10))
         forwardButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
         backForwardHLayout.addWidget(forwardButton)
 
@@ -919,7 +827,6 @@ class MyWindow(QtWidgets.QMainWindow):
         pickRandomButton.setSizePolicy(QtWidgets.QSizePolicy.Fixed,
                                        QtWidgets.QSizePolicy.Maximum)
         pickRandomButton.clicked.connect(self.pickRandomMovie)
-        pickRandomButton.setFont(QtGui.QFont('TimesNew Roman', 10))
         pickRandomButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
         randomAllHLayout.addWidget(pickRandomButton)
 
@@ -929,7 +836,6 @@ class MyWindow(QtWidgets.QMainWindow):
         showAllButton.setSizePolicy(QtWidgets.QSizePolicy.Fixed,
                                     QtWidgets.QSizePolicy.Maximum)
         showAllButton.clicked.connect(self.showAllMoviesTableView)
-        showAllButton.setFont(QtGui.QFont('TimesNew Roman', 10))
         showAllButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
         randomAllHLayout.addWidget(showAllButton)
 
@@ -941,13 +847,11 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Filter box
         titleFilterText = QtWidgets.QLabel("Filter Titles")
-        titleFilterText.setFont(QtGui.QFont('TimesNew Roman', 12))
         titleFilterText.setSizePolicy(QtWidgets.QSizePolicy.Maximum,
                                       QtWidgets.QSizePolicy.Maximum)
         moviesTableFilterHLayout.addWidget(titleFilterText)
 
         self.moviesTableTitleFilterBox.setStyleSheet("background: black; color: white; border-radius: 5px")
-        self.moviesTableTitleFilterBox.setFont(QtGui.QFont('TimesNew Roman', 12))
         self.moviesTableTitleFilterBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored,
                                                 QtWidgets.QSizePolicy.Maximum)
         self.moviesTableTitleFilterBox.setClearButtonEnabled(True)
@@ -959,13 +863,11 @@ class MyWindow(QtWidgets.QMainWindow):
         moviesTableSearchVLayout.addLayout(moviesTableSearchPlotsHLayout)
 
         searchPlotsText = QtWidgets.QLabel("Search Plots")
-        searchPlotsText.setFont(QtGui.QFont('TimesNew Roman', 12))
         searchPlotsText.setSizePolicy(QtWidgets.QSizePolicy.Maximum,
                                  QtWidgets.QSizePolicy.Maximum)
         moviesTableSearchPlotsHLayout.addWidget(searchPlotsText)
 
         self.moviesTableSearchPlotsBox.setStyleSheet("background: black; color: white; border-radius: 5px")
-        self.moviesTableSearchPlotsBox.setFont(QtGui.QFont('TimesNew Roman', 12))
         self.moviesTableSearchPlotsBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored,
                                                 QtWidgets.QSizePolicy.Maximum)
         self.moviesTableSearchPlotsBox.setClearButtonEnabled(True)
@@ -981,7 +883,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.watchListWidget.setLayout(watchListVLayout)
 
         watchListLabel = QtWidgets.QLabel("Watch List")
-        watchListLabel.setFont(QtGui.QFont('TimesNew Roman', 12))
         watchListVLayout.addWidget(watchListLabel)
 
         self.watchListTableView.setSortingEnabled(False)
@@ -1014,31 +915,26 @@ class MyWindow(QtWidgets.QMainWindow):
 
         addButton = QtWidgets.QPushButton('Add')
         addButton.clicked.connect(self.watchListAdd)
-        addButton.setFont(QtGui.QFont('TimesNew Roman', 12))
         addButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
         watchListButtonsHLayout.addWidget(addButton)
 
         removeButton = QtWidgets.QPushButton('Remove')
         removeButton.clicked.connect(self.watchListRemove)
-        removeButton.setFont(QtGui.QFont('TimesNew Roman', 12))
         removeButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
         watchListButtonsHLayout.addWidget(removeButton)
 
         moveToTopButton = QtWidgets.QPushButton('Move To Top')
         moveToTopButton.clicked.connect(lambda: self.watchListMoveRow(self.MoveTo.TOP))
-        moveToTopButton.setFont(QtGui.QFont('TimesNew Roman', 12))
         moveToTopButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
         watchListButtonsHLayout.addWidget(moveToTopButton)
 
         moveUpButton = QtWidgets.QPushButton('Move Up')
         moveUpButton.clicked.connect(lambda: self.watchListMoveRow(self.MoveTo.UP))
-        moveUpButton.setFont(QtGui.QFont('TimesNew Roman', 12))
         moveUpButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
         watchListButtonsHLayout.addWidget(moveUpButton)
 
         moveDownButton = QtWidgets.QPushButton('Move Down')
         moveDownButton.clicked.connect(lambda: self.watchListMoveRow(self.MoveTo.DOWN))
-        moveDownButton.setFont(QtGui.QFont('TimesNew Roman', 12))
         moveDownButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
         watchListButtonsHLayout.addWidget(moveDownButton)
 
@@ -1051,7 +947,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.historyListWidget.setLayout(historyListVLayout)
 
         historyListLabel = QtWidgets.QLabel("History List")
-        historyListLabel.setFont(QtGui.QFont('TimesNew Roman', 12))
         historyListVLayout.addWidget(historyListLabel)
 
         self.historyListTableView.setSortingEnabled(False)
@@ -1084,11 +979,10 @@ class MyWindow(QtWidgets.QMainWindow):
 
         removeButton = QtWidgets.QPushButton('Remove')
         removeButton.clicked.connect(self.historyListRemove)
-        removeButton.setFont(QtGui.QFont('TimesNew Roman', 12))
         removeButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
         historyListButtonsHLayout.addWidget(removeButton)
 
-    def initMovieSection(self):
+    def initUIMovieSection(self):
         self.movieSectionWidget = QtWidgets.QFrame()
         self.movieSectionWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
         self.movieSectionWidget.setLineWidth(5)
@@ -1101,8 +995,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Title
         self.titleLabel = QtWidgets.QLabel()
-        self.titleLabel.setFont(QtGui.QFont('TimesNew Roman', 20))
-        self.titleLabel.setStyleSheet("color: white; background: black")
+        self.titleLabel.setStyleSheet(f"color: white; background: black; font-size: {self.fontSize * 2}px;")
         self.titleLabel.setWordWrap(True)
         self.titleLabel.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignTop)
         self.titleLabel.setSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Fixed)
@@ -1126,9 +1019,8 @@ class MyWindow(QtWidgets.QMainWindow):
         movieInfoVLayout = QtWidgets.QVBoxLayout()
         self.movieInfoWidget.setLayout(movieInfoVLayout)
         self.movieInfoListView = MovieInfoListview()
-        self.movieInfoListView.setStyleSheet("background: black")
+        self.movieInfoListView.setStyleSheet("background: black; color: white;")
         self.movieInfoListView.itemSelectionChanged.connect(self.movieInfoSelectionChanged)
-        self.movieInfoListView.setFont(QtGui.QFont('TimesNew Roman', 10))
         self.movieInfoListView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.movieInfoListView.customContextMenuRequested[QtCore.QPoint].connect(self.movieInfoRightMenu)
         movieInfoVLayout.addWidget(self.movieInfoListView)
@@ -1166,7 +1058,6 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Summary
         self.summary = QtWidgets.QTextBrowser()
-        self.summary.setFont(QtGui.QFont('TimesNew Roman', 12))
         self.summary.setStyleSheet("color:white; background-color: black;")
         self.coverSummaryVSplitter.addWidget(self.summary)
         if not self.showSummary:
@@ -1185,7 +1076,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.backupListWidget.setLayout(backupListVLayout)
 
         backupListLabel = QtWidgets.QLabel("Backup List")
-        backupListLabel.setFont(QtGui.QFont('TimesNew Roman', 12))
         backupListVLayout.addWidget(backupListLabel)
 
         self.backupListTableView.setSortingEnabled(True)
@@ -1217,7 +1107,6 @@ class MyWindow(QtWidgets.QMainWindow):
         backupListVLayout.addLayout(backupListButtonsHLayout)
 
         addButton = QtWidgets.QPushButton('Add')
-        addButton.setFont(QtGui.QFont('TimesNew Roman', 12))
         addButton.setStyleSheet("background: rgb(50, 50, 50);"
                                 "color: white;"
                                 "border-radius: 5px")
@@ -1225,7 +1114,6 @@ class MyWindow(QtWidgets.QMainWindow):
         backupListButtonsHLayout.addWidget(addButton)
 
         removeButton = QtWidgets.QPushButton('Remove')
-        removeButton.setFont(QtGui.QFont('TimesNew Roman', 12))
         removeButton.setStyleSheet("background: rgb(50, 50, 50); color: white;"
                                    "border-radius: 5px")
         removeButton.clicked.connect(self.backupListRemove)
@@ -1233,14 +1121,12 @@ class MyWindow(QtWidgets.QMainWindow):
 
         removeNoDifferenceButton = QtWidgets.QPushButton('Remove Folders With No Difference')
         removeNoDifferenceButton.setFixedSize(300, 20)
-        removeNoDifferenceButton.setFont(QtGui.QFont('TimesNew Roman', 12))
         removeNoDifferenceButton.setStyleSheet("background: rgb(50, 50, 50);"
                                                "color: white; border-radius: 5px")
         removeNoDifferenceButton.clicked.connect(self.backupListRemoveNoDifference)
         backupListButtonsHLayout.addWidget(removeNoDifferenceButton)
 
         analyseButton = QtWidgets.QPushButton("Analyse")
-        analyseButton.setFont(QtGui.QFont('TimesNew Roman', 12))
         analyseButton.setStyleSheet("background: rgb(50, 50, 50);"
                                     "color: white;"
                                     "border-radius: 5px")
@@ -1251,7 +1137,6 @@ class MyWindow(QtWidgets.QMainWindow):
         backupButton.setStyleSheet("background: rgb(50, 50, 50);"
                                    "color: white;"
                                    "border-radius: 5px")
-        backupButton.setFont(QtGui.QFont('TimesNew Roman', 12))
         backupButton.clicked.connect(lambda: self.backupRun(moveFiles=False))
         backupListButtonsHLayout.addWidget(backupButton)
 
@@ -1259,7 +1144,6 @@ class MyWindow(QtWidgets.QMainWindow):
         moveButton.setStyleSheet("background: rgb(50, 50, 50);"
                                  "color: white;"
                                  "border-radius: 5px")
-        moveButton.setFont(QtGui.QFont('TimesNew Roman', 12))
         moveButton.clicked.connect(lambda: self.backupRun(moveFiles=True))
         backupListButtonsHLayout.addWidget(moveButton)
 
@@ -1267,17 +1151,14 @@ class MyWindow(QtWidgets.QMainWindow):
         backupListVLayout.addLayout(backupFolderHLayout)
 
         backupFolderLabel = QtWidgets.QLabel("Destination Folder")
-        backupFolderLabel.setFont(QtGui.QFont('TimesNew Roman', 12))
         backupFolderHLayout.addWidget(backupFolderLabel)
 
         self.backupFolderEdit.setStyleSheet("background: black; color: white; border-radius: 5px")
-        self.backupFolderEdit.setFont(QtGui.QFont('TimesNew Roman', 12))
         self.backupFolderEdit.setReadOnly(True)
         self.backupFolderEdit.setText(self.backupFolder)
         backupFolderHLayout.addWidget(self.backupFolderEdit)
 
         browseButton = QtWidgets.QPushButton("Browse")
-        browseButton.setFont(QtGui.QFont('TimesNew Roman', 12))
         browseButton.setStyleSheet("background: rgb(50, 50, 50);"
                                    "color: white;"
                                    "border-radius: 5px")
@@ -1286,14 +1167,12 @@ class MyWindow(QtWidgets.QMainWindow):
         backupFolderHLayout.addWidget(browseButton)
 
         self.spaceAvailableLabel.setAlignment(QtCore.Qt.AlignRight)
-        self.spaceAvailableLabel.setFont(QtGui.QFont('TimesNew Roman', 12))
         backupFolderHLayout.addWidget(self.spaceAvailableLabel)
 
         backupSpaceLayout = QtWidgets.QHBoxLayout()
         backupListVLayout.addLayout(backupSpaceLayout)
 
         spaceLabel = QtWidgets.QLabel("Disk Space")
-        spaceLabel.setFont(QtGui.QFont('TimesNew Roman', 12))
         spaceLabel.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
         backupSpaceLayout.addWidget(spaceLabel)
 
@@ -2708,7 +2587,6 @@ class MyWindow(QtWidgets.QMainWindow):
         item = QtWidgets.QListWidgetItem(headerName)
         item.setFlags(QtCore.Qt.ItemIsEnabled)
         item.setForeground(QtCore.Qt.gray)
-        item.setFont(QtGui.QFont('TimesNew Roman', 12))
         self.movieInfoListView.addItem(item)
 
     def movieInfoAddSpacer(self):
@@ -2823,7 +2701,6 @@ class MyWindow(QtWidgets.QMainWindow):
             # Remove the author of the synopsis's name
             synopsis = synopsis.split('::')[0]
             infoText += '%s<br>' % synopsis
-        # infoText = '<span style=\" color: #ffffff; font-size: 8pt\">%s</span>' % infoText
         return infoText
 
     def summaryShow(self, jsonData):
