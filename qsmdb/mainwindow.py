@@ -1088,6 +1088,94 @@ class MyWindow(QtWidgets.QMainWindow):
         removeButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
         historyListButtonsHLayout.addWidget(removeButton)
 
+    def initMovieSection(self):
+        self.movieSectionWidget = QtWidgets.QFrame()
+        self.movieSectionWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
+        self.movieSectionWidget.setLineWidth(5)
+        self.movieSectionWidget.setStyleSheet("background: rgb(25, 25, 25); border-radius: 10px")
+        if not self.showMovieSection:
+            self.movieSectionWidget.hide()
+
+        movieSectionVLayout = QtWidgets.QVBoxLayout()
+        self.movieSectionWidget.setLayout(movieSectionVLayout)
+
+        # Title
+        self.titleLabel = QtWidgets.QLabel()
+        self.titleLabel.setFont(QtGui.QFont('TimesNew Roman', 20))
+        self.titleLabel.setStyleSheet("color: white; background: black")
+        self.titleLabel.setWordWrap(True)
+        self.titleLabel.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignTop)
+        self.titleLabel.setSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Fixed)
+        movieSectionVLayout.addWidget(self.titleLabel)
+
+        # Cover and Summary V Splitter
+        self.coverSummaryVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
+        movieSectionVLayout.addWidget(self.coverSummaryVSplitter)
+        self.coverSummaryVSplitter.setHandleWidth(20)
+        self.coverSummaryVSplitter.splitterMoved.connect(self.resizeCoverFile)
+
+        # Cover and Movie Info H Splitter
+        self.coverInfoHSplitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
+
+        self.coverSummaryVSplitter.addWidget(self.coverInfoHSplitter)
+
+        # Movie Info
+        self.movieInfoWidget = QtWidgets.QWidget()
+        self.coverInfoHSplitter.addWidget(self.movieInfoWidget)
+        self.coverInfoHSplitter.splitterMoved.connect(self.resizeCoverFile)
+        movieInfoVLayout = QtWidgets.QVBoxLayout()
+        self.movieInfoWidget.setLayout(movieInfoVLayout)
+        self.movieInfoListView = MovieInfoListview()
+        self.movieInfoListView.setStyleSheet("background: black")
+        self.movieInfoListView.itemSelectionChanged.connect(self.movieInfoSelectionChanged)
+        self.movieInfoListView.setFont(QtGui.QFont('TimesNew Roman', 10))
+        self.movieInfoListView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.movieInfoListView.customContextMenuRequested[QtCore.QPoint].connect(self.movieInfoRightMenu)
+        movieInfoVLayout.addWidget(self.movieInfoListView)
+        if not self.showMovieInfo:
+            self.movieInfoWidget.hide()
+
+        # Cover / GL Tabs
+        self.coverTabWidget = QtWidgets.QTabWidget()
+        self.coverInfoHSplitter.addWidget(self.coverTabWidget)
+
+        # Cover
+        self.coverTab = QtWidgets.QWidget()
+        self.movieCover = MovieCover()
+        self.initUICover()
+        if not self.showCover:
+            self.coverTab.hide()
+        self.coverTabWidget.addTab(self.coverTab, "Cover")
+
+        # Cover GL
+        #coverGLTab = QtWidgets.QWidget()
+        #coverGLTab.setLayout(QtWidgets.QVBoxLayout())
+        #self.coverRowHistory = list()
+
+        #self.randomizeCheckbox = QtWidgets.QCheckBox("Randomize")
+        #coverGLTab.layout().addWidget(self.randomizeCheckbox)
+
+        #self.openGlWidget = CoverGLWidget()
+        #self.openGlWidget.emitCoverSignal.connect(self.coverChanged)
+        #self.openGlWidget.showRowSignal.connect(self.showRow)
+        #coverGLTab.layout().addWidget(self.openGlWidget)
+        #self.coverTabWidget.addTab(coverGLTab, "Cover GL")
+
+        sizes = [int(x) for x in self.settings.value('coverInfoHSplitterSizes', [200, 600], type=list)]
+        self.coverInfoHSplitter.setSizes(sizes)
+
+        # Summary
+        self.summary = QtWidgets.QTextBrowser()
+        self.summary.setFont(QtGui.QFont('TimesNew Roman', 12))
+        self.summary.setStyleSheet("color:white; background-color: black;")
+        self.coverSummaryVSplitter.addWidget(self.summary)
+        if not self.showSummary:
+            self.summary.hide()
+
+        sizes = [int(x) for x in self.settings.value('coverSummaryVSplitterSizes', [600, 200], type=list)]
+        self.coverSummaryVSplitter.setSizes(sizes)
+
+
     def initUIBackupList(self):
         self.backupListWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
         self.backupListWidget.setLineWidth(5)
