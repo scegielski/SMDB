@@ -1064,7 +1064,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.titleLabel.setStyleSheet(f"color: white; background: black; font-size: {self.fontSize * 2}px;")
         self.titleLabel.setWordWrap(True)
         self.titleLabel.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignTop)
-        self.titleLabel.setSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Fixed)
+        #self.titleLabel.setSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Fixed)
         movieSectionVLayout.addWidget(self.titleLabel)
 
         # Cover and Summary V Splitter
