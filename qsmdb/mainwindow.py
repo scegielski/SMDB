@@ -421,16 +421,16 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Default view state of UI sections
         #self.showPrimaryFilters = True
-        self.showPrimaryFilter = bool(self.settings.value('showPrimaryFilter', True))
-        self.showSecondaryFilter = bool(self.settings.value('showSecondaryFilter', True))
-        self.showMoviesTable = bool(self.settings.value('showMoviesTable', True))
-        self.showCover = bool(self.settings.value('showCover', True))
-        self.showMovieInfo = bool(self.settings.value('showMovieInfo', True))
-        self.showMovieSection = bool(self.settings.value('showMovieSection', True))
-        self.showSummary = bool(self.settings.value('showSummary', True))
-        self.showWatchList = bool(self.settings.value('showWatchList', False))
-        self.showBackupList = bool(self.settings.value('showBackupList', False))
-        self.showHistoryList = bool(self.settings.value('showHistoryList', False))
+        self.showPrimaryFilter = self.settings.value('showPrimaryFilter', True, type=bool)
+        self.showSecondaryFilter = self.settings.value('showSecondaryFilter', True, type=bool)
+        self.showMoviesTable = self.settings.value('showMoviesTable', True, type=bool)
+        self.showCover = self.settings.value('showCover', True, type=bool)
+        self.showMovieInfo = self.settings.value('showMovieInfo', True, type=bool)
+        self.showMovieSection = self.settings.value('showMovieSection', True, type=bool)
+        self.showSummary = self.settings.value('showSummary', True, type=bool)
+        self.showWatchList = self.settings.value('showWatchList', False, type=bool)
+        self.showBackupList = self.settings.value('showBackupList', False, type=bool)
+        self.showHistoryList = self.settings.value('showHistoryList', False, type=bool)
 
         # Default state of cancel button
         self.isCanceled = False
@@ -510,7 +510,9 @@ class MyWindow(QtWidgets.QMainWindow):
         self.watchListHeaderActions = []
         self.initUIWatchList()
         self.moviesWatchListBackupVSplitter.addWidget(self.watchListWidget)
+        print(f"self.showWatchList = {self.showWatchList}")
         if not self.showWatchList:
+            print("Hiding watch list")
             self.watchListWidget.hide()
 
         # Backup List
@@ -638,6 +640,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.settings.setValue('showMovieInfo', self.showMovieInfo)
         self.settings.setValue('showMovieSection', self.showMovieSection)
         self.settings.setValue('showSummary', self.showSummary)
+        print(f"close event showWatchList = {self.showWatchList} ")
         self.settings.setValue('showWatchList', self.showWatchList)
         self.settings.setValue('showHistoryList', self.showHistoryList)
         self.settings.setValue('showBackupList', self.showBackupList)
