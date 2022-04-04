@@ -119,6 +119,11 @@ class FilterTable(QtWidgets.QTableWidget):
 class FilterWidget(QtWidgets.QFrame):
 
     tableSelectionChangedSignal = QtCore.pyqtSignal()
+    wheelSpun = QtCore.pyqtSignal(int)
+
+    def wheelEvent(self, event):
+        self.wheelSpun.emit(event.angleDelta().y() / 120)
+        event.accept()
 
     def __init__(self, filterName="filter", filterBy=0, useMovieList=False, minCount=2):
         super(FilterWidget, self).__init__()
@@ -290,6 +295,7 @@ class FilterWidget(QtWidgets.QFrame):
 class MovieCover(QtWidgets.QLabel):
 
     doubleClicked = QtCore.pyqtSignal()
+    wheelSpun = QtCore.pyqtSignal(int)
 
     def __init__(self):
         super(MovieCover, self).__init__()
@@ -297,10 +303,31 @@ class MovieCover(QtWidgets.QLabel):
     def mouseDoubleClickEvent(self, a0: QtGui.QMouseEvent) -> None:
         self.doubleClicked.emit()
 
+    def wheelEvent(self, event):
+        self.wheelSpun.emit(event.angleDelta().y() / 120)
+        event.accept()
+
+class MovieTableView(QtWidgets.QTableView):
+    wheelSpun = QtCore.pyqtSignal(int)
+
+    def wheelEvent(self, event):
+        if event.modifiers() == QtCore.Qt.ControlModifier:
+            self.wheelSpun.emit(event.angleDelta().y() / 120)
+            event.accept()
+        else:
+            event.ignore()
+            super().wheelEvent(event)
+
 class MovieInfoListview(QtWidgets.QListWidget):
-    def __init__(self):
-        super(MovieInfoListview, self).__init__()
-        self.mouseLocation = 0
+    wheelSpun = QtCore.pyqtSignal(int)
+
+    def wheelEvent(self, event):
+        if event.modifiers() == QtCore.Qt.ControlModifier:
+            self.wheelSpun.emit(event.angleDelta().y() / 120)
+            event.accept()
+        else:
+            event.ignore()
+            super().wheelEvent(event)
 
     def mousePressEvent(self, event):
         if event.type() == QtCore.QEvent.MouseButtonPress:
@@ -308,7 +335,7 @@ class MovieInfoListview(QtWidgets.QListWidget):
                 self.mouseLocation = event.pos()
                 return
             else:
-                super(MovieInfoListview, self).mousePressEvent(event)
+                super().mousePressEvent(event)
 
 
 def getFolderSize(startPath='.'):
@@ -336,14 +363,19 @@ def getFolderSizes(path):
 
 class MyWindow(QtWidgets.QMainWindow):
     def wheelEvent(self, event):
-        if QtWidgets.QApplication.keyboardModifiers() == QtCore.Qt.ControlModifier:
-            numDegrees = event.angleDelta() / 120
-            self.setFontSize(numDegrees.y())
+        self.setFontSize(event.angleDelta().y() / 120)
         event.accept()
 
     def setFontSize(self, delta):
+        if QtWidgets.QApplication.keyboardModifiers() != QtCore.Qt.ControlModifier:
+            return
+
+        delta = min(1, max(-1, delta))
+        print(f"\tdelta = {delta}")
+        print(f"\tfontSize before = {self.fontSize}")
         if 5 <= self.fontSize <= 30:
             self.fontSize = max(5, min(30, self.fontSize + delta))
+            print(f"\tfontSize after = {self.fontSize}")
             self.setStyleSheet(f"background: black; color white; border-radius: 5px; font-size:{self.fontSize}px;")
             self.titleLabel.setStyleSheet(f"color: white; background: black; font-size: {self.fontSize * 2}px;")
 
@@ -421,12 +453,14 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Filters
         self.primaryFilterWidget = FilterWidget("Primary Filter")
+        self.primaryFilterWidget.wheelSpun.connect(self.setFontSize)
         self.filtersVSplitter.addWidget(self.primaryFilterWidget)
 
         self.secondaryFilterWidget = FilterWidget("Secondary Filter",
-                                          filterBy=5,
-                                          useMovieList=True,
-                                          minCount=1)
+                                                  filterBy=5,
+                                                  useMovieList=True,
+                                                  minCount=1)
+        self.secondaryFilterWidget.wheelSpun.connect(self.setFontSize)
         self.filtersVSplitter.addWidget(self.secondaryFilterWidget)
 
         sizes = [int(x) for x in self.settings.value('filterVSplitterSizes', [200, 200], type=list)]
@@ -446,7 +480,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.rowHeightWithoutCover = 18
         self.rowHeightWithCover = 200
         self.moviesTableWidget = QtWidgets.QFrame()
-        self.moviesTableView = QtWidgets.QTableView()
+        self.moviesTableView = MovieTableView()
+        self.moviesTableView.wheelSpun.connect(self.setFontSize)
         self.moviesTableTitleFilterBox = QtWidgets.QLineEdit()
         self.moviesTableSearchPlotsBox = QtWidgets.QLineEdit()
         self.moviesTableColumnsVisible = []
@@ -458,7 +493,8 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Watch List
         self.watchListWidget = QtWidgets.QFrame()
-        self.watchListTableView = QtWidgets.QTableView()
+        self.watchListTableView = MovieTableView()
+        self.watchListTableView.wheelSpun.connect(self.setFontSize)
         self.watchListColumnsVisible = []
         self.watchListHeaderActions = []
         self.initUIWatchList()
@@ -469,7 +505,8 @@ class MyWindow(QtWidgets.QMainWindow):
         # Backup List
         self.backupAnalysed = False
         self.backupListWidget = QtWidgets.QFrame()
-        self.backupListTableView = QtWidgets.QTableView()
+        self.backupListTableView = MovieTableView()
+        self.backupListTableView.wheelSpun.connect(self.setFontSize)
         self.spaceBarLayout = QtWidgets.QHBoxLayout()
         self.spaceUsedWidget = QtWidgets.QWidget()
         self.spaceChangedWidget = QtWidgets.QWidget()
@@ -493,7 +530,8 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # History List
         self.historyListWidget = QtWidgets.QFrame()
-        self.historyListTableView = QtWidgets.QTableView()
+        self.historyListTableView = MovieTableView()
+        self.historyListTableView.wheelSpun.connect(self.setFontSize)
         self.historyListColumnsVisible = []
         self.historyListHeaderActions = []
         self.initUIHistoryList()
@@ -1031,6 +1069,7 @@ class MyWindow(QtWidgets.QMainWindow):
         movieInfoVLayout = QtWidgets.QVBoxLayout()
         self.movieInfoWidget.setLayout(movieInfoVLayout)
         self.movieInfoListView = MovieInfoListview()
+        self.movieInfoListView.wheelSpun.connect(self.setFontSize)
         self.movieInfoListView.setStyleSheet("background: black; color: white;")
         self.movieInfoListView.itemSelectionChanged.connect(self.movieInfoSelectionChanged)
         self.movieInfoListView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
@@ -1220,6 +1259,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.movieCover.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored)
         self.movieCover.setStyleSheet("background-color: black;")
         self.movieCover.doubleClicked.connect(lambda: self.playMovie(self.moviesTableView, self.moviesTableProxyModel))
+        self.movieCover.wheelSpun.connect(self.setFontSize)
 
         movieVLayout.addWidget(self.movieCover)
 
