@@ -125,7 +125,7 @@ class FilterWidget(QtWidgets.QFrame):
         self.wheelSpun.emit(event.angleDelta().y() / 120)
         event.accept()
 
-    def __init__(self, filterName="filter", filterBy=0, useMovieList=False, minCount=2):
+    def __init__(self, filterName="filter", filterBy=0, useMovieList=False, minCount=2, defaultSectionSize=18):
         super(FilterWidget, self).__init__()
 
         self.moviesSmdbData = None
@@ -144,7 +144,6 @@ class FilterWidget(QtWidgets.QFrame):
             'Country': 'countries',
             'Ratings': 'ratings'
         }
-
 
         self.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
         self.setLineWidth(5)
@@ -193,7 +192,7 @@ class FilterWidget(QtWidgets.QFrame):
         self.filterTable.setColumnWidth(0, 170)
         self.filterTable.setColumnWidth(1, 60)
         self.filterTable.verticalHeader().setMinimumSectionSize(10)
-        self.filterTable.verticalHeader().setDefaultSectionSize(18)
+        self.filterTable.verticalHeader().setDefaultSectionSize(defaultSectionSize)
         self.filterTable.setWordWrap(False)
         self.filterTable.setStyleSheet("background: black; alternate-background-color: #151515; color: white")
         self.filterTable.setAlternatingRowColors(True)
@@ -370,14 +369,21 @@ class MyWindow(QtWidgets.QMainWindow):
         if QtWidgets.QApplication.keyboardModifiers() != QtCore.Qt.ControlModifier:
             return
 
+        if 5 >= self.fontSize <= 30:
+            return
+
         delta = min(1, max(-1, delta))
-        print(f"\tdelta = {delta}")
-        print(f"\tfontSize before = {self.fontSize}")
-        if 5 <= self.fontSize <= 30:
-            self.fontSize = max(5, min(30, self.fontSize + delta))
-            print(f"\tfontSize after = {self.fontSize}")
-            self.setStyleSheet(f"background: black; color white; border-radius: 5px; font-size:{self.fontSize}px;")
-            self.titleLabel.setStyleSheet(f"color: white; background: black; font-size: {self.fontSize * 2}px;")
+        self.fontSize = max(6, min(29, self.fontSize + delta))
+        self.setStyleSheet(f"background: black; color white; border-radius: 5px; font-size:{self.fontSize}px;")
+        self.titleLabel.setStyleSheet(f"color: white; background: black; font-size: {self.fontSize * 2}px;")
+        self.rowHeightWithoutCover = 18 * (self.fontSize / 12)
+
+        self.moviesTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+        self.watchListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+        self.backupListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+        self.historyListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+        self.primaryFilterWidget.filterTable.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+        self.secondaryFilterWidget.filterTable.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
 
     def __init__(self):
         super(MyWindow, self).__init__()
@@ -451,15 +457,22 @@ class MyWindow(QtWidgets.QMainWindow):
         self.filtersVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
         self.filtersVSplitter.setHandleWidth(20)
 
+        # Used to set height of rows in various tables based on whether
+        # the cover column is visible
+        self.rowHeightWithoutCover = 18
+        self.rowHeightWithCover = 200
+
         # Filters
-        self.primaryFilterWidget = FilterWidget("Primary Filter")
+        self.primaryFilterWidget = FilterWidget("Primary Filter",
+                                                defaultSectionSize=self.rowHeightWithoutCover)
         self.primaryFilterWidget.wheelSpun.connect(self.setFontSize)
         self.filtersVSplitter.addWidget(self.primaryFilterWidget)
 
         self.secondaryFilterWidget = FilterWidget("Secondary Filter",
                                                   filterBy=5,
                                                   useMovieList=True,
-                                                  minCount=1)
+                                                  minCount=1,
+                                                  defaultSectionSize=self.rowHeightWithoutCover)
         self.secondaryFilterWidget.wheelSpun.connect(self.setFontSize)
         self.filtersVSplitter.addWidget(self.secondaryFilterWidget)
 
@@ -477,8 +490,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesWatchListBackupVSplitter.setHandleWidth(20)
 
         # Movies Table
-        self.rowHeightWithoutCover = 18
-        self.rowHeightWithCover = 200
         self.moviesTableWidget = QtWidgets.QFrame()
         self.moviesTableView = MovieTableView()
         self.moviesTableView.wheelSpun.connect(self.setFontSize)
@@ -584,12 +595,14 @@ class MyWindow(QtWidgets.QMainWindow):
         self.primaryFilterWidget.moviesSmdbData = self.moviesSmdbData
         self.primaryFilterWidget.db = self.db
         self.primaryFilterWidget.populateFiltersTable()
-        self.primaryFilterWidget.tableSelectionChangedSignal.connect(lambda: self.filterTableSelectionChanged())
+        self.primaryFilterWidget.tableSelectionChangedSignal.connect(
+            lambda: self.filterTableSelectionChanged())
 
         self.secondaryFilterWidget.moviesSmdbData = self.moviesSmdbData
         self.secondaryFilterWidget.db = self.db
         self.secondaryFilterWidget.populateFiltersTable()
-        self.secondaryFilterWidget.tableSelectionChangedSignal.connect(lambda: self.filterTableSelectionChanged(mainFilter=False))
+        self.secondaryFilterWidget.tableSelectionChangedSignal.connect(
+            lambda: self.filterTableSelectionChanged(mainFilter=False))
 
         self.watchListSmdbFile = os.path.join(self.moviesFolder, "smdb_data_watch_list.json")
         self.watchListSmdbData = None
