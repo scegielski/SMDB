@@ -1298,57 +1298,54 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableProxyModel = QtCore.QSortFilterProxyModel()
         self.moviesTableProxyModel.setSourceModel(self.moviesTableModel)
 
-        tableView = self.moviesTableView
-        tableModel = self.moviesTableModel
-        proxyModel = self.moviesTableProxyModel
-        tableView.setModel(proxyModel)
+        self.moviesTableView.setModel(self.moviesTableProxyModel)
 
         # If forScan, sort by exists otherwise year
-        proxyModel.sort(tableModel.Columns.Year.value)
+        self.moviesTableProxyModel.sort(self.moviesTableModel.Columns.Year.value)
 
         try:
-            tableView.doubleClicked.disconnect()
+            self.moviesTableView.doubleClicked.disconnect()
         except Exception:
             pass
 
-        tableView.selectionModel().selectionChanged.connect(self.moviesTableSelectionChanged)
-        tableView.clicked.connect(self.clickedMovieTable)
-        tableView.doubleClicked.connect(lambda: self.playMovie(tableView, proxyModel))
+        self.moviesTableView.selectionModel().selectionChanged.connect(self.moviesTableSelectionChanged)
+        self.moviesTableView.clicked.connect(self.clickedMovieTable)
+        self.moviesTableView.doubleClicked.connect(lambda: self.playMovie(self.moviesTableView, self.moviesTableProxyModel))
 
         # Don't sort the table when the data changes
-        proxyModel.setDynamicSortFilter(False)
+        self.moviesTableProxyModel.setDynamicSortFilter(False)
 
-        tableView.setWordWrap(False)
+        self.moviesTableView.setWordWrap(False)
 
         if forceScan:
             return
 
         # Set the column widths
         self.moviesTableColumnsVisible = []
-        for col in tableModel.Columns:
-            tableView.setColumnWidth(col.value, tableModel.defaultWidths[col])
+        for col in self.moviesTableModel.Columns:
+            self.moviesTableView.setColumnWidth(col.value, self.moviesTableModel.defaultWidths[col])
             self.moviesTableColumnsVisible.append(True)
 
-        columnsToShow = [tableModel.Columns.Year,
-                         tableModel.Columns.Title,
-                         tableModel.Columns.Rating,
-                         tableModel.Columns.MpaaRating,
-                         tableModel.Columns.Width,
-                         tableModel.Columns.Height,
-                         tableModel.Columns.Size]
+        columnsToShow = [self.moviesTableModel.Columns.Year,
+                         self.moviesTableModel.Columns.Title,
+                         self.moviesTableModel.Columns.Rating,
+                         self.moviesTableModel.Columns.MpaaRating,
+                         self.moviesTableModel.Columns.Width,
+                         self.moviesTableModel.Columns.Height,
+                         self.moviesTableModel.Columns.Size]
 
-        for c in tableModel.Columns:
+        for c in self.moviesTableModel.Columns:
             index = c.value
             self.moviesTableColumnsVisible[index] = True
             if c not in columnsToShow:
-                tableView.hideColumn(index)
+                self.moviesTableView.hideColumn(index)
                 self.moviesTableColumnsVisible[index] = False
 
         # Make the row height smaller
-        tableView.verticalHeader().setMinimumSectionSize(10)
-        tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+        self.moviesTableView.verticalHeader().setMinimumSectionSize(10)
+        self.moviesTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
 
-        self.numVisibleMovies = proxyModel.rowCount()
+        self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
         self.showMoviesTableSelectionStatus()
         self.pickRandomMovie()
 
@@ -1362,41 +1359,37 @@ class MyWindow(QtWidgets.QMainWindow):
         self.watchListTableProxyModel = QtCore.QSortFilterProxyModel()
         self.watchListTableProxyModel.setSourceModel(self.watchListTableModel)
 
-        tableView = self.watchListTableView
-        tableModel = self.watchListTableModel
-        proxyModel = self.watchListTableProxyModel
+        # Sort the watch list by rank
+        self.watchListTableProxyModel.sort(self.watchListTableModel.Columns.Rank.value)
 
-        # Sort the watch list by rankl
-        proxyModel.sort(tableModel.Columns.Rank.value)
-
-        tableView.setModel(proxyModel)
-        tableView.selectionModel().selectionChanged.connect(lambda: self.tableSelectionChanged(tableView, tableModel, proxyModel))
-        tableView.doubleClicked.connect(lambda: self.playMovie(tableView, proxyModel))
-        proxyModel.setDynamicSortFilter(False)
-        tableView.setWordWrap(False)
+        self.watchListTableView.setModel(self.watchListTableProxyModel)
+        self.watchListTableView.selectionModel().selectionChanged.connect(lambda: self.tableSelectionChanged(self.watchListTableView, self.watchListTableModel, self.watchListTableProxyModel))
+        self.watchListTableView.doubleClicked.connect(lambda: self.playMovie(self.watchListTableView, self.watchListTableProxyModel))
+        self.watchListTableProxyModel.setDynamicSortFilter(False)
+        self.watchListTableView.setWordWrap(False)
 
         self.watchListColumnsVisible = []
-        for col in tableModel.Columns:
-            tableView.setColumnWidth(col.value, tableModel.defaultWidths[col])
+        for col in self.watchListTableModel.Columns:
+            self.watchListTableView.setColumnWidth(col.value, self.watchListTableModel.defaultWidths[col])
             self.watchListColumnsVisible.append(True)
 
-        columnsToShow = [tableModel.Columns.Rank,
-                         tableModel.Columns.Year,
-                         tableModel.Columns.Title,
-                         tableModel.Columns.Rating]
+        columnsToShow = [self.watchListTableModel.Columns.Rank,
+                         self.watchListTableModel.Columns.Year,
+                         self.watchListTableModel.Columns.Title,
+                         self.watchListTableModel.Columns.Rating]
 
-        for c in tableModel.Columns:
+        for c in self.watchListTableModel.Columns:
             index = c.value
             self.watchListColumnsVisible[index] = True
             if c not in columnsToShow:
-                tableView.hideColumn(index)
+                self.watchListTableView.hideColumn(index)
                 self.watchListColumnsVisible[index] = False
 
         # Set rank as the first column
-        tableView.horizontalHeader().moveSection(tableModel.Columns.Rank.value, 0)
+        self.watchListTableView.horizontalHeader().moveSection(self.watchListTableModel.Columns.Rank.value, 0)
 
-        tableView.verticalHeader().setMinimumSectionSize(10)
-        tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+        self.watchListTableView.verticalHeader().setMinimumSectionSize(10)
+        self.watchListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
 
     def refreshHistoryList(self):
         if os.path.exists(self.historyListSmdbFile):
@@ -1408,37 +1401,33 @@ class MyWindow(QtWidgets.QMainWindow):
         self.historyListTableProxyModel = QtCore.QSortFilterProxyModel()
         self.historyListTableProxyModel.setSourceModel(self.historyListTableModel)
 
-        tableView = self.historyListTableView
-        tableModel = self.historyListTableModel
-        proxyModel = self.historyListTableProxyModel
-
         # Sort the history list by rankl
-        proxyModel.sort(tableModel.Columns.Rank.value)
+        self.historyListTableProxyModel.sort(self.historyListTableModel.Columns.Rank.value)
 
-        tableView.setModel(proxyModel)
-        tableView.selectionModel().selectionChanged.connect(lambda: self.tableSelectionChanged(tableView, tableModel, proxyModel))
-        tableView.doubleClicked.connect(lambda: self.playMovie(tableView, proxyModel))
-        proxyModel.setDynamicSortFilter(False)
-        tableView.setWordWrap(False)
+        self.historyListTableView.setModel(self.historyListTableProxyModel)
+        self.historyListTableView.selectionModel().selectionChanged.connect(lambda: self.tableSelectionChanged(self.historyListTableView, self.historyListTableModel, self.historyListTableProxyModel))
+        self.historyListTableView.doubleClicked.connect(lambda: self.playMovie(self.historyListTableView, self.historyListTableProxyModel))
+        self.historyListTableProxyModel.setDynamicSortFilter(False)
+        self.historyListTableView.setWordWrap(False)
 
         self.historyListColumnsVisible = []
-        for col in tableModel.Columns:
-            tableView.setColumnWidth(col.value, tableModel.defaultWidths[col])
+        for col in self.historyListTableModel.Columns:
+            self.historyListTableView.setColumnWidth(col.value, self.historyListTableModel.defaultWidths[col])
             self.historyListColumnsVisible.append(True)
 
-        columnsToShow = [tableModel.Columns.Year,
-                         tableModel.Columns.Title,
-                         tableModel.Columns.Rating]
+        columnsToShow = [self.historyListTableModel.Columns.Year,
+                         self.historyListTableModel.Columns.Title,
+                         self.historyListTableModel.Columns.Rating]
 
-        for c in tableModel.Columns:
+        for c in self.historyListTableModel.Columns:
             index = c.value
             self.historyListColumnsVisible[index] = True
             if c not in columnsToShow:
-                tableView.hideColumn(index)
+                self.historyListTableView.hideColumn(index)
                 self.historyListColumnsVisible[index] = False
 
-        tableView.verticalHeader().setMinimumSectionSize(10)
-        tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+        self.historyListTableView.verticalHeader().setMinimumSectionSize(10)
+        self.historyListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
 
     def refreshBackupList(self):
         self.backupListTableModel = MoviesTableModel(None,
@@ -1448,38 +1437,34 @@ class MyWindow(QtWidgets.QMainWindow):
         self.backupListTableProxyModel = QtCore.QSortFilterProxyModel()
         self.backupListTableProxyModel.setSourceModel(self.backupListTableModel)
 
-        tableView = self.backupListTableView
-        tableModel = self.backupListTableModel
-        proxyModel = self.backupListTableProxyModel
-
         # Sort the watch list by rankl
-        proxyModel.sort(tableModel.Columns.Rank.value)
+        self.backupListTableProxyModel.sort(self.backupListTableModel.Columns.Rank.value)
 
-        tableView.setModel(proxyModel)
-        tableView.selectionModel().selectionChanged.connect(lambda: self.tableSelectionChanged(tableView, tableModel, proxyModel))
-        tableView.doubleClicked.connect(lambda: self.playMovie(tableView, proxyModel))
-        proxyModel.setDynamicSortFilter(False)
-        tableView.setWordWrap(False)
+        self.backupListTableView.setModel(self.backupListTableProxyModel)
+        self.backupListTableView.selectionModel().selectionChanged.connect(lambda: self.tableSelectionChanged(self.backupListTableView, self.backupListTableModel, self.backupListTableProxyModel))
+        self.backupListTableView.doubleClicked.connect(lambda: self.playMovie(self.backupListTableView, self.backupListTableProxyModel))
+        self.backupListTableProxyModel.setDynamicSortFilter(False)
+        self.backupListTableView.setWordWrap(False)
 
         self.backupListColumnsVisible = []
-        for col in tableModel.Columns:
-            tableView.setColumnWidth(col.value, tableModel.defaultWidths[col])
+        for col in self.backupListTableModel.Columns:
+            self.backupListTableView.setColumnWidth(col.value, self.backupListTableModel.defaultWidths[col])
             self.backupListColumnsVisible.append(True)
 
-        columnsToShow = [tableModel.Columns.Title,
-                         tableModel.Columns.Path,
-                         tableModel.Columns.BackupStatus,
-                         tableModel.Columns.Size]
+        columnsToShow = [self.backupListTableModel.Columns.Title,
+                         self.backupListTableModel.Columns.Path,
+                         self.backupListTableModel.Columns.BackupStatus,
+                         self.backupListTableModel.Columns.Size]
 
-        for c in tableModel.Columns:
+        for c in self.backupListTableModel.Columns:
             index = c.value
             self.backupListColumnsVisible[index] = True
             if c not in columnsToShow:
-                tableView.hideColumn(index)
+                self.backupListTableView.hideColumn(index)
                 self.backupListColumnsVisible[index] = False
 
-        tableView.verticalHeader().setMinimumSectionSize(10)
-        tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+        self.backupListTableView.verticalHeader().setMinimumSectionSize(10)
+        self.backupListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
 
     def preferences(self):
         pass
