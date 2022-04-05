@@ -868,18 +868,16 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Back button
         backButton = QtWidgets.QPushButton("Back")
-        backButton.setFixedSize(70, 20)
-        backButton.setSizePolicy(QtWidgets.QSizePolicy.Fixed,
-                                 QtWidgets.QSizePolicy.Maximum)
+        backButton.setSizePolicy(QtWidgets.QSizePolicy.Minimum,
+                                 QtWidgets.QSizePolicy.Minimum)
         backButton.clicked.connect(self.moviesTableBack)
         backButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px;")
         backForwardHLayout.addWidget(backButton)
 
         # Forward button
         forwardButton = QtWidgets.QPushButton("Forward")
-        forwardButton.setFixedSize(70, 20)
-        forwardButton.setSizePolicy(QtWidgets.QSizePolicy.Fixed,
-                                 QtWidgets.QSizePolicy.Maximum)
+        forwardButton.setSizePolicy(QtWidgets.QSizePolicy.Minimum,
+                                    QtWidgets.QSizePolicy.Minimum)
         forwardButton.clicked.connect(self.moviesTableForward)
         forwardButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
         backForwardHLayout.addWidget(forwardButton)
@@ -889,18 +887,16 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Pick random button
         pickRandomButton = QtWidgets.QPushButton("Random")
-        pickRandomButton.setFixedSize(70, 20)
-        pickRandomButton.setSizePolicy(QtWidgets.QSizePolicy.Fixed,
-                                       QtWidgets.QSizePolicy.Maximum)
+        pickRandomButton.setSizePolicy(QtWidgets.QSizePolicy.Minimum,
+                                       QtWidgets.QSizePolicy.Minimum)
         pickRandomButton.clicked.connect(self.pickRandomMovie)
         pickRandomButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
         randomAllHLayout.addWidget(pickRandomButton)
 
         # Show all button
         showAllButton = QtWidgets.QPushButton("Show All")
-        showAllButton.setFixedSize(70, 20)
-        showAllButton.setSizePolicy(QtWidgets.QSizePolicy.Fixed,
-                                    QtWidgets.QSizePolicy.Maximum)
+        showAllButton.setSizePolicy(QtWidgets.QSizePolicy.Minimum,
+                                    QtWidgets.QSizePolicy.Minimum)
         showAllButton.clicked.connect(self.showAllMoviesTableView)
         showAllButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
         randomAllHLayout.addWidget(showAllButton)
@@ -918,8 +914,8 @@ class MyWindow(QtWidgets.QMainWindow):
         moviesTableFilterHLayout.addWidget(titleFilterText)
 
         self.moviesTableTitleFilterBox.setStyleSheet("background: black; color: white; border-radius: 5px")
-        self.moviesTableTitleFilterBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored,
-                                                QtWidgets.QSizePolicy.Maximum)
+        self.moviesTableTitleFilterBox.setSizePolicy(QtWidgets.QSizePolicy.Minimum,
+                                                     QtWidgets.QSizePolicy.Minimum)
         self.moviesTableTitleFilterBox.setClearButtonEnabled(True)
         self.moviesTableTitleFilterBox.textChanged.connect(self.searchMoviesTableView)
         moviesTableFilterHLayout.addWidget(self.moviesTableTitleFilterBox)
@@ -930,15 +926,18 @@ class MyWindow(QtWidgets.QMainWindow):
 
         searchPlotsText = QtWidgets.QLabel("Search Plots")
         searchPlotsText.setSizePolicy(QtWidgets.QSizePolicy.Maximum,
-                                 QtWidgets.QSizePolicy.Maximum)
+                                      QtWidgets.QSizePolicy.Maximum)
         moviesTableSearchPlotsHLayout.addWidget(searchPlotsText)
 
         self.moviesTableSearchPlotsBox.setStyleSheet("background: black; color: white; border-radius: 5px")
-        self.moviesTableSearchPlotsBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored,
-                                                QtWidgets.QSizePolicy.Maximum)
+        self.moviesTableSearchPlotsBox.setSizePolicy(QtWidgets.QSizePolicy.Minimum,
+                                                     QtWidgets.QSizePolicy.Minimum)
         self.moviesTableSearchPlotsBox.setClearButtonEnabled(True)
         self.moviesTableSearchPlotsBox.returnPressed.connect(self.searchPlots)
         moviesTableSearchPlotsHLayout.addWidget(self.moviesTableSearchPlotsBox)
+
+        moviesTableSearchHLayout.setStretch(0, 3)
+        moviesTableSearchHLayout.setStretch(1, 10)
 
     def initUIWatchList(self):
         self.watchListWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
