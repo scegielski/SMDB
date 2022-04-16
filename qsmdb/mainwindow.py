@@ -375,7 +375,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         delta = min(1, max(-1, delta))
         self.fontSize = max(6, min(29, self.fontSize + delta))
-        self.setStyleSheet(f"background: black; color white; border-radius: 5px; font-size:{self.fontSize}px;")
+        self.setStyleSheet(f"font-size:{self.fontSize}px;")
         self.titleLabel.setStyleSheet(f"color: white; background: black; font-size: {self.fontSize * 2}px;")
         self.rowHeightWithoutCover = 18 * (self.fontSize / 12)
 
@@ -416,7 +416,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Set default font size and foreground/background colors for item views
         self.fontSize = 12
-        self.setStyleSheet(f"background: black; color white; border-radius: 5px; font-size:{self.fontSize}px;")
+        self.setStyleSheet(f"font-size:{self.fontSize}px;")
         self.menuBar().setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 0px;")
         self.statusBar().setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 0px;")
 
