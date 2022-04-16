@@ -42,6 +42,7 @@ from pymediainfo import MediaInfo
 
 from .utilities import *
 from .moviemodel import MoviesTableModel
+from .moviemodel import Columns
 from .CoverGLWidget import CoverGLWidget
 
 def handleRemoveReadonly(func, path, exc_info):
@@ -1297,10 +1298,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.moviesTableProxyModel = QtCore.QSortFilterProxyModel()
         self.moviesTableProxyModel.setSourceModel(self.moviesTableModel)
-
         self.moviesTableView.setModel(self.moviesTableProxyModel)
-
-        # If forScan, sort by exists otherwise year
         self.moviesTableProxyModel.sort(self.moviesTableModel.Columns.Year.value)
 
         try:
@@ -1314,7 +1312,6 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Don't sort the table when the data changes
         self.moviesTableProxyModel.setDynamicSortFilter(False)
-
         self.moviesTableView.setWordWrap(False)
 
         if forceScan:
@@ -1349,47 +1346,66 @@ class MyWindow(QtWidgets.QMainWindow):
         self.showMoviesTableSelectionStatus()
         self.pickRandomMovie()
 
-    def refreshWatchList(self):
-        if os.path.exists(self.watchListSmdbFile):
-            self.watchListSmdbData = readSmdbFile(self.watchListSmdbFile)
-        self.watchListTableModel = MoviesTableModel(self.watchListSmdbData,
-                                                    [self.moviesFolder],
-                                                    False,  # force scan
-                                                    True)  # don't scan the movies folder for the watch list
-        self.watchListTableProxyModel = QtCore.QSortFilterProxyModel()
-        self.watchListTableProxyModel.setSourceModel(self.watchListTableModel)
+    def refreshTable(self, smdbFile, tableView):
 
-        # Sort the watch list by rank
-        self.watchListTableProxyModel.sort(self.watchListTableModel.Columns.Rank.value)
+        if os.path.exists(smdbFile):
+            smdbData = readSmdbFile(smdbFile)
+        model = MoviesTableModel(smdbData,
+                                 [self.moviesFolder],
+                                 False,  # force scan
+                                 True)  # don't scan the movies folder
 
-        self.watchListTableView.setModel(self.watchListTableProxyModel)
-        self.watchListTableView.selectionModel().selectionChanged.connect(lambda: self.tableSelectionChanged(self.watchListTableView, self.watchListTableModel, self.watchListTableProxyModel))
-        self.watchListTableView.doubleClicked.connect(lambda: self.playMovie(self.watchListTableView, self.watchListTableProxyModel))
-        self.watchListTableProxyModel.setDynamicSortFilter(False)
-        self.watchListTableView.setWordWrap(False)
+        proxyModel = QtCore.QSortFilterProxyModel()
+        proxyModel.setSourceModel(model)
+        tableView.setModel(proxyModel)
+        proxyModel.sort(model.Columns.Rank.value)
 
-        self.watchListColumnsVisible = []
-        for col in self.watchListTableModel.Columns:
-            self.watchListTableView.setColumnWidth(col.value, self.watchListTableModel.defaultWidths[col])
-            self.watchListColumnsVisible.append(True)
+        tableView.selectionModel().selectionChanged.connect(lambda: self.tableSelectionChanged(tableView, model, proxyModel))
 
-        columnsToShow = [self.watchListTableModel.Columns.Rank,
-                         self.watchListTableModel.Columns.Year,
-                         self.watchListTableModel.Columns.Title,
-                         self.watchListTableModel.Columns.Rating]
+        tableView.doubleClicked.connect(
+            lambda: self.playMovie(tableView,
+                                   proxyModel))
 
-        for c in self.watchListTableModel.Columns:
+        proxyModel.setDynamicSortFilter(False)
+        tableView.setWordWrap(False)
+
+        columnsVisible = []
+        for col in model.Columns:
+            tableView.setColumnWidth(col.value, model.defaultWidths[col])
+            columnsVisible.append(True)
+
+        columnsToShow = [Columns.Rank.value,
+                         Columns.Year.value,
+                         Columns.Title.value,
+                         Columns.Rating.value]
+
+        for c in columnsToShow:
+            print(f"c = {c}")
+
+        for c in model.Columns:
             index = c.value
-            self.watchListColumnsVisible[index] = True
-            if c not in columnsToShow:
-                self.watchListTableView.hideColumn(index)
-                self.watchListColumnsVisible[index] = False
+            columnsVisible[index] = True
+            if index not in columnsToShow:
+                tableView.hideColumn(index)
+                columnsVisible[index] = False
+            else:
+                print(f"Showing column {c} with index {index}")
 
-        # Set rank as the first column
-        self.watchListTableView.horizontalHeader().moveSection(self.watchListTableModel.Columns.Rank.value, 0)
+        tableView.horizontalHeader().moveSection(model.Columns.Rank.value, 0)
 
-        self.watchListTableView.verticalHeader().setMinimumSectionSize(10)
-        self.watchListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+        tableView.verticalHeader().setMinimumSectionSize(10)
+        tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+
+        return (smdbData, model, proxyModel, columnsVisible)
+
+    def refreshWatchList(self):
+        (self.watchListSmdbData,
+         self.watchListTableModel,
+         self.watchListTableProxyModel,
+         self.watchListColumnsVisible) = self.refreshTable(self.watchListSmdbFile,
+                                                           self.watchListTableView)
+
+
 
     def refreshHistoryList(self):
         if os.path.exists(self.historyListSmdbFile):
@@ -2376,7 +2392,11 @@ class MyWindow(QtWidgets.QMainWindow):
 
             summary = self.getPlot(jsonData)
 
-            if not plotsRegex.match(summary) and not plotsRegex.match(title):
+            try:
+                if not plotsRegex.match(summary) and not plotsRegex.match(title):
+                    self.moviesTableView.hideRow(proxyRow)
+            except TypeError:
+                print(f"TypeError when searching plot for movie: {title}")
                 self.moviesTableView.hideRow(proxyRow)
 
             progress += 1

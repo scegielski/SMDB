@@ -8,6 +8,31 @@ from PyQt5 import QtGui, QtCore
 from .utilities import *
 
 
+class Columns(Enum):
+    Cover = 0
+    Year = 1
+    Title = 2
+    Rating = 3
+    MpaaRating = 4
+    BoxOffice = 5
+    Runtime = 6
+    Directors = 7
+    Countries = 8
+    Companies = 9
+    Genres = 10
+    UserTags = 11
+    Id = 12
+    Folder = 13
+    Path = 14
+    JsonExists = 15
+    Rank = 16
+    BackupStatus = 17
+    Duplicate = 18
+    Width = 19
+    Height = 20
+    Size = 21
+    DateModified = 22
+
 class MoviesTableModel(QtCore.QAbstractTableModel):
     emitCoverSignal = QtCore.pyqtSignal(int)
 
