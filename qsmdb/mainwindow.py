@@ -3896,7 +3896,10 @@ class MyWindow(QtWidgets.QMainWindow):
     def openMovieImdbPage(self):
         sourceRow = self.getSelectedRow()
         movieId = self.moviesTableModel.getId(sourceRow)
-        webbrowser.open('http://imdb.com/title/tt%s' % movieId, new=2)
+        if 'http://' in movieId or 'https://' in movieId:
+            webbrowser.open(movieId, new=2)
+        else:
+            webbrowser.open('http://imdb.com/title/tt%s' % movieId, new=2)
 
     def downloadSubtitles(self):
         sourceRow = self.getSelectedRow()
