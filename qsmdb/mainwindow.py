@@ -511,10 +511,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.watchListHeaderActions = []
         self.initUIWatchList()
         self.moviesWatchListBackupVSplitter.addWidget(self.watchListWidget)
-        print(f"self.showWatchList = {self.showWatchList}")
-        if not self.showWatchList:
-            print("Hiding watch list")
-            self.watchListWidget.hide()
 
         # Backup List
         self.backupAnalysed = False
@@ -1310,16 +1306,20 @@ class MyWindow(QtWidgets.QMainWindow):
         tableView.setModel(proxyModel)
         proxyModel.sort(sortColumn)
 
-        # TODO why is this needed?
-        try:
-            tableView.doubleClicked.disconnect()
-        except Exception:
-            pass
-
         tableView.selectionModel().selectionChanged.connect(
             lambda: self.tableSelectionChanged(tableView,
                                                model,
                                                proxyModel))
+
+        # Not sure why this is needed but if we don't
+        # disconnect before reconnecting then multiple
+        # movies play when a movie is double clicked.
+        # Also not sure why an exception is needed but
+        # it might be when no connection exists already.
+        try:
+            tableView.doubleClicked.disconnect()
+        except TypeError:
+            pass
 
         tableView.doubleClicked.connect(
             lambda: self.playMovie(tableView,
@@ -1327,10 +1327,6 @@ class MyWindow(QtWidgets.QMainWindow):
 
         proxyModel.setDynamicSortFilter(False)
         tableView.setWordWrap(False)
-
-        # TODO why do we need this?
-        #if forceScan:
-        #    return
 
         columnsVisible = []
         for col in Columns:
