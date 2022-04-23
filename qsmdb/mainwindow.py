@@ -593,7 +593,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableModel = None
         self.moviesTableProxyModel = None
 
-        self.rescanMovieDirectories()
+        self.refreshMoviesList()
 
         self.primaryFilterWidget.moviesSmdbData = self.moviesSmdbData
         self.primaryFilterWidget.db = self.db
@@ -667,7 +667,7 @@ class MyWindow(QtWidgets.QMainWindow):
         fileMenu.addAction(clearAdditionalMoviesFolderAction)
 
         rescanAction = QtWidgets.QAction("Rescan movie folders", self)
-        rescanAction.triggered.connect(lambda: self.rescanMovieDirectories(forceScan=True))
+        rescanAction.triggered.connect(lambda: self.refreshMoviesList(forceScan=True))
         fileMenu.addAction(rescanAction)
 
         rebuildSmdbFileAction = QtWidgets.QAction("Rebuild SMDB file", self)
@@ -1279,88 +1279,42 @@ class MyWindow(QtWidgets.QMainWindow):
 
         movieVLayout.addWidget(self.movieCover)
 
-    def rescanMovieDirectories(self, forceScan=False):
-        moviesFolders = [self.moviesFolder]
-        moviesFolders += self.additionalMoviesFolders
-        if os.path.exists(self.moviesSmdbFile):
-            self.moviesSmdbData = readSmdbFile(self.moviesSmdbFile)
-            self.moviesTableModel = MoviesTableModel(self.moviesSmdbData,
-                                                     moviesFolders,
-                                                     forceScan)
-        else:
-            self.moviesTableModel = MoviesTableModel(self.moviesSmdbData,
-                                                     moviesFolders,
-                                                     True)  # Force scan if no smdb file
-            # Generate smdb data from movies table model and write
-            # out smdb file
-            self.moviesSmdbData = self.writeSmdbFile(self.moviesSmdbFile,
-                                                     self.moviesTableModel)
+    def refreshTable(self,
+                     smdbFile,
+                     tableView,
+                     columnsToShow,
+                     sortColumn,
+                     forceScan=False,
+                     neverScan=True):
 
-        self.moviesTableProxyModel = QtCore.QSortFilterProxyModel()
-        self.moviesTableProxyModel.setSourceModel(self.moviesTableModel)
-        self.moviesTableView.setModel(self.moviesTableProxyModel)
-        self.moviesTableProxyModel.sort(self.moviesTableModel.Columns.Year.value)
-
-        try:
-            self.moviesTableView.doubleClicked.disconnect()
-        except Exception:
-            pass
-
-        self.moviesTableView.selectionModel().selectionChanged.connect(self.moviesTableSelectionChanged)
-        self.moviesTableView.clicked.connect(self.clickedMovieTable)
-        self.moviesTableView.doubleClicked.connect(lambda: self.playMovie(self.moviesTableView, self.moviesTableProxyModel))
-
-        # Don't sort the table when the data changes
-        self.moviesTableProxyModel.setDynamicSortFilter(False)
-        self.moviesTableView.setWordWrap(False)
-
-        if forceScan:
-            return
-
-        # Set the column widths
-        self.moviesTableColumnsVisible = []
-        for col in Columns:
-            self.moviesTableView.setColumnWidth(col.value, self.moviesTableModel.defaultWidths[col.value])
-            self.moviesTableColumnsVisible.append(True)
-
-        columnsToShow = [Columns.Year,
-                         Columns.Title,
-                         Columns.Rating,
-                         Columns.MpaaRating,
-                         Columns.Width,
-                         Columns.Height,
-                         Columns.Size]
-
-        for c in Columns:
-            index = c.value
-            self.moviesTableColumnsVisible[index] = True
-            if c not in columnsToShow:
-                self.moviesTableView.hideColumn(index)
-                self.moviesTableColumnsVisible[index] = False
-
-        # Make the row height smaller
-        self.moviesTableView.verticalHeader().setMinimumSectionSize(10)
-        self.moviesTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
-
-        self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
-        self.showMoviesTableSelectionStatus()
-        self.pickRandomMovie()
-
-    def refreshTable(self, smdbFile, tableView, columnsToShow, sortColumn):
-        smdbData = None
+        smdbData = dict()
         if os.path.exists(smdbFile):
             smdbData = readSmdbFile(smdbFile)
-            print(f"read smdbData for file: {smdbFile}")
+        else:
+            forceScan = True
 
+        moviesFolders = [self.moviesFolder]
+        moviesFolders += self.additionalMoviesFolders
         model = MoviesTableModel(smdbData,
-                                 [self.moviesFolder],
-                                 False,  # force scan
-                                 True)  # don't scan the movies folder
+                                 moviesFolders,
+                                 forceScan,
+                                 neverScan)
+
+        # If there is no smdb file and neverScan is False (as it
+        # is for the main movie list) then write a new smdb file
+        if not os.path.exists(smdbFile) and not neverScan:
+            smdbData = self.writeSmdbFile(smdbFile, model)
 
         proxyModel = QtCore.QSortFilterProxyModel()
         proxyModel.setSourceModel(model)
         tableView.setModel(proxyModel)
         proxyModel.sort(sortColumn)
+
+        # TODO why is this needed?
+        try:
+            tableView.doubleClicked.disconnect()
+        except Exception:
+            pass
 
         tableView.selectionModel().selectionChanged.connect(
             lambda: self.tableSelectionChanged(tableView,
@@ -1373,6 +1327,10 @@ class MyWindow(QtWidgets.QMainWindow):
 
         proxyModel.setDynamicSortFilter(False)
         tableView.setWordWrap(False)
+
+        # TODO why do we need this?
+        #if forceScan:
+        #    return
 
         columnsVisible = []
         for col in Columns:
@@ -1391,7 +1349,31 @@ class MyWindow(QtWidgets.QMainWindow):
         tableView.verticalHeader().setMinimumSectionSize(10)
         tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
 
-        return smdbData, model, proxyModel, columnsVisible
+        return smdbData, model, proxyModel, columnsVisible, smdbData
+
+    def refreshMoviesList(self, forceScan=False):
+        columnsToShow = [Columns.Year.value,
+                         Columns.Title.value,
+                         Columns.Rating.value,
+                         Columns.MpaaRating.value,
+                         Columns.Width.value,
+                         Columns.Height.value,
+                         Columns.Size.value]
+
+        (self.moviesSmdbData,
+         self.moviesTableModel,
+         self.moviesTableProxyModel,
+         self.moviesTableColumnsVisible,
+         self.moviesSmdbData) = self.refreshTable(self.moviesSmdbFile,
+                                                  self.moviesTableView,
+                                                  columnsToShow,
+                                                  Columns.Year.value,
+                                                  forceScan,
+                                                  neverScan=False)
+
+        self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
+        self.showMoviesTableSelectionStatus()
+        self.pickRandomMovie()
 
     def refreshWatchList(self):
         columnsToShow = [Columns.Rank.value,
@@ -1402,10 +1384,11 @@ class MyWindow(QtWidgets.QMainWindow):
         (self.watchListSmdbData,
          self.watchListTableModel,
          self.watchListTableProxyModel,
-         self.watchListColumnsVisible) = self.refreshTable(self.watchListSmdbFile,
-                                                           self.watchListTableView,
-                                                           columnsToShow,
-                                                           Columns.Rank.value)
+         self.watchListColumnsVisible,
+         smdbData) = self.refreshTable(self.watchListSmdbFile,
+                                       self.watchListTableView,
+                                       columnsToShow,
+                                       Columns.Rank.value)
 
     def refreshHistoryList(self):
         columnsToShow = [Columns.Year.value,
@@ -1415,10 +1398,11 @@ class MyWindow(QtWidgets.QMainWindow):
         (self.historyListSmdbData,
          self.historyListTableModel,
          self.historyListTableProxyModel,
-         self.historyListColumnsVisible) = self.refreshTable(self.historyListSmdbFile,
-                                                             self.historyListTableView,
-                                                             columnsToShow,
-                                                             Columns.Rank.value)
+         self.historyListColumnsVisible,
+         smdbData) = self.refreshTable(self.historyListSmdbFile,
+                                       self.historyListTableView,
+                                       columnsToShow,
+                                       Columns.Rank.value)
 
     def refreshBackupList(self):
         columnsToShow = [Columns.Title.value,
@@ -1429,10 +1413,11 @@ class MyWindow(QtWidgets.QMainWindow):
         (self.backupListSmdbData,
          self.backupListTableModel,
          self.backupListTableProxyModel,
-         self.backupListColumnsVisible) = self.refreshTable(self.backupListSmdbFile,
-                                                            self.backupListTableView,
-                                                            columnsToShow,
-                                                            Columns.Rank.value)
+         self.backupListColumnsVisible,
+         smdbData) = self.refreshTable(self.backupListSmdbFile,
+                                       self.backupListTableView,
+                                       columnsToShow,
+                                       Columns.Rank.value)
 
     def preferences(self):
         pass
@@ -1581,7 +1566,7 @@ class MyWindow(QtWidgets.QMainWindow):
             print("Saved: moviesFolder = %s" % self.moviesFolder)
             self.moviesSmdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
             readSmdbFile(self.moviesSmdbFile)
-            self.rescanMovieDirectories()
+            self.refreshMoviesList()
 
     def browseAdditionalMoviesFolder(self):
         browseDir = str(Path.home())
@@ -1609,7 +1594,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.settings.remove('movies_folder')
         self.moviesFolder = "No movies folder set.  Use the \"File->Set movies folder\" menu to set it."
         self.setTitleBar()
-        self.rescanMovieDirectories()
+        self.refreshMoviesList()
 
     def backupBrowseFolder(self):
         browseDir = str(Path.home())
@@ -2188,9 +2173,6 @@ class MyWindow(QtWidgets.QMainWindow):
             #self.moviesTableView.selectRow(currentRow)
             self.emitCover(currentRow, direction)
 
-    def clickedMovieTable(self):
-        pass
-
     def emitCover(self, row, direction):
         self.coverRowHistory.append(row)
         #modelIndex = self.moviesTableView.selectionModel().selectedRows()[0]
@@ -2206,8 +2188,8 @@ class MyWindow(QtWidgets.QMainWindow):
                 coverFile = coverFilePng
         self.openGlWidget.emitCover(row, coverFile, direction)
 
-    def moviesTableSelectionChanged(self):
-        if (self.modifySelectionHistory):
+    def tableSelectionChanged(self, table, model, proxyModel):
+        if self.modifySelectionHistory:
             selectedRows = [r.row() for r in self.moviesTableView.selectionModel().selectedRows()]
             if len(selectedRows) != 0:
                 # Delete everything after the selectionHistoryIndex
@@ -2215,11 +2197,6 @@ class MyWindow(QtWidgets.QMainWindow):
                 self.selectionHistory.append(selectedRows)
                 self.selectionHistoryIndex = len(self.selectionHistory) - 1
 
-        self.tableSelectionChanged(self.moviesTableView,
-                                   self.moviesTableModel,
-                                   self.moviesTableProxyModel)
-
-    def tableSelectionChanged(self, table, model, proxyModel):
         self.showMoviesTableSelectionStatus()
         numSelected = len(table.selectionModel().selectedRows())
         if numSelected == 1:
