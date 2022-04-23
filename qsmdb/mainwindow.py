@@ -528,14 +528,22 @@ class MyWindow(QtWidgets.QMainWindow):
                                           Columns.Width.value,
                                           Columns.Height.value,
                                           Columns.Size.value]
-        self.moviesTableColumns = self.settings.value('moviesTableColumns',
-                                                      self.moviesTableDefaultColumns,
-                                                      type=list)
-        self.moviesTableColumns = [int(m) for m in self.moviesTableColumns]
-        self.moviesTableColumnWidths = self.settings.value('moviesTableColumnWidths',
-                                                           defaultColumnWidths,
-                                                           type=list)
-        self.moviesTableColumnWidths = [int(m) for m in self.moviesTableColumnWidths]
+        try:
+            self.moviesTableColumns = self.settings.value('moviesTableColumns',
+                                                          self.moviesTableDefaultColumns,
+                                                          type=list)
+            self.moviesTableColumns = [int(m) for m in self.moviesTableColumns]
+        except TypeError:
+            self.moviesTableColumns = self.moviesTableDefaultColumns
+
+        try:
+            self.moviesTableColumnWidths = self.settings.value('moviesTableColumnWidths',
+                                                               defaultColumnWidths,
+                                                               type=list)
+            self.moviesTableColumnWidths = [int(m) for m in self.moviesTableColumnWidths]
+        except TypeError:
+            self.moviesTableColumnWidths = defaultColumnWidths
+
         self.moviesTableView.wheelSpun.connect(self.changeFontSize)
         self.moviesTableTitleFilterBox = QtWidgets.QLineEdit()
         self.moviesTableSearchPlotsBox = QtWidgets.QLineEdit()
@@ -549,6 +557,27 @@ class MyWindow(QtWidgets.QMainWindow):
         # Watch List
         self.watchListWidget = QtWidgets.QFrame()
         self.watchListTableView = MovieTableView()
+        self.watchListDefaultColumns = [Columns.Rank.value,
+                                        Columns.Year.value,
+                                        Columns.Title.value,
+                                        Columns.Rating.value]
+
+        try:
+            self.watchListColumns = self.settings.value('watchListTableColumns',
+                                                        self.watchListDefaultColumns,
+                                                        type=list)
+            self.watchListColumns = [int(m) for m in self.watchListColumns]
+        except TypeError:
+            self.watchListColumns = self.watchListDefaultColumns
+
+        try:
+            self.watchListColumnWidths = self.settings.value('watchListTableColumnWidths',
+                                                             defaultColumnWidths,
+                                                             type=list)
+            self.watchListColumnWidths = [int(m) for m in self.watchListColumnWidths]
+        except TypeError:
+            self.watchListColumnWidths = defaultColumnWidths
+
         self.watchListTableView.wheelSpun.connect(self.changeFontSize)
         self.watchListColumnsVisible = []
         self.watchListHeaderActions = []
@@ -561,6 +590,28 @@ class MyWindow(QtWidgets.QMainWindow):
         self.backupAnalysed = False
         self.backupListWidget = QtWidgets.QFrame()
         self.backupListTableView = MovieTableView()
+
+        self.backupListDefaultColumns = [Columns.Title.value,
+                                         Columns.Path.value,
+                                         Columns.BackupStatus.value,
+                                         Columns.Size.value]
+
+        try:
+            self.backupListColumns = self.settings.value('backupListTableColumns',
+                                                         self.backupListDefaultColumns,
+                                                         type=list)
+            self.backupListColumns = [int(m) for m in self.backupListColumns]
+        except TypeError:
+            self.backupListColumns = self.backupListDefaultColumns
+
+        try:
+            self.backupListColumnWidths = self.settings.value('backupListTableColumnWidths',
+                                                              defaultColumnWidths,
+                                                              type=list)
+            self.backupListColumnWidths = [int(m) for m in self.backupListColumnWidths]
+        except TypeError:
+            self.backupListColumnWidths = defaultColumnWidths
+
         self.backupListTableView.wheelSpun.connect(self.changeFontSize)
         self.spaceBarLayout = QtWidgets.QHBoxLayout()
         self.spaceUsedWidget = QtWidgets.QWidget()
@@ -586,6 +637,27 @@ class MyWindow(QtWidgets.QMainWindow):
         # History List
         self.historyListWidget = QtWidgets.QFrame()
         self.historyListTableView = MovieTableView()
+
+        self.historyListDefaultColumns = [Columns.Year.value,
+                                          Columns.Title.value,
+                                          Columns.Rating.value]
+
+        try:
+            self.historyListColumns = self.settings.value('historyListTableColumns',
+                                                         self.historyListDefaultColumns,
+                                                         type=list)
+            self.historyListColumns = [int(m) for m in self.historyListColumns]
+        except TypeError:
+            self.historyListColumns = self.historyListDefaultColumns
+
+        try:
+            self.historyListColumnWidths = self.settings.value('historyListTableColumnWidths',
+                                                              defaultColumnWidths,
+                                                              type=list)
+            self.historyListColumnWidths = [int(m) for m in self.historyListColumnWidths]
+        except TypeError:
+            self.historyListColumnWidths = defaultColumnWidths
+
         self.historyListTableView.wheelSpun.connect(self.changeFontSize)
         self.historyListColumnsVisible = []
         self.historyListHeaderActions = []
@@ -689,24 +761,31 @@ class MyWindow(QtWidgets.QMainWindow):
         self.settings.setValue('showBackupList', self.showBackupList)
         self.settings.setValue('fontSize', self.fontSize)
 
-        visibleColumns = list()
-        for i, c in enumerate(self.moviesTableColumnsVisible):
-            if c:
-                visibleColumns.append(i)
-        self.settings.setValue('moviesTableColumns', visibleColumns)
-
-        columnWidths = list()
-        for i in range(len(defaultColumnWidths)):
-            width = self.moviesTableView.columnWidth(i)
-            if width == 0:
-                width = defaultColumnWidths[i]
-            columnWidths.append(width)
-        self.settings.setValue('moviesTableColumnWidths', columnWidths)
+        self.saveTableColumns('moviesTable', self.moviesTableView, self.moviesTableColumnsVisible)
+        self.saveTableColumns('watchListTable', self.watchListTableView, self.watchListColumnsVisible)
+        self.saveTableColumns('historyListTable', self.historyListTableView, self.historyListColumnsVisible)
+        self.saveTableColumns('backupListTable', self.backupListTableView, self.backupListColumnsVisible)
 
         self.settings.setValue('primaryFilterColumn0Width', self.primaryFilterWidget.filterTable.columnWidth(0))
         self.settings.setValue('primaryFilterColumn1Width', self.primaryFilterWidget.filterTable.columnWidth(1))
         self.settings.setValue('secondaryFilterColumn0Width', self.secondaryFilterWidget.filterTable.columnWidth(0))
         self.settings.setValue('secondaryFilterColumn1Width', self.secondaryFilterWidget.filterTable.columnWidth(1))
+
+    def saveTableColumns(self, saveName, tableView, columnsVisible):
+        visibleColumns = list()
+        for i, c in enumerate(columnsVisible):
+            if c:
+                visibleColumns.append(i)
+        self.settings.setValue(f'{saveName}Columns', visibleColumns)
+
+        columnWidths = list()
+        for i in range(len(defaultColumnWidths)):
+            width = tableView.columnWidth(i)
+            if width == 0:
+                width = defaultColumnWidths[i]
+            columnWidths.append(width)
+        self.settings.setValue(f'{saveName}ColumnWidths', columnWidths)
+
 
     def initUIFileMenu(self):
         menuBar = self.menuBar()
@@ -1431,50 +1510,36 @@ class MyWindow(QtWidgets.QMainWindow):
         self.pickRandomMovie()
 
     def refreshWatchList(self):
-        columnsToShow = [Columns.Rank.value,
-                         Columns.Year.value,
-                         Columns.Title.value,
-                         Columns.Rating.value]
-
         (self.watchListSmdbData,
          self.watchListTableModel,
          self.watchListTableProxyModel,
          self.watchListColumnsVisible,
          smdbData) = self.refreshTable(self.watchListSmdbFile,
                                        self.watchListTableView,
-                                       columnsToShow,
-                                       defaultColumnWidths,
+                                       self.watchListColumns,
+                                       self.watchListColumnWidths,
                                        Columns.Rank.value)
 
     def refreshHistoryList(self):
-        columnsToShow = [Columns.Year.value,
-                         Columns.Title.value,
-                         Columns.Rating.value]
-
         (self.historyListSmdbData,
          self.historyListTableModel,
          self.historyListTableProxyModel,
          self.historyListColumnsVisible,
          smdbData) = self.refreshTable(self.historyListSmdbFile,
                                        self.historyListTableView,
-                                       columnsToShow,
-                                       defaultColumnWidths,
+                                       self.historyListColumns,
+                                       self.historyListColumnWidths,
                                        Columns.Rank.value)
 
     def refreshBackupList(self):
-        columnsToShow = [Columns.Title.value,
-                         Columns.Path.value,
-                         Columns.BackupStatus.value,
-                         Columns.Size.value]
-
         (self.backupListSmdbData,
          self.backupListTableModel,
          self.backupListTableProxyModel,
          self.backupListColumnsVisible,
          smdbData) = self.refreshTable(self.backupListSmdbFile,
                                        self.backupListTableView,
-                                       columnsToShow,
-                                       defaultColumnWidths,
+                                       self.backupListColumns,
+                                       self.backupListColumnWidths,
                                        Columns.Rank.value)
 
     def preferences(self):
@@ -1507,6 +1572,15 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableColumns = self.moviesTableDefaultColumns
         self.moviesTableColumnWidths = defaultColumnWidths
         self.refreshMoviesList()
+        self.watchListColumns = self.watchListDefaultColumns
+        self.watchListColumnWidths = defaultColumnWidths
+        self.refreshWatchList()
+        self.historyListColumns = self.historyListDefaultColumns
+        self.historyListColumnWidths = defaultColumnWidths
+        self.refreshHistoryList()
+        self.backupListColumns = self.backupListDefaultColumns
+        self.backupListColumnWidths = defaultColumnWidths
+        self.refreshBackupList()
         self.setFontSize(self.defaultFontSize)
         self.primaryFilterWidget.filterTable.setColumnWidth(0, self.primaryFilterColumn0WidthDefault)
         self.primaryFilterWidget.filterTable.setColumnWidth(1, self.primaryFilterColumn1WidthDefault)
