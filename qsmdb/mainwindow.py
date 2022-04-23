@@ -424,7 +424,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.statusBar().setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 0px;")
 
         # Default view state of UI sections
-        #self.showPrimaryFilters = True
         self.showPrimaryFilter = self.settings.value('showPrimaryFilter', True, type=bool)
         self.showSecondaryFilter = self.settings.value('showSecondaryFilter', True, type=bool)
         self.showMoviesTable = self.settings.value('showMoviesTable', True, type=bool)
