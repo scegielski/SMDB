@@ -125,7 +125,14 @@ class FilterWidget(QtWidgets.QFrame):
         self.wheelSpun.emit(event.angleDelta().y() / 120)
         event.accept()
 
-    def __init__(self, filterName="filter", filterBy=0, useMovieList=False, minCount=2, defaultSectionSize=18):
+    def __init__(self,
+                 filterName="filter",
+                 filterBy=0,
+                 useMovieList=False,
+                 minCount=2,
+                 defaultSectionSize=18,
+                 column0Width=170,
+                 column1Width=60):
         super(FilterWidget, self).__init__()
 
         self.moviesSmdbData = None
@@ -189,8 +196,8 @@ class FilterWidget(QtWidgets.QFrame):
         self.filterTable.setColumnCount(2)
         self.filterTable.verticalHeader().hide()
         self.filterTable.setHorizontalHeaderLabels(['Name', 'Count'])
-        self.filterTable.setColumnWidth(0, 170)
-        self.filterTable.setColumnWidth(1, 60)
+        self.filterTable.setColumnWidth(0, column0Width)
+        self.filterTable.setColumnWidth(1, column1Width)
         self.filterTable.verticalHeader().setMinimumSectionSize(10)
         self.filterTable.verticalHeader().setDefaultSectionSize(defaultSectionSize)
         self.filterTable.setWordWrap(False)
@@ -467,7 +474,10 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Filters
         self.primaryFilterWidget = FilterWidget("Primary Filter",
-                                                defaultSectionSize=self.rowHeightWithoutCover)
+                                                defaultSectionSize=self.rowHeightWithoutCover,
+                                                column0Width=self.settings.value("primaryFilterColumn0Width", 170, type=int),
+                                                column1Width=self.settings.value("primaryFilterColumn1Width", 60, type=int))
+
         self.primaryFilterWidget.wheelSpun.connect(self.changeFontSize)
         self.filtersVSplitter.addWidget(self.primaryFilterWidget)
 
@@ -475,7 +485,9 @@ class MyWindow(QtWidgets.QMainWindow):
                                                   filterBy=5,
                                                   useMovieList=True,
                                                   minCount=1,
-                                                  defaultSectionSize=self.rowHeightWithoutCover)
+                                                  defaultSectionSize=self.rowHeightWithoutCover,
+                                                  column0Width=self.settings.value("secondaryFilterColumn0Width", 170, type=int),
+                                                  column1Width=self.settings.value("secondaryFilterColumn1Width", 60, type=int))
         self.secondaryFilterWidget.wheelSpun.connect(self.changeFontSize)
         self.filtersVSplitter.addWidget(self.secondaryFilterWidget)
 
@@ -676,6 +688,11 @@ class MyWindow(QtWidgets.QMainWindow):
                 width = defaultColumnWidths[i]
             columnWidths.append(width)
         self.settings.setValue('moviesTableColumnWidths', columnWidths)
+
+        self.settings.setValue('primaryFilterColumn0Width', self.primaryFilterWidget.filterTable.columnWidth(0))
+        self.settings.setValue('primaryFilterColumn1Width', self.primaryFilterWidget.filterTable.columnWidth(1))
+        self.settings.setValue('secondaryFilterColumn0Width', self.secondaryFilterWidget.filterTable.columnWidth(0))
+        self.settings.setValue('secondaryFilterColumn1Width', self.secondaryFilterWidget.filterTable.columnWidth(1))
 
     def initUIFileMenu(self):
         menuBar = self.menuBar()
