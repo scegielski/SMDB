@@ -2,7 +2,7 @@ import json
 import fnmatch
 import pathlib
 import datetime
-from enum import Enum
+from enum import Enum, auto
 from PyQt5 import QtGui, QtCore
 
 from .utilities import *
@@ -10,28 +10,28 @@ from .utilities import *
 
 class Columns(Enum):
     Cover = 0
-    Year = 1
-    Title = 2
-    Rating = 3
-    MpaaRating = 4
-    BoxOffice = 5
-    Runtime = 6
-    Directors = 7
-    Countries = 8
-    Companies = 9
-    Genres = 10
-    UserTags = 11
-    Id = 12
-    Folder = 13
-    Path = 14
-    JsonExists = 15
-    Rank = 16
-    BackupStatus = 17
-    Duplicate = 18
-    Width = 19
-    Height = 20
-    Size = 21
-    DateModified = 22
+    Year = auto()
+    Title = auto()
+    Rating = auto()
+    MpaaRating = auto()
+    BoxOffice = auto()
+    Runtime = auto()
+    Directors = auto()
+    Countries = auto()
+    Companies = auto()
+    Genres = auto()
+    UserTags = auto()
+    Id = auto()
+    Folder = auto()
+    Path = auto()
+    JsonExists = auto()
+    Rank = auto()
+    BackupStatus =auto()
+    Duplicate = auto()
+    Width = auto()
+    Height = auto()
+    Size = auto()
+    DateModified = auto()
 
 class MoviesTableModel(QtCore.QAbstractTableModel):
     emitCoverSignal = QtCore.pyqtSignal(int)
@@ -71,29 +71,29 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                         'Size',
                                         'DateModified'], start=0)
 
-        self.defaultWidths = {self.Columns.Cover: 150,
-                              self.Columns.Year: 50,
-                              self.Columns.Title: 200,
-                              self.Columns.Rating: 60,
-                              self.Columns.MpaaRating: 100,
-                              self.Columns.BoxOffice: 150,
-                              self.Columns.Runtime: 60,
-                              self.Columns.Directors: 150,
-                              self.Columns.Countries: 150,
-                              self.Columns.Companies: 150,
-                              self.Columns.Genres: 150,
-                              self.Columns.UserTags: 150,
-                              self.Columns.Id: 60,
-                              self.Columns.Folder: 200,
-                              self.Columns.Path: 300,
-                              self.Columns.JsonExists: 65,
-                              self.Columns.Rank: 40,
-                              self.Columns.BackupStatus: 150,
-                              self.Columns.Duplicate: 60,
-                              self.Columns.Width: 50,
-                              self.Columns.Height: 50,
-                              self.Columns.Size: 100,
-                              self.Columns.DateModified: 150}
+        self.defaultWidths = {Columns.Cover.value: 150,
+                              Columns.Year.value: 50,
+                              Columns.Title.value: 200,
+                              Columns.Rating.value: 60,
+                              Columns.MpaaRating.value: 100,
+                              Columns.BoxOffice.value: 150,
+                              Columns.Runtime.value: 60,
+                              Columns.Directors.value: 150,
+                              Columns.Countries.value: 150,
+                              Columns.Companies.value: 150,
+                              Columns.Genres.value: 150,
+                              Columns.UserTags.value: 150,
+                              Columns.Id.value: 60,
+                              Columns.Folder.value: 200,
+                              Columns.Path.value: 300,
+                              Columns.JsonExists.value: 65,
+                              Columns.Rank.value: 40,
+                              Columns.BackupStatus.value: 150,
+                              Columns.Duplicate.value: 60,
+                              Columns.Width.value: 50,
+                              Columns.Height.value: 50,
+                              Columns.Size.value: 100,
+                              Columns.DateModified.value: 150}
 
         # Create the header text from the enums
         self._headers = []
