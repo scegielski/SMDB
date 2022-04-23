@@ -493,6 +493,19 @@ class MyWindow(QtWidgets.QMainWindow):
         # Movies Table
         self.moviesTableWidget = QtWidgets.QFrame()
         self.moviesTableView = MovieTableView()
+        self.moviesTableDefaultColumns = [Columns.Year.value,
+                                          Columns.Title.value,
+                                          Columns.Rating.value,
+                                          Columns.MpaaRating.value,
+                                          Columns.Width.value,
+                                          Columns.Height.value,
+                                          Columns.Size.value]
+        self.moviesTableColumns = self.settings.value('moviesTableColumns',
+                                                      self.moviesTableDefaultColumns,
+                                                      type=list)
+        # Convert string values to int
+        self.moviesTableColumns = [int(m) for m in self.moviesTableColumns]
+
         self.moviesTableView.wheelSpun.connect(self.setFontSize)
         self.moviesTableTitleFilterBox = QtWidgets.QLineEdit()
         self.moviesTableSearchPlotsBox = QtWidgets.QLineEdit()
@@ -637,10 +650,14 @@ class MyWindow(QtWidgets.QMainWindow):
         self.settings.setValue('showMovieInfo', self.showMovieInfo)
         self.settings.setValue('showMovieSection', self.showMovieSection)
         self.settings.setValue('showSummary', self.showSummary)
-        print(f"close event showWatchList = {self.showWatchList} ")
         self.settings.setValue('showWatchList', self.showWatchList)
         self.settings.setValue('showHistoryList', self.showHistoryList)
         self.settings.setValue('showBackupList', self.showBackupList)
+        visibleColumns = list()
+        for i, c in enumerate(self.moviesTableColumnsVisible):
+            if c:
+                visibleColumns.append(i)
+        self.settings.setValue('moviesTableColumns', visibleColumns)
 
     def initUIFileMenu(self):
         menuBar = self.menuBar()
@@ -761,7 +778,7 @@ class MyWindow(QtWidgets.QMainWindow):
                 tableView.verticalScrollBar().setSingleStep(10)
         else:
             tableView.hideColumn(c.value)
-            if c.value == self.moviesTableModel.Columns.Cover.value:
+            if c.value == Columns.Cover.value:
                 tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
                 tableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerItem)
                 tableView.verticalScrollBar().setSingleStep(5)
@@ -779,7 +796,7 @@ class MyWindow(QtWidgets.QMainWindow):
         tableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerItem)
         tableView.verticalScrollBar().setSingleStep(5)
         for i, c in enumerate(visibleList):
-            if i != self.moviesTableModel.Columns.Year.value:  # leave the year column visible
+            if i != Columns.Year.value:  # leave the year column visible
                 visibleList[i] = False
                 tableView.hideColumn(i)
 
@@ -803,7 +820,7 @@ class MyWindow(QtWidgets.QMainWindow):
         headers = model.getHeaders()
 
         actionsList = []
-        for c in model.Columns:
+        for c in Columns:
             header = headers[c.value]
             action = QtWidgets.QAction(header)
             action.setCheckable(True)
@@ -1336,6 +1353,7 @@ class MyWindow(QtWidgets.QMainWindow):
         for c in Columns:
             index = c.value
             columnsVisible[index] = True
+            tableView.showColumn(index)
             if index not in columnsToShow:
                 tableView.hideColumn(index)
                 columnsVisible[index] = False
@@ -1348,21 +1366,13 @@ class MyWindow(QtWidgets.QMainWindow):
         return smdbData, model, proxyModel, columnsVisible, smdbData
 
     def refreshMoviesList(self, forceScan=False):
-        columnsToShow = [Columns.Year.value,
-                         Columns.Title.value,
-                         Columns.Rating.value,
-                         Columns.MpaaRating.value,
-                         Columns.Width.value,
-                         Columns.Height.value,
-                         Columns.Size.value]
-
         (self.moviesSmdbData,
          self.moviesTableModel,
          self.moviesTableProxyModel,
          self.moviesTableColumnsVisible,
          self.moviesSmdbData) = self.refreshTable(self.moviesSmdbFile,
                                                   self.moviesTableView,
-                                                  columnsToShow,
+                                                  self.moviesTableColumns,
                                                   Columns.Year.value,
                                                   forceScan,
                                                   neverScan=False)
@@ -1442,6 +1452,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.coverTab.show()
         self.showSummary = True
         self.summary.show()
+        self.moviesTableColumns = self.moviesTableDefaultColumns
+        self.refreshMoviesList()
 
     def conformMovies(self):
         browseDir = str(Path.home())
