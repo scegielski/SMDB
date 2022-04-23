@@ -33,6 +33,7 @@ class Columns(Enum):
     Size = auto()
     DateModified = auto()
 
+
 class MoviesTableModel(QtCore.QAbstractTableModel):
     emitCoverSignal = QtCore.pyqtSignal(int)
 
@@ -46,30 +47,6 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
         self.movieSet = set()
         self._data = []
-
-        self.Columns = Enum('Columns', ['Cover',
-                                        'Year',
-                                        'Title',
-                                        'Rating',
-                                        'MpaaRating',
-                                        'BoxOffice',
-                                        'Runtime',
-                                        'Directors',
-                                        'Countries',
-                                        'Companies',
-                                        'Genres',
-                                        'UserTags',
-                                        'Id',
-                                        'Folder',
-                                        'Path',
-                                        'JsonExists',
-                                        'Rank',
-                                        'BackupStatus',
-                                        'Duplicate',
-                                        'Width',
-                                        'Height',
-                                        'Size',
-                                        'DateModified'], start=0)
 
         self.defaultWidths = {Columns.Cover.value: 150,
                               Columns.Year.value: 50,
@@ -97,7 +74,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
         # Create the header text from the enums
         self._headers = []
-        for c in self.Columns:
+        for c in Columns:
             tokens = splitCamelCase(c.name)
             self._headers.append(' '.join(tokens))
 
@@ -159,12 +136,12 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                              False,  # Don't generate new rank here, it's for watch list
                                              forceScan)
 
-            folderName = movieData[self.Columns.Folder.value]
+            folderName = movieData[Columns.Folder.value]
             self.movieSet.add(folderName)
             self._data.append(movieData)
 
         # Sort by year
-        self.sort(self.Columns.Year.value, QtCore.Qt.AscendingOrder)
+        self.sort(Columns.Year.value, QtCore.Qt.AscendingOrder)
 
     def createMovieData(self,
                         data,
@@ -174,15 +151,15 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                         force=False):
 
         movieData = []
-        for column in self.Columns:
-            if column == self.Columns.DateModified:
+        for column in Columns:
+            if column == Columns.DateModified:
                 if 'date' in data:
                     movieData.append(data['date'])
                 else:
                     movieData.append('no date')
-            elif column == self.Columns.Path:
+            elif column == Columns.Path:
                 movieData.append(moviePath)
-            elif column == self.Columns.JsonExists:
+            elif column == Columns.JsonExists:
                 if force:
                     jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
                     if os.path.exists(jsonFile):
@@ -192,12 +169,12 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                         movieData.append("False")
                 else:
                     movieData.append("")
-            elif column == self.Columns.Folder:
+            elif column == Columns.Folder:
                 movieData.append(movieFolderName)
-            elif column == self.Columns.Rank and generateNewRank:
+            elif column == Columns.Rank and generateNewRank:
                 rank = len(self._data)
                 movieData.append(rank)
-            elif column == self.Columns.Countries:
+            elif column == Columns.Countries:
                 if 'countries' in data and data['countries']:
                     countries = ""
                     for country in data['countries']:
@@ -208,7 +185,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                     movieData.append(countries)
                 else:
                     movieData.append('')
-            elif column == self.Columns.Companies:
+            elif column == Columns.Companies:
                 if 'companies' in data and data['companies']:
                     companies = ""
                     for company in data['companies']:
@@ -219,7 +196,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                     movieData.append(companies)
                 else:
                     movieData.append('')
-            elif column == self.Columns.Genres:
+            elif column == Columns.Genres:
                 if 'genres' in data and data['genres']:
                     genres = ""
                     for genre in data['genres']:
@@ -230,7 +207,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                     movieData.append(genres)
                 else:
                     movieData.append('')
-            elif column == self.Columns.Directors:
+            elif column == Columns.Directors:
                 if 'directors' in data and data['directors']:
                     directors = ""
                     for director in data['directors']:
@@ -241,7 +218,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                     movieData.append(directors)
                 else:
                     movieData.append('')
-            elif column == self.Columns.UserTags:
+            elif column == Columns.UserTags:
                 if 'user tags' in data and data['user tags']:
                     userTags = ""
                     for userTag in data['user tags']:
@@ -258,23 +235,23 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                 header = self._headers[column.value]
                 headerLower = header.lower()
                 if headerLower not in data:
-                    if column == self.Columns.Title:
+                    if column == Columns.Title:
                         title, year = getNiceTitleAndYear(movieFolderName)
                         movieData.append(title)
-                    elif column == self.Columns.Year:
+                    elif column == Columns.Year:
                         title, year = getNiceTitleAndYear(movieFolderName)
                         movieData.append(year)
                     else:
                         movieData.append('')
                 else:
-                    if column == self.Columns.Runtime:
+                    if column == Columns.Runtime:
                         runtime = data[headerLower]
                         if not runtime:
                             runtime = '000'
                         else:
                             runtime = '%03d' % int(runtime)
                         movieData.append(runtime)
-                    elif column == self.Columns.Rating:
+                    elif column == Columns.Rating:
                         rating = data[headerLower]
                         if not rating:
                             rating = '0.0'
@@ -283,7 +260,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                             if len(rating) == 1:
                                 rating = '%s.0' % rating
                         movieData.append(rating)
-                    elif column == self.Columns.MpaaRating:
+                    elif column == Columns.MpaaRating:
                         mpaaRating = "No Rating"
                         if 'mpaa rating' in data and data['mpaa rating']:
                             mpaaRating = data['mpaa rating']
@@ -312,57 +289,57 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
         return self._headers
 
     def getNumColumns(self):
-        return len(self.Columns)
+        return len(Columns)
 
     def getLastColumn(self):
-        return len(self.Columns) - 1
+        return len(Columns) - 1
 
     def getMpaaRating(self, row):
-        return self._data[row][self.Columns.MpaaRating.value]
+        return self._data[row][Columns.MpaaRating.value]
 
     def getBackupStatus(self, row):
-        return self._data[row][self.Columns.BackupStatus.value]
+        return self._data[row][Columns.BackupStatus.value]
 
     def getYear(self, row):
-        return self._data[row][self.Columns.Year.value]
+        return self._data[row][Columns.Year.value]
 
     def getTitle(self, row):
-        return self._data[row][self.Columns.Title.value]
+        return self._data[row][Columns.Title.value]
 
     def getRating(self, row):
-        return self._data[row][self.Columns.Rating.value]
+        return self._data[row][Columns.Rating.value]
 
     def getBoxOffice(self, row):
-        return self._data[row][self.Columns.BoxOffice.value]
+        return self._data[row][Columns.BoxOffice.value]
 
     def getRuntime(self, row):
-        return self._data[row][self.Columns.Runtime.value]
+        return self._data[row][Columns.Runtime.value]
 
     def getId(self, row):
-        return self._data[row][self.Columns.Id.value]
+        return self._data[row][Columns.Id.value]
 
     def getDimensions(self, row):
-        width = self._data[row][self.Columns.Width.value]
-        height = self._data[row][self.Columns.Height.value]
+        width = self._data[row][Columns.Width.value]
+        height = self._data[row][Columns.Height.value]
         return width, height
 
     def getFolderName(self, row):
-        return self._data[row][self.Columns.Folder.value]
+        return self._data[row][Columns.Folder.value]
 
     def getPath(self, row):
-        return self._data[row][self.Columns.Path.value]
+        return self._data[row][Columns.Path.value]
 
     def getJsonExists(self, row):
-        return self._data[row][self.Columns.JsonExists.value]
+        return self._data[row][Columns.JsonExists.value]
 
     def getRank(self, row):
-        return self._data[row][self.Columns.Rank.value]
+        return self._data[row][Columns.Rank.value]
 
     def getSize(self, row):
-        return self._data[row][self.Columns.Size.value]
+        return self._data[row][Columns.Size.value]
 
     def getDuplicate(self, row):
-        return self._data[row][self.Columns.Duplicate.value]
+        return self._data[row][Columns.Duplicate.value]
 
     def getDataSize(self):
         return len(self._data)
@@ -384,7 +361,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                          moviePath,
                                          movieFolderName,
                                          generateNewRank=True)
-        folderName = movieData[self.Columns.Folder.value]
+        folderName = movieData[Columns.Folder.value]
         if folderName not in self.movieSet:
             self.movieSet.add(folderName)
             self._data.append(movieData)
@@ -420,7 +397,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
         # Re-number ranks
         for i in range(len(self._data)):
-            self._data[i][self.Columns.Rank.value] = i
+            self._data[i][Columns.Rank.value] = i
 
         self.layoutChanged.emit()
 
@@ -431,24 +408,24 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
         return len(self._headers)
 
     def setBackupStatus(self, index, value):
-        self._data[index.row()][self.Columns.BackupStatus.value] = value
+        self._data[index.row()][Columns.BackupStatus.value] = value
         self.dataChanged.emit(index, index)
 
     def setSize(self, index, value):
-        self._data[index.row()][self.Columns.Size.value] = value
+        self._data[index.row()][Columns.Size.value] = value
         self.dataChanged.emit(index, index)
 
     def setDimensions(self, index, width, height):
-        self._data[index.row()][self.Columns.Width.value] = width
-        self._data[index.row()][self.Columns.Height.value] = height
+        self._data[index.row()][Columns.Width.value] = width
+        self._data[index.row()][Columns.Height.value] = height
         self.dataChanged.emit(index, index)
 
     def setDuplicate(self, index, value):
-        self._data[index.row()][self.Columns.Duplicate.value] = value
+        self._data[index.row()][Columns.Duplicate.value] = value
         self.dataChanged.emit(index, index)
 
     def setMpaaRating(self, index, value):
-        self._data[index.row()][self.Columns.MpaaRating.value] = value
+        self._data[index.row()][Columns.MpaaRating.value] = value
         self.dataChanged.emit(index, index)
 
     def setData(self, index, value, role=QtCore.Qt.EditRole):
@@ -463,7 +440,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
         elif role == QtCore.Qt.TextAlignmentRole:
             return QtCore.Qt.AlignLeft
         elif role == QtCore.Qt.BackgroundRole:
-            backupStatus = self._data[index.row()][self.Columns.BackupStatus.value]
+            backupStatus = self._data[index.row()][Columns.BackupStatus.value]
             if not backupStatus:
                 return
             elif backupStatus == "Found":
@@ -477,7 +454,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
             elif "Size Difference" in backupStatus:
                 return QtGui.QBrush(QtGui.QColor("darkgoldenrod"))
         elif role == QtCore.Qt.DecorationRole :
-            if index.column() == self.Columns.Cover.value:
+            if index.column() == Columns.Cover.value:
                 row = index.row()
                 folderName = self.getFolderName(row)
                 moviePath = self.getPath(row)

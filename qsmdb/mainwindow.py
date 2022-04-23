@@ -1340,7 +1340,7 @@ class MyWindow(QtWidgets.QMainWindow):
                 tableView.hideColumn(index)
                 columnsVisible[index] = False
 
-        tableView.horizontalHeader().moveSection(model.Columns.Rank.value, 0)
+        tableView.horizontalHeader().moveSection(Columns.Rank.value, 0)
 
         tableView.verticalHeader().setMinimumSectionSize(10)
         tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
