@@ -821,7 +821,7 @@ class MyWindow(QtWidgets.QMainWindow):
         visibleList[c.value] = not visibleList[c.value]
         if visibleList[c.value]:
             tableView.showColumn(c.value)
-            if c.value == self.moviesTableModel.Columns.Cover.value:
+            if c.value == Columns.Cover.value:
                 tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
                 tableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
                 tableView.verticalScrollBar().setSingleStep(10)
@@ -2403,7 +2403,7 @@ class MyWindow(QtWidgets.QMainWindow):
         if not searchText:
             self.filterTableSelectionChanged()
 
-        self.moviesTableProxyModel.setFilterKeyColumn(self.moviesTableModel.Columns.Title.value)
+        self.moviesTableProxyModel.setFilterKeyColumn(Columns.Title.value)
         self.moviesTableProxyModel.setFilterRegExp(
             QtCore.QRegExp(searchText,
                            QtCore.Qt.CaseInsensitive,
