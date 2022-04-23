@@ -362,10 +362,10 @@ def getFolderSizes(path):
 
 class MyWindow(QtWidgets.QMainWindow):
     def wheelEvent(self, event):
-        self.setFontSize(event.angleDelta().y() / 120)
+        self.changeFontSize(event.angleDelta().y() / 120)
         event.accept()
 
-    def setFontSize(self, delta):
+    def changeFontSize(self, delta):
         if QtWidgets.QApplication.keyboardModifiers() != QtCore.Qt.ControlModifier:
             return
 
@@ -373,7 +373,10 @@ class MyWindow(QtWidgets.QMainWindow):
             return
 
         delta = min(1, max(-1, delta))
-        self.fontSize = max(6, min(29, self.fontSize + delta))
+        self.setFontSize(self.fontSize + delta)
+
+    def setFontSize(self, fontSize):
+        self.fontSize = max(6, min(29, fontSize))
         self.setStyleSheet(f"font-size:{self.fontSize}px;")
         self.titleLabel.setStyleSheet(f"color: white; background: black; font-size: {self.fontSize * 2}px;")
         self.rowHeightWithoutCover = 18 * (self.fontSize / 12)
@@ -413,9 +416,10 @@ class MyWindow(QtWidgets.QMainWindow):
                                        type=QtCore.QRect)
         self.setGeometry(geometry)
 
-        # Set default font size and foreground/background colors for item views
-        self.fontSize = 12
-        self.setStyleSheet(f"font-size:{self.fontSize}px;")
+        self.defaultFontSize = 12
+        self.fontSize = self.settings.value('fontSize', self.defaultFontSize, type=int)
+
+        # Set foreground/background colors for item views
         self.menuBar().setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 0px;")
         self.statusBar().setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 0px;")
 
@@ -465,7 +469,7 @@ class MyWindow(QtWidgets.QMainWindow):
         # Filters
         self.primaryFilterWidget = FilterWidget("Primary Filter",
                                                 defaultSectionSize=self.rowHeightWithoutCover)
-        self.primaryFilterWidget.wheelSpun.connect(self.setFontSize)
+        self.primaryFilterWidget.wheelSpun.connect(self.changeFontSize)
         self.filtersVSplitter.addWidget(self.primaryFilterWidget)
 
         self.secondaryFilterWidget = FilterWidget("Secondary Filter",
@@ -473,7 +477,7 @@ class MyWindow(QtWidgets.QMainWindow):
                                                   useMovieList=True,
                                                   minCount=1,
                                                   defaultSectionSize=self.rowHeightWithoutCover)
-        self.secondaryFilterWidget.wheelSpun.connect(self.setFontSize)
+        self.secondaryFilterWidget.wheelSpun.connect(self.changeFontSize)
         self.filtersVSplitter.addWidget(self.secondaryFilterWidget)
 
         sizes = [int(x) for x in self.settings.value('filterVSplitterSizes', [200, 200], type=list)]
@@ -507,7 +511,7 @@ class MyWindow(QtWidgets.QMainWindow):
                                                            defaultColumnWidths,
                                                            type=list)
         self.moviesTableColumnWidths = [int(m) for m in self.moviesTableColumnWidths]
-        self.moviesTableView.wheelSpun.connect(self.setFontSize)
+        self.moviesTableView.wheelSpun.connect(self.changeFontSize)
         self.moviesTableTitleFilterBox = QtWidgets.QLineEdit()
         self.moviesTableSearchPlotsBox = QtWidgets.QLineEdit()
         self.moviesTableColumnsVisible = []
@@ -520,7 +524,7 @@ class MyWindow(QtWidgets.QMainWindow):
         # Watch List
         self.watchListWidget = QtWidgets.QFrame()
         self.watchListTableView = MovieTableView()
-        self.watchListTableView.wheelSpun.connect(self.setFontSize)
+        self.watchListTableView.wheelSpun.connect(self.changeFontSize)
         self.watchListColumnsVisible = []
         self.watchListHeaderActions = []
         self.initUIWatchList()
@@ -532,7 +536,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.backupAnalysed = False
         self.backupListWidget = QtWidgets.QFrame()
         self.backupListTableView = MovieTableView()
-        self.backupListTableView.wheelSpun.connect(self.setFontSize)
+        self.backupListTableView.wheelSpun.connect(self.changeFontSize)
         self.spaceBarLayout = QtWidgets.QHBoxLayout()
         self.spaceUsedWidget = QtWidgets.QWidget()
         self.spaceChangedWidget = QtWidgets.QWidget()
@@ -557,7 +561,7 @@ class MyWindow(QtWidgets.QMainWindow):
         # History List
         self.historyListWidget = QtWidgets.QFrame()
         self.historyListTableView = MovieTableView()
-        self.historyListTableView.wheelSpun.connect(self.setFontSize)
+        self.historyListTableView.wheelSpun.connect(self.changeFontSize)
         self.historyListColumnsVisible = []
         self.historyListHeaderActions = []
         self.initUIHistoryList()
@@ -593,6 +597,8 @@ class MyWindow(QtWidgets.QMainWindow):
         cancelButton.setStyleSheet("background: rgb(100, 100, 100); color: white; border-radius: 5px")
         cancelButton.setFixedSize(100, 25)
         bottomLayout.addWidget(cancelButton)
+
+        self.setFontSize(self.fontSize)
 
         # Show the window
         self.show()
@@ -656,6 +662,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.settings.setValue('showWatchList', self.showWatchList)
         self.settings.setValue('showHistoryList', self.showHistoryList)
         self.settings.setValue('showBackupList', self.showBackupList)
+        self.settings.setValue('fontSize', self.fontSize)
 
         visibleColumns = list()
         for i, c in enumerate(self.moviesTableColumnsVisible):
@@ -1110,7 +1117,7 @@ class MyWindow(QtWidgets.QMainWindow):
         movieInfoVLayout = QtWidgets.QVBoxLayout()
         self.movieInfoWidget.setLayout(movieInfoVLayout)
         self.movieInfoListView = MovieInfoListview()
-        self.movieInfoListView.wheelSpun.connect(self.setFontSize)
+        self.movieInfoListView.wheelSpun.connect(self.changeFontSize)
         self.movieInfoListView.setStyleSheet("background: black; color: white;")
         self.movieInfoListView.itemSelectionChanged.connect(self.movieInfoSelectionChanged)
         self.movieInfoListView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
@@ -1300,7 +1307,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.movieCover.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored)
         self.movieCover.setStyleSheet("background-color: black;")
         self.movieCover.doubleClicked.connect(lambda: self.playMovie(self.moviesTableView, self.moviesTableProxyModel))
-        self.movieCover.wheelSpun.connect(self.setFontSize)
+        self.movieCover.wheelSpun.connect(self.changeFontSize)
 
         movieVLayout.addWidget(self.movieCover)
 
@@ -1470,6 +1477,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableColumns = self.moviesTableDefaultColumns
         self.moviesTableColumnWidths = defaultColumnWidths
         self.refreshMoviesList()
+        self.setFontSize(self.defaultFontSize)
 
     def conformMovies(self):
         browseDir = str(Path.home())
