@@ -1346,17 +1346,15 @@ class MyWindow(QtWidgets.QMainWindow):
         tableView.setWordWrap(False)
 
         columnsVisible = []
-        for col in Columns:
-            tableView.setColumnWidth(col.value, model.defaultWidths[col.value])
-            columnsVisible.append(True)
-
         for c in Columns:
             index = c.value
-            columnsVisible[index] = True
-            tableView.showColumn(index)
+            tableView.setColumnWidth(index, model.defaultWidths[index])
             if index not in columnsToShow:
                 tableView.hideColumn(index)
-                columnsVisible[index] = False
+                columnsVisible.append(False)
+            else:
+                tableView.showColumn(index)
+                columnsVisible.append(True)
 
         tableView.horizontalHeader().moveSection(Columns.Rank.value, 0)
 
