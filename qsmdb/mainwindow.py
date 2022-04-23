@@ -525,6 +525,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.watchListHeaderActions = []
         self.initUIWatchList()
         self.moviesWatchListBackupVSplitter.addWidget(self.watchListWidget)
+        if not self.showWatchList:
+            self.watchListWidget.hide()
 
         # Backup List
         self.backupAnalysed = False
