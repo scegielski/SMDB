@@ -109,9 +109,11 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
         # or scan the movies folder(s)
         moviesFolderDict = dict()
         useSmdbData = False
+
         if neverScan and (not smdbData or 'titles' not in smdbData):
             return
-        elif not forceScan and smdbData and 'titles' in smdbData:
+
+        if not forceScan and smdbData and 'titles' in smdbData:
             useSmdbData = True
             for path in smdbData['titles']:
                 folder = smdbData['titles'][path]['folder']
