@@ -41,8 +41,7 @@ from pymediainfo import MediaInfo
 # /Users/House/Library/Python/3.9/bin/pyinstaller --onefile --noconsole --name SMDB run.py
 
 from .utilities import *
-from .moviemodel import MoviesTableModel
-from .moviemodel import Columns
+from .moviemodel import MoviesTableModel, Columns, defaultColumnWidths
 from .CoverGLWidget import CoverGLWidget
 
 def handleRemoveReadonly(func, path, exc_info):
@@ -503,9 +502,11 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableColumns = self.settings.value('moviesTableColumns',
                                                       self.moviesTableDefaultColumns,
                                                       type=list)
-        # Convert string values to int
         self.moviesTableColumns = [int(m) for m in self.moviesTableColumns]
-
+        self.moviesTableColumnWidths = self.settings.value('moviesTableColumnWidths',
+                                                           defaultColumnWidths,
+                                                           type=list)
+        self.moviesTableColumnWidths = [int(m) for m in self.moviesTableColumnWidths]
         self.moviesTableView.wheelSpun.connect(self.setFontSize)
         self.moviesTableTitleFilterBox = QtWidgets.QLineEdit()
         self.moviesTableSearchPlotsBox = QtWidgets.QLineEdit()
@@ -653,11 +654,20 @@ class MyWindow(QtWidgets.QMainWindow):
         self.settings.setValue('showWatchList', self.showWatchList)
         self.settings.setValue('showHistoryList', self.showHistoryList)
         self.settings.setValue('showBackupList', self.showBackupList)
+
         visibleColumns = list()
         for i, c in enumerate(self.moviesTableColumnsVisible):
             if c:
                 visibleColumns.append(i)
         self.settings.setValue('moviesTableColumns', visibleColumns)
+
+        columnWidths = list()
+        for i in range(len(defaultColumnWidths)):
+            width = self.moviesTableView.columnWidth(i)
+            if width == 0:
+                width = defaultColumnWidths[i]
+            columnWidths.append(width)
+        self.settings.setValue('moviesTableColumnWidths', columnWidths)
 
     def initUIFileMenu(self):
         menuBar = self.menuBar()
@@ -1296,6 +1306,7 @@ class MyWindow(QtWidgets.QMainWindow):
                      smdbFile,
                      tableView,
                      columnsToShow,
+                     columnWidths,
                      sortColumn,
                      forceScan=False,
                      neverScan=True):
@@ -1348,7 +1359,7 @@ class MyWindow(QtWidgets.QMainWindow):
         columnsVisible = []
         for c in Columns:
             index = c.value
-            tableView.setColumnWidth(index, model.defaultWidths[index])
+            tableView.setColumnWidth(index, columnWidths[index])
             if index not in columnsToShow:
                 tableView.hideColumn(index)
                 columnsVisible.append(False)
@@ -1371,6 +1382,7 @@ class MyWindow(QtWidgets.QMainWindow):
          self.moviesSmdbData) = self.refreshTable(self.moviesSmdbFile,
                                                   self.moviesTableView,
                                                   self.moviesTableColumns,
+                                                  self.moviesTableColumnWidths,
                                                   Columns.Year.value,
                                                   forceScan,
                                                   neverScan=False)
@@ -1392,6 +1404,7 @@ class MyWindow(QtWidgets.QMainWindow):
          smdbData) = self.refreshTable(self.watchListSmdbFile,
                                        self.watchListTableView,
                                        columnsToShow,
+                                       defaultColumnWidths,
                                        Columns.Rank.value)
 
     def refreshHistoryList(self):
@@ -1406,6 +1419,7 @@ class MyWindow(QtWidgets.QMainWindow):
          smdbData) = self.refreshTable(self.historyListSmdbFile,
                                        self.historyListTableView,
                                        columnsToShow,
+                                       defaultColumnWidths,
                                        Columns.Rank.value)
 
     def refreshBackupList(self):
@@ -1421,6 +1435,7 @@ class MyWindow(QtWidgets.QMainWindow):
          smdbData) = self.refreshTable(self.backupListSmdbFile,
                                        self.backupListTableView,
                                        columnsToShow,
+                                       defaultColumnWidths,
                                        Columns.Rank.value)
 
     def preferences(self):
@@ -1451,6 +1466,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.showSummary = True
         self.summary.show()
         self.moviesTableColumns = self.moviesTableDefaultColumns
+        self.moviesTableColumnWidths = defaultColumnWidths
         self.refreshMoviesList()
 
     def conformMovies(self):

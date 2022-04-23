@@ -34,6 +34,30 @@ class Columns(Enum):
     DateModified = auto()
 
 
+defaultColumnWidths = {Columns.Cover.value: 150,
+                       Columns.Year.value: 50,
+                       Columns.Title.value: 200,
+                       Columns.Rating.value: 60,
+                       Columns.MpaaRating.value: 100,
+                       Columns.BoxOffice.value: 150,
+                       Columns.Runtime.value: 60,
+                       Columns.Directors.value: 150,
+                       Columns.Countries.value: 150,
+                       Columns.Companies.value: 150,
+                       Columns.Genres.value: 150,
+                       Columns.UserTags.value: 150,
+                       Columns.Id.value: 60,
+                       Columns.Folder.value: 200,
+                       Columns.Path.value: 300,
+                       Columns.JsonExists.value: 65,
+                       Columns.Rank.value: 40,
+                       Columns.BackupStatus.value: 150,
+                       Columns.Duplicate.value: 60,
+                       Columns.Width.value: 50,
+                       Columns.Height.value: 50,
+                       Columns.Size.value: 100,
+                       Columns.DateModified.value: 150}
+
 class MoviesTableModel(QtCore.QAbstractTableModel):
     emitCoverSignal = QtCore.pyqtSignal(int)
 
@@ -47,30 +71,6 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
         self.movieSet = set()
         self._data = []
-
-        self.defaultWidths = {Columns.Cover.value: 150,
-                              Columns.Year.value: 50,
-                              Columns.Title.value: 200,
-                              Columns.Rating.value: 60,
-                              Columns.MpaaRating.value: 100,
-                              Columns.BoxOffice.value: 150,
-                              Columns.Runtime.value: 60,
-                              Columns.Directors.value: 150,
-                              Columns.Countries.value: 150,
-                              Columns.Companies.value: 150,
-                              Columns.Genres.value: 150,
-                              Columns.UserTags.value: 150,
-                              Columns.Id.value: 60,
-                              Columns.Folder.value: 200,
-                              Columns.Path.value: 300,
-                              Columns.JsonExists.value: 65,
-                              Columns.Rank.value: 40,
-                              Columns.BackupStatus.value: 150,
-                              Columns.Duplicate.value: 60,
-                              Columns.Width.value: 50,
-                              Columns.Height.value: 50,
-                              Columns.Size.value: 100,
-                              Columns.DateModified.value: 150}
 
         # Create the header text from the enums
         self._headers = []
