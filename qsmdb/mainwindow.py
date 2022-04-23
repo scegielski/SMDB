@@ -473,21 +473,35 @@ class MyWindow(QtWidgets.QMainWindow):
         self.rowHeightWithCover = 200
 
         # Filters
-        self.primaryFilterWidget = FilterWidget("Primary Filter",
-                                                defaultSectionSize=self.rowHeightWithoutCover,
-                                                column0Width=self.settings.value("primaryFilterColumn0Width", 170, type=int),
-                                                column1Width=self.settings.value("primaryFilterColumn1Width", 60, type=int))
+        self.primaryFilterColumn0WidthDefault = 170
+        self.primaryFilterColumn1WidthDefault = 60
+        self.primaryFilterWidget =\
+            FilterWidget("Primary Filter",
+                         defaultSectionSize=self.rowHeightWithoutCover,
+                         column0Width=self.settings.value("primaryFilterColumn0Width",
+                                                          self.primaryFilterColumn0WidthDefault,
+                                                          type=int),
+                         column1Width=self.settings.value("primaryFilterColumn1Width",
+                                                          self.primaryFilterColumn1WidthDefault,
+                                                          type=int))
 
         self.primaryFilterWidget.wheelSpun.connect(self.changeFontSize)
         self.filtersVSplitter.addWidget(self.primaryFilterWidget)
 
-        self.secondaryFilterWidget = FilterWidget("Secondary Filter",
-                                                  filterBy=5,
-                                                  useMovieList=True,
-                                                  minCount=1,
-                                                  defaultSectionSize=self.rowHeightWithoutCover,
-                                                  column0Width=self.settings.value("secondaryFilterColumn0Width", 170, type=int),
-                                                  column1Width=self.settings.value("secondaryFilterColumn1Width", 60, type=int))
+        self.secondaryFilterColumn0WidthDefault = 170
+        self.secondaryFilterColumn1WidthDefault = 60
+        self.secondaryFilterWidget =\
+            FilterWidget("Secondary Filter",
+                         filterBy=5,
+                         useMovieList=True,
+                         minCount=1,
+                         defaultSectionSize=self.rowHeightWithoutCover,
+                         column0Width=self.settings.value("secondaryFilterColumn0Width",
+                                                          self.secondaryFilterColumn0WidthDefault,
+                                                          type=int),
+                         column1Width=self.settings.value("secondaryFilterColumn1Width",
+                                                          self.secondaryFilterColumn1WidthDefault,
+                                                          type=int))
         self.secondaryFilterWidget.wheelSpun.connect(self.changeFontSize)
         self.filtersVSplitter.addWidget(self.secondaryFilterWidget)
 
@@ -1494,6 +1508,10 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableColumnWidths = defaultColumnWidths
         self.refreshMoviesList()
         self.setFontSize(self.defaultFontSize)
+        self.primaryFilterWidget.filterTable.setColumnWidth(0, self.primaryFilterColumn0WidthDefault)
+        self.primaryFilterWidget.filterTable.setColumnWidth(1, self.primaryFilterColumn1WidthDefault)
+        self.secondaryFilterWidget.filterTable.setColumnWidth(0, self.secondaryFilterColumn0WidthDefault)
+        self.secondaryFilterWidget.filterTable.setColumnWidth(1, self.secondaryFilterColumn1WidthDefault)
 
     def conformMovies(self):
         browseDir = str(Path.home())
