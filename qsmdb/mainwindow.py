@@ -1319,19 +1319,19 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Set the column widths
         self.moviesTableColumnsVisible = []
-        for col in self.moviesTableModel.Columns:
-            self.moviesTableView.setColumnWidth(col.value, self.moviesTableModel.defaultWidths[col])
+        for col in Columns:
+            self.moviesTableView.setColumnWidth(col.value, self.moviesTableModel.defaultWidths[col.value])
             self.moviesTableColumnsVisible.append(True)
 
-        columnsToShow = [self.moviesTableModel.Columns.Year,
-                         self.moviesTableModel.Columns.Title,
-                         self.moviesTableModel.Columns.Rating,
-                         self.moviesTableModel.Columns.MpaaRating,
-                         self.moviesTableModel.Columns.Width,
-                         self.moviesTableModel.Columns.Height,
-                         self.moviesTableModel.Columns.Size]
+        columnsToShow = [Columns.Year,
+                         Columns.Title,
+                         Columns.Rating,
+                         Columns.MpaaRating,
+                         Columns.Width,
+                         Columns.Height,
+                         Columns.Size]
 
-        for c in self.moviesTableModel.Columns:
+        for c in Columns:
             index = c.value
             self.moviesTableColumnsVisible[index] = True
             if c not in columnsToShow:
@@ -1346,10 +1346,12 @@ class MyWindow(QtWidgets.QMainWindow):
         self.showMoviesTableSelectionStatus()
         self.pickRandomMovie()
 
-    def refreshTable(self, smdbFile, tableView):
-
+    def refreshTable(self, smdbFile, tableView, columnsToShow, sortColumn):
+        smdbData = None
         if os.path.exists(smdbFile):
             smdbData = readSmdbFile(smdbFile)
+            print(f"read smdbData for file: {smdbFile}")
+
         model = MoviesTableModel(smdbData,
                                  [self.moviesFolder],
                                  False,  # force scan
@@ -1358,9 +1360,12 @@ class MyWindow(QtWidgets.QMainWindow):
         proxyModel = QtCore.QSortFilterProxyModel()
         proxyModel.setSourceModel(model)
         tableView.setModel(proxyModel)
-        proxyModel.sort(model.Columns.Rank.value)
+        proxyModel.sort(sortColumn)
 
-        tableView.selectionModel().selectionChanged.connect(lambda: self.tableSelectionChanged(tableView, model, proxyModel))
+        tableView.selectionModel().selectionChanged.connect(
+            lambda: self.tableSelectionChanged(tableView,
+                                               model,
+                                               proxyModel))
 
         tableView.doubleClicked.connect(
             lambda: self.playMovie(tableView,
@@ -1370,117 +1375,64 @@ class MyWindow(QtWidgets.QMainWindow):
         tableView.setWordWrap(False)
 
         columnsVisible = []
-        for col in model.Columns:
-            tableView.setColumnWidth(col.value, model.defaultWidths[col])
+        for col in Columns:
+            tableView.setColumnWidth(col.value, model.defaultWidths[col.value])
             columnsVisible.append(True)
 
-        columnsToShow = [Columns.Rank.value,
-                         Columns.Year.value,
-                         Columns.Title.value,
-                         Columns.Rating.value]
-
-        for c in columnsToShow:
-            print(f"c = {c}")
-
-        for c in model.Columns:
+        for c in Columns:
             index = c.value
             columnsVisible[index] = True
             if index not in columnsToShow:
                 tableView.hideColumn(index)
                 columnsVisible[index] = False
-            else:
-                print(f"Showing column {c} with index {index}")
 
         tableView.horizontalHeader().moveSection(model.Columns.Rank.value, 0)
 
         tableView.verticalHeader().setMinimumSectionSize(10)
         tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
 
-        return (smdbData, model, proxyModel, columnsVisible)
+        return smdbData, model, proxyModel, columnsVisible
 
     def refreshWatchList(self):
+        columnsToShow = [Columns.Rank.value,
+                         Columns.Year.value,
+                         Columns.Title.value,
+                         Columns.Rating.value]
+
         (self.watchListSmdbData,
          self.watchListTableModel,
          self.watchListTableProxyModel,
          self.watchListColumnsVisible) = self.refreshTable(self.watchListSmdbFile,
-                                                           self.watchListTableView)
-
-
+                                                           self.watchListTableView,
+                                                           columnsToShow,
+                                                           Columns.Rank.value)
 
     def refreshHistoryList(self):
-        if os.path.exists(self.historyListSmdbFile):
-            self.historyListSmdbData = readSmdbFile(self.historyListSmdbFile)
-        self.historyListTableModel = MoviesTableModel(self.historyListSmdbData,
-                                                    [self.moviesFolder],
-                                                    False,  # force scan
-                                                    True)  # don't scan the movies folder for the history list
-        self.historyListTableProxyModel = QtCore.QSortFilterProxyModel()
-        self.historyListTableProxyModel.setSourceModel(self.historyListTableModel)
+        columnsToShow = [Columns.Year.value,
+                         Columns.Title.value,
+                         Columns.Rating.value]
 
-        # Sort the history list by rankl
-        self.historyListTableProxyModel.sort(self.historyListTableModel.Columns.Rank.value)
-
-        self.historyListTableView.setModel(self.historyListTableProxyModel)
-        self.historyListTableView.selectionModel().selectionChanged.connect(lambda: self.tableSelectionChanged(self.historyListTableView, self.historyListTableModel, self.historyListTableProxyModel))
-        self.historyListTableView.doubleClicked.connect(lambda: self.playMovie(self.historyListTableView, self.historyListTableProxyModel))
-        self.historyListTableProxyModel.setDynamicSortFilter(False)
-        self.historyListTableView.setWordWrap(False)
-
-        self.historyListColumnsVisible = []
-        for col in self.historyListTableModel.Columns:
-            self.historyListTableView.setColumnWidth(col.value, self.historyListTableModel.defaultWidths[col])
-            self.historyListColumnsVisible.append(True)
-
-        columnsToShow = [self.historyListTableModel.Columns.Year,
-                         self.historyListTableModel.Columns.Title,
-                         self.historyListTableModel.Columns.Rating]
-
-        for c in self.historyListTableModel.Columns:
-            index = c.value
-            self.historyListColumnsVisible[index] = True
-            if c not in columnsToShow:
-                self.historyListTableView.hideColumn(index)
-                self.historyListColumnsVisible[index] = False
-
-        self.historyListTableView.verticalHeader().setMinimumSectionSize(10)
-        self.historyListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+        (self.historyListSmdbData,
+         self.historyListTableModel,
+         self.historyListTableProxyModel,
+         self.historyListColumnsVisible) = self.refreshTable(self.historyListSmdbFile,
+                                                             self.historyListTableView,
+                                                             columnsToShow,
+                                                             Columns.Rank.value)
 
     def refreshBackupList(self):
-        self.backupListTableModel = MoviesTableModel(None,
-                                                    [self.moviesFolder],
-                                                    False,  # force scan
-                                                    True)  # don't scan the movies folder for the watch list
-        self.backupListTableProxyModel = QtCore.QSortFilterProxyModel()
-        self.backupListTableProxyModel.setSourceModel(self.backupListTableModel)
+        columnsToShow = [Columns.Title.value,
+                         Columns.Path.value,
+                         Columns.BackupStatus.value,
+                         Columns.Size.value]
 
-        # Sort the watch list by rankl
-        self.backupListTableProxyModel.sort(self.backupListTableModel.Columns.Rank.value)
-
-        self.backupListTableView.setModel(self.backupListTableProxyModel)
-        self.backupListTableView.selectionModel().selectionChanged.connect(lambda: self.tableSelectionChanged(self.backupListTableView, self.backupListTableModel, self.backupListTableProxyModel))
-        self.backupListTableView.doubleClicked.connect(lambda: self.playMovie(self.backupListTableView, self.backupListTableProxyModel))
-        self.backupListTableProxyModel.setDynamicSortFilter(False)
-        self.backupListTableView.setWordWrap(False)
-
-        self.backupListColumnsVisible = []
-        for col in self.backupListTableModel.Columns:
-            self.backupListTableView.setColumnWidth(col.value, self.backupListTableModel.defaultWidths[col])
-            self.backupListColumnsVisible.append(True)
-
-        columnsToShow = [self.backupListTableModel.Columns.Title,
-                         self.backupListTableModel.Columns.Path,
-                         self.backupListTableModel.Columns.BackupStatus,
-                         self.backupListTableModel.Columns.Size]
-
-        for c in self.backupListTableModel.Columns:
-            index = c.value
-            self.backupListColumnsVisible[index] = True
-            if c not in columnsToShow:
-                self.backupListTableView.hideColumn(index)
-                self.backupListColumnsVisible[index] = False
-
-        self.backupListTableView.verticalHeader().setMinimumSectionSize(10)
-        self.backupListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+        (self.backupListSmdbData,
+         self.backupListTableModel,
+         self.backupListTableProxyModel,
+         self.backupListColumnsVisible) = self.refreshTable(self.backupListSmdbFile,
+                                                            self.backupListTableView,
+                                                            columnsToShow,
+                                                            Columns.Rank.value)
 
     def preferences(self):
         pass
