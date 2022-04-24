@@ -340,21 +340,25 @@ class MyWindow(QtWidgets.QMainWindow):
 
         self.defaultFontSize = 12
         self.fontSize = self.settings.value('fontSize', self.defaultFontSize, type=int)
-
         self.bgColorA = 'rgb(50, 50, 50)'
         self.bgColorB = 'rgb(25, 25, 25)'
         self.bgColorC = 'rgb(0, 0, 0)'
         self.bgColorD = 'rgb(15, 15, 15)'
         self.bgColorE = QtGui.QColor(75, 75, 75)
         self.fgColor = 'rgb(255, 255, 255)'
+        self.borderRadiusA = 0
+        self.borderRadiusB = 5
+        self.borderRadiusC = 10
 
-        # Set foreground/background colors for item views
+        self.setStyleSheet(f"font-size:{self.fontSize}px;"
+                           f"background: {self.bgColorA};"
+                           f"color: {self.fgColor};")
+
         self.menuBar().setStyleSheet(f"background: {self.bgColorA};"
-                                     f"color: {self.fgColor};"
-                                     f"border-radius: 0px;")
+                                     f"color: {self.fgColor};")
+
         self.statusBar().setStyleSheet(f"background: {self.bgColorA};"
-                                       f"color: {self.fgColor};"
-                                       f"border-radius: 0px;")
+                                       f"color: {self.fgColor};")
 
         # Default view state of UI sections
         self.showPrimaryFilter = self.settings.value('showPrimaryFilter', True, type=bool)
@@ -378,7 +382,6 @@ class MyWindow(QtWidgets.QMainWindow):
         # Add the central widget
         centralWidget = QtWidgets.QWidget()
         centralWidget.setStyleSheet(f"background: {self.bgColorB};"
-                                    f"color: {self.fgColor};"
                                     f"border-radius: 0px;")
         self.setCentralWidget(centralWidget)
 
@@ -400,7 +403,7 @@ class MyWindow(QtWidgets.QMainWindow):
         self.rowHeightWithoutCover = 18
         self.rowHeightWithCover = 200
 
-        # Filters
+        # Primary Filter
         self.primaryFilterColumn0WidthDefault = 170
         self.primaryFilterColumn1WidthDefault = 60
         self.primaryFilterWidget =\
@@ -417,10 +420,12 @@ class MyWindow(QtWidgets.QMainWindow):
                          bgColorC=self.bgColorC,
                          bgColorD=self.bgColorD,
                          fgColor=self.fgColor)
-
         self.primaryFilterWidget.wheelSpun.connect(self.changeFontSize)
         self.filtersVSplitter.addWidget(self.primaryFilterWidget)
+        if not self.showPrimaryFilter:
+            self.primaryFilterWidget.hide()
 
+        # Secondary Filter
         self.secondaryFilterColumn0WidthDefault = 170
         self.secondaryFilterColumn1WidthDefault = 60
         self.secondaryFilterWidget =\
@@ -442,15 +447,11 @@ class MyWindow(QtWidgets.QMainWindow):
                          fgColor=self.fgColor)
         self.secondaryFilterWidget.wheelSpun.connect(self.changeFontSize)
         self.filtersVSplitter.addWidget(self.secondaryFilterWidget)
+        if not self.showSecondaryFilter:
+            self.secondaryFilterWidget.hide()
 
         sizes = [int(x) for x in self.settings.value('filterVSplitterSizes', [200, 200], type=list)]
         self.filtersVSplitter.setSizes(sizes)
-
-        if not self.showPrimaryFilter:
-            self.primaryFilterWidget.hide()
-
-        if not self.showSecondaryFilter:
-            self.secondaryFilterWidget.hide()
 
         # Splitter for Movies Table and Watch List
         self.moviesWatchListBackupVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
