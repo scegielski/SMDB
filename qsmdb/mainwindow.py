@@ -388,10 +388,26 @@ class MyWindow(QtWidgets.QMainWindow):
         self.titleLabel.setStyleSheet(f"color: white; background: black; font-size: {self.fontSize * 2}px;")
         self.rowHeightWithoutCover = 18 * (self.fontSize / 12)
 
-        self.moviesTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
-        self.watchListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
-        self.backupListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
-        self.historyListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+        if len(self.moviesTableColumnsVisible) > 0 and self.moviesTableColumnsVisible[Columns.Cover.value]:
+            self.moviesTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
+        else:
+            self.moviesTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+
+        if len(self.watchListColumnsVisible) > 0 and self.watchListColumnsVisible[Columns.Cover.value]:
+            self.watchListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
+        else:
+            self.watchListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+
+        if len(self.backupListColumnsVisible) > 0 and self.backupListColumnsVisible[Columns.Cover.value]:
+            self.backupListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
+        else:
+            self.backupListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+
+        if len(self.historyListColumnsVisible) > 0 and self.historyListColumnsVisible[Columns.Cover.value]:
+            self.historyListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
+        else:
+            self.historyListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+
         self.primaryFilterWidget.filterTable.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
         self.secondaryFilterWidget.filterTable.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
 
@@ -1485,10 +1501,14 @@ class MyWindow(QtWidgets.QMainWindow):
                 tableView.showColumn(index)
                 columnsVisible.append(True)
 
+        # TODO this is only for the watchlist
         tableView.horizontalHeader().moveSection(Columns.Rank.value, 0)
 
         tableView.verticalHeader().setMinimumSectionSize(10)
-        tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+        if Columns.Cover.value in columnsToShow:
+            tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
+        else:
+            tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
 
         return smdbData, model, proxyModel, columnsVisible, smdbData
 
