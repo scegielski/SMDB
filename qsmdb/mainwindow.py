@@ -334,10 +334,9 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Init UI
         self.setTitleBar()
-        geometry = self.settings.value('geometry',
-                                       QtCore.QRect(50, 50, 1820, 900),
-                                       type=QtCore.QRect)
-        self.setGeometry(geometry)
+        self.setGeometry(self.settings.value('geometry',
+                                             QtCore.QRect(50, 50, 1820, 900),
+                                             type=QtCore.QRect))
 
         self.defaultFontSize = 12
         self.fontSize = self.settings.value('fontSize', self.defaultFontSize, type=int)
