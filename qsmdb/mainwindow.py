@@ -1,29 +1,6 @@
-import random
-
-from PyQt5 import QtGui, QtWidgets, QtCore
-from enum import Enum
-from pathlib import Path
-import imdb
-from imdb import IMDb
-import json
-import fnmatch
-import pathlib
-import datetime
-import collections
-import webbrowser
-import shutil
-import os
-import stat
-import time
-from pymediainfo import MediaInfo
-
 # TODO List
 # OpenGL cover viewer (wip)
-# Multiple filters
-# Play button under cover view and double click cover to play
-# Save visible columns and column widths
-# Font sizes and color preference
-# Background color preference
+# color preference
 # Preset layouts
 # Fix status bar num visible and num selected when filtered, etc.
 # Add selected and total runtime to status bar
@@ -40,68 +17,28 @@ from pymediainfo import MediaInfo
 # MAC
 # /Users/House/Library/Python/3.9/bin/pyinstaller --onefile --noconsole --name SMDB run.py
 
+
+from PyQt5 import QtGui, QtWidgets, QtCore
+from enum import Enum
+from pathlib import Path
+from imdb import IMDb
+import json
+import fnmatch
+import pathlib
+import datetime
+import collections
+import webbrowser
+import shutil
+import os
+import random
+import stat
+import time
+from pymediainfo import MediaInfo
+
 from .utilities import *
 from .moviemodel import MoviesTableModel, Columns, defaultColumnWidths
 from .CoverGLWidget import CoverGLWidget
 
-def handleRemoveReadonly(func, path, exc_info):
-    """
-    Error handler for ``shutil.rmtree``.
-
-    If the error is due to an access error (read only file)
-    it attempts to add write permission and then retries.
-
-    If the error is for another reason it re-raises the error.
-
-    Usage : ``shutil.rmtree(path, onerror=onerror)``
-    """
-    import stat
-    if not os.access(path, os.W_OK):
-        # Is the error an access error ?
-        os.chmod(path, stat.S_IWUSR)
-        func(path)
-    else:
-        raise
-
-def bToGb(b):
-    return b / (2**30)
-
-def bToMb(b):
-    return b / (2**20)
-
-def readSmdbFile(fileName):
-    if os.path.exists(fileName):
-        try:
-            with open(fileName) as f:
-                return json.load(f)
-        except:
-            print("Could not open file: %s" % fileName)
-
-
-def getMovieKey(movie, key):
-    if key in movie:
-        return movie[key]
-    else:
-        return None
-
-
-def openYearImdbPage(year):
-    webbrowser.open('https://www.imdb.com/search/title/?release_date=%s-01-01,%s-12-31' % (year, year), new=2)
-
-
-def openPersonImdbPage(personName, db):
-    personId = db.name2imdbID(personName)
-    if not personId:
-        results = db.search_person(personName)
-        if not results:
-            print('No matches for: %s' % personName)
-            return
-        person = results[0]
-        if isinstance(person, imdb.Person.Person):
-            personId = person.getID()
-
-    if personId:
-        webbrowser.open('http://imdb.com/name/nm%s' % personId, new=2)
 
 class FilterTable(QtWidgets.QTableWidget):
     def __init__(self):
@@ -115,6 +52,7 @@ class FilterTable(QtWidgets.QTableWidget):
                 return
             else:
                 super(FilterTable, self).mousePressEvent(event)
+
 
 class FilterWidget(QtWidgets.QFrame):
 
@@ -339,6 +277,7 @@ class MovieCover(QtWidgets.QLabel):
         self.wheelSpun.emit(event.angleDelta().y() / 120)
         event.accept()
 
+
 class MovieTableView(QtWidgets.QTableView):
     wheelSpun = QtCore.pyqtSignal(int)
 
@@ -349,6 +288,7 @@ class MovieTableView(QtWidgets.QTableView):
         else:
             event.ignore()
             super().wheelEvent(event)
+
 
 class MovieInfoListview(QtWidgets.QListWidget):
     wheelSpun = QtCore.pyqtSignal(int)
@@ -370,75 +310,7 @@ class MovieInfoListview(QtWidgets.QListWidget):
                 super().mousePressEvent(event)
 
 
-def getFolderSize(startPath='.'):
-    total_size = 0
-    for dirpath, dirnames, filenames in os.walk(startPath):
-        for f in filenames:
-            fp = os.path.join(dirpath, f)
-            # skip if it is symbolic link
-            if not os.path.islink(fp):
-                total_size += os.path.getsize(fp)
-    return total_size
-
-
-def getFolderSizes(path):
-    fileAndSizes = dict()
-    for f in os.listdir(path):
-        fullPath = os.path.join(path, f)
-        if os.path.isdir(fullPath):
-            fileSize = getFolderSize(fullPath)
-        else:
-            fileSize = os.path.getsize(fullPath)
-        fileAndSizes[f] = fileSize
-    return fileAndSizes
-
-
 class MyWindow(QtWidgets.QMainWindow):
-    def wheelEvent(self, event):
-        self.changeFontSize(event.angleDelta().y() / 120)
-        event.accept()
-
-    def changeFontSize(self, delta):
-        if QtWidgets.QApplication.keyboardModifiers() != QtCore.Qt.ControlModifier:
-            return
-
-        if 5 >= self.fontSize <= 30:
-            return
-
-        delta = min(1, max(-1, delta))
-        self.setFontSize(self.fontSize + delta)
-
-    def setFontSize(self, fontSize):
-        self.fontSize = max(6, min(29, fontSize))
-        self.setStyleSheet(f"font-size:{self.fontSize}px;")
-        self.titleLabel.setStyleSheet(f"color: {self.fgColor};"
-                                      f"background: {self.bgColorC};"
-                                      f"font-size: {self.fontSize * 2}px;")
-        self.rowHeightWithoutCover = 18 * (self.fontSize / 12)
-
-        if len(self.moviesTableColumnsVisible) > 0 and self.moviesTableColumnsVisible[Columns.Cover.value]:
-            self.moviesTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
-        else:
-            self.moviesTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
-
-        if len(self.watchListColumnsVisible) > 0 and self.watchListColumnsVisible[Columns.Cover.value]:
-            self.watchListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
-        else:
-            self.watchListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
-
-        if len(self.backupListColumnsVisible) > 0 and self.backupListColumnsVisible[Columns.Cover.value]:
-            self.backupListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
-        else:
-            self.backupListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
-
-        if len(self.historyListColumnsVisible) > 0 and self.historyListColumnsVisible[Columns.Cover.value]:
-            self.historyListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
-        else:
-            self.historyListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
-
-        self.primaryFilterWidget.filterTable.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
-        self.secondaryFilterWidget.filterTable.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
-
     def __init__(self):
         super(MyWindow, self).__init__()
 
@@ -812,6 +684,52 @@ class MyWindow(QtWidgets.QMainWindow):
         self.refreshBackupList()
 
         self.showMoviesTableSelectionStatus()
+
+    def wheelEvent(self, event):
+        self.changeFontSize(event.angleDelta().y() / 120)
+        event.accept()
+
+    def changeFontSize(self, delta):
+        if QtWidgets.QApplication.keyboardModifiers() != QtCore.Qt.ControlModifier:
+            return
+
+        if 5 >= self.fontSize <= 30:
+            return
+
+        delta = min(1, max(-1, delta))
+        self.setFontSize(self.fontSize + delta)
+
+    def setFontSize(self, fontSize):
+        self.fontSize = max(6, min(29, fontSize))
+        self.setStyleSheet(f"font-size:{self.fontSize}px;")
+        self.titleLabel.setStyleSheet(f"color: {self.fgColor};"
+                                      f"background: {self.bgColorC};"
+                                      f"font-size: {self.fontSize * 2}px;")
+        self.rowHeightWithoutCover = 18 * (self.fontSize / 12)
+
+        if len(self.moviesTableColumnsVisible) > 0 and self.moviesTableColumnsVisible[Columns.Cover.value]:
+            self.moviesTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
+        else:
+            self.moviesTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+
+        if len(self.watchListColumnsVisible) > 0 and self.watchListColumnsVisible[Columns.Cover.value]:
+            self.watchListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
+        else:
+            self.watchListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+
+        if len(self.backupListColumnsVisible) > 0 and self.backupListColumnsVisible[Columns.Cover.value]:
+            self.backupListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
+        else:
+            self.backupListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+
+        if len(self.historyListColumnsVisible) > 0 and self.historyListColumnsVisible[Columns.Cover.value]:
+            self.historyListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
+        else:
+            self.historyListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+
+        self.primaryFilterWidget.filterTable.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+        self.secondaryFilterWidget.filterTable.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+
 
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
         self.settings.setValue('geometry', self.geometry())

@@ -2,52 +2,16 @@ import re
 import os
 import shutil
 import sys
+import json
 import subprocess
 import urllib.request
+from urllib.error import URLError
+
+import webbrowser
+import imdb
 
 from PyQt5.QtWidgets import QMessageBox
 from PyQt5 import QtCore
-
-
-def splitCamelCase(inputText):
-    return re.sub('([A-Z][a-z]+)', r' \1', re.sub('([A-Z]+)', r' \1', inputText)).split()
-
-def getNiceTitleAndYear(folderName):
-    m = re.match(r'(.*)\((.*)\)', folderName)
-    title = m.group(1)
-    year = m.group(2)
-    splitTitle = splitCamelCase(title)
-    if splitTitle[0] == 'The':
-        splitTitle.pop(0)
-        splitTitle.append(', The')
-    niceTitle = ' '.join(splitTitle)
-    return niceTitle, year
-
-
-def copyCoverImage(movie, coverFile):
-    if movie.has_key('full-size cover url'):
-        movieCoverUrl = movie['full-size cover url']
-    elif movie.has_key('cover'):
-        movieCoverUrl = movie['cover']
-    else:
-        print("Error: No cover image available")
-        return ""
-    extension = os.path.splitext(movieCoverUrl)[1]
-    if extension == '.png':
-        coverFile = coverFile.replace('.jpg', '.png')
-    try:
-        urllib.request.urlretrieve(movieCoverUrl, coverFile)
-    except:
-        print("Problem downloading cover file: %s" % coverFile)
-    return coverFile
-
-
-def runFile(file):
-    if sys.platform == "win32":
-        subprocess.Popen(f'start {file}', shell=True)
-    else:
-        opener = "open" if sys.platform == "darwin" else "xdg-open"
-        subprocess.call([opener, file])
 
 
 def handleRemoveReadonly(func, path, exc_info):
@@ -68,6 +32,114 @@ def handleRemoveReadonly(func, path, exc_info):
         func(path)
     else:
         raise
+
+
+def bToGb(b):
+    return b / (2**30)
+
+
+def bToMb(b):
+    return b / (2**20)
+
+
+def readSmdbFile(fileName):
+    if os.path.exists(fileName):
+        try:
+            with open(fileName) as f:
+                return json.load(f)
+        except IOError:
+            print("Could not open file: %s" % fileName)
+
+
+def getMovieKey(movie, key):
+    if key in movie:
+        return movie[key]
+    else:
+        return None
+
+
+def openYearImdbPage(year):
+    webbrowser.open('https://www.imdb.com/search/title/?release_date=%s-01-01,%s-12-31' % (year, year), new=2)
+
+
+def openPersonImdbPage(personName, db):
+    personId = db.name2imdbID(personName)
+    if not personId:
+        results = db.search_person(personName)
+        if not results:
+            print('No matches for: %s' % personName)
+            return
+        person = results[0]
+        if isinstance(person, imdb.Person.Person):
+            personId = person.getID()
+
+    if personId:
+        webbrowser.open('http://imdb.com/name/nm%s' % personId, new=2)
+
+
+def getFolderSize(startPath='.'):
+    total_size = 0
+    for dirpath, dirnames, filenames in os.walk(startPath):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            # skip if it is symbolic link
+            if not os.path.islink(fp):
+                total_size += os.path.getsize(fp)
+    return total_size
+
+
+def getFolderSizes(path):
+    fileAndSizes = dict()
+    for f in os.listdir(path):
+        fullPath = os.path.join(path, f)
+        if os.path.isdir(fullPath):
+            fileSize = getFolderSize(fullPath)
+        else:
+            fileSize = os.path.getsize(fullPath)
+        fileAndSizes[f] = fileSize
+    return fileAndSizes
+
+
+def splitCamelCase(inputText):
+    return re.sub('([A-Z][a-z]+)', r' \1', re.sub('([A-Z]+)', r' \1', inputText)).split()
+
+
+def getNiceTitleAndYear(folderName):
+    m = re.match(r'(.*)\((.*)\)', folderName)
+    title = m.group(1)
+    year = m.group(2)
+    splitTitle = splitCamelCase(title)
+    if splitTitle[0] == 'The':
+        splitTitle.pop(0)
+        splitTitle.append(', The')
+    niceTitle = ' '.join(splitTitle)
+    return niceTitle, year
+
+
+def copyCoverImage(movie, coverFile):
+    if 'full-size cover url' in movie:
+        movieCoverUrl = movie['full-size cover url']
+    elif 'cover' in movie:
+        movieCoverUrl = movie['cover']
+    else:
+        print("Error: No cover image available")
+        return ""
+    extension = os.path.splitext(movieCoverUrl)[1]
+    if extension == '.png':
+        coverFile = coverFile.replace('.jpg', '.png')
+    try:
+        urllib.request.urlretrieve(movieCoverUrl, coverFile)
+    except URLError as e:
+        print(f"Problem downloading cover file: {coverFile} - {e}")
+    return coverFile
+
+
+def runFile(file):
+    if sys.platform == "win32":
+        subprocess.Popen(f'start {file}', shell=True)
+    else:
+        opener = "open" if sys.platform == "darwin" else "xdg-open"
+        subprocess.call([opener, file])
 
 
 def removeFolders(parent, foldersToDelete):
@@ -134,5 +206,3 @@ def searchTableView(searchBoxWidget, tableView):
 
     for row in range(proxyModel.rowCount(tableView.rootIndex())):
         tableView.verticalHeader().resizeSection(row, 18)
-
-
