@@ -132,8 +132,19 @@ class FilterWidget(QtWidgets.QFrame):
                  minCount=2,
                  defaultSectionSize=18,
                  column0Width=170,
-                 column1Width=60):
+                 column1Width=60,
+                 bgColorA='rgb(50, 50, 50)',
+                 bgColorB='rgb(25, 25, 25)',
+                 bgColorC='rgb(0, 0, 0)',
+                 bgColorD='rgb(15, 15, 15)',
+                 fgColor='rgb(255, 255, 255)'):
         super(FilterWidget, self).__init__()
+
+        self.bgColorA = bgColorA
+        self.bgColorB = bgColorB
+        self.bgColorC = bgColorC
+        self.bgColorD = bgColorD
+        self.fgColor = fgColor
 
         self.moviesSmdbData = None
         self.db = None
@@ -154,7 +165,9 @@ class FilterWidget(QtWidgets.QFrame):
 
         self.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
         self.setLineWidth(5)
-        self.setStyleSheet("background: rgb(25, 25, 25); color: white; border-radius: 10px")
+        self.setStyleSheet(f"background: {self.bgColorB};"
+                           f"color: {self.fgColor};"
+                           f"border-radius: 10px;")
 
         filtersVLayout = QtWidgets.QVBoxLayout()
         self.setLayout(filtersVLayout)
@@ -170,7 +183,8 @@ class FilterWidget(QtWidgets.QFrame):
         filterByHLayout.addWidget(filterByLabel)
 
         self.filterByComboBox = QtWidgets.QComboBox()
-        self.filterByComboBox.setStyleSheet("background: rgb(50, 50, 50);")
+        self.filterByComboBox.setStyleSheet(f"background: {self.bgColorA};"
+                                            f"border-radius: 0px;")
         for i in self.filterByDict.keys():
             self.filterByComboBox.addItem(i)
         self.filterByComboBox.setCurrentIndex(filterBy)
@@ -187,6 +201,7 @@ class FilterWidget(QtWidgets.QFrame):
         self.filterMinCountCheckbox.stateChanged.connect(self.populateFiltersTable)
         minCountHLayout.addWidget(self.filterMinCountCheckbox)
 
+        self.filterMinCountSpinBox.setStyleSheet(f"background: {self.bgColorC};")
         self.filterMinCountSpinBox.setMinimum(0)
         self.filterMinCountSpinBox.setValue(minCount)
         self.filterMinCountSpinBox.valueChanged.connect(self.populateFiltersTable)
@@ -201,11 +216,15 @@ class FilterWidget(QtWidgets.QFrame):
         self.filterTable.verticalHeader().setMinimumSectionSize(10)
         self.filterTable.verticalHeader().setDefaultSectionSize(defaultSectionSize)
         self.filterTable.setWordWrap(False)
-        self.filterTable.setStyleSheet("background: black; alternate-background-color: #151515; color: white")
+        self.filterTable.setStyleSheet(f"background: {self.bgColorC};"
+                                       f"alternate-background-color: {self.bgColorD};"
+                                       f"color: {self.fgColor};")
         self.filterTable.setAlternatingRowColors(True)
         self.filterTable.itemSelectionChanged.connect(lambda: self.tableSelectionChangedSignal.emit())
         hh = self.filterTable.horizontalHeader()
-        hh.setStyleSheet("background: #303030; color: white")
+        hh.setStyleSheet(f"background: {self.bgColorB};"
+                         f"color: {self.fgColor};"
+                         f"border-radius: 0px;")
         filtersVLayout.addWidget(self.filterTable)
 
         filtersSearchHLayout = QtWidgets.QHBoxLayout()
@@ -217,7 +236,9 @@ class FilterWidget(QtWidgets.QFrame):
         filtersSearchHLayout.addWidget(searchText)
 
         filterTableSearchBox = QtWidgets.QLineEdit(self)
-        filterTableSearchBox.setStyleSheet("background: black; color: white; border-radius: 5px")
+        filterTableSearchBox.setStyleSheet(f"background: {self.bgColorC};"
+                                           f"color: {self.fgColor};"
+                                           f"border-radius: 5px;")
         filterTableSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
         filterTableSearchBox.setClearButtonEnabled(True)
         filtersSearchHLayout.addWidget(filterTableSearchBox)
@@ -385,7 +406,9 @@ class MyWindow(QtWidgets.QMainWindow):
     def setFontSize(self, fontSize):
         self.fontSize = max(6, min(29, fontSize))
         self.setStyleSheet(f"font-size:{self.fontSize}px;")
-        self.titleLabel.setStyleSheet(f"color: white; background: black; font-size: {self.fontSize * 2}px;")
+        self.titleLabel.setStyleSheet(f"color: {self.fgColor};"
+                                      f"background: {self.bgColorC};"
+                                      f"font-size: {self.fontSize * 2}px;")
         self.rowHeightWithoutCover = 18 * (self.fontSize / 12)
 
         if len(self.moviesTableColumnsVisible) > 0 and self.moviesTableColumnsVisible[Columns.Cover.value]:
@@ -442,9 +465,20 @@ class MyWindow(QtWidgets.QMainWindow):
         self.defaultFontSize = 12
         self.fontSize = self.settings.value('fontSize', self.defaultFontSize, type=int)
 
+        self.bgColorA = 'rgb(50, 50, 50)'
+        self.bgColorB = 'rgb(25, 25, 25)'
+        self.bgColorC = 'rgb(0, 0, 0)'
+        self.bgColorD = 'rgb(15, 15, 15)'
+        self.bgColorE = QtGui.QColor(75, 75, 75)
+        self.fgColor = 'rgb(255, 255, 255)'
+
         # Set foreground/background colors for item views
-        self.menuBar().setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 0px;")
-        self.statusBar().setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 0px;")
+        self.menuBar().setStyleSheet(f"background: {self.bgColorA};"
+                                     f"color: {self.fgColor};"
+                                     f"border-radius: 0px;")
+        self.statusBar().setStyleSheet(f"background: {self.bgColorA};"
+                                       f"color: {self.fgColor};"
+                                       f"border-radius: 0px;")
 
         # Default view state of UI sections
         self.showPrimaryFilter = self.settings.value('showPrimaryFilter', True, type=bool)
@@ -467,7 +501,9 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Add the central widget
         centralWidget = QtWidgets.QWidget()
-        centralWidget.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 0px;")
+        centralWidget.setStyleSheet(f"background: {self.bgColorB};"
+                                    f"color: {self.fgColor};"
+                                    f"border-radius: 0px;")
         self.setCentralWidget(centralWidget)
 
         # Divides top h splitter and bottom progress bar
@@ -499,7 +535,12 @@ class MyWindow(QtWidgets.QMainWindow):
                                                           type=int),
                          column1Width=self.settings.value("primaryFilterColumn1Width",
                                                           self.primaryFilterColumn1WidthDefault,
-                                                          type=int))
+                                                          type=int),
+                         bgColorA=self.bgColorA,
+                         bgColorB=self.bgColorB,
+                         bgColorC=self.bgColorC,
+                         bgColorD=self.bgColorD,
+                         fgColor=self.fgColor)
 
         self.primaryFilterWidget.wheelSpun.connect(self.changeFontSize)
         self.filtersVSplitter.addWidget(self.primaryFilterWidget)
@@ -517,7 +558,12 @@ class MyWindow(QtWidgets.QMainWindow):
                                                           type=int),
                          column1Width=self.settings.value("secondaryFilterColumn1Width",
                                                           self.secondaryFilterColumn1WidthDefault,
-                                                          type=int))
+                                                          type=int),
+                         bgColorA=self.bgColorA,
+                         bgColorB=self.bgColorB,
+                         bgColorC=self.bgColorC,
+                         bgColorD=self.bgColorD,
+                         fgColor=self.fgColor)
         self.secondaryFilterWidget.wheelSpun.connect(self.changeFontSize)
         self.filtersVSplitter.addWidget(self.secondaryFilterWidget)
 
@@ -702,12 +748,16 @@ class MyWindow(QtWidgets.QMainWindow):
         bottomLayout = QtWidgets.QHBoxLayout(self)
         mainVLayout.addLayout(bottomLayout)
         self.progressBar = QtWidgets.QProgressBar()
-        self.progressBar.setStyleSheet("background: rgb(0, 0, 0); color: white; border-radius: 5px")
+        self.progressBar.setStyleSheet(f"background: {self.bgColorC};"
+                                       f"color: {self.fgColor};"
+                                       f"border-radius: 5px")
         self.progressBar.setMaximum(100)
         bottomLayout.addWidget(self.progressBar)
         cancelButton = QtWidgets.QPushButton("Cancel", self)
         cancelButton.clicked.connect(self.cancelButtonClicked)
-        cancelButton.setStyleSheet("background: rgb(100, 100, 100); color: white; border-radius: 5px")
+        cancelButton.setStyleSheet(f"background: rgb(100, 100, 100);"
+                                   f"color: {self.fgColor};"
+                                   f"border-radius: 5px")
         cancelButton.setFixedSize(100, 25)
         bottomLayout.addWidget(cancelButton)
 
@@ -801,7 +851,6 @@ class MyWindow(QtWidgets.QMainWindow):
                 width = defaultColumnWidths[i]
             columnWidths.append(width)
         self.settings.setValue(f'{saveName}ColumnWidths', columnWidths)
-
 
     def initUIFileMenu(self):
         menuBar = self.menuBar()
@@ -982,7 +1031,9 @@ class MyWindow(QtWidgets.QMainWindow):
     def initUIMoviesTable(self):
         self.moviesTableWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
         self.moviesTableWidget.setLineWidth(5)
-        self.moviesTableWidget.setStyleSheet("background: rgb(25, 25, 25); color: white;  border-radius: 10px")
+        self.moviesTableWidget.setStyleSheet(f"background: {self.bgColorB};"
+                                             f"color: {self.fgColor};"
+                                             f"border-radius: 10px;")
 
         moviesTableViewVLayout = QtWidgets.QVBoxLayout()
         self.moviesTableWidget.setLayout(moviesTableViewVLayout)
@@ -993,13 +1044,17 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableView.setSortingEnabled(True)
         self.moviesTableView.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.moviesTableView.verticalHeader().hide()
-        self.moviesTableView.setStyleSheet("background: black; alternate-background-color: #151515; color: white")
+        self.moviesTableView.setStyleSheet(f"background: {self.bgColorC};"
+                                           f"alternate-background-color: {self.bgColorD};"
+                                           f"color: {self.fgColor};")
         self.moviesTableView.setAlternatingRowColors(True)
         self.moviesTableView.setShowGrid(False)
 
         # Right click header menu
         hh = self.moviesTableView.horizontalHeader()
-        hh.setStyleSheet("background: #303030; color: white")
+        hh.setStyleSheet(f"background: {self.bgColorB};"
+                         f"color: {self.fgColor};"
+                         f"border-radius: 0px;")
         hh.setSectionsMovable(True)
         hh.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         hh.customContextMenuRequested[QtCore.QPoint].connect(
@@ -1027,7 +1082,9 @@ class MyWindow(QtWidgets.QMainWindow):
         backButton.setSizePolicy(QtWidgets.QSizePolicy.Minimum,
                                  QtWidgets.QSizePolicy.Minimum)
         backButton.clicked.connect(self.moviesTableBack)
-        backButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px;")
+        backButton.setStyleSheet(f"background: {self.bgColorA};"
+                                 f"color: {self.fgColor};"
+                                 f"border-radius: 5px;")
         backForwardHLayout.addWidget(backButton)
 
         # Forward button
@@ -1035,7 +1092,9 @@ class MyWindow(QtWidgets.QMainWindow):
         forwardButton.setSizePolicy(QtWidgets.QSizePolicy.Minimum,
                                     QtWidgets.QSizePolicy.Minimum)
         forwardButton.clicked.connect(self.moviesTableForward)
-        forwardButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        forwardButton.setStyleSheet(f"background: {self.bgColorA};"
+                                    f"color: {self.fgColor};"
+                                    f"border-radius: 5px;")
         backForwardHLayout.addWidget(forwardButton)
 
         randomAllHLayout = QtWidgets.QHBoxLayout()
@@ -1046,7 +1105,9 @@ class MyWindow(QtWidgets.QMainWindow):
         pickRandomButton.setSizePolicy(QtWidgets.QSizePolicy.Minimum,
                                        QtWidgets.QSizePolicy.Minimum)
         pickRandomButton.clicked.connect(self.pickRandomMovie)
-        pickRandomButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        pickRandomButton.setStyleSheet(f"background: {self.bgColorA};"
+                                       f"color: {self.fgColor};"
+                                       f"border-radius: 5px;")
         randomAllHLayout.addWidget(pickRandomButton)
 
         # Show all button
@@ -1054,7 +1115,9 @@ class MyWindow(QtWidgets.QMainWindow):
         showAllButton.setSizePolicy(QtWidgets.QSizePolicy.Minimum,
                                     QtWidgets.QSizePolicy.Minimum)
         showAllButton.clicked.connect(self.showAllMoviesTableView)
-        showAllButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        showAllButton.setStyleSheet(f"background: {self.bgColorA};"
+                                    f"color: {self.fgColor};"
+                                    f"border-radius: 5px;")
         randomAllHLayout.addWidget(showAllButton)
 
         moviesTableSearchVLayout = QtWidgets.QVBoxLayout()
@@ -1069,7 +1132,9 @@ class MyWindow(QtWidgets.QMainWindow):
                                       QtWidgets.QSizePolicy.Maximum)
         moviesTableFilterHLayout.addWidget(titleFilterText)
 
-        self.moviesTableTitleFilterBox.setStyleSheet("background: black; color: white; border-radius: 5px")
+        self.moviesTableTitleFilterBox.setStyleSheet(f"background: {self.bgColorC};"
+                                                     f"color: {self.fgColor};"
+                                                     f"border-radius: 5px;")
         self.moviesTableTitleFilterBox.setSizePolicy(QtWidgets.QSizePolicy.Minimum,
                                                      QtWidgets.QSizePolicy.Minimum)
         self.moviesTableTitleFilterBox.setClearButtonEnabled(True)
@@ -1085,7 +1150,9 @@ class MyWindow(QtWidgets.QMainWindow):
                                       QtWidgets.QSizePolicy.Maximum)
         moviesTableSearchPlotsHLayout.addWidget(searchPlotsText)
 
-        self.moviesTableSearchPlotsBox.setStyleSheet("background: black; color: white; border-radius: 5px")
+        self.moviesTableSearchPlotsBox.setStyleSheet(f"background: {self.bgColorC};"
+                                                     f"color: {self.fgColor};"
+                                                     f"border-radius: 5px;")
         self.moviesTableSearchPlotsBox.setSizePolicy(QtWidgets.QSizePolicy.Minimum,
                                                      QtWidgets.QSizePolicy.Minimum)
         self.moviesTableSearchPlotsBox.setClearButtonEnabled(True)
@@ -1098,7 +1165,9 @@ class MyWindow(QtWidgets.QMainWindow):
     def initUIWatchList(self):
         self.watchListWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
         self.watchListWidget.setLineWidth(5)
-        self.watchListWidget.setStyleSheet("background: rgb(25, 25, 25); color: white; border-radius: 10px")
+        self.watchListWidget.setStyleSheet(f"background: {self.bgColorB};"
+                                           f"color: {self.fgColor};"
+                                           f"border-radius: 10px;")
 
         watchListVLayout = QtWidgets.QVBoxLayout()
         self.watchListWidget.setLayout(watchListVLayout)
@@ -1109,15 +1178,18 @@ class MyWindow(QtWidgets.QMainWindow):
         self.watchListTableView.setSortingEnabled(False)
         self.watchListTableView.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.watchListTableView.verticalHeader().hide()
-        self.watchListTableView.setStyleSheet("background: black; alternate-background-color: #151515; color: white")
+        self.watchListTableView.setStyleSheet(f"background: {self.bgColorC};"
+                                              f"alternate-background-color: {self.bgColorD};"
+                                              f"color: {self.fgColor};")
         self.watchListTableView.setAlternatingRowColors(True)
-        self.watchListTableView.horizontalHeader().setSectionsMovable(True)
-        self.watchListTableView.horizontalHeader().setStyleSheet("color: black")
         self.watchListTableView.setShowGrid(False)
 
         # Right click header menu
         hh = self.watchListTableView.horizontalHeader()
-        hh.setStyleSheet("background: #303030; color: white")
+        hh.setSectionsMovable(True)
+        hh.setStyleSheet(f"background: {self.bgColorB};"
+                         f"color:{self.fgColor};"
+                         f"border-radius: 0px;")
         hh.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         hh.customContextMenuRequested[QtCore.QPoint].connect(
             lambda: self.headerRightMenuShow(QtCore.QPoint,
@@ -1136,33 +1208,45 @@ class MyWindow(QtWidgets.QMainWindow):
 
         addButton = QtWidgets.QPushButton('Add')
         addButton.clicked.connect(self.watchListAdd)
-        addButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        addButton.setStyleSheet(f"background: {self.bgColorA};"
+                                f"color: {self.fgColor};"
+                                f"border-radius: 5px;")
         watchListButtonsHLayout.addWidget(addButton)
 
         removeButton = QtWidgets.QPushButton('Remove')
         removeButton.clicked.connect(self.watchListRemove)
-        removeButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        removeButton.setStyleSheet(f"background: {self.bgColorA};"
+                                   f"color: {self.fgColor};"
+                                   f"border-radius: 5px;")
         watchListButtonsHLayout.addWidget(removeButton)
 
         moveToTopButton = QtWidgets.QPushButton('Move To Top')
         moveToTopButton.clicked.connect(lambda: self.watchListMoveRow(self.MoveTo.TOP))
-        moveToTopButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        moveToTopButton.setStyleSheet(f"background: {self.bgColorA};"
+                                      f"color: {self.fgColor};"
+                                      f"border-radius: 5px;")
         watchListButtonsHLayout.addWidget(moveToTopButton)
 
         moveUpButton = QtWidgets.QPushButton('Move Up')
         moveUpButton.clicked.connect(lambda: self.watchListMoveRow(self.MoveTo.UP))
-        moveUpButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        moveUpButton.setStyleSheet(f"background: {self.bgColorA};"
+                                   f"color: {self.fgColor};"
+                                   f"border-radius: 5px;")
         watchListButtonsHLayout.addWidget(moveUpButton)
 
         moveDownButton = QtWidgets.QPushButton('Move Down')
         moveDownButton.clicked.connect(lambda: self.watchListMoveRow(self.MoveTo.DOWN))
-        moveDownButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        moveDownButton.setStyleSheet(f"background: {self.bgColorA};"
+                                     f"color: {self.fgColor};"
+                                     f"border-radius: 5px;")
         watchListButtonsHLayout.addWidget(moveDownButton)
 
     def initUIHistoryList(self):
         self.historyListWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
         self.historyListWidget.setLineWidth(5)
-        self.historyListWidget.setStyleSheet("background: rgb(25, 25, 25); color: white; border-radius: 10px")
+        self.historyListWidget.setStyleSheet(f"background: {self.bgColorB};"
+                                             f"color: {self.fgColor};"
+                                             f"border-radius: 10px;")
 
         historyListVLayout = QtWidgets.QVBoxLayout()
         self.historyListWidget.setLayout(historyListVLayout)
@@ -1173,15 +1257,18 @@ class MyWindow(QtWidgets.QMainWindow):
         self.historyListTableView.setSortingEnabled(False)
         self.historyListTableView.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.historyListTableView.verticalHeader().hide()
-        self.historyListTableView.setStyleSheet("background: black; alternate-background-color: #151515; color: white")
+        self.historyListTableView.setStyleSheet(f"background: {self.bgColorC};"
+                                                f"alternate-background-color: {self.bgColorD};"
+                                                f"color: {self.fgColor};")
         self.historyListTableView.setAlternatingRowColors(True)
-        self.historyListTableView.horizontalHeader().setSectionsMovable(True)
-        self.historyListTableView.horizontalHeader().setStyleSheet("color: black")
         self.historyListTableView.setShowGrid(False)
 
         # Right click header menu
         hh = self.historyListTableView.horizontalHeader()
-        hh.setStyleSheet("background: #303030; color: white")
+        hh.setSectionsMovable(True)
+        hh.setStyleSheet(f"background: {self.bgColorB};"
+                         f"color: {self.fgColor};"
+                         f"border-radius: 0px;")
         hh.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         hh.customContextMenuRequested[QtCore.QPoint].connect(
             lambda: self.headerRightMenuShow(QtCore.QPoint,
@@ -1200,14 +1287,17 @@ class MyWindow(QtWidgets.QMainWindow):
 
         removeButton = QtWidgets.QPushButton('Remove')
         removeButton.clicked.connect(self.historyListRemove)
-        removeButton.setStyleSheet("background: rgb(50, 50, 50); color: white; border-radius: 5px")
+        removeButton.setStyleSheet(f"background: {self.bgColorA};"
+                                   f"color: {self.fgColor};"
+                                   f"border-radius: 5px;")
         historyListButtonsHLayout.addWidget(removeButton)
 
     def initUIMovieSection(self):
         self.movieSectionWidget = QtWidgets.QFrame()
         self.movieSectionWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
         self.movieSectionWidget.setLineWidth(5)
-        self.movieSectionWidget.setStyleSheet("background: rgb(25, 25, 25); border-radius: 10px")
+        self.movieSectionWidget.setStyleSheet(f"background: {self.bgColorB};"
+                                              f"border-radius: 10px;")
         if not self.showMovieSection:
             self.movieSectionWidget.hide()
 
@@ -1216,7 +1306,9 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Title
         self.titleLabel = QtWidgets.QLabel()
-        self.titleLabel.setStyleSheet(f"color: white; background: black; font-size: {self.fontSize * 2}px;")
+        self.titleLabel.setStyleSheet(f"color: {self.fgColor};"
+                                      f"background: {self.bgColorC};"
+                                      f"font-size: {self.fontSize * 2}px;")
         self.titleLabel.setWordWrap(True)
         self.titleLabel.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignTop)
         #self.titleLabel.setSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Fixed)
@@ -1241,7 +1333,8 @@ class MyWindow(QtWidgets.QMainWindow):
         self.movieInfoWidget.setLayout(movieInfoVLayout)
         self.movieInfoListView = MovieInfoListview()
         self.movieInfoListView.wheelSpun.connect(self.changeFontSize)
-        self.movieInfoListView.setStyleSheet("background: black; color: white;")
+        self.movieInfoListView.setStyleSheet(f"background: {self.bgColorC};"
+                                             f"color: {self.fgColor};")
         self.movieInfoListView.itemSelectionChanged.connect(self.movieInfoSelectionChanged)
         self.movieInfoListView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.movieInfoListView.customContextMenuRequested[QtCore.QPoint].connect(self.movieInfoRightMenu)
@@ -1280,7 +1373,8 @@ class MyWindow(QtWidgets.QMainWindow):
 
         # Summary
         self.summary = QtWidgets.QTextBrowser()
-        self.summary.setStyleSheet("color:white; background-color: black;")
+        self.summary.setStyleSheet(f"color: {self.fgColor};"
+                                   f"background-color: {self.bgColorC};")
         self.coverSummaryVSplitter.addWidget(self.summary)
         if not self.showSummary:
             self.summary.hide()
@@ -1292,7 +1386,9 @@ class MyWindow(QtWidgets.QMainWindow):
     def initUIBackupList(self):
         self.backupListWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
         self.backupListWidget.setLineWidth(5)
-        self.backupListWidget.setStyleSheet("background: rgb(25, 25, 25); color: white; border-radius: 10px")
+        self.backupListWidget.setStyleSheet(f"background: {self.bgColorB};"
+                                            f"color: {self.fgColor};"
+                                            f"border-radius: 10px;")
 
         backupListVLayout = QtWidgets.QVBoxLayout()
         self.backupListWidget.setLayout(backupListVLayout)
@@ -1303,15 +1399,18 @@ class MyWindow(QtWidgets.QMainWindow):
         self.backupListTableView.setSortingEnabled(True)
         self.backupListTableView.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.backupListTableView.verticalHeader().hide()
-        self.backupListTableView.setStyleSheet("background: black; alternate-background-color: #151515; color: white")
+        self.backupListTableView.setStyleSheet(f"background: {self.bgColorC};"
+                                               f"alternate-background-color: {self.bgColorD};"
+                                               f"color: {self.fgColor};")
         self.backupListTableView.setAlternatingRowColors(True)
-        self.backupListTableView.horizontalHeader().setSectionsMovable(True)
-        self.backupListTableView.horizontalHeader().setStyleSheet("color: black")
         self.backupListTableView.setShowGrid(False)
 
         # Right click header menu
         hh = self.backupListTableView.horizontalHeader()
-        hh.setStyleSheet("background: #303030; color: white")
+        hh.setSectionsMovable(True)
+        hh.setStyleSheet(f"background: {self.bgColorB};"
+                         f"color: {self.fgColor};"
+                         f"border-radius: 0px;")
         hh.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         hh.customContextMenuRequested[QtCore.QPoint].connect(
             lambda: self.headerRightMenuShow(QtCore.QPoint,
@@ -1329,43 +1428,44 @@ class MyWindow(QtWidgets.QMainWindow):
         backupListVLayout.addLayout(backupListButtonsHLayout)
 
         addButton = QtWidgets.QPushButton('Add')
-        addButton.setStyleSheet("background: rgb(50, 50, 50);"
-                                "color: white;"
+        addButton.setStyleSheet(f"background: {self.bgColorA};"
+                                f"color: {self.fgColor};"
                                 "border-radius: 5px")
         addButton.clicked.connect(self.backupListAdd)
         backupListButtonsHLayout.addWidget(addButton)
 
         removeButton = QtWidgets.QPushButton('Remove')
-        removeButton.setStyleSheet("background: rgb(50, 50, 50); color: white;"
+        removeButton.setStyleSheet(f"background: {self.bgColorA};"
+                                   f"color: {self.fgColor};"
                                    "border-radius: 5px")
         removeButton.clicked.connect(self.backupListRemove)
         backupListButtonsHLayout.addWidget(removeButton)
 
         removeNoDifferenceButton = QtWidgets.QPushButton('Remove Folders With No Difference')
         removeNoDifferenceButton.setFixedSize(300, 20)
-        removeNoDifferenceButton.setStyleSheet("background: rgb(50, 50, 50);"
-                                               "color: white; border-radius: 5px")
+        removeNoDifferenceButton.setStyleSheet(f"background: {self.bgColorA};"
+                                               f"color: {self.fgColor}; border-radius: 5px;")
         removeNoDifferenceButton.clicked.connect(self.backupListRemoveNoDifference)
         backupListButtonsHLayout.addWidget(removeNoDifferenceButton)
 
         analyseButton = QtWidgets.QPushButton("Analyse")
-        analyseButton.setStyleSheet("background: rgb(50, 50, 50);"
-                                    "color: white;"
-                                    "border-radius: 5px")
+        analyseButton.setStyleSheet(f"background: {self.bgColorA};"
+                                    f"color: {self.fgColor};"
+                                    "border-radius: 5px;")
         analyseButton.clicked.connect(self.backupAnalyse)
         backupListButtonsHLayout.addWidget(analyseButton)
 
         backupButton = QtWidgets.QPushButton("Backup")
-        backupButton.setStyleSheet("background: rgb(50, 50, 50);"
-                                   "color: white;"
-                                   "border-radius: 5px")
+        backupButton.setStyleSheet(f"background: {self.bgColorA};"
+                                   f"color: {self.fgColor};"
+                                   "border-radius: 5px;")
         backupButton.clicked.connect(lambda: self.backupRun(moveFiles=False))
         backupListButtonsHLayout.addWidget(backupButton)
 
         moveButton = QtWidgets.QPushButton("Move")
-        moveButton.setStyleSheet("background: rgb(50, 50, 50);"
-                                 "color: white;"
-                                 "border-radius: 5px")
+        moveButton.setStyleSheet(f"background: {self.bgColorA};"
+                                 f"color: {self.fgColor};"
+                                 "border-radius: 5px;")
         moveButton.clicked.connect(lambda: self.backupRun(moveFiles=True))
         backupListButtonsHLayout.addWidget(moveButton)
 
@@ -1375,15 +1475,17 @@ class MyWindow(QtWidgets.QMainWindow):
         backupFolderLabel = QtWidgets.QLabel("Destination Folder")
         backupFolderHLayout.addWidget(backupFolderLabel)
 
-        self.backupFolderEdit.setStyleSheet("background: black; color: white; border-radius: 5px")
+        self.backupFolderEdit.setStyleSheet(f"background: {self.bgColorC};"
+                                            f"color: {self.fgColor};"
+                                            f"border-radius: 5px;")
         self.backupFolderEdit.setReadOnly(True)
         self.backupFolderEdit.setText(self.backupFolder)
         backupFolderHLayout.addWidget(self.backupFolderEdit)
 
         browseButton = QtWidgets.QPushButton("Browse")
-        browseButton.setStyleSheet("background: rgb(50, 50, 50);"
-                                   "color: white;"
-                                   "border-radius: 5px")
+        browseButton.setStyleSheet(f"background: {self.bgColorA};"
+                                   f"color: {self.fgColor};"
+                                   "border-radius: 5px;")
         browseButton.clicked.connect(self.backupBrowseFolder)
         browseButton.setFixedSize(80, 20)
         backupFolderHLayout.addWidget(browseButton)
@@ -1406,16 +1508,16 @@ class MyWindow(QtWidgets.QMainWindow):
         spaceBarWidget.setLayout(self.spaceBarLayout)
 
         self.spaceUsedWidget.setStyleSheet("background: rgb(0,255,0);"
-                                           "border-radius: 0px 0px 0px 0px")
+                                           "border-radius: 0px 0px 0px 0px;")
 
         self.spaceBarLayout.addWidget(self.spaceUsedWidget)
 
         self.spaceChangedWidget.setStyleSheet("background: rgb(255,255,0);"
-                                              "border-radius: 0px 0px 0px 0px")
+                                              "border-radius: 0px 0px 0px 0px;")
         self.spaceBarLayout.addWidget(self.spaceChangedWidget)
 
         self.spaceAvailableWidget.setStyleSheet("background: rgb(100,100,100);"
-                                                "border-radius: 0px 0px 0px 0px")
+                                                "border-radius: 0px 0px 0px 0px;")
         self.spaceBarLayout.addWidget(self.spaceAvailableWidget)
 
         self.spaceBarLayout.setStretch(0, 0)
@@ -1423,12 +1525,12 @@ class MyWindow(QtWidgets.QMainWindow):
         self.spaceBarLayout.setStretch(2, 1000)
 
     def initUICover(self):
-        self.coverTab.setStyleSheet("background-color: black;")
+        self.coverTab.setStyleSheet(f"background-color: {self.bgColorC};")
         movieVLayout = QtWidgets.QVBoxLayout()
         self.coverTab.setLayout(movieVLayout)
         self.movieCover.setScaledContents(False)
         self.movieCover.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored)
-        self.movieCover.setStyleSheet("background-color: black;")
+        self.movieCover.setStyleSheet(f"background-color: {self.bgColorC};")
         self.movieCover.doubleClicked.connect(lambda: self.playMovie(self.moviesTableView, self.moviesTableProxyModel))
         self.movieCover.wheelSpun.connect(self.changeFontSize)
 
@@ -2081,7 +2183,7 @@ class MyWindow(QtWidgets.QMainWindow):
 
         if (self.spaceUsed + self.bytesToBeCopied > self.spaceTotal):
             self.spaceUsedWidget.setStyleSheet("background: rgb(255,0,0);"
-                                               "border-radius: 0px 0px 0px 0px")
+                                               "border-radius: 0px 0px 0px 0px;")
             self.spaceBarLayout.setStretch(0, 1000)
             self.spaceBarLayout.setStretch(1, 0)
             self.spaceBarLayout.setStretch(2, 0)
@@ -2094,7 +2196,7 @@ class MyWindow(QtWidgets.QMainWindow):
             mb.exec()
         else:
             self.spaceUsedWidget.setStyleSheet("background: rgb(0,255,0);"
-                                               "border-radius: 0px 0px 0px 0px")
+                                               "border-radius: 0px 0px 0px 0px;")
             changePercent = self.bytesToBeCopied / self.spaceTotal
             self.spaceBarLayout.setStretch(0, self.spaceUsedPercent * 1000)
             self.spaceBarLayout.setStretch(1, changePercent * 1000)
@@ -2749,7 +2851,7 @@ class MyWindow(QtWidgets.QMainWindow):
     def movieInfoAddHeading(self, headerName):
         item = QtWidgets.QListWidgetItem(headerName)
         item.setFlags(QtCore.Qt.ItemIsEnabled)
-        item.setForeground(QtCore.Qt.gray)
+        item.setForeground(self.bgColorE)
         self.movieInfoListView.addItem(item)
 
     def movieInfoAddSpacer(self):
