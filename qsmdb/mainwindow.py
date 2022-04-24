@@ -165,9 +165,6 @@ class FilterWidget(QtWidgets.QFrame):
 
         self.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
         self.setLineWidth(5)
-        self.setStyleSheet(f"background: {self.bgColorB};"
-                           f"color: {self.fgColor};"
-                           f"border-radius: 10px;")
 
         filtersVLayout = QtWidgets.QVBoxLayout()
         self.setLayout(filtersVLayout)
@@ -183,8 +180,6 @@ class FilterWidget(QtWidgets.QFrame):
         filterByHLayout.addWidget(filterByLabel)
 
         self.filterByComboBox = QtWidgets.QComboBox()
-        self.filterByComboBox.setStyleSheet(f"background: {self.bgColorA};"
-                                            f"border-radius: 0px;")
         for i in self.filterByDict.keys():
             self.filterByComboBox.addItem(i)
         self.filterByComboBox.setCurrentIndex(filterBy)
@@ -201,7 +196,6 @@ class FilterWidget(QtWidgets.QFrame):
         self.filterMinCountCheckbox.stateChanged.connect(self.populateFiltersTable)
         minCountHLayout.addWidget(self.filterMinCountCheckbox)
 
-        self.filterMinCountSpinBox.setStyleSheet(f"background: {self.bgColorC};")
         self.filterMinCountSpinBox.setMinimum(0)
         self.filterMinCountSpinBox.setValue(minCount)
         self.filterMinCountSpinBox.valueChanged.connect(self.populateFiltersTable)
@@ -216,15 +210,8 @@ class FilterWidget(QtWidgets.QFrame):
         self.filterTable.verticalHeader().setMinimumSectionSize(10)
         self.filterTable.verticalHeader().setDefaultSectionSize(defaultSectionSize)
         self.filterTable.setWordWrap(False)
-        self.filterTable.setStyleSheet(f"background: {self.bgColorC};"
-                                       f"alternate-background-color: {self.bgColorD};"
-                                       f"color: {self.fgColor};")
         self.filterTable.setAlternatingRowColors(True)
         self.filterTable.itemSelectionChanged.connect(lambda: self.tableSelectionChangedSignal.emit())
-        hh = self.filterTable.horizontalHeader()
-        hh.setStyleSheet(f"background: {self.bgColorB};"
-                         f"color: {self.fgColor};"
-                         f"border-radius: 0px;")
         filtersVLayout.addWidget(self.filterTable)
 
         filtersSearchHLayout = QtWidgets.QHBoxLayout()
@@ -235,14 +222,32 @@ class FilterWidget(QtWidgets.QFrame):
                                  QtWidgets.QSizePolicy.Maximum)
         filtersSearchHLayout.addWidget(searchText)
 
-        filterTableSearchBox = QtWidgets.QLineEdit(self)
-        filterTableSearchBox.setStyleSheet(f"background: {self.bgColorC};"
-                                           f"color: {self.fgColor};"
-                                           f"border-radius: 5px;")
-        filterTableSearchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
-        filterTableSearchBox.setClearButtonEnabled(True)
-        filtersSearchHLayout.addWidget(filterTableSearchBox)
-        filterTableSearchBox.textChanged.connect(lambda: searchTableWidget(filterTableSearchBox, self.filterTable))
+        self.searchBox = QtWidgets.QLineEdit(self)
+        self.searchBox.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Maximum)
+        self.searchBox.setClearButtonEnabled(True)
+        filtersSearchHLayout.addWidget(self.searchBox)
+        self.searchBox.textChanged.connect(lambda: searchTableWidget(self.searchBox,
+                                                                     self.filterTable))
+        self.setStyleSheets()
+
+    def setStyleSheets(self):
+        self.setStyleSheet(f"background: {self.bgColorB};"
+                           f"color: {self.fgColor};"
+                           f"border-radius: 10px;")
+
+        self.filterByComboBox.setStyleSheet(f"background: {self.bgColorA};"
+                                            f"border-radius: 0px;")
+
+        self.filterMinCountSpinBox.setStyleSheet(f"background: {self.bgColorC};")
+
+        self.filterTable.setStyleSheet(f"background: {self.bgColorC};"
+                                       f"alternate-background-color: {self.bgColorD};")
+
+        self.filterTable.horizontalHeader().setStyleSheet(f"background: {self.bgColorB};"
+                                                          f"border-radius: 0px;")
+
+        self.searchBox.setStyleSheet(f"background: {self.bgColorC};"
+                                                f"border-radius: 5px;")
 
     def filterRightMenu(self):
         rightMenu = QtWidgets.QMenu(self.filterTable)
