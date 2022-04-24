@@ -36,7 +36,7 @@ import time
 from pymediainfo import MediaInfo
 
 from .utilities import *
-from .moviemodel import MoviesTableModel, Columns, defaultColumnWidths
+from .MoviesTableModel import MoviesTableModel, Columns, defaultColumnWidths
 from .MovieCover import MovieCover
 from .FilterWidget import FilterWidget
 from .MovieInfoListView import MovieInfoListView
@@ -44,9 +44,9 @@ from .MovieTableView import MovieTableView
 from .CoverGLWidget import CoverGLWidget
 
 
-class MyWindow(QtWidgets.QMainWindow):
+class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
-        super(MyWindow, self).__init__()
+        super(MainWindow, self).__init__()
 
         self.numVisibleMovies = 0
 
