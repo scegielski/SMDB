@@ -996,8 +996,6 @@ class MyWindow(QtWidgets.QMainWindow):
         self.moviesTableView.setStyleSheet("background: black; alternate-background-color: #151515; color: white")
         self.moviesTableView.setAlternatingRowColors(True)
         self.moviesTableView.setShowGrid(False)
-        self.moviesTableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerItem)
-        self.moviesTableView.verticalScrollBar().setSingleStep(5)
 
         # Right click header menu
         hh = self.moviesTableView.horizontalHeader()
@@ -1507,8 +1505,12 @@ class MyWindow(QtWidgets.QMainWindow):
         tableView.verticalHeader().setMinimumSectionSize(10)
         if Columns.Cover.value in columnsToShow:
             tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
+            tableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
+            tableView.verticalScrollBar().setSingleStep(10)
         else:
             tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+            tableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerItem)
+            tableView.verticalScrollBar().setSingleStep(5)
 
         return smdbData, model, proxyModel, columnsVisible, smdbData
 
