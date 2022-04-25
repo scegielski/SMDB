@@ -433,7 +433,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def setFontSize(self, fontSize):
         self.fontSize = max(6, min(29, fontSize))
-        self.setStyleSheet(f"font-size:{self.fontSize}px;")
+        self.setStyleSheet(f"font-size:{self.fontSize}px;"
+                           f"background: {self.bgColorA};"
+                           f"color: {self.fgColor};")
         self.titleLabel.setStyleSheet(f"background: {self.bgColorC};"
                                       f"font-size: {self.fontSize * 2}px;")
         self.rowHeightWithoutCover = 18 * (self.fontSize / 12)
