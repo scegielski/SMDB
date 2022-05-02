@@ -121,6 +121,8 @@ def copyCoverImage(movie, coverFile):
         movieCoverUrl = movie['full-size cover url']
     elif 'cover' in movie:
         movieCoverUrl = movie['cover']
+    elif 'cover url' in movie:
+        movieCoverUrl = movie['cover']
     else:
         print("Error: No cover image available")
         return ""
