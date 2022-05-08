@@ -138,7 +138,7 @@ def copyCoverImage(movie, coverFile):
 
 def runFile(file):
     if sys.platform == "win32":
-        subprocess.Popen(f'start {file}', shell=True)
+        subprocess.Popen(f"start \"\" \"{file}\"", shell=True)
     else:
         opener = "open" if sys.platform == "darwin" else "xdg-open"
         subprocess.call([opener, file])
