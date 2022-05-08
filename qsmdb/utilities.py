@@ -155,9 +155,12 @@ def removeFolders(parent, foldersToDelete):
         if ret == QMessageBox.Yes:
             for f in foldersToDelete:
                 print('Deleting folder: %s' % f)
-                shutil.rmtree(f,
-                              ignore_errors=False,
-                              onerror=handleRemoveReadonly)
+                try:
+                    shutil.rmtree(f,
+                                  ignore_errors=False,
+                                  onerror=handleRemoveReadonly)
+                except FileNotFoundError:
+                    pass
 
 
 def removeFiles(parent, filesToDelete, extension):
