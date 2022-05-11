@@ -2936,8 +2936,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.db.update(movie)
 
             # Print out all the movie keys
-            #for k in movie.keys():
-            #    print(k)
+            # for k in movie.keys():
+            #     print(k)
 
             if doJson:
                 self.writeMovieJson(movie, jsonFile)
@@ -2945,7 +2945,22 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.calculateMovieDimension(proxyIndex, moviePath, movieFolderName)
 
             if doCover:
-                coverFile = copyCoverImage(movie, coverFile)
+                if movie.has_key('full-size cover url'):
+                    movieCoverUrl = movie['full-size cover url']
+                elif movie.has_key('cover'):
+                    movieCoverUrl = movie['cover']
+                elif movie.has_key('cover url'):
+                    movieCoverUrl = movie['cover']
+                else:
+                    print("Error: No cover image available")
+                    return ""
+                extension = os.path.splitext(movieCoverUrl)[1]
+                if extension == '.png':
+                    coverFile = coverFile.replace('.jpg', '.png')
+                try:
+                    urllib.request.urlretrieve(movieCoverUrl, coverFile)
+                except URLError as e:
+                    print(f"Problem downloading cover file: {coverFile} - {e}")
 
             self.moviesTableModel.setMovieDataWithJson(sourceRow,
                                                        jsonFile,
