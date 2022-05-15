@@ -23,6 +23,7 @@ from enum import Enum
 from pathlib import Path
 from imdb import IMDb
 import json
+import ujson
 import fnmatch
 import pathlib
 import datetime
@@ -1524,14 +1525,14 @@ class MainWindow(QtWidgets.QMainWindow):
         data = {}
         with open(jsonFile) as f:
             try:
-                data = json.load(f)
+                data = ujson.load(f)
             except UnicodeDecodeError:
                 print("Error reading %s" % jsonFile)
 
         data["size"] = folderSize
         try:
             with open(jsonFile, "w") as f:
-                json.dump(data, f, indent=4)
+                ujson.dump(data, f, indent=4)
         except:
             print("Error writing json file: %s" % jsonFile)
 
@@ -1576,7 +1577,7 @@ class MainWindow(QtWidgets.QMainWindow):
         data = {}
         with open(jsonFile) as f:
             try:
-                data = json.load(f)
+                data = ujson.load(f)
             except UnicodeDecodeError:
                 print("Error reading %s" % jsonFile)
 
@@ -1590,7 +1591,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         try:
             with open(jsonFile, "w") as f:
-                json.dump(data, f, indent=4)
+                ujson.dump(data, f, indent=4)
         except:
             print("Error writing json file: %s" % jsonFile)
         pass
@@ -2113,7 +2114,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if os.path.exists(jsonFile):
             with open(jsonFile) as f:
                 try:
-                    jsonData = json.load(f)
+                    jsonData = ujson.load(f)
                 except UnicodeDecodeError:
                     print("Error reading %s" % jsonFile)
         else:
@@ -2201,7 +2202,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if os.path.exists(jsonFile):
                 with open(jsonFile) as f:
                     try:
-                        jsonData = json.load(f)
+                        jsonData = ujson.load(f)
                     except UnicodeDecodeError:
                         print("Error reading %s" % jsonFile)
 
@@ -2650,7 +2651,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         try:
             with open(jsonFile, "w") as f:
-                json.dump(d, f, indent=4)
+                ujson.dump(d, f, indent=4)
         except:
             print("Error writing json file: %s" % jsonFile)
 
@@ -2708,7 +2709,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if os.path.exists(jsonFile):
                 with open(jsonFile) as f:
                     try:
-                        jsonData = json.load(f)
+                        jsonData = ujson.load(f)
                     except UnicodeDecodeError:
                         print("Error reading %s" % jsonFile)
                         continue
@@ -2907,7 +2908,7 @@ class MainWindow(QtWidgets.QMainWindow):
         QtCore.QCoreApplication.processEvents()
 
         with open(fileName, "w") as f:
-            json.dump(data, f, indent=4)
+            ujson.dump(data, f, indent=4)
 
         self.statusBar().showMessage('Done')
         QtCore.QCoreApplication.processEvents()
@@ -3444,7 +3445,7 @@ class MainWindow(QtWidgets.QMainWindow):
         data = {}
         with open(jsonFile) as f:
             try:
-                data = json.load(f)
+                data = ujson.load(f)
             except UnicodeDecodeError:
                 print("Error reading %s" % jsonFile)
 
@@ -3452,7 +3453,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         try:
             with open(jsonFile, "w") as f:
-                json.dump(data, f, indent=4)
+                ujson.dump(data, f, indent=4)
         except:
             print("Error writing json file: %s" % jsonFile)
 
@@ -3472,7 +3473,7 @@ class MainWindow(QtWidgets.QMainWindow):
         data = {}
         with open(jsonFile) as f:
             try:
-                data = json.load(f)
+                data = ujson.load(f)
             except UnicodeDecodeError:
                 print("Error reading %s" % jsonFile)
 
@@ -3484,7 +3485,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         try:
             with open(jsonFile, "w") as f:
-                json.dump(data, f, indent=4)
+                ujson.dump(data, f, indent=4)
         except:
             print("Error writing json file: %s" % jsonFile)
 
