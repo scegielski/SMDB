@@ -309,10 +309,12 @@ class MainWindow(QtWidgets.QMainWindow):
             self.backupListWidget.hide()
 
         # History List
+        self.maxHistory = 50
         self.historyListWidget = QtWidgets.QFrame()
         self.historyListTableView = MovieTableView()
 
-        self.historyListDefaultColumns = [Columns.Year.value,
+        self.historyListDefaultColumns = [Columns.Rank.value,
+                                          Columns.Year.value,
                                           Columns.Title.value,
                                           Columns.Rating.value]
 
@@ -1166,7 +1168,8 @@ class MainWindow(QtWidgets.QMainWindow):
                      columnWidths,
                      sortColumn,
                      forceScan=False,
-                     neverScan=True):
+                     neverScan=True,
+                     sortAscending=True):
 
         smdbData = dict()
         if os.path.exists(smdbFile):
@@ -1189,7 +1192,13 @@ class MainWindow(QtWidgets.QMainWindow):
         proxyModel = QtCore.QSortFilterProxyModel()
         proxyModel.setSourceModel(model)
         tableView.setModel(proxyModel)
-        proxyModel.sort(sortColumn)
+
+        if sortAscending:
+            proxyModel.sort(sortColumn,
+                            QtCore.Qt.AscendingOrder)
+        else:
+            proxyModel.sort(sortColumn,
+                            QtCore.Qt.DescendingOrder)
 
         tableView.selectionModel().selectionChanged.connect(
             lambda: self.tableSelectionChanged(tableView,
@@ -1276,7 +1285,8 @@ class MainWindow(QtWidgets.QMainWindow):
                                        self.historyListTableView,
                                        self.historyListColumns,
                                        self.historyListColumnWidths,
-                                       Columns.Rank.value)
+                                       Columns.Rank.value,
+                                       sortAscending=False)
 
     def refreshBackupList(self):
         (self.backupListSmdbData,
@@ -3388,6 +3398,11 @@ class MainWindow(QtWidgets.QMainWindow):
             moviePath = proxy.sourceModel().getPath(sourceRow)
             self.historyListTableModel.addMovie(self.moviesSmdbData,
                                                 moviePath)
+        rowCount = self.historyListTableModel.rowCount()
+        if rowCount > self.maxHistory:
+            self.historyListTableModel.removeMovies(0, 0)
+
+        self.historyListTableModel.renumberRanks()
 
         self.historyListTableModel.changedLayout()
         self.writeSmdbFile(self.historyListSmdbFile,

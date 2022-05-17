@@ -388,6 +388,10 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
         self.layoutChanged.emit()
 
+    def renumberRanks(self):
+        for i in range(len(self._data)):
+            self._data[i][Columns.Rank.value] = i
+
     def moveRow(self, minRow, maxRow, dstRow):
         maxRow = maxRow + 1
         tmpData = self._data[minRow:maxRow]
@@ -395,9 +399,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
         del self._data[minRow:maxRow]
         self._data[dstRow:dstRow] = tmpData
 
-        # Re-number ranks
-        for i in range(len(self._data)):
-            self._data[i][Columns.Rank.value] = i
+        self.renumberRanks()
 
         self.layoutChanged.emit()
 
