@@ -1693,7 +1693,7 @@ class MainWindow(QtWidgets.QMainWindow):
             modelIndex = self.moviesTableModel.index(row, 0)
             title = self.moviesTableModel.getTitle(modelIndex.row())
             year = self.moviesTableModel.getYear(modelIndex.row())
-            titleYear = (title, year)
+            titleYear = (title.lower(), year)
             if titleYear in titleYearSet:
                 self.moviesTableModel.setDuplicate(modelIndex, 'Yes')
                 duplicates.add(titleYear)
