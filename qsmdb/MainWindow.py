@@ -1416,8 +1416,11 @@ class MainWindow(QtWidgets.QMainWindow):
                                         print(f"Can't Rename file {c.path, newFilePath}")
                                         continue
                             elif extension == '.jpg':
-                                print(f"\tRemoving file: {c.path}")
-                                os.remove(c.path)
+                                try:
+                                    print(f"\tRemoving file: {c.path}")
+                                    os.remove(c.path)
+                                except:
+                                    print(f"\tCould not remove file: {c.path}")
                             else:
                                 print(f"\tNot touching file: {c.path}")
 
@@ -1696,13 +1699,13 @@ class MainWindow(QtWidgets.QMainWindow):
                 duplicates.add(titleYear)
             else:
                 self.moviesTableModel.setDuplicate(modelIndex, 'No')
-            titleYearSet.add((title, year))
+            titleYearSet.add(titleYear)
 
         for row in range(numItems):
             modelIndex = self.moviesTableModel.index(row, 0)
             title = self.moviesTableModel.getTitle(modelIndex.row())
             year = self.moviesTableModel.getYear(modelIndex.row())
-            titleYear = (title, year)
+            titleYear = (title.lower(), year)
             if titleYear in duplicates:
                 self.moviesTableModel.setDuplicate(modelIndex, 'Yes')
 
