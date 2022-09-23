@@ -316,7 +316,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.historyListDefaultColumns = [Columns.Rank.value,
                                           Columns.Year.value,
                                           Columns.Title.value,
-                                          Columns.Rating.value]
+                                          Columns.Rating.value,
+                                          Columns.DateWatched.value]
 
         try:
             self.historyListColumns = self.settings.value('historyListTableColumns',
@@ -537,7 +538,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         rebuildSmdbFileAction = QtWidgets.QAction("Rebuild SMDB file", self)
         rebuildSmdbFileAction.triggered.connect(lambda: self.writeSmdbFile(self.moviesSmdbFile,
-                                                                           self.moviesTableModel))
+                                                                           self.moviesTableModel,
+                                                                           titlesOnly=False))
         fileMenu.addAction(rebuildSmdbFileAction)
 
         conformMoviesAction = QtWidgets.QAction("Conform movies in folder", self)
@@ -895,7 +897,7 @@ class MainWindow(QtWidgets.QMainWindow):
         historyListLabel = QtWidgets.QLabel("History List")
         historyListVLayout.addWidget(historyListLabel)
 
-        self.historyListTableView.setSortingEnabled(False)
+        self.historyListTableView.setSortingEnabled(True)
         self.historyListTableView.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.historyListTableView.verticalHeader().hide()
         self.historyListTableView.setStyleSheet(f"background: {self.bgColorC};"
@@ -1187,7 +1189,9 @@ class MainWindow(QtWidgets.QMainWindow):
         # If there is no smdb file and neverScan is False (as it
         # is for the main movie list) then write a new smdb file
         if not os.path.exists(smdbFile) and not neverScan:
-            smdbData = self.writeSmdbFile(smdbFile, model)
+            smdbData = self.writeSmdbFile(smdbFile,
+                                          model,
+                                          titlesOnly=False)
 
         proxyModel = QtCore.QSortFilterProxyModel()
         proxyModel.setSourceModel(model)
@@ -1225,7 +1229,10 @@ class MainWindow(QtWidgets.QMainWindow):
         columnsVisible = []
         for c in Columns:
             index = c.value
-            tableView.setColumnWidth(index, columnWidths[index])
+            if index in columnWidths:
+                tableView.setColumnWidth(index, columnWidths[index])
+            else:
+                tableView.setColumnWidth(index, defaultColumnWidths[index])
             if index not in columnsToShow:
                 tableView.hideColumn(index)
                 columnsVisible.append(False)
@@ -2701,6 +2708,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.progressBar.setValue(progress)
 
             title = model.getTitle(row)
+            dateWatched = model.getDateWatched(row)
 
             message = "Processing item (%d/%d): %s" % (progress + 1,
                                                        count,
@@ -2714,191 +2722,193 @@ class MainWindow(QtWidgets.QMainWindow):
                 print(f"path does not exist: {moviePath}")
                 continue
 
-            fname = pathlib.Path(moviePath)
-            dateModified = datetime.datetime.fromtimestamp(fname.stat().st_mtime)
+            dateModified = datetime.datetime.fromtimestamp(pathlib.Path(moviePath).stat().st_mtime)
             dateModified = f"{dateModified.year}/{str(dateModified.month).zfill(2)}/{str(dateModified.day).zfill(2)}"
             folderName = model.getFolderName(row)
             jsonFile = os.path.join(moviePath, '%s.json' % folderName)
-            if os.path.exists(jsonFile):
-                with open(jsonFile) as f:
-                    try:
-                        jsonData = ujson.load(f)
-                    except UnicodeDecodeError:
-                        print("Error reading %s" % jsonFile)
-                        continue
+            if not os.path.exists(jsonFile):
+                continue
 
-                if 'title' in jsonData and 'year' in jsonData:
-                    jsonTitle = jsonData['title']
+            with open(jsonFile) as f:
+                try:
+                    jsonData = ujson.load(f)
+                except UnicodeDecodeError:
+                    print("Error reading %s" % jsonFile)
+                    continue
+
+            if 'title' in jsonData and 'year' in jsonData:
+                jsonTitle = jsonData['title']
+                jsonYear = jsonData['year']
+                titleYear = (jsonTitle, jsonYear)
+
+                jsonWidth = 0
+                if 'width' in jsonData and jsonData['width']:
+                    jsonWidth = jsonData['width']
+
+                jsonHeight = 0
+                if 'height' in jsonData and jsonData['height']:
+                    jsonHeight = jsonData['height']
+
+                jsonSize = 0
+                if 'size' in jsonData and jsonData['size']:
+                    jsonSize = jsonData['size']
+
+                jsonYear = None
+                if 'year' in jsonData and jsonData['year']:
                     jsonYear = jsonData['year']
-                    titleYear = (jsonTitle, jsonYear)
+                    if jsonYear not in years:
+                        years[jsonYear] = {}
+                        years[jsonYear]['num movies'] = 0
+                        years[jsonYear]['movies'] = []
+                    if titleYear not in years[jsonYear]:
+                        years[jsonYear]['movies'].append(titleYear)
+                        years[jsonYear]['num movies'] += 1
 
-                    jsonWidth = 0
-                    if 'width' in jsonData and jsonData['width']:
-                        jsonWidth = jsonData['width']
+                movieDirectorList = []
+                if 'directors' in jsonData and jsonData['directors']:
+                    for director in jsonData['directors']:
+                        if director not in directors:
+                            directors[director] = {}
+                            directors[director]['num movies'] = 0
+                            directors[director]['movies'] = []
+                        if titleYear not in directors[director]['movies']:
+                            directors[director]['movies'].append(titleYear)
+                            directors[director]['num movies'] += 1
 
-                    jsonHeight = 0
-                    if 'height' in jsonData and jsonData['height']:
-                        jsonHeight = jsonData['height']
+                        movieDirectorList.append(director)
 
-                    jsonSize = 0
-                    if 'size' in jsonData and jsonData['size']:
-                        jsonSize = jsonData['size']
+                movieActorsList = []
+                if 'cast' in jsonData and jsonData['cast']:
+                    for actor in jsonData['cast']:
+                        if actor not in actors:
+                            actors[actor] = {}
+                            actors[actor]['num movies'] = 0
+                            actors[actor]['movies'] = []
+                        if titleYear not in actors[actor]['movies']:
+                            actors[actor]['movies'].append(titleYear)
+                            actors[actor]['num movies'] += 1
 
-                    jsonYear = None
-                    if 'year' in jsonData and jsonData['year']:
-                        jsonYear = jsonData['year']
-                        if jsonYear not in years:
-                            years[jsonYear] = {}
-                            years[jsonYear]['num movies'] = 0
-                            years[jsonYear]['movies'] = []
-                        if titleYear not in years[jsonYear]:
-                            years[jsonYear]['movies'].append(titleYear)
-                            years[jsonYear]['num movies'] += 1
+                        movieActorsList.append(actor)
 
-                    movieDirectorList = []
-                    if 'directors' in jsonData and jsonData['directors']:
-                        for director in jsonData['directors']:
-                            if director not in directors:
-                                directors[director] = {}
-                                directors[director]['num movies'] = 0
-                                directors[director]['movies'] = []
-                            if titleYear not in directors[director]['movies']:
-                                directors[director]['movies'].append(titleYear)
-                                directors[director]['num movies'] += 1
+                jsonUserTags = None
+                if 'user tags' in jsonData and jsonData['user tags']:
+                    jsonUserTags = jsonData['user tags']
+                    for tag in jsonUserTags:
+                        if tag not in userTags:
+                            userTags[tag] = {}
+                            userTags[tag]['num movies'] = 0
+                            userTags[tag]['movies'] = []
+                        if titleYear not in userTags[tag]['movies']:
+                            userTags[tag]['movies'].append(titleYear)
+                            userTags[tag]['num movies'] += 1
 
-                            movieDirectorList.append(director)
+                jsonGenres = None
+                if 'genres' in jsonData and jsonData['genres']:
+                    jsonGenres = jsonData['genres']
+                    for genre in jsonGenres:
+                        if genre not in genres:
+                            genres[genre] = {}
+                            genres[genre]['num movies'] = 0
+                            genres[genre]['movies'] = []
+                        if titleYear not in genres[genre]['movies']:
+                            genres[genre]['movies'].append(titleYear)
+                            genres[genre]['num movies'] += 1
 
-                    movieActorsList = []
-                    if 'cast' in jsonData and jsonData['cast']:
-                        for actor in jsonData['cast']:
-                            if actor not in actors:
-                                actors[actor] = {}
-                                actors[actor]['num movies'] = 0
-                                actors[actor]['movies'] = []
-                            if titleYear not in actors[actor]['movies']:
-                                actors[actor]['movies'].append(titleYear)
-                                actors[actor]['num movies'] += 1
+                jsonCompanies = None
+                if 'companies' in jsonData and jsonData['companies']:
+                    jsonCompanies = jsonData['companies']
+                    for company in jsonCompanies:
+                        if company not in companies:
+                            companies[company] = {}
+                            companies[company]['num movies'] = 0
+                            companies[company]['movies'] = []
+                        if titleYear not in companies[company]['movies']:
+                            companies[company]['movies'].append(titleYear)
+                            companies[company]['num movies'] += 1
 
-                            movieActorsList.append(actor)
+                jsonCountries = None
+                if 'countries' in jsonData and jsonData['countries']:
+                    jsonCountries = jsonData['countries']
+                    for country in jsonCountries:
+                        if country not in countries:
+                            countries[country] = {}
+                            countries[country]['num movies'] = 0
+                            countries[country]['movies'] = []
+                        if titleYear not in countries[country]['movies']:
+                            countries[country]['movies'].append(titleYear)
+                            countries[country]['num movies'] += 1
 
-                    jsonUserTags = None
-                    if 'user tags' in jsonData and jsonData['user tags']:
-                        jsonUserTags = jsonData['user tags']
-                        for tag in jsonUserTags:
-                            if tag not in userTags:
-                                userTags[tag] = {}
-                                userTags[tag]['num movies'] = 0
-                                userTags[tag]['movies'] = []
-                            if titleYear not in userTags[tag]['movies']:
-                                userTags[tag]['movies'].append(titleYear)
-                                userTags[tag]['num movies'] += 1
+                jsonId = None
+                if 'id' in jsonData and jsonData['id']:
+                    jsonId = jsonData['id']
 
-                    jsonGenres = None
-                    if 'genres' in jsonData and jsonData['genres']:
-                        jsonGenres = jsonData['genres']
-                        for genre in jsonGenres:
-                            if genre not in genres:
-                                genres[genre] = {}
-                                genres[genre]['num movies'] = 0
-                                genres[genre]['movies'] = []
-                            if titleYear not in genres[genre]['movies']:
-                                genres[genre]['movies'].append(titleYear)
-                                genres[genre]['num movies'] += 1
+                jsonRating = None
+                if 'rating' in jsonData and jsonData['rating']:
+                    jsonRating = jsonData['rating']
+                    if jsonRating not in ratings:
+                        ratings[jsonRating] = {}
+                        ratings[jsonRating]['num movies'] = 0
+                        ratings[jsonRating]['movies'] = []
+                    if titleYear not in ratings[jsonRating]['movies']:
+                        ratings[jsonRating]['movies'].append(titleYear)
+                        ratings[jsonRating]['num movies'] += 1
 
-                    jsonCompanies = None
-                    if 'companies' in jsonData and jsonData['companies']:
-                        jsonCompanies = jsonData['companies']
-                        for company in jsonCompanies:
-                            if company not in companies:
-                                companies[company] = {}
-                                companies[company]['num movies'] = 0
-                                companies[company]['movies'] = []
-                            if titleYear not in companies[company]['movies']:
-                                companies[company]['movies'].append(titleYear)
-                                companies[company]['num movies'] += 1
+                jsonMpaaRating = None
+                if 'mpaa rating' in jsonData and jsonData['mpaa rating']:
+                    jsonMpaaRating = jsonData['mpaa rating']
+                    if jsonMpaaRating not in mpaaRatings:
+                        mpaaRatings[jsonMpaaRating] = {}
+                        mpaaRatings[jsonMpaaRating]['num movies'] = 0
+                        mpaaRatings[jsonMpaaRating]['movies'] = []
+                    if titleYear not in mpaaRatings[jsonMpaaRating]['movies']:
+                        mpaaRatings[jsonMpaaRating]['movies'].append(titleYear)
+                        mpaaRatings[jsonMpaaRating]['num movies'] += 1
 
-                    jsonCountries = None
-                    if 'countries' in jsonData and jsonData['countries']:
-                        jsonCountries = jsonData['countries']
-                        for country in jsonCountries:
-                            if country not in countries:
-                                countries[country] = {}
-                                countries[country]['num movies'] = 0
-                                countries[country]['movies'] = []
-                            if titleYear not in countries[country]['movies']:
-                                countries[country]['movies'].append(titleYear)
-                                countries[country]['num movies'] += 1
+                jsonBoxOffice = None
+                if 'box office' in jsonData and jsonData['box office']:
+                    jsonBoxOffice = jsonData['box office']
 
-                    jsonId = None
-                    if 'id' in jsonData and jsonData['id']:
-                        jsonId = jsonData['id']
-
-                    jsonRating = None
-                    if 'rating' in jsonData and jsonData['rating']:
-                        jsonRating = jsonData['rating']
-                        if jsonRating not in ratings:
-                            ratings[jsonRating] = {}
-                            ratings[jsonRating]['num movies'] = 0
-                            ratings[jsonRating]['movies'] = []
-                        if titleYear not in ratings[jsonRating]['movies']:
-                            ratings[jsonRating]['movies'].append(titleYear)
-                            ratings[jsonRating]['num movies'] += 1
-
-                    jsonMpaaRating = None
-                    if 'mpaa rating' in jsonData and jsonData['mpaa rating']:
-                        jsonMpaaRating = jsonData['mpaa rating']
-                        if jsonMpaaRating not in mpaaRatings:
-                            mpaaRatings[jsonMpaaRating] = {}
-                            mpaaRatings[jsonMpaaRating]['num movies'] = 0
-                            mpaaRatings[jsonMpaaRating]['movies'] = []
-                        if titleYear not in mpaaRatings[jsonMpaaRating]['movies']:
-                            mpaaRatings[jsonMpaaRating]['movies'].append(titleYear)
-                            mpaaRatings[jsonMpaaRating]['num movies'] += 1
-
-                    jsonBoxOffice = None
-                    if 'box office' in jsonData and jsonData['box office']:
-                        jsonBoxOffice = jsonData['box office']
-
-                        currency = 'USD'
-                        if jsonBoxOffice:
-                            jsonBoxOffice = jsonBoxOffice.replace(' (estimated)', '')
-                            match = re.match(reCurrency, jsonBoxOffice)
-                            if match:
-                                currency = match.group(1)
-                                jsonBoxOffice = '$%s' % match.group(2)
-                            results = re.findall(reMoneyValue, jsonBoxOffice)
-                            if currency == 'USD':
-                                amount = '$%s' % results[0]
-                            else:
-                                amount = '%s' % results[0]
+                    currency = 'USD'
+                    if jsonBoxOffice:
+                        jsonBoxOffice = jsonBoxOffice.replace(' (estimated)', '')
+                        match = re.match(reCurrency, jsonBoxOffice)
+                        if match:
+                            currency = match.group(1)
+                            jsonBoxOffice = '$%s' % match.group(2)
+                        results = re.findall(reMoneyValue, jsonBoxOffice)
+                        if currency == 'USD':
+                            amount = '$%s' % results[0]
                         else:
-                            amount = '$0'
-                        jsonBoxOffice = '%-3s %15s' % (currency, amount)
+                            amount = '%s' % results[0]
+                    else:
+                        amount = '$0'
+                    jsonBoxOffice = '%-3s %15s' % (currency, amount)
 
-                    jsonRuntime = None
-                    if 'runtime' in jsonData and jsonData['runtime']:
-                        jsonRuntime = jsonData['runtime']
+                jsonRuntime = None
+                if 'runtime' in jsonData and jsonData['runtime']:
+                    jsonRuntime = jsonData['runtime']
 
-                    titles[moviePath] = {'folder': folderName,
-                                          'id': jsonId,
-                                          'title': jsonTitle,
-                                          'year': jsonYear,
-                                          'rating': jsonRating,
-                                          'mpaa rating': jsonMpaaRating,
-                                          'runtime': jsonRuntime,
-                                          'box office': jsonBoxOffice,
-                                          'directors': movieDirectorList,
-                                          'genres': jsonGenres,
-                                          'user tags': jsonUserTags,
-                                          'countries': jsonCountries,
-                                          'companies': jsonCompanies,
-                                          'actors': movieActorsList,
-                                          'rank': rank,
-                                          'width': jsonWidth,
-                                          'height': jsonHeight,
-                                          'size': jsonSize,
-                                          'path': moviePath,
-                                          'date': dateModified}
+                titles[moviePath] = {'folder': folderName,
+                                      'id': jsonId,
+                                      'title': jsonTitle,
+                                      'year': jsonYear,
+                                      'rating': jsonRating,
+                                      'mpaa rating': jsonMpaaRating,
+                                      'runtime': jsonRuntime,
+                                      'box office': jsonBoxOffice,
+                                      'directors': movieDirectorList,
+                                      'genres': jsonGenres,
+                                      'user tags': jsonUserTags,
+                                      'countries': jsonCountries,
+                                      'companies': jsonCompanies,
+                                      'actors': movieActorsList,
+                                      'rank': rank,
+                                      'width': jsonWidth,
+                                      'height': jsonHeight,
+                                      'size': jsonSize,
+                                      'path': moviePath,
+                                      'date': dateModified,
+                                      'date watched': dateWatched}
 
         self.progressBar.setValue(0)
 
@@ -3326,13 +3336,14 @@ class MainWindow(QtWidgets.QMainWindow):
         table.selectAll()
         pass
 
-    def playMovie(self, table, proxy):
-        proxyIndex = table.selectionModel().selectedRows()[0]
+    def playMovie(self, tableView, proxy):
+        proxyIndex = tableView.selectionModel().selectedRows()[0]
         sourceIndex = proxy.mapToSource(proxyIndex)
         sourceRow = sourceIndex.row()
         moviePath = proxy.sourceModel().getPath(sourceRow)
         if not os.path.exists(moviePath):
             return
+
 
         validExtentions = ['.mkv', '.mpg', '.mp4', '.avi', '.flv', '.wmv', '.m4v', '.divx', '.ogm']
 
@@ -3351,8 +3362,16 @@ class MainWindow(QtWidgets.QMainWindow):
             # play the desired file.
             runFile(moviePath)
 
-        if table != self.historyListTableView:
-            self.historyListAdd(table, proxy)
+        # Record date watched
+        now = datetime.datetime.now()
+        dateWatched = f"{now.year}/{str(now.month).zfill(2)}/{str(now.day).zfill(2)} - " \
+                      f"{str(now.hour).zfill(2)}:{str(now.minute).zfill(2)}"
+        proxy.sourceModel().setDateWatched(sourceIndex, dateWatched)
+        if moviePath in self.moviesSmdbData['titles']:
+            self.moviesSmdbData['titles'][moviePath]['date watched'] = dateWatched
+
+        if tableView != self.historyListTableView:
+            self.historyListAdd(tableView, proxy)
 
     @staticmethod
     def getMovieDimensions(moviePath):

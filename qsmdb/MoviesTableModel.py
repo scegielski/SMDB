@@ -32,6 +32,7 @@ class Columns(Enum):
     Height = auto()
     Size = auto()
     DateModified = auto()
+    DateWatched = auto()
 
 
 defaultColumnWidths = {Columns.Cover.value: 150,
@@ -56,7 +57,8 @@ defaultColumnWidths = {Columns.Cover.value: 150,
                        Columns.Width.value: 50,
                        Columns.Height.value: 50,
                        Columns.Size.value: 100,
-                       Columns.DateModified.value: 150}
+                       Columns.DateModified.value: 150,
+                       Columns.DateWatched.value: 150}
 
 class MoviesTableModel(QtCore.QAbstractTableModel):
     emitCoverSignal = QtCore.pyqtSignal(int)
@@ -155,6 +157,11 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
             if column == Columns.DateModified:
                 if 'date' in data:
                     movieData.append(data['date'])
+                else:
+                    movieData.append('no date')
+            elif column == Columns.DateWatched:
+                if 'date watched' in data:
+                    movieData.append(data['date watched'])
                 else:
                     movieData.append('no date')
             elif column == Columns.Path:
@@ -306,6 +313,9 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
     def getTitle(self, row):
         return self._data[row][Columns.Title.value]
 
+    def getDateWatched(self, row):
+        return self._data[row][Columns.DateWatched.value]
+
     def getRating(self, row):
         return self._data[row][Columns.Rating.value]
 
@@ -428,6 +438,10 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
     def setMpaaRating(self, index, value):
         self._data[index.row()][Columns.MpaaRating.value] = value
+        self.dataChanged.emit(index, index)
+
+    def setDateWatched(self, index, dateWatched):
+        self._data[index.row()][Columns.DateWatched.value] = dateWatched
         self.dataChanged.emit(index, index)
 
     def setData(self, index, value, role=QtCore.Qt.EditRole):
