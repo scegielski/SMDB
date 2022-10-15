@@ -3012,15 +3012,18 @@ class MainWindow(QtWidgets.QMainWindow):
         searchText = ' '.join(splitTitle)
         print('Searching for: %s' % searchText)
 
-        try:
-            results = self.db.search_movie(searchText)
-        except:
-            print("Error accessing imdb")
-            return None
+        for i in range(5):
+            try:
+                results = self.db.search_movie(searchText)
+            except:
+                print("Error accessing imdb")
+                return None
 
-        if not results:
-            print('No matches for: %s' % searchText)
-            return None
+            if results:
+                break
+            else:
+                print(f'Try {i}: No matches for: {searchText}')
+                #return None
 
         acceptableKinds = ('movie', 'short', 'tv movie', 'tv miniseries')
 
