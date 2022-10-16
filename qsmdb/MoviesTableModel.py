@@ -30,6 +30,7 @@ class Columns(Enum):
     Duplicate = auto()
     Width = auto()
     Height = auto()
+    Channels = auto()
     Size = auto()
     DateModified = auto()
     DateWatched = auto()
@@ -56,6 +57,7 @@ defaultColumnWidths = {Columns.Cover.value: 150,
                        Columns.Duplicate.value: 60,
                        Columns.Width.value: 50,
                        Columns.Height.value: 50,
+                       Columns.Channels.value: 50,
                        Columns.Size.value: 100,
                        Columns.DateModified.value: 150,
                        Columns.DateWatched.value: 150}
@@ -328,6 +330,9 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
     def getId(self, row):
         return self._data[row][Columns.Id.value]
 
+    def getChannels(self, row):
+        return self._data[row][Columns.Channels.value]
+
     def getDimensions(self, row):
         width = self._data[row][Columns.Width.value]
         height = self._data[row][Columns.Height.value]
@@ -430,6 +435,10 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
     def setDimensions(self, index, width, height):
         self._data[index.row()][Columns.Width.value] = width
         self._data[index.row()][Columns.Height.value] = height
+        self.dataChanged.emit(index, index)
+
+    def setChannels(self, index, channels):
+        self._data[index.row()][Columns.Channels.value] = channels
         self.dataChanged.emit(index, index)
 
     def setDuplicate(self, index, value):

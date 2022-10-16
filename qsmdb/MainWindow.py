@@ -35,6 +35,7 @@ import random
 import stat
 import time
 from pymediainfo import MediaInfo
+from pprint import pprint
 
 from .utilities import *
 from .MoviesTableModel import MoviesTableModel, Columns, defaultColumnWidths
@@ -1587,8 +1588,37 @@ class MainWindow(QtWidgets.QMainWindow):
         self.moviesTableModel.changedLayout()
         self.progressBar.setValue(0)
 
-    def calculateMovieDimension(self, sourceIndex, moviePath, movieFolderName):
-        width, height = self.getMovieDimensions(moviePath)
+    @staticmethod
+    def getMovieFileData(moviePath):
+        if not os.path.exists(moviePath):
+            return
+
+        validExtentions = ['.mkv', '.mpg', '.mp4', '.avi', '.flv', '.wmv', '.m4v', '.divx', '.ogm']
+
+        movieFiles = []
+        for file in os.listdir(moviePath):
+            extension = os.path.splitext(file)[1].lower()
+            if extension in validExtentions:
+                movieFiles.append(file)
+        if (len(movieFiles) > 0):
+            movieFile = os.path.join(moviePath, movieFiles[0])
+            info = MediaInfo.parse(movieFile)
+            width = 0
+            height = 0
+            channels = 0
+            for track in info.tracks:
+                if track.track_type == 'Video':
+                    width = track.width
+                    height = track.height
+                elif track.track_type == 'Audio':
+                    channels = track.channel_s
+            return width, height, channels
+        else:
+            print("No movie files in %s" % moviePath)
+        return 0, 0
+
+    def getMovieFileInfo(self, sourceIndex, moviePath, movieFolderName):
+        width, height, numChannels = self.getMovieFileData(moviePath)
 
         jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
         if not os.path.exists(jsonFile):
@@ -1603,6 +1633,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         data["width"] = width
         data["height"] = height
+        data["channels"] = numChannels
 
         self.moviesTableModel.setMovieData(sourceIndex.row(),
                                            data,
@@ -1616,7 +1647,7 @@ class MainWindow(QtWidgets.QMainWindow):
             print("Error writing json file: %s" % jsonFile)
         pass
 
-    def calculateMovieDimensions(self):
+    def getMovieFilesInfo(self):
         numSelectedItems = len(self.moviesTableView.selectionModel().selectedRows())
         self.progressBar.setMaximum(numSelectedItems)
         progress = 0
@@ -1640,7 +1671,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if not os.path.exists(moviePath):
                 continue
 
-            self.calculateMovieDimension(sourceIndex, moviePath, movieFolderName)
+            self.getMovieFileInfo(sourceIndex, moviePath, movieFolderName)
 
         self.moviesTableModel.changedLayout()
         self.progressBar.setValue(0)
@@ -2749,6 +2780,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 if 'height' in jsonData and jsonData['height']:
                     jsonHeight = jsonData['height']
 
+                jsonChannels = 0
+                if 'channels' in jsonData and jsonData['channels']:
+                    jsonChannels = jsonData['channels']
+
                 jsonSize = 0
                 if 'size' in jsonData and jsonData['size']:
                     jsonSize = jsonData['size']
@@ -2905,6 +2940,7 @@ class MainWindow(QtWidgets.QMainWindow):
                                       'rank': rank,
                                       'width': jsonWidth,
                                       'height': jsonHeight,
+                                      'channels': jsonChannels,
                                       'size': jsonSize,
                                       'path': moviePath,
                                       'date': dateModified,
@@ -2966,7 +3002,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if doJson:
                 self.writeMovieJson(movie, jsonFile)
                 self.calculateFolderSize(proxyIndex, moviePath, movieFolderName)
-                self.calculateMovieDimension(proxyIndex, moviePath, movieFolderName)
+                self.getMovieFilesInfo(proxyIndex, moviePath, movieFolderName)
 
             if doCover:
                 if movie.has_key('full-size cover url'):
@@ -3271,9 +3307,9 @@ class MainWindow(QtWidgets.QMainWindow):
         calculateSizesAction.triggered.connect(self.calculateFolderSizes)
         moviesTableRightMenu.addAction(calculateSizesAction)
 
-        calculateDimensionsAction = QtWidgets.QAction("Calculate Movie Dimensions", self)
-        calculateDimensionsAction.triggered.connect(self.calculateMovieDimensions)
-        moviesTableRightMenu.addAction(calculateDimensionsAction)
+        getMovieFilesInfoAction = QtWidgets.QAction("Get Movie Files Info", self)
+        getMovieFilesInfoAction.triggered.connect(self.getMovieFilesInfo)
+        moviesTableRightMenu.addAction(getMovieFilesInfoAction)
 
         findDuplicatesAction = QtWidgets.QAction("Find Duplicates", self)
         findDuplicatesAction.triggered.connect(self.findDuplicates)
@@ -3375,29 +3411,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if tableView != self.historyListTableView:
             self.historyListAdd(tableView, proxy)
-
-    @staticmethod
-    def getMovieDimensions(moviePath):
-        if not os.path.exists(moviePath):
-            return
-
-        validExtentions = ['.mkv', '.mpg', '.mp4', '.avi', '.flv', '.wmv', '.m4v', '.divx', '.ogm']
-
-        movieFiles = []
-        for file in os.listdir(moviePath):
-            extension = os.path.splitext(file)[1].lower()
-            if extension in validExtentions:
-                movieFiles.append(file)
-        if (len(movieFiles) > 0):
-            movieFile = os.path.join(moviePath, movieFiles[0])
-            info = MediaInfo.parse(movieFile)
-            for track in info.tracks:
-                if track.track_type == 'Video':
-                    return track.width, track.height
-            print("No video track for movie: %s" % movieFile)
-        else:
-            print("No movie files in %s" % moviePath)
-        return 0, 0
 
     def watchListAdd(self):
         self.watchListTableModel.aboutToChangeLayout()
