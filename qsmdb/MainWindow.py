@@ -3002,7 +3002,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if doJson:
                 self.writeMovieJson(movie, jsonFile)
                 self.calculateFolderSize(proxyIndex, moviePath, movieFolderName)
-                self.getMovieFilesInfo(proxyIndex, moviePath, movieFolderName)
+                self.getMovieFileInfo(proxyIndex, moviePath, movieFolderName)
 
             if doCover:
                 if movie.has_key('full-size cover url'):
@@ -3048,18 +3048,23 @@ class MainWindow(QtWidgets.QMainWindow):
         searchText = ' '.join(splitTitle)
         print('Searching for: %s' % searchText)
 
+        foundMovie = False
         for i in range(5):
             try:
-                results = self.db.search_movie(searchText)
+                results = self.db.search_movie_advanced(searchText)
             except:
                 print("Error accessing imdb")
                 return None
 
             if results:
+                foundMovie = True
                 break
             else:
                 print(f'Try {i}: No matches for: {searchText}')
                 #return None
+
+        if not foundMovie:
+            return
 
         acceptableKinds = ('movie', 'short', 'tv movie', 'tv miniseries')
 
