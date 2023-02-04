@@ -3049,7 +3049,7 @@ class MainWindow(QtWidgets.QMainWindow):
         print('Searching for: %s' % searchText)
 
         foundMovie = False
-        for i in range(5):
+        for i in range(10):
             try:
                 results = self.db.search_movie_advanced(searchText)
             except:
