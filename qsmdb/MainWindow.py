@@ -1591,7 +1591,7 @@ class MainWindow(QtWidgets.QMainWindow):
     @staticmethod
     def getMovieFileData(moviePath):
         if not os.path.exists(moviePath):
-            return
+            return 0, 0, 0
 
         validExtentions = ['.mkv', '.mpg', '.mp4', '.avi', '.flv', '.wmv', '.m4v', '.divx', '.ogm']
 
@@ -1615,7 +1615,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return width, height, channels
         else:
             print("No movie files in %s" % moviePath)
-        return 0, 0
+        return 0, 0, 0
 
     def getMovieFileInfo(self, sourceIndex, moviePath, movieFolderName):
         width, height, numChannels = self.getMovieFileData(moviePath)
