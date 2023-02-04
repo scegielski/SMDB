@@ -65,13 +65,16 @@ def openYearImdbPage(year):
 def openPersonImdbPage(personName, db):
     personId = db.name2imdbID(personName)
     if not personId:
-        results = db.search_person(personName)
-        if not results:
-            print('No matches for: %s' % personName)
-            return
-        person = results[0]
-        if isinstance(person, imdb.Person.Person):
-            personId = person.getID()
+        try:
+            results = db.search_person(personName)
+            if not results:
+                print('No matches for: %s' % personName)
+                return
+            person = results[0]
+            if isinstance(person, imdb.Person.Person):
+                personId = person.getID()
+        except imdb._exceptions.IMDbDataAccessError as err:
+            print(f"Error: {err}")
 
     if personId:
         webbrowser.open('http://imdb.com/name/nm%s' % personId, new=2)
