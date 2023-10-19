@@ -3056,8 +3056,11 @@ class MainWindow(QtWidgets.QMainWindow):
             try:
                 results = self.db.search_movie_advanced(searchText)
             except:
-                print("Error accessing imdb")
-                return None
+                try:
+                    results = self.db.search_movie(searchText)
+                except:
+                    print("Error accessing imdb")
+                    return None
 
             if results:
                 foundMovie = True
