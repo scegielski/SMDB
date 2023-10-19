@@ -5,7 +5,7 @@ import datetime
 from enum import Enum, auto
 from PyQt5 import QtGui, QtCore
 
-from .utilities import *
+from utilities import *
 
 
 class Columns(Enum):
