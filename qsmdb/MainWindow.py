@@ -7,7 +7,10 @@
 # Use PyQt chart to show movies per year broken down by genre
 
 # Required modules
-# pyqt5, imdbpy, pymediainfo
+# pip install pyqt5
+# pip install imdbpy
+# pip install ujson
+# pip install pymediainfo
 
 # Commands to make stand alone executable.  Run from Console inside PyCharm
 
