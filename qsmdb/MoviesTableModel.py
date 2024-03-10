@@ -445,6 +445,10 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
         self._data[index.row()][Columns.Duplicate.value] = value
         self.dataChanged.emit(index, index)
 
+    def setRank(self, index, value):
+        self._data[index.row()][Columns.Rank.value] = int(value)
+        self.dataChanged.emit(index, index)
+
     def setMpaaRating(self, index, value):
         self._data[index.row()][Columns.MpaaRating.value] = value
         self.dataChanged.emit(index, index)

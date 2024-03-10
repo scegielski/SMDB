@@ -3262,24 +3262,34 @@ class MainWindow(QtWidgets.QMainWindow):
     def filterCriterion(self):
         criterion_collection = getCriterionCollection()
 
-        for row in range(self.moviesTableProxyModel.rowCount()):
+        rowCount = range(self.moviesTableProxyModel.rowCount())
+
+        for row in rowCount:
             self.moviesTableView.setRowHidden(row, True)
+
+        self.progressBar.setMaximum(rowCount.stop)
+        progress = 0
 
         firstRow = -1
         self.numVisibleMovies = 0
-        for row in range(self.moviesTableProxyModel.rowCount()):
+        for row in rowCount:
             proxyModelIndex = self.moviesTableProxyModel.index(row, 0)
             sourceIndex = self.moviesTableProxyModel.mapToSource(proxyModelIndex)
             sourceRow = sourceIndex.row()
             title = self.moviesTableModel.getTitle(sourceRow)
             year = self.moviesTableModel.getYear(sourceRow)
-            for (t, y) in criterion_collection:
+            for (r, t, y) in criterion_collection:
                 if t.lower() == title.lower() and int(y) == int(year):
                     self.numVisibleMovies += 1
                     if firstRow == -1:
                         firstRow = row
                     self.moviesTableView.setRowHidden(row, False)
+                    self.moviesTableModel.setRank(sourceIndex, r)
+            progress += 1
+            self.progressBar.setValue(progress)
+
         self.moviesTableView.selectRow(firstRow)
+        self.progressBar.setValue(0)
 
     def moviesTableRightMenuShow(self, QPos):
         moviesTableRightMenu = QtWidgets.QMenu(self.moviesTableView)
