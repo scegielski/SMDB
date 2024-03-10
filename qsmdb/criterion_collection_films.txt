@@ -107,7 +107,7 @@
  109	The Rock	                                          Michael Bay	                                       United States	        1996	
  110	The Scarlet Empress	                               Josef von Sternberg	                               United States	        1934	
  111	Monsieur Hulot’s Holiday	                          Jacques Tati	                                      France	               1953	
- 112	Mon oncle	                                         Jacques Tati	                                      France	               1958	
+ 112	My Uncle	                                         Jacques Tati	                                      France	               1958
  113	PlayTime	                                          Jacques Tati	                                      France	               1967	
  114	Big Deal on Madonna Street	                        Mario Monicelli	                                   Italy	                1958	
  115	My Man Godfrey	                                    Gregory La Cava	                                   United States	        1936	
@@ -139,7 +139,7 @@
  142	Children of Paradise	                              Marcel Carné	                                      France	               1945	
  143	The Last Wave	                                     Peter Weir	                                        Australia	            1977	
  144	That Obscure Object of Desire	                     Luis Buñuel	                                       France	               1977	
- 145	Loves of a Blonde	                                 Miloš Forman	                                      Czechoslovakia	       1965	
+ 145	A Blonde in Love	                                 Miloš Forman	                                      Czechoslovakia	       1965
  146	The Firemen’s Ball	                                Miloš Forman	                                      Czechoslovakia	       1967	
  147	The Cranes Are Flying	                             Mikhail Kalatozov	                                 Soviet Union	         1957	
  148	In the Mood for Love	                              Wong Kar Wai	                                      Hong Kong	            2000	
@@ -210,14 +210,14 @@
  220	Naked Lunch	                                       David Cronenberg	                                  Canada	               1991	
  221	Ikiru	                                             Akira Kurosawa	                                    Japan	                1952	
  222	Diary of a Country Priest	                         Robert Bresson	                                    France	               1951	
- 223	Maîtresse	                                         Barbet Schroeder	                                  France	               1976	
+ 223	Mistress	                                         Barbet Schroeder	                                  France	               1976
  224	Pickup on South Street	                            Samuel Fuller	                                     United States	        1953	
  225	Tunes of Glory	                                    Ronald Neame	                                      United Kingdom	       1960	
  226	Onibaba	                                           Kaneto Shindo	                                     Japan	                1964	
  227	Le Corbeau	                                        Henri-Georges Clouzot	                             France	               1943	
  228	Salvatore Giuliano	                                Francesco Rosi	                                    Italy	                1962	
  229	Scenes from a Marriage	                            Ingmar Bergman	                                    Sweden	               1973	
- 230	3 Women	                                           Robert Altman	                                     United States	        1977	
+ 230	Three Women	                                           Robert Altman	                                     United States	        1977
  231	The Testament of Dr. Mabuse	                       Fritz Lang	                                        Germany	              1933	
  233	Stray Dog	                                         Akira Kurosawa	                                    Japan	                1949	
  234	The Tin Drum	                                      Volker Schlöndorff	                                Germany	              1979	

@@ -3259,8 +3259,29 @@ class MainWindow(QtWidgets.QMainWindow):
 
         rightMenu.exec_(QtGui.QCursor.pos())
 
+    def conditionTitle(self, title, insensitive_the):
+        title = title.lower()
+        title = insensitive_the.sub('', title)
+        title = title.replace('&', 'and')
+        title = title.replace("'", "")
+        title = title.replace("`", "")
+        title = title.replace("’", "")
+        title = title.replace("...", "")
+        title = title.replace("-", " ")
+        title = title.replace("—", " ")
+        title = title.replace("(", "")
+        title = title.replace(")", "")
+        title = title.encode('ascii', 'replace').decode()
+        return title.strip()
+
     def filterCriterion(self):
+        insensitive_the = re.compile(r'\bthe\b', re.IGNORECASE)
+
         criterion_collection = getCriterionCollection()
+        criterion_collection_mod = []
+        for (r, t, y) in criterion_collection:
+            title = self.conditionTitle(t, insensitive_the)
+            criterion_collection_mod.append((r, title, y))
 
         rowCount = range(self.moviesTableProxyModel.rowCount())
 
@@ -3272,24 +3293,47 @@ class MainWindow(QtWidgets.QMainWindow):
 
         firstRow = -1
         self.numVisibleMovies = 0
+        foundMovies = set()
         for row in rowCount:
             proxyModelIndex = self.moviesTableProxyModel.index(row, 0)
             sourceIndex = self.moviesTableProxyModel.mapToSource(proxyModelIndex)
             sourceRow = sourceIndex.row()
+
             title = self.moviesTableModel.getTitle(sourceRow)
-            year = self.moviesTableModel.getYear(sourceRow)
-            for (r, t, y) in criterion_collection:
-                if t.lower() == title.lower() and int(y) == int(year):
+            title = self.conditionTitle(title, insensitive_the)
+
+            year = int(self.moviesTableModel.getYear(sourceRow))
+
+            found = False
+            for (r, t, y) in criterion_collection_mod:
+                if t == title and abs(y - year) < 5: # Allow a slight difference in year
                     self.numVisibleMovies += 1
-                    if firstRow == -1:
-                        firstRow = row
+                    if firstRow == -1: firstRow = row
                     self.moviesTableView.setRowHidden(row, False)
                     self.moviesTableModel.setRank(sourceIndex, r)
+                    foundMovies.add((t, y))
+                    found = True
+                    break
+
             progress += 1
             self.progressBar.setValue(progress)
 
         self.moviesTableView.selectRow(firstRow)
         self.progressBar.setValue(0)
+        self.showMoviesTableSelectionStatus()
+
+        # Add missing films
+        for i, (r, t, y) in enumerate(criterion_collection_mod):
+            if not (t, y) in foundMovies:
+                # Use the unmodified data
+                (r2, t2, y2) = criterion_collection[i]
+                data = { "title":t2, "year":y2, "rank":r2 }
+                self.moviesTableModel.addMovieData(data,
+                                                   "Not Found",
+                                                   "Not Found")
+
+        self.moviesTableProxyModel.invalidate()
+        self.moviesTableProxyModel.sort(Columns.Rank.value, QtCore.Qt.AscendingOrder)
 
     def moviesTableRightMenuShow(self, QPos):
         moviesTableRightMenu = QtWidgets.QMenu(self.moviesTableView)

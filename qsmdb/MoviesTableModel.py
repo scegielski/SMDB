@@ -147,6 +147,21 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
         # Sort by year
         self.sort(Columns.Year.value, QtCore.Qt.AscendingOrder)
 
+    def addMovieData(self,
+                     data,
+                     moviePath,
+                     movieFolderName,
+                     generateRank=False,
+                     force=False):
+        movieData = self.createMovieData(data,
+                                         moviePath,
+                                         movieFolderName,
+                                         generateRank,
+                                         force)
+        self.beginInsertRows(self.index(0, 0), 0, 0)
+        self._data.append(movieData)
+        self.endInsertRows()
+
     def createMovieData(self,
                         data,
                         moviePath,

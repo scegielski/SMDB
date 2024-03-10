@@ -21,9 +21,9 @@ def getCriterionCollection():
         for line in input_f:
             tokens = re.split('\t', line.strip())
             if len(tokens) > 4:
-                rank = tokens[0].strip()
+                rank = int(tokens[0].strip())
                 title = tokens[1].strip()
-                year = tokens[4].strip()
+                year = int(tokens[4].strip())
                 criterion_collection.append((rank, title, year))
     return criterion_collection
 
