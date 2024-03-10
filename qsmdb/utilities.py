@@ -14,6 +14,18 @@ from PyQt5.QtWidgets import QMessageBox
 from PyQt5 import QtCore
 
 
+def getCriterionCollection():
+    input_file = 'criterion_collection_films.txt'
+    criterion_collection = []
+    with open(input_file, 'r', encoding='utf-8') as input_f:
+        for line in input_f:
+            tokens = re.split('\t', line.strip())
+            if len(tokens) > 4:
+                title = tokens[1].strip()
+                year = tokens[4].strip()
+                criterion_collection.append((title, year))
+    return criterion_collection
+
 def handleRemoveReadonly(func, path, exc_info):
     """
     Error handler for ``shutil.rmtree``.

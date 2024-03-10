@@ -2249,6 +2249,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
             # Get Summary
             title = self.moviesTableModel.getTitle(sourceRow)
+            print(f"Searching plot for {title}")
             moviePath = self.moviesTableModel.getPath(sourceRow)
             folderName = self.moviesTableModel.getFolderName(sourceRow)
             jsonFile = os.path.join(moviePath, '%s.json' % folderName)
@@ -3258,6 +3259,28 @@ class MainWindow(QtWidgets.QMainWindow):
 
         rightMenu.exec_(QtGui.QCursor.pos())
 
+    def filterCriterion(self):
+        criterion_collection = getCriterionCollection()
+
+        for row in range(self.moviesTableProxyModel.rowCount()):
+            self.moviesTableView.setRowHidden(row, True)
+
+        firstRow = -1
+        self.numVisibleMovies = 0
+        for row in range(self.moviesTableProxyModel.rowCount()):
+            proxyModelIndex = self.moviesTableProxyModel.index(row, 0)
+            sourceIndex = self.moviesTableProxyModel.mapToSource(proxyModelIndex)
+            sourceRow = sourceIndex.row()
+            title = self.moviesTableModel.getTitle(sourceRow)
+            year = self.moviesTableModel.getYear(sourceRow)
+            for (t, y) in criterion_collection:
+                if t.lower() == title.lower() and int(y) == int(year):
+                    self.numVisibleMovies += 1
+                    if firstRow == -1:
+                        firstRow = row
+                    self.moviesTableView.setRowHidden(row, False)
+        self.moviesTableView.selectRow(firstRow)
+
     def moviesTableRightMenuShow(self, QPos):
         moviesTableRightMenu = QtWidgets.QMenu(self.moviesTableView)
 
@@ -3373,6 +3396,12 @@ class MainWindow(QtWidgets.QMainWindow):
         downloadSubtitlesAction = QtWidgets.QAction("Download Subtitles", self)
         downloadSubtitlesAction.triggered.connect(self.downloadSubtitles)
         moviesTableRightMenu.addAction(downloadSubtitlesAction)
+
+        moviesTableRightMenu.addSeparator()
+
+        filterCriterionAction = QtWidgets.QAction("Filter by Criterion Collection", self)
+        filterCriterionAction.triggered.connect(self.filterCriterion)
+        moviesTableRightMenu.addAction(filterCriterionAction)
 
         if self.moviesTableView.selectionModel().selectedRows():
             modelIndex = self.moviesTableView.selectionModel().selectedRows()[0]
