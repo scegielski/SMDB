@@ -163,7 +163,7 @@
  166	Man Bites Dog	                                     Rémy Belvaux, André Bonzel, and Benoit Poelvoorde	 Belgium	              1992	
  167	Down by Law	                                       Jim Jarmusch	                                      United States	        1986	
  169	Monterey Pop	                                      D. A. Pennebaker	                                  United States	        1968	
- 170	Jimi Plays Monterey & Shake! Otis at Monterey	     Chris Hegedus…	                                    United States	        1986	
+ 170	Jimi Plays Monterey	     Chris Hegedus…	                                    United States	        1986
  171	Trouble in Paradise	                               Ernst Lubitsch	                                    United States	        1932	
  172	Contempt	                                          Jean-Luc Godard	                                   France	               1963	
  173	Pépé le moko	                                      Julien Duvivier	                                   France	               1937	
@@ -185,7 +185,7 @@
  193	Coup de grâce	                                     Volker Schlöndorff	                                Germany	              1976	
  194	Quai des Orfèvres	                                 Henri-Georges Clouzot	                             France	               1947	
  195	Il posto	                                          Ermanno Olmi	                                      Italy	                1961	
- 196	I fidanzati	                                       Ermanno Olmi	                                      Italy	                1962	
+ 196	The Fiances	                                       Ermanno Olmi	                                      Italy	                1962
  197	Hiroshima mon amour	                               Alain Resnais	                                     France	               1959	
  198	Night and Fog	                                     Alain Resnais	                                     France	               1955	
  199	Ali: Fear Eats the Soul	                           Rainer Werner Fassbinder	                          Germany	              1974	
@@ -201,7 +201,7 @@
  211	Winter Light	                                      Ingmar Bergman	                                    Sweden	               1963	
  212	The Silence	                                       Ingmar Bergman	                                    Sweden	               1963	
  213	Richard III	                                       Laurence Olivier	                                  United Kingdom	       1955	
- 214	All That Money Can Buy (a.k.a. The Devil and Danie	William Dieterle	                                  United States	        1941	
+ 214	All That Money Can Buy                           	William Dieterle	                                  United States	        1941
  215	Knife in the Water	                                Roman Polanski	                                    Poland	               1962	
  216	The Rules of the Game	                             Jean Renoir	                                       France	               1939	
  217	Tokyo Story	                                       Yasujiro Ozu	                                      Japan	                1953	

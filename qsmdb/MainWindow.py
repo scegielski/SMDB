@@ -3304,7 +3304,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
             year = int(self.moviesTableModel.getYear(sourceRow))
 
-            found = False
             for (r, t, y) in criterion_collection_mod:
                 if t == title and abs(y - year) < 5: # Allow a slight difference in year
                     self.numVisibleMovies += 1
@@ -3312,7 +3311,6 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.moviesTableView.setRowHidden(row, False)
                     self.moviesTableModel.setRank(sourceIndex, r)
                     foundMovies.add((t, y))
-                    found = True
                     break
 
             progress += 1
@@ -3322,17 +3320,20 @@ class MainWindow(QtWidgets.QMainWindow):
         self.progressBar.setValue(0)
         self.showMoviesTableSelectionStatus()
 
+        self.moviesTableModel.aboutToChangeLayout()
+
         # Add missing films
         for i, (r, t, y) in enumerate(criterion_collection_mod):
             if not (t, y) in foundMovies:
                 # Use the unmodified data
                 (r2, t2, y2) = criterion_collection[i]
-                data = { "title":t2, "year":y2, "rank":r2 }
+                data = { "title":t2, "year":y2, "rank":r2, "backup status":"Folder Missing" }
                 self.moviesTableModel.addMovieData(data,
                                                    "Not Found",
                                                    "Not Found")
 
-        self.moviesTableProxyModel.invalidate()
+        #self.moviesTableProxyModel.invalidate()
+        self.moviesTableModel.changedLayout()
         self.moviesTableProxyModel.sort(Columns.Rank.value, QtCore.Qt.AscendingOrder)
 
     def moviesTableRightMenuShow(self, QPos):
@@ -3901,10 +3902,9 @@ class MainWindow(QtWidgets.QMainWindow):
         year = self.moviesTableModel.getYear(sourceRow)
         urlPirateBay = f"https://thepiratebay.org/search.php?q={titlePlus}+%28{year}%29&all=on&search=Pirate+Search&page=0&orderby="
         url1337x = f"https://1337x.to/search/{titlePlus}+{year}/1/"
-        urlRarBG = f"http://rarbg.to/torrents.php?search={titlePlus}+%28{year}%29"
         usrlLimeTorrents = f"https://www.limetorrents.info/search/all/{titleMinus}-%20{year}%20/"
         urlYts = f"https://yts.mx/movies/{titleMinus.lower()}-{year}"
-        urls = [urlPirateBay, url1337x, urlRarBG, usrlLimeTorrents, urlYts]
+        urls = [urlPirateBay, url1337x, usrlLimeTorrents, urlYts]
         for u in urls:
             webbrowser.open(u, new=2)
 
