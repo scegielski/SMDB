@@ -2997,7 +2997,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 movie = self.getMovie(movieFolderName)
             if not movie:
                 return coverFile
-            self.db.update(movie)
+            try:
+                self.db.update(movie)
+            except:
+                return
 
             # Print out all the movie keys
             # for k in movie.keys():
