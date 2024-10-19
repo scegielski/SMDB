@@ -6,6 +6,8 @@ import json
 import subprocess
 import urllib.request
 from urllib.error import URLError
+from unidecode import unidecode
+
 
 import webbrowser
 import imdb
@@ -26,6 +28,37 @@ def getCriterionCollection():
                 year = int(tokens[4].strip())
                 criterion_collection.append((rank, title, year))
     return criterion_collection
+
+def getBlaxploitationCollection():
+    input_file = 'blaxploitation.txt'
+    blaxploitation_collection = []
+    with open(input_file, 'r', encoding='utf-8') as input_f:
+        for line in input_f:
+            pattern = r'^(.*?)\s+\((\d{4})\).*$'
+            match = re.match(pattern, line)
+
+            if match:
+                full_title = match.group(1).strip()
+                year = match.group(2)
+                blaxploitation_collection.append((full_title, year))
+    return blaxploitation_collection
+
+def getNeoNoirCollection():
+    input_file = 'neo-noir.txt'
+    neonoir_collection = []
+    with open(input_file, 'r', encoding='utf-8') as input_f:
+        for line in input_f:
+            line = unidecode(line)
+            pattern = r'^(.*?)\t.*?\t(\d{4})\t.*?\t.*?$'
+            match = re.match(pattern, line)
+            if match:
+                title = match.group(1)
+                year = match.group(2)
+                neonoir_collection.append((title, year))
+                print(f"Title: {title}")
+                print(f"Year: {year}")
+
+    return neonoir_collection
 
 def handleRemoveReadonly(func, path, exc_info):
     """

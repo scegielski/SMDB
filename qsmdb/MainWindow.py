@@ -3462,6 +3462,14 @@ class MainWindow(QtWidgets.QMainWindow):
         filterCriterionAction.triggered.connect(self.filterCriterion)
         moviesTableRightMenu.addAction(filterCriterionAction)
 
+        filterBlaxploitationAction = QtWidgets.QAction("Filter by Blaxploitation Collection", self)
+        filterBlaxploitationAction.triggered.connect(self.filterBlaxploitation)
+        moviesTableRightMenu.addAction(filterBlaxploitationAction)
+
+        filterNeonoirAction = QtWidgets.QAction("Filter by Neonoir Collection", self)
+        filterNeonoirAction.triggered.connect(self.filterNeoNoir)
+        moviesTableRightMenu.addAction(filterNeonoirAction)
+
         if self.moviesTableView.selectionModel().selectedRows():
             modelIndex = self.moviesTableView.selectionModel().selectedRows()[0]
             self.clickedTable(modelIndex,
