@@ -3340,6 +3340,131 @@ class MainWindow(QtWidgets.QMainWindow):
         self.moviesTableModel.changedLayout()
         self.moviesTableProxyModel.sort(Columns.Rank.value, QtCore.Qt.AscendingOrder)
 
+    def filterBlaxploitation(self):
+        insensitive_the = re.compile(r'\bthe\b', re.IGNORECASE)
+
+        blaxploitation_collection = getBlaxploitationCollection()
+        blaxploitation_collection_mod = []
+        for (t, y) in blaxploitation_collection:
+            title = self.conditionTitle(t, insensitive_the)
+            blaxploitation_collection_mod.append((title, int(y)))
+
+        rowCount = range(self.moviesTableProxyModel.rowCount())
+
+        for row in rowCount:
+            self.moviesTableView.setRowHidden(row, True)
+
+        self.progressBar.setMaximum(rowCount.stop)
+        progress = 0
+
+        firstRow = -1
+        self.numVisibleMovies = 0
+        foundMovies = set()
+        for row in rowCount:
+            proxyModelIndex = self.moviesTableProxyModel.index(row, 0)
+            sourceIndex = self.moviesTableProxyModel.mapToSource(proxyModelIndex)
+            sourceRow = sourceIndex.row()
+
+            title = self.moviesTableModel.getTitle(sourceRow)
+            title = self.conditionTitle(title, insensitive_the)
+
+            year = int(self.moviesTableModel.getYear(sourceRow))
+
+            for (t, y) in blaxploitation_collection_mod:
+                if t == title and abs(y - year) < 5: # Allow a slight difference in year
+                    self.numVisibleMovies += 1
+                    if firstRow == -1: firstRow = row
+                    self.moviesTableView.setRowHidden(row, False)
+                    #self.moviesTableModel.setRank(sourceIndex, r)
+                    foundMovies.add((t, y))
+                    break
+
+            progress += 1
+            self.progressBar.setValue(progress)
+
+        self.moviesTableView.selectRow(firstRow)
+        self.progressBar.setValue(0)
+        self.showMoviesTableSelectionStatus()
+
+        self.moviesTableModel.aboutToChangeLayout()
+
+        # Add missing films
+        for i, (t, y) in enumerate(blaxploitation_collection_mod):
+            if not (t, y) in foundMovies:
+                # Use the unmodified data
+                (t2, y2) = blaxploitation_collection[i]
+                data = { "title":t2, "year":y2, "backup status":"Folder Missing" }
+                self.moviesTableModel.addMovieData(data,
+                                                   "Not Found",
+                                                   "Not Found")
+
+        #self.moviesTableProxyModel.invalidate()
+        self.moviesTableModel.changedLayout()
+        self.moviesTableProxyModel.sort(Columns.Year.value, QtCore.Qt.AscendingOrder)
+
+    def filterNeoNoir(self):
+        insensitive_the = re.compile(r'\bthe\b', re.IGNORECASE)
+
+        neonoir_collection = getNeoNoirCollection()
+        neonoir_collection_mod = []
+        for (t, y) in neonoir_collection:
+            title = self.conditionTitle(t, insensitive_the)
+            neonoir_collection_mod.append((title, int(y)))
+            print(f"title={title} year={y}")
+
+        rowCount = range(self.moviesTableProxyModel.rowCount())
+
+        for row in rowCount:
+            self.moviesTableView.setRowHidden(row, True)
+
+        self.progressBar.setMaximum(rowCount.stop)
+        progress = 0
+
+        firstRow = -1
+        self.numVisibleMovies = 0
+        foundMovies = set()
+        for row in rowCount:
+            proxyModelIndex = self.moviesTableProxyModel.index(row, 0)
+            sourceIndex = self.moviesTableProxyModel.mapToSource(proxyModelIndex)
+            sourceRow = sourceIndex.row()
+
+            title = self.moviesTableModel.getTitle(sourceRow)
+            title = self.conditionTitle(title, insensitive_the)
+
+            year = int(self.moviesTableModel.getYear(sourceRow))
+
+            for (t, y) in neonoir_collection_mod:
+                if t == title and abs(y - year) < 5: # Allow a slight difference in year
+                    self.numVisibleMovies += 1
+                    if firstRow == -1: firstRow = row
+                    self.moviesTableView.setRowHidden(row, False)
+                    #self.moviesTableModel.setRank(sourceIndex, r)
+                    foundMovies.add((t, y))
+                    break
+
+            progress += 1
+            self.progressBar.setValue(progress)
+
+        self.moviesTableView.selectRow(firstRow)
+        self.progressBar.setValue(0)
+        self.showMoviesTableSelectionStatus()
+
+        self.moviesTableModel.aboutToChangeLayout()
+
+        # Add missing films
+        for i, (t, y) in enumerate(neonoir_collection_mod):
+            if not (t, y) in foundMovies:
+                # Use the unmodified data
+                (t2, y2) = neonoir_collection[i]
+                data = { "title":t2, "year":y2, "backup status":"Folder Missing" }
+                self.moviesTableModel.addMovieData(data,
+                                                   "Not Found",
+                                                   "Not Found")
+
+        #self.moviesTableProxyModel.invalidate()
+        self.moviesTableModel.changedLayout()
+        self.moviesTableProxyModel.sort(Columns.Year.value, QtCore.Qt.AscendingOrder)
+
     def moviesTableRightMenuShow(self, QPos):
         moviesTableRightMenu = QtWidgets.QMenu(self.moviesTableView)
 
