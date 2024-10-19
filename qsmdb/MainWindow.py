@@ -2446,7 +2446,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         filter2ByText = self.secondaryFilterWidget.filterByComboBox.currentText()
         filter2ByKey = self.secondaryFilterWidget.filterByDict[filter2ByText]
-        if filterByText != filter2ByText and len(self.secondaryFilterWidget.filterTable.selectedItems()) != 0:
+        if len(self.secondaryFilterWidget.filterTable.selectedItems()) != 0:
             movieList2 = list()
             for movie in movieList:
                 foundMovie = False
