@@ -39,6 +39,7 @@ import stat
 import time
 from pymediainfo import MediaInfo
 from pprint import pprint
+import urllib.parse
 
 from .utilities import *
 from .MoviesTableModel import MoviesTableModel, Columns, defaultColumnWidths
@@ -3888,6 +3889,18 @@ class MainWindow(QtWidgets.QMainWindow):
         movieId = self.moviesTableModel.getId(sourceRow)
         webbrowser.open(f'https://yifysubtitles.org/movie-imdb/tt{movieId}')
 
+    def get_imdb_movie_page(self, title, year):
+        # Format the search query
+        query = f"{title} {year}"
+
+        # Encode the query for use in a URL
+        encoded_query = urllib.parse.quote(query)
+
+        # Construct the IMDb search URL
+        url = f"https://www.imdb.com/find?q={encoded_query}&s=tt&ttype=ft"
+
+        return url
+
     def searchForOtherVersions(self):
         response = QtWidgets.QMessageBox.question(
             self,
@@ -3907,7 +3920,8 @@ class MainWindow(QtWidgets.QMainWindow):
         url1337x = f"https://1337x.to/search/{titlePlus}+{year}/1/"
         usrlLimeTorrents = f"https://www.limetorrents.info/search/all/{titleMinus}-%20{year}%20/"
         urlYts = f"https://yts.mx/movies/{titleMinus.lower()}-{year}"
-        urls = [urlPirateBay, url1337x, usrlLimeTorrents, urlYts]
+        urlImdb = self.get_imdb_movie_page(title, year)
+        urls = [urlPirateBay, url1337x, usrlLimeTorrents, urlYts, urlImdb]
         for u in urls:
             webbrowser.open(u, new=2)
 
