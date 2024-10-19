@@ -15,50 +15,50 @@ import imdb
 from PyQt5.QtWidgets import QMessageBox
 from PyQt5 import QtCore
 
+import re
+from unidecode import unidecode
 
-def getCriterionCollection():
-    input_file = 'criterion_collection_films.txt'
-    criterion_collection = []
+import re
+from unidecode import unidecode
+
+
+def getCollection(file_type):
+    valid_types = ['criterion', 'blaxploitation', 'neonoir']
+    if file_type not in valid_types:
+        raise ValueError(f"Invalid file type. Choose from: {', '.join(valid_types)}")
+
+    input_file = f"{file_type}.txt"
+
+    collection = []
+
     with open(input_file, 'r', encoding='utf-8') as input_f:
         for line in input_f:
-            tokens = re.split('\t', line.strip())
-            if len(tokens) > 4:
-                rank = int(tokens[0].strip())
-                title = tokens[1].strip()
-                year = int(tokens[4].strip())
-                criterion_collection.append((rank, title, year))
-    return criterion_collection
+            if file_type == 'criterion':
+                tokens = re.split('\t', line.strip())
+                if len(tokens) > 4:
+                    rank = int(tokens[0].strip())
+                    title = tokens[1].strip()
+                    year = int(tokens[4].strip())
+                    collection.append((rank, title, year))
 
-def getBlaxploitationCollection():
-    input_file = 'blaxploitation.txt'
-    blaxploitation_collection = []
-    with open(input_file, 'r', encoding='utf-8') as input_f:
-        for line in input_f:
-            pattern = r'^(.*?)\s+\((\d{4})\).*$'
-            match = re.match(pattern, line)
+            elif file_type == 'blaxploitation':
+                pattern = r'^(.*?)\s+\((\d{4})\).*$'
+                match = re.match(pattern, line)
+                if match:
+                    full_title = match.group(1).strip()
+                    year = int(match.group(2))
+                    collection.append((full_title, year))
 
-            if match:
-                full_title = match.group(1).strip()
-                year = match.group(2)
-                blaxploitation_collection.append((full_title, year))
-    return blaxploitation_collection
+            elif file_type == 'neonoir':
+                line = unidecode(line)
+                pattern = r'^(.*?)\t.*?\t(\d{4})\t.*?\t.*?$'
+                match = re.match(pattern, line)
+                if match:
+                    title = match.group(1)
+                    year = int(match.group(2))
+                    collection.append((title, year))
 
-def getNeoNoirCollection():
-    input_file = 'neo-noir.txt'
-    neonoir_collection = []
-    with open(input_file, 'r', encoding='utf-8') as input_f:
-        for line in input_f:
-            line = unidecode(line)
-            pattern = r'^(.*?)\t.*?\t(\d{4})\t.*?\t.*?$'
-            match = re.match(pattern, line)
-            if match:
-                title = match.group(1)
-                year = match.group(2)
-                neonoir_collection.append((title, year))
-                print(f"Title: {title}")
-                print(f"Year: {year}")
-
-    return neonoir_collection
+    return collection
 
 def handleRemoveReadonly(func, path, exc_info):
     """
