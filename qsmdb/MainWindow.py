@@ -3902,15 +3902,6 @@ class MainWindow(QtWidgets.QMainWindow):
         return url
 
     def searchForOtherVersions(self):
-        response = QtWidgets.QMessageBox.question(
-            self,
-            "WARNING!!",
-            "Do not proceed unless connected to a VPN.  Proceed?",
-            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
-
-        if response == QtWidgets.QMessageBox.No:
-            return
-
         sourceRow = self.getSelectedRow()
         title = self.moviesTableModel.getTitle(sourceRow)
         titlePlus = '+'.join(title.split())
