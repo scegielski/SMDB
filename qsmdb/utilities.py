@@ -23,40 +23,18 @@ from unidecode import unidecode
 
 
 def getCollection(file_type):
-    valid_types = ['criterion', 'blaxploitation', 'neonoir']
-    if file_type not in valid_types:
-        raise ValueError(f"Invalid file type. Choose from: {', '.join(valid_types)}")
-
-    input_file = f"{file_type}.txt"
-
     collection = []
-
+    input_file = f"{file_type}.txt"
     with open(input_file, 'r', encoding='utf-8') as input_f:
+        rank = 1
         for line in input_f:
-            if file_type == 'criterion':
-                tokens = re.split('\t', line.strip())
-                if len(tokens) > 4:
-                    rank = int(tokens[0].strip())
-                    title = tokens[1].strip()
-                    year = int(tokens[4].strip())
-                    collection.append((rank, title, year))
-
-            elif file_type == 'blaxploitation':
                 pattern = r'^(.*?)\s+\((\d{4})\).*$'
                 match = re.match(pattern, line)
                 if match:
                     full_title = match.group(1).strip()
                     year = int(match.group(2))
-                    collection.append((full_title, year))
-
-            elif file_type == 'neonoir':
-                line = unidecode(line)
-                pattern = r'^(.*?)\t.*?\t(\d{4})\t.*?\t.*?$'
-                match = re.match(pattern, line)
-                if match:
-                    title = match.group(1)
-                    year = int(match.group(2))
-                    collection.append((title, year))
+                    collection.append((rank, full_title, year))
+                    rank = rank + 1
 
     return collection
 

@@ -59,6 +59,13 @@ class MainWindow(QtWidgets.QMainWindow):
         # Create IMDB database
         self.db = IMDb()
 
+        self.collections = ('criterion',
+                            'blaxploitation',
+                            'neonoir',
+                            'kungfu',
+                            'noir',
+                            'hitchcock')
+
         # Read the movies folder from the settings
         self.settings = QtCore.QSettings("STC", "SMDB")
         self.moviesFolder = self.settings.value('movies_folder', "", type=str)
@@ -3281,18 +3288,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def filterCollection(self, collection_type):
         insensitive_the = re.compile(r'\bthe\b', re.IGNORECASE)
         collection = getCollection(collection_type)
-
-        if collection_type == "criterion":
-            collection_mod = [(r, self.conditionTitle(t, insensitive_the), y) for r, t, y in collection]
-            sort_column = Columns.Rank.value
-            has_rank = True
-        elif collection_type == "blaxploitation" or collection_type == "neonoir":
-            collection_mod = [(self.conditionTitle(t, insensitive_the), int(y)) for t, y in collection]
-            sort_column = Columns.Year.value
-            has_rank = False
-        else:
-            raise ValueError("Invalid collection type")
-
+        collection_mod = [(r, self.conditionTitle(t, insensitive_the), int(y)) for r, t, y in collection]
         rowCount = range(self.moviesTableProxyModel.rowCount())
 
         for row in rowCount:
@@ -3300,32 +3296,26 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.progressBar.setMaximum(rowCount.stop)
         progress = 0
-
         firstRow = -1
         self.numVisibleMovies = 0
         foundMovies = set()
+
         for row in rowCount:
             proxyModelIndex = self.moviesTableProxyModel.index(row, 0)
             sourceIndex = self.moviesTableProxyModel.mapToSource(proxyModelIndex)
             sourceRow = sourceIndex.row()
-
             title = self.moviesTableModel.getTitle(sourceRow)
             title = self.conditionTitle(title, insensitive_the)
-
             year = int(self.moviesTableModel.getYear(sourceRow))
 
             for item in collection_mod:
-                if has_rank:
-                    r, t, y = item
-                else:
-                    t, y = item
+                r, t, y = item
                 if t == title and abs(y - year) < 5:  # Allow a slight difference in year
                     self.numVisibleMovies += 1
                     if firstRow == -1:
                         firstRow = row
                     self.moviesTableView.setRowHidden(row, False)
-                    if has_rank:
-                        self.moviesTableModel.setRank(sourceIndex, r)
+                    self.moviesTableModel.setRank(sourceIndex, r)
                     foundMovies.add((t, y))
                     break
 
@@ -3335,27 +3325,21 @@ class MainWindow(QtWidgets.QMainWindow):
         self.moviesTableView.selectRow(firstRow)
         self.progressBar.setValue(0)
         self.showMoviesTableSelectionStatus()
-
         self.moviesTableModel.aboutToChangeLayout()
 
         # Add missing films
         for i, item in enumerate(collection_mod):
-            if has_rank:
-                r, t, y = item
-            else:
-                t, y = item
+            r, t, y = item
             if (t, y) not in foundMovies:
                 # Use the unmodified data
                 original_item = collection[i]
-                if has_rank:
-                    r2, t2, y2 = original_item
-                    data = {"title": t2, "year": y2, "rank": r2, "backup status": "Folder Missing"}
-                else:
-                    t2, y2 = original_item
-                    data = {"title": t2, "year": y2, "backup status": "Folder Missing"}
+                r2, t2, y2 = original_item
+                data = {"title": t2, "year": y2, "rank": r2, "backup status": "Folder Missing"}
                 self.moviesTableModel.addMovieData(data, "Not Found", "Not Found")
 
         self.moviesTableModel.changedLayout()
+
+        sort_column = Columns.Rank.value if collection_type == 'criterion' else Columns.Year.value
         self.moviesTableProxyModel.sort(sort_column, QtCore.Qt.AscendingOrder)
 
     def moviesTableRightMenuShow(self, QPos):
@@ -3476,17 +3460,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
         moviesTableRightMenu.addSeparator()
 
-        filterCriterionAction = QtWidgets.QAction("Filter by Criterion Collection", self)
-        filterCriterionAction.triggered.connect(lambda: self.filterCollection('criterion'))
-        moviesTableRightMenu.addAction(filterCriterionAction)
+        filterBySubmenu = QtWidgets.QMenu("Filter by:")
+        filterBySubmenu.setStyle(moviesTableRightMenu.style())
+        moviesTableRightMenu.addMenu(filterBySubmenu)
 
-        filterBlaxploitationAction = QtWidgets.QAction("Filter by Blaxploitation Collection", self)
-        filterBlaxploitationAction.triggered.connect(lambda: self.filterCollection('blaxploitation'))
-        moviesTableRightMenu.addAction(filterBlaxploitationAction)
-
-        filterNeonoirAction = QtWidgets.QAction("Filter by Neonoir Collection", self)
-        filterNeonoirAction.triggered.connect(lambda: self.filterCollection('neonoir'))
-        moviesTableRightMenu.addAction(filterNeonoirAction)
+        for c in self.collections:
+            action = QtWidgets.QAction(f"Filter by {c} Collection", self)
+            action.triggered.connect(lambda checked, collection=c: self.filterCollection(collection))
+            filterBySubmenu.addAction(action)
 
         if self.moviesTableView.selectionModel().selectedRows():
             modelIndex = self.moviesTableView.selectionModel().selectedRows()[0]
@@ -3927,6 +3908,16 @@ class MainWindow(QtWidgets.QMainWindow):
 
         return url
 
+    def get_youtube_search_url(self, query):
+        base_url = "https://www.youtube.com/results"
+        encoded_query = urllib.parse.quote(query)
+        return f"{base_url}?search_query={encoded_query}"
+
+    def get_prime_video_search_url(self, query):
+        base_url = "https://www.amazon.com/s"
+        encoded_query = urllib.parse.quote(query)
+        return f"{base_url}?k={encoded_query}&i=instant-video"
+
     def searchForOtherVersions(self):
         sourceRow = self.getSelectedRow()
         title = self.moviesTableModel.getTitle(sourceRow)
@@ -3938,7 +3929,9 @@ class MainWindow(QtWidgets.QMainWindow):
         usrlLimeTorrents = f"https://www.limetorrents.info/search/all/{titleMinus}-%20{year}%20/"
         urlYts = f"https://yts.mx/movies/{titleMinus.lower()}-{year}"
         urlImdb = self.get_imdb_movie_page(title, year)
-        urls = [urlPirateBay, url1337x, usrlLimeTorrents, urlYts, urlImdb]
+        urlYt = self.get_youtube_search_url(f"{title} {year}")
+        urlAmz = self.get_prime_video_search_url(f"{title} {year}")
+        urls = [urlPirateBay, url1337x, usrlLimeTorrents, urlYts, urlImdb, urlYt, urlAmz]
         for u in urls:
             webbrowser.open(u, new=2)
 
