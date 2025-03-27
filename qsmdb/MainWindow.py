@@ -59,13 +59,6 @@ class MainWindow(QtWidgets.QMainWindow):
         # Create IMDB database
         self.db = IMDb()
 
-        self.collections = ('criterion',
-                            'blaxploitation',
-                            'neonoir',
-                            'kungfu',
-                            'noir',
-                            'hitchcock')
-
         # Read the movies folder from the settings
         self.settings = QtCore.QSettings("STC", "SMDB")
         self.moviesFolder = self.settings.value('movies_folder', "", type=str)
@@ -73,6 +66,14 @@ class MainWindow(QtWidgets.QMainWindow):
             self.moviesFolder = "No movies folder set.  Use the \"File->Set movies folder\" menu to set it."
         self.backupFolder = ""
         self.additionalMoviesFolders = self.settings.value('additional_movies_folders', [], type=list)
+
+        # Collections for filter by menu
+        self.collections =  []
+        self.collectionsFolder = self.settings.value('collections_folder', "", type=str)
+        if self.collectionsFolder == "":
+            self.collectionsFolder = './collections'
+        self.refreshCollectionsList()
+
 
         # Movie selection history
         self.selectionHistory = list()
@@ -552,6 +553,11 @@ class MainWindow(QtWidgets.QMainWindow):
         rebuildSmdbFileAction.triggered.connect(lambda: self.writeSmdbFile(self.moviesSmdbFile,
                                                                            self.moviesTableModel,
                                                                            titlesOnly=False))
+
+        setCollectionsFolderAction = QtWidgets.QAction("Set collections folder", self)
+        setCollectionsFolderAction.triggered.connect(self.setCollectionsFolder)
+        fileMenu.addAction(setCollectionsFolderAction)
+
         fileMenu.addAction(rebuildSmdbFileAction)
 
         conformMoviesAction = QtWidgets.QAction("Conform movies in folder", self)
@@ -1467,6 +1473,27 @@ class MainWindow(QtWidgets.QMainWindow):
                                 % (self.moviesFolder, additionalMoviesFoldersString))
         else:
             self.setWindowTitle("SMDB - Primary Movies Folder = %s" % (self.moviesFolder))
+
+    def setCollectionsFolder(self):
+        browseDir = str(Path.home())
+        if os.path.exists('%s/Desktop' % browseDir):
+            browseDir = '%s/Desktop' % browseDir
+        collectionsFolder = QtWidgets.QFileDialog.getExistingDirectory(
+            self,
+            "Select Collections Directory",
+            browseDir,
+            QtWidgets.QFileDialog.ShowDirsOnly |
+            QtWidgets.QFileDialog.DontResolveSymlinks)
+        if os.path.exists(collectionsFolder):
+            self.collectionsFolder = collectionsFolder
+            self.settings.setValue('collections_folder', self.collectionsFolder)
+            self.setTitleBar()
+            print("Saved: collectionsFolder = %s" % self.collectionsFolder)
+            self.refreshCollectionsList()
+
+    def refreshCollectionsList(self):
+        if os.path.exists(self.collectionsFolder):
+            self.collections = [f"{self.collectionsFolder}/{c}" for c in os.listdir(self.collectionsFolder) if c.endswith('.txt')]
 
     def setPrimaryMoviesFolder(self):
         browseDir = str(Path.home())

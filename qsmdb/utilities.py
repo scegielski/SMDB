@@ -22,9 +22,8 @@ import re
 from unidecode import unidecode
 
 
-def getCollection(file_type):
+def getCollection(input_file):
     collection = []
-    input_file = f"{file_type}.txt"
     with open(input_file, 'r', encoding='utf-8') as input_f:
         rank = 1
         for line in input_f:
