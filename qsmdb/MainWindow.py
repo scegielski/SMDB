@@ -2895,7 +2895,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
                 jsonRating = None
                 if 'rating' in jsonData and jsonData['rating']:
-                    jsonRating = float(jsonData['rating'])
+                    try:
+                        jsonRating = float(jsonData['rating'])
+                    except ValueError:
+                        jsonRating = 0.0
                     if jsonRating not in ratings:
                         ratings[jsonRating] = {}
                         ratings[jsonRating]['num movies'] = 0
@@ -3073,12 +3076,14 @@ class MainWindow(QtWidgets.QMainWindow):
             year = int(m.group(2))
             titleYear = f"{title} ({year})"
 
-            movie = self.getMovieOmdb(title, year, api_key="1350b71a", imdbId=imdbId)
+            omdbApiKey = "fe5db83f"
+
+            movie = self.getMovieOmdb(title, year, api_key=omdbApiKey, imdbId=imdbId)
             if not movie and not imdbId:
                 imdbMovie = self.db.search_movie(titleYear)
                 if imdbMovie:
                     imdbId = imdbMovie[0].movieID
-                movie = self.getMovieOmdb(title, year, api_key="1350b71a", imdbId=imdbId)
+                movie = self.getMovieOmdb(title, year, api_key=omdbApiKey, imdbId=imdbId)
 
             if not movie: return ""
 
@@ -3126,7 +3131,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         response = requests.get("http://www.omdbapi.com/", params=params)
         if response.status_code != 200:
-            print(f"OMDb request failed for \"{title}\"({year}: {response.status_code}")
+            print(f"OMDb request failed for \"{title}\"({year}): {response.status_code}")
             return None
 
         data = response.json()
@@ -3985,11 +3990,13 @@ class MainWindow(QtWidgets.QMainWindow):
         if 'http://' in movieId or 'https://' in movieId:
             webbrowser.open(movieId, new=2)
         else:
+            if 'tt' in movieId: movieId = movieId.replace('tt', '')
             webbrowser.open('http://imdb.com/title/tt%s' % movieId, new=2)
 
     def downloadSubtitles(self):
         sourceRow = self.getSelectedRow()
         movieId = self.moviesTableModel.getId(sourceRow)
+        if 'tt' in movieId: movieId = movieId.replace('tt', '')
         webbrowser.open(f'https://yifysubtitles.org/movie-imdb/tt{movieId}')
 
     def get_imdb_movie_page(self, title, year):
