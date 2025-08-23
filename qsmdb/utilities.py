@@ -75,11 +75,9 @@ def readSmdbFile(fileName):
 
 
 def getMovieKey(movie, key):
-    if key in movie:
-        return movie[key]
-    else:
+    if not movie:
         return None
-
+    return movie.get(key, None)
 
 def openYearImdbPage(year):
     webbrowser.open('https://www.imdb.com/search/title/?release_date=%s-01-01,%s-12-31' % (year, year), new=2)

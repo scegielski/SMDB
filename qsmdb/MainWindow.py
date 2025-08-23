@@ -35,6 +35,7 @@ import webbrowser
 import shutil
 import os
 import random
+import requests
 import stat
 import time
 from pymediainfo import MediaInfo
@@ -2687,63 +2688,39 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def writeMovieJson(self, movie, jsonFile):
         d = {}
-        d['title'] = getMovieKey(movie, 'title')
-        d['id'] = movie.getID()
-        d['kind'] = getMovieKey(movie, 'kind')
-        d['year'] = getMovieKey(movie, 'year')
-        d['rating'] = getMovieKey(movie, 'rating')
+        d['title'] = getMovieKey(movie, 'Title')
+        d['id'] = getMovieKey(movie, 'imdbID')
+        if d['id'] is None:
+            print(f"Movie: {d['title']} has no imdbId")
+        else:
+            d['id'] = d['id'].replace('tt', '')
+        d['kind'] = getMovieKey(movie, 'Type')
+        d['year'] = getMovieKey(movie, 'Year')
+        d['rating'] = getMovieKey(movie, 'imdbRating')
+        d['mpaa rating'] = getMovieKey(movie, 'Rated')
+        d['countries'] = getMovieKey(movie, 'Country')
+        if d['countries']: d['countries'] = d['countries'].split(',')
+        d['companies'] = getMovieKey(movie, 'Production')
+        if d['companies']: d['companies'] = d['companies'].split(',')
+        d['runtime'] = getMovieKey(movie, 'Runtime')
+        if d['runtime']: d['runtime'] = d['runtime'].split()[0]
+        d['box office'] = getMovieKey(movie, 'BoxOffice')
+        d['directors'] = getMovieKey(movie, 'Director')
+        if d['directors']: d['directors'] = d['directors'].split(',')
+        d['cast'] = getMovieKey(movie, 'Actors')
+        if d['cast']: d['cast'] = d['cast'].split(',')
+        d['genres'] = getMovieKey(movie, 'Genre')
+        if d['genres']: d['genres'] = d['genres'].split(',')
+        d['plot'] = getMovieKey(movie, 'Plot')
+        d['cover url'] = getMovieKey(movie, 'Poster')
 
-        mpaaRating = ""
-        if 'certificates' in movie:
-            certificates = movie['certificates']
-            for c in certificates:
-                if 'United States' in c and 'TV' not in c:
-                    mpaaRating = c.split(':')[1]
-                    print('MPAA rating = %s' % mpaaRating)
-        d['mpaa rating'] = mpaaRating
-
-        d['countries'] = []
-        countries = getMovieKey(movie, 'countries')
-        if countries and isinstance(countries, list):
-            for c in countries:
-                d['countries'].append(c)
-        d['companies'] = []
-        companies = getMovieKey(movie, 'production companies')
-        if companies and isinstance(companies, list):
-            for c in companies:
-                d['companies'].append(c['name'])
-        runtimes = getMovieKey(movie, 'runtimes')
-        if runtimes:
-            d['runtime'] = runtimes[0]
-        boxOffice = getMovieKey(movie, 'box office')
-        if boxOffice:
-            for k in boxOffice.keys():
-                d['box office'] = boxOffice[k]
-        directors = getMovieKey(movie, 'director')
-        d['directors'] = []
-        if directors:
-            for director in directors:
-                directorName = str(director['name'])
-                directorId = self.db.name2imdbID(directorName)
-                d['directors'].append(directorName)
-        d['cast'] = []
-        cast = getMovieKey(movie, 'cast')
-        if cast and isinstance(cast, list):
-            for c in movie['cast']:
-                d['cast'].append(c['name'])
-        d['genres'] = getMovieKey(movie, 'genres')
-        d['plot'] = getMovieKey(movie, 'plot')
-        d['plot outline'] = getMovieKey(movie, 'plot outline')
-        d['synopsis'] = getMovieKey(movie, 'synopsis')
-        d['summary'] = movie.summary()
-        d['cover url'] = getMovieKey(movie, 'cover url')
-        d['full-size cover url'] = getMovieKey(movie, 'full-size cover url')
-
+        # Write to JSON
         try:
-            with open(jsonFile, "w") as f:
+            with open(jsonFile, "w", encoding="utf-8") as f:
+                import ujson
                 ujson.dump(d, f, indent=4)
-        except:
-            print("Error writing json file: %s" % jsonFile)
+        except Exception as e:
+            print(f"Error writing JSON file '{jsonFile}': {e}")
 
     def writeSmdbFile(self, fileName, model, titlesOnly=False):
         titles = {}
@@ -2829,7 +2806,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
                 jsonYear = None
                 if 'year' in jsonData and jsonData['year']:
-                    jsonYear = jsonData['year']
+                    jsonYear = int(jsonData['year'])
                     if jsonYear not in years:
                         years[jsonYear] = {}
                         years[jsonYear]['num movies'] = 0
@@ -2918,7 +2895,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
                 jsonRating = None
                 if 'rating' in jsonData and jsonData['rating']:
-                    jsonRating = jsonData['rating']
+                    jsonRating = float(jsonData['rating'])
                     if jsonRating not in ratings:
                         ratings[jsonRating] = {}
                         ratings[jsonRating]['num movies'] = 0
@@ -2941,22 +2918,24 @@ class MainWindow(QtWidgets.QMainWindow):
                 jsonBoxOffice = None
                 if 'box office' in jsonData and jsonData['box office']:
                     jsonBoxOffice = jsonData['box office']
-
-                    currency = 'USD'
-                    if jsonBoxOffice:
-                        jsonBoxOffice = jsonBoxOffice.replace(' (estimated)', '')
-                        match = re.match(reCurrency, jsonBoxOffice)
-                        if match:
-                            currency = match.group(1)
-                            jsonBoxOffice = '$%s' % match.group(2)
-                        results = re.findall(reMoneyValue, jsonBoxOffice)
-                        if currency == 'USD':
-                            amount = '$%s' % results[0]
+                    try:
+                        currency = 'USD'
+                        if jsonBoxOffice:
+                            jsonBoxOffice = jsonBoxOffice.replace(' (estimated)', '')
+                            match = re.match(reCurrency, jsonBoxOffice)
+                            if match:
+                                currency = match.group(1)
+                                jsonBoxOffice = '$%s' % match.group(2)
+                            results = re.findall(reMoneyValue, jsonBoxOffice)
+                            if currency == 'USD':
+                                amount = '$%s' % results[0]
+                            else:
+                                amount = '%s' % results[0]
                         else:
-                            amount = '%s' % results[0]
-                    else:
-                        amount = '$0'
-                    jsonBoxOffice = '%-3s %15s' % (currency, amount)
+                            amount = '$0'
+                        jsonBoxOffice = '%-3s %15s' % (currency, amount)
+                    except Exception:
+                        pass
 
                 jsonRuntime = None
                 if 'runtime' in jsonData and jsonData['runtime']:
@@ -3013,7 +2992,68 @@ class MainWindow(QtWidgets.QMainWindow):
 
         return data
 
-    def downloadMovieData(self, proxyIndex, force=False, movieId=None, doJson=True, doCover=True):
+    def writeMovieJsonOmdb(self, movieData, jsonFile):
+        d = {}
+
+        d['title'] = movieData.get('Title')
+        d['id'] = movieData.get('imdbID')
+        d['kind'] = 'movie'  # OMDb doesn't distinguish TV/miniseries cleanly
+        d['year'] = movieData.get('Year')
+        d['rating'] = movieData.get('imdbRating')
+        d['mpaa rating'] = movieData.get('Rated')
+        d['countries'] = [c.strip() for c in movieData.get('Country', '').split(',')]
+        d['companies'] = [movieData.get('Production')] if movieData.get('Production') else []
+        d['runtime'] = movieData.get('Runtime').split()[0]
+        d['box office'] = movieData.get('BoxOffice')
+        d['directors'] = [d.strip() for d in movieData.get('Director', '').split(',')]
+        d['cast'] = [a.strip() for a in movieData.get('Actors', '').split(',')]
+        d['genres'] = [g.strip() for g in movieData.get('Genre', '').split(',')]
+        d['plot'] = movieData.get('Plot')
+        d['plot outline'] = movieData.get('Plot')  # OMDb doesn't separate this
+        d['synopsis'] = movieData.get('Plot')  # same
+        d['summary'] = movieData.get('Plot')  # same
+        d['cover url'] = movieData.get('Poster')
+        d['full-size cover url'] = movieData.get('Poster')  # OMDb only provides one
+
+        try:
+            with open(jsonFile, "w", encoding="utf-8") as f:
+                ujson.dump(d, f, indent=4)
+        except Exception as e:
+            print(f"Error writing json file: {e}")
+
+    def downloadTMDBCover(self, titleYear, imdbId, coverFile):
+        print(f"Trying to download cover for \"{titleYear}\" using TMDB...")
+        if not imdbId:
+            imdbMovie = self.db.search_movie(titleYear)
+            if imdbMovie:
+                imdbId = f"tt{imdbMovie[0].movieID}"
+
+        size = "original"
+        TMDB_KEY = "acaa3a2b3d6ebbb8749bfa43bd3d8af7"
+        f = requests.get("https://api.themoviedb.org/3/find/{}".format(imdbId),
+                         params={"api_key": TMDB_KEY, "external_source": "imdb_id"}).json()
+        movies = f.get("movie_results") or []
+        if not movies:
+            return
+
+        tmdb_id = movies[0]["id"]
+        imgs = requests.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}/images",
+                            params={"api_key": TMDB_KEY}).json()
+        posters = imgs.get("posters") or []
+        if not posters:
+            return
+
+        cfg = requests.get("https://api.themoviedb.org/3/configuration",
+                           params={"api_key": TMDB_KEY}).json()
+        base = cfg["images"]["secure_base_url"]
+        movieCoverUrl = f"{base}{size}{posters[0]['file_path']}"
+        try:
+            urllib.request.urlretrieve(movieCoverUrl, coverFile)
+        except Exception as e:
+            print(f"Problem downloading cover from TMDB for \"{titleYear}\" from: {movieCoverUrl} - {e}")
+        print(f"Successfully downloaded cover from TMDB for \"{titleYear}\"")
+
+    def downloadMovieData(self, proxyIndex, force=False, imdbId=None, doJson=True, doCover=True):
         sourceIndex = self.moviesTableProxyModel.mapToSource(proxyIndex)
         sourceRow = sourceIndex.row()
         moviePath = self.moviesTableModel.getPath(sourceRow)
@@ -3026,43 +3066,41 @@ class MainWindow(QtWidgets.QMainWindow):
                 coverFile = coverFilePng
 
         if force is True or not os.path.exists(jsonFile) or not os.path.exists(coverFile):
-            if movieId:
-                movie = self.getMovieWithId(movieId)
-            else:
-                movie = self.getMovie(movieFolderName)
-            if not movie:
-                return coverFile
-            try:
-                self.db.update(movie)
-            except:
-                return
 
-            # Print out all the movie keys
-            # for k in movie.keys():
-            #     print(k)
+            m = re.match(r'(.*)\((.*)\)', movieFolderName)
+            title = m.group(1)
+            title = ' '.join(splitCamelCase(title))
+            year = int(m.group(2))
+            titleYear = f"{title} ({year})"
+
+            movie = self.getMovieOmdb(title, year, api_key="1350b71a", imdbId=imdbId)
+            if not movie and not imdbId:
+                imdbMovie = self.db.search_movie(titleYear)
+                if imdbMovie:
+                    imdbId = imdbMovie[0].movieID
+                movie = self.getMovieOmdb(title, year, api_key="1350b71a", imdbId=imdbId)
+
+            if not movie: return ""
 
             if doJson:
-                self.writeMovieJson(movie, jsonFile)
+                self.writeMovieJsonOmdb(movie, jsonFile)
                 self.calculateFolderSize(proxyIndex, moviePath, movieFolderName)
                 self.getMovieFileInfo(proxyIndex, moviePath, movieFolderName)
 
             if doCover:
-                if movie.has_key('full-size cover url'):
-                    movieCoverUrl = movie['full-size cover url']
-                elif movie.has_key('cover'):
-                    movieCoverUrl = movie['cover']
-                elif movie.has_key('cover url'):
-                    movieCoverUrl = movie['cover']
-                else:
+                if not 'Poster' in movie:
                     print("Error: No cover image available")
                     return ""
+                movieCoverUrl = movie['Poster']
                 extension = os.path.splitext(movieCoverUrl)[1]
                 if extension == '.png':
                     coverFile = coverFile.replace('.jpg', '.png')
                 try:
                     urllib.request.urlretrieve(movieCoverUrl, coverFile)
-                except URLError as e:
-                    print(f"Problem downloading cover file: {coverFile} - {e}")
+                except Exception as e:
+                    print(f"Problem downloading cover for \"{titleYear}\" from: {movieCoverUrl} - {e}")
+                    self.downloadTMDBCover(titleYear, imdbId, coverFile)
+
 
             self.moviesTableModel.setMovieDataWithJson(sourceRow,
                                                        jsonFile,
@@ -3074,6 +3112,30 @@ class MainWindow(QtWidgets.QMainWindow):
     def getMovieWithId(self, movieId):
         movie = self.db.get_movie(movieId)
         return movie
+
+    def getMovieOmdb(self, title, year=None, api_key="YOUR_API_KEY", imdbId=None):
+        params = dict()
+        params['apikey'] = api_key
+        if imdbId:
+            if 'tt' not in imdbId: imdbId = f"tt{imdbId}"
+            params['i'] = imdbId
+        else:
+            params['t'] = title
+
+        if year: params['y'] = str(year)
+
+        response = requests.get("http://www.omdbapi.com/", params=params)
+        if response.status_code != 200:
+            print(f"OMDb request failed for \"{title}\"({year}: {response.status_code}")
+            return None
+
+        data = response.json()
+        if data.get('Response') == 'False':
+            print(f"OMDb error for \"{title}\"({year}): {data.get('Error')}")
+            return None
+
+        return data
+
 
     def getMovie(self, folderName) -> object:
         m = re.match(r'(.*)\((.*)\)', folderName)
@@ -3115,9 +3177,16 @@ class MainWindow(QtWidgets.QMainWindow):
 
         movie = results[0]
         for res in results:
-            if 'year' in res and 'kind' in res:
-                kind = res['kind']
-                if res['year'] == year and (kind in acceptableKinds):
+            try:
+                self.db.update(movie, info=['main', 'vote details'])
+            except Exception as e:
+                print(f'Error updating movie: {res}, {e}')
+                continue
+
+            if 'year' in res.data and 'kind' in res.data:
+                kind = res.data['kind']
+                imdbyear = res.data['year']
+                if imdbyear == year and (kind in acceptableKinds):
                     movie = res
                     print('Found result: %s (%s)' % (movie['title'], movie['year']))
                     break
@@ -3969,8 +4038,6 @@ class MainWindow(QtWidgets.QMainWindow):
                                                      QtWidgets.QLineEdit.Normal,
                                                      "")
         if movieId and ok:
-            if 'tt' in movieId:
-                movieId = movieId.replace('tt', '')
             modelIndex = self.moviesTableView.selectionModel().selectedRows()[0]
             self.downloadMovieData(modelIndex, True, movieId)
 

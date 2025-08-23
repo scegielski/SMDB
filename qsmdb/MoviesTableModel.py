@@ -272,6 +272,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                         if not runtime:
                             runtime = '000'
                         else:
+                            runtime = runtime.split()[0]
                             runtime = '%03d' % int(runtime)
                         movieData.append(runtime)
                     elif column == Columns.Rating:
