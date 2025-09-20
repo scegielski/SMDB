@@ -482,6 +482,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.secondaryFilterWidget.filterTable.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
 
 
+    def clearSettings(self):
+        self.settings.clear()
+
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
         self.settings.setValue('geometry', self.geometry())
         self.settings.setValue('mainHSplitterSizes', self.mainHSplitter.sizes())
@@ -568,6 +571,10 @@ class MainWindow(QtWidgets.QMainWindow):
         preferencesAction = QtWidgets.QAction("Preferences", self)
         preferencesAction.triggered.connect(self.preferences)
         fileMenu.addAction(preferencesAction)
+
+        clearSettingsAction = QtWidgets.QAction("Clear Settings", self)
+        clearSettingsAction.triggered.connect(self.clearSettings)
+        fileMenu.addAction(clearSettingsAction)
 
         quitAction = QtWidgets.QAction("Quit", self)
         quitAction.triggered.connect(QtCore.QCoreApplication.quit)
