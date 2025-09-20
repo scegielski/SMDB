@@ -393,9 +393,6 @@ class MainWindow(QtWidgets.QMainWindow):
         # Show the window
         self.show()
 
-        if not os.path.exists(self.moviesFolder):
-            return
-
         self.moviesSmdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
         self.moviesSmdbData = None
         self.moviesTableModel = None
@@ -1203,7 +1200,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if os.path.exists(smdbFile):
             smdbData = readSmdbFile(smdbFile)
         else:
-            forceScan = True
+            forceScan = False
 
         moviesFolders = [self.moviesFolder]
         moviesFolders += self.additionalMoviesFolders
@@ -1292,7 +1289,7 @@ class MainWindow(QtWidgets.QMainWindow):
                                                   self.moviesTableColumnWidths,
                                                   Columns.Year.value,
                                                   forceScan,
-                                                  neverScan=False)
+                                                  neverScan=True)
 
         self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
         self.showMoviesTableSelectionStatus()
