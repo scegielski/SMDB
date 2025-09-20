@@ -2810,7 +2810,16 @@ class MainWindow(QtWidgets.QMainWindow):
 
                 jsonYear = None
                 if 'year' in jsonData and jsonData['year']:
-                    jsonYear = int(jsonData['year'])
+                    try:
+                        jsonYear = int(jsonData['year'])
+                    except ValueError:
+                        jy = jsonData['year']
+                        jy = jy.split('–')[0]
+                        print(f"jy={jy}")
+                        jsonYear = int(jy)
+                    except:
+                        jsonYear = 0
+
                     if jsonYear not in years:
                         years[jsonYear] = {}
                         years[jsonYear]['num movies'] = 0
