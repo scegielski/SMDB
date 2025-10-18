@@ -3008,7 +3008,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         return data
 
-    def writeMovieJsonOmdb(self, movieData, jsonFile):
+    def writeMovieJsonOmdb(self, movieData, productionCompanies, jsonFile):
         d = {}
 
         d['title'] = movieData.get('Title')
@@ -3018,7 +3018,7 @@ class MainWindow(QtWidgets.QMainWindow):
         d['rating'] = movieData.get('imdbRating')
         d['mpaa rating'] = movieData.get('Rated')
         d['countries'] = [c.strip() for c in movieData.get('Country', '').split(',')]
-        d['companies'] = [movieData.get('Production')] if movieData.get('Production') else []
+        d['companies'] = productionCompanies
         d['runtime'] = movieData.get('Runtime').split()[0]
         d['box office'] = movieData.get('BoxOffice')
         d['directors'] = [d.strip() for d in movieData.get('Director', '').split(',')]
@@ -3043,6 +3043,10 @@ class MainWindow(QtWidgets.QMainWindow):
             imdbMovie = self.db.search_movie(titleYear)
             if imdbMovie:
                 imdbId = f"tt{imdbMovie[0].movieID}"
+
+        imdbId = str(imdbId).strip()
+        if not imdbId.startswith("tt"):
+            imdbId = f"tt{imdbId}"
 
         size = "original"
         TMDB_KEY = "acaa3a2b3d6ebbb8749bfa43bd3d8af7"
@@ -3069,6 +3073,44 @@ class MainWindow(QtWidgets.QMainWindow):
             print(f"Problem downloading cover from TMDB for \"{titleYear}\" from: {movieCoverUrl} - {e}")
         print(f"Successfully downloaded cover from TMDB for \"{titleYear}\"")
 
+    def getTMDBProductionCompanies(self, titleYear, imdbId):
+        if not imdbId:
+            return None
+        imdbId = str(imdbId).strip()
+        if not imdbId.startswith("tt"):
+            imdbId = f"tt{imdbId}"
+
+        TMDB_KEY = "acaa3a2b3d6ebbb8749bfa43bd3d8af7"
+
+        # If imdbId not provided, you could reuse your local search logic here if needed
+        if not imdbId:
+            return []
+
+        # Step 1: Find the TMDb ID using the IMDb ID
+        find_url = f"https://api.themoviedb.org/3/find/{imdbId}"
+        f = requests.get(find_url, params={
+            "api_key": TMDB_KEY,
+            "external_source": "imdb_id"
+        }).json()
+
+        movies = f.get("movie_results") or []
+        if not movies:
+            return []
+
+        tmdb_id = movies[0]["id"]
+
+        # Step 2: Query movie details for production companies
+        details_url = f"https://api.themoviedb.org/3/movie/{tmdb_id}"
+        d = requests.get(details_url, params={"api_key": TMDB_KEY}).json()
+        companies = d.get("production_companies", [])
+
+        if not companies:
+            return []
+
+        # Step 3: Extract and format company names
+        result = [c.get("name") for c in companies if c.get("name")]
+        return result
+
     def downloadMovieData(self, proxyIndex, force=False, imdbId=None, doJson=True, doCover=True):
         sourceIndex = self.moviesTableProxyModel.mapToSource(proxyIndex)
         sourceRow = sourceIndex.row()
@@ -3091,17 +3133,19 @@ class MainWindow(QtWidgets.QMainWindow):
 
             omdbApiKey = "fe5db83f"
 
-            movie = self.getMovieOmdb(title, year, api_key=omdbApiKey, imdbId=imdbId)
-            if not movie and not imdbId:
+            if not imdbId:
                 imdbMovie = self.db.search_movie(titleYear)
                 if imdbMovie:
                     imdbId = imdbMovie[0].movieID
-                movie = self.getMovieOmdb(title, year, api_key=omdbApiKey, imdbId=imdbId)
+
+            movie = self.getMovieOmdb(title, year, api_key=omdbApiKey, imdbId=imdbId)
 
             if not movie: return ""
 
+            productionCompanies = self.getTMDBProductionCompanies(titleYear, imdbId)
+
             if doJson:
-                self.writeMovieJsonOmdb(movie, jsonFile)
+                self.writeMovieJsonOmdb(movie, productionCompanies, jsonFile)
                 self.calculateFolderSize(proxyIndex, moviePath, movieFolderName)
                 self.getMovieFileInfo(proxyIndex, moviePath, movieFolderName)
 
