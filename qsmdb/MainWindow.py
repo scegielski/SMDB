@@ -48,7 +48,6 @@ from .MovieCover import MovieCover
 from .FilterWidget import FilterWidget
 from .MovieInfoListView import MovieInfoListView
 from .MovieTableView import MovieTableView
-from .CoverGLWidget import CoverGLWidget
 
 
 class MainWindow(QtWidgets.QMainWindow):
