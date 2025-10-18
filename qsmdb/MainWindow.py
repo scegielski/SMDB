@@ -453,7 +453,7 @@ class MainWindow(QtWidgets.QMainWindow):
                            f"color: {self.fgColor};")
         self.titleLabel.setStyleSheet(f"background: {self.bgColorC};"
                                       f"font-size: {self.fontSize * 2}px;")
-        self.rowHeightWithoutCover = 18 * (self.fontSize / 12)
+        self.rowHeightWithoutCover = max(1, int(round(18 * self.fontSize / 12)))
 
         if len(self.moviesTableColumnsVisible) > 0 and self.moviesTableColumnsVisible[Columns.Cover.value]:
             self.moviesTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
