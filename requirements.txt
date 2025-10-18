@@ -1,0 +1,6 @@
+PyQt5
+IMDbPY
+pymediainfo
+requests
+ujson
+Unidecode

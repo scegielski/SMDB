@@ -4,6 +4,7 @@ set -euo pipefail
 
 PYTHON_BIN=${PYTHON_BIN:-python3}
 VENV_DIR=${VENV_DIR:-.venv}
+REQUIREMENTS_FILE=${REQUIREMENTS_FILE:-requirements.txt}
 APT_PACKAGES=(
   libxkbcommon-x11-0
   libxcb-xinerama0
@@ -29,6 +30,11 @@ fi
 
 echo "Using Python interpreter: ${PYTHON_BIN}"
 echo "Virtual environment directory: ${VENV_DIR}"
+
+if [[ ! -f "${REQUIREMENTS_FILE}" ]]; then
+  echo "Error: requirements file not found at ${REQUIREMENTS_FILE}." >&2
+  exit 1
+fi
 
 if [[ "${SKIP_APT:-0}" != "1" ]] && command -v apt-get >/dev/null 2>&1; then
   missing_pkgs=()
@@ -73,13 +79,7 @@ if ! "${VENV_PY}" -m pip --version >/dev/null 2>&1; then
 fi
 
 "${VENV_PY}" -m pip install --upgrade pip
-"${VENV_PY}" -m pip install \
-  PyQt5 \
-  IMDbPY \
-  pymediainfo \
-  requests \
-  ujson \
-  Unidecode
+"${VENV_PY}" -m pip install -r "${REQUIREMENTS_FILE}"
 
 echo "Dependencies installed successfully inside ${VENV_DIR}."
 
