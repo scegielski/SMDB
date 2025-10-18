@@ -1,2 +1,2 @@
-from qsmdb.__main__ import main
+from src.__main__ import main
 main()
