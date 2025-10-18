@@ -24,6 +24,7 @@ class Columns(Enum):
     Folder = auto()
     Path = auto()
     JsonExists = auto()
+    CoverExists = auto()
     Rank = auto()
     BackupStatus =auto()
     Duplicate = auto()
@@ -51,6 +52,7 @@ defaultColumnWidths = {Columns.Cover.value: 150,
                        Columns.Folder.value: 200,
                        Columns.Path.value: 300,
                        Columns.JsonExists.value: 65,
+                       Columns.CoverExists.value: 65,
                        Columns.Rank.value: 40,
                        Columns.BackupStatus.value: 150,
                        Columns.Duplicate.value: 60,
@@ -189,6 +191,16 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                         movieData.append("True")
                     else:
                         print(f"jsonFile {jsonFile} does not exist")
+                        movieData.append("False")
+                else:
+                    movieData.append("")
+            elif column == Columns.CoverExists:
+                if force:
+                    coverFile = os.path.join(moviePath, '%s.jpg' % movieFolderName)
+                    if os.path.exists(coverFile):
+                        movieData.append("True")
+                    else:
+                        print(f"coverFile {coverFile} does not exist")
                         movieData.append("False")
                 else:
                     movieData.append("")
@@ -364,6 +376,9 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
     def getJsonExists(self, row):
         return self._data[row][Columns.JsonExists.value]
+
+    def getCoverExists(self, row):
+        return self._data[row][Columns.CoverExists.value]
 
     def getRank(self, row):
         return self._data[row][Columns.Rank.value]
