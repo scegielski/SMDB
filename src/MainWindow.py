@@ -3039,9 +3039,17 @@ class MainWindow(QtWidgets.QMainWindow):
     def downloadTMDBCover(self, titleYear, imdbId, coverFile):
         print(f"Trying to download cover for \"{titleYear}\" using TMDB...")
         if not imdbId:
-            imdbMovie = self.db.search_movie(titleYear)
-            if imdbMovie:
-                imdbId = f"tt{imdbMovie[0].movieID}"
+            m = re.match(r"(.*)\((\d{4})\)", titleYear)
+            title = titleYear
+            year = None
+            if m:
+                title = m.group(1).strip()
+                try:
+                    year = int(m.group(2))
+                except Exception:
+                    year = None
+            # Try to resolve IMDb ID without IMDbPY
+            imdbId = self.resolve_imdb_id(title, year)
 
         imdbId = str(imdbId).strip()
         if not imdbId.startswith("tt"):
@@ -3110,6 +3118,60 @@ class MainWindow(QtWidgets.QMainWindow):
         result = [c.get("name") for c in companies if c.get("name")]
         return result
 
+    def resolve_imdb_id(self, title, year=None):
+        """
+        Resolve an IMDb ID for a movie using title and optional year via OMDb first,
+        then TMDb as a fallback. Returns an ID like 'tt1234567' or None.
+        """
+        # 1) Try OMDb
+        omdbApiKey = "fe5db83f"
+        try:
+            data = self.getMovieOmdb(title, year, api_key=omdbApiKey)
+            if data and data.get('imdbID'):
+                imdb_id = data.get('imdbID')
+                if imdb_id and not imdb_id.startswith('tt'):
+                    imdb_id = f"tt{imdb_id}"
+                return imdb_id
+        except Exception:
+            pass
+
+        # 2) Fallback to TMDb: search by title/year, then get external_ids
+        try:
+            TMDB_KEY = "acaa3a2b3d6ebbb8749bfa43bd3d8af7"
+            params = {"api_key": TMDB_KEY, "query": title}
+            if year:
+                params["year"] = int(year)
+            search = requests.get("https://api.themoviedb.org/3/search/movie", params=params).json()
+            results = search.get("results") or []
+            if not results and year:
+                # retry without year constraint
+                params.pop("year", None)
+                search = requests.get("https://api.themoviedb.org/3/search/movie", params=params).json()
+                results = search.get("results") or []
+            if not results:
+                return None
+
+            # choose the best match (prefer exact year)
+            best = results[0]
+            if year:
+                for r in results:
+                    date = (r.get("release_date") or "")[:4]
+                    if date and date.isdigit() and int(date) == int(year):
+                        best = r
+                        break
+
+            tmdb_id = best.get("id")
+            if not tmdb_id:
+                return None
+            ext = requests.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}/external_ids",
+                               params={"api_key": TMDB_KEY}).json()
+            imdb_id = ext.get("imdb_id")
+            if imdb_id and not imdb_id.startswith('tt'):
+                imdb_id = f"tt{imdb_id}"
+            return imdb_id
+        except Exception:
+            return None
+
     def downloadMovieData(self, proxyIndex, force=False, imdbId=None, doJson=True, doCover=True):
         sourceIndex = self.moviesTableProxyModel.mapToSource(proxyIndex)
         sourceRow = sourceIndex.row()
@@ -3133,9 +3195,7 @@ class MainWindow(QtWidgets.QMainWindow):
             omdbApiKey = "fe5db83f"
 
             if not imdbId:
-                imdbMovie = self.db.search_movie(titleYear)
-                if imdbMovie:
-                    imdbId = imdbMovie[0].movieID
+                imdbId = self.resolve_imdb_id(title, year)
 
             movie = self.getMovieOmdb(title, year, api_key=omdbApiKey, imdbId=imdbId)
 
