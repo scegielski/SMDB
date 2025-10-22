@@ -4255,6 +4255,10 @@ class MainWindow(QtWidgets.QMainWindow):
                     saved = True
 
             if saved:
+                # Inform user first that subtitle has been downloaded
+                self.statusBar().showMessage(f"Subtitle saved: {targetPath}", 5000)
+                QtWidgets.QMessageBox.information(self, "OpenSubtitles", f"Subtitle downloaded to:\n{targetPath}")
+
                 # After saving, ensure there is a video file with the same base name
                 base_without_ext = os.path.splitext(os.path.basename(targetPath))[0]
                 video_exts = ['.mp4', '.avi', '.mkv']
@@ -4296,9 +4300,6 @@ class MainWindow(QtWidgets.QMainWindow):
                                 self.statusBar().showMessage(f"Renamed video to: {os.path.basename(new_path)}", 5000)
                             except Exception as e:
                                 QtWidgets.QMessageBox.critical(self, "Rename Video", f"Failed to rename file:\n{e}")
-
-                self.statusBar().showMessage(f"Subtitle saved: {targetPath}", 5000)
-                QtWidgets.QMessageBox.information(self, "OpenSubtitles", f"Subtitle downloaded to:\n{targetPath}")
         except requests.HTTPError as e:
             try:
                 code = e.response.status_code if e.response is not None else None
