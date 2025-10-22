@@ -3677,8 +3677,8 @@ class MainWindow(QtWidgets.QMainWindow):
                                                                            doCover=True))
         moviesTableRightMenu.addAction(downloadDataAction)
 
-        downloadOpenSubtitlesAction = QtWidgets.QAction("Download Subtitles", self)
-        downloadOpenSubtitlesAction.triggered.connect(self.downloadSubtitles)
+        downloadOpenSubtitlesAction = QtWidgets.QAction("Download English Subtitles", self)
+        downloadOpenSubtitlesAction.triggered.connect(lambda: self.downloadSubtitles('en'))
         moviesTableRightMenu.addAction(downloadOpenSubtitlesAction)
 
         downloadSubtitlesAction = QtWidgets.QAction("Download Subtitles from YIFY", self)
@@ -4126,7 +4126,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if 'tt' in movieId: movieId = movieId.replace('tt', '')
         webbrowser.open(f'https://yifysubtitles.org/movie-imdb/tt{movieId}')
 
-    def downloadSubtitles(self):
+    def downloadSubtitles(self, language='en'):
         try:
             sourceRow = self.getSelectedRow()
         except Exception:
@@ -4150,8 +4150,14 @@ class MainWindow(QtWidgets.QMainWindow):
         # Use the folder name as the base file name
         folderName = self.moviesTableModel.getFolderName(sourceRow)
         baseName = str(folderName)
-        language = 'en'
         displayTitle = f"{self.moviesTableModel.getTitle(sourceRow)} ({self.moviesTableModel.getYear(sourceRow)})"
+        language_label = {
+            'en': 'English', 'es': 'Spanish', 'fr': 'French', 'pt': 'Portuguese', 'de': 'German',
+            'it': 'Italian', 'nl': 'Dutch', 'pl': 'Polish', 'ru': 'Russian', 'sv': 'Swedish',
+            'fi': 'Finnish', 'no': 'Norwegian', 'da': 'Danish', 'hu': 'Hungarian', 'cs': 'Czech',
+            'ro': 'Romanian', 'el': 'Greek', 'tr': 'Turkish', 'ar': 'Arabic', 'he': 'Hebrew',
+            'fa': 'Persian', 'zh': 'Chinese', 'ja': 'Japanese', 'ko': 'Korean'
+        }.get(language, language)
 
         # Check for any existing .srt subtitles in the folder
         existing_srts = [f for f in os.listdir(moviePath) if f.lower().endswith('.srt')]
@@ -4197,7 +4203,7 @@ class MainWindow(QtWidgets.QMainWindow):
             data = r.json()
             items = data.get('data') or []
             if not items:
-                QtWidgets.QMessageBox.information(self, "OpenSubtitles", f"No subtitles found (English) for {displayTitle}.")
+                QtWidgets.QMessageBox.information(self, "OpenSubtitles", f"No subtitles found ({language_label}) for {displayTitle}.")
                 return
 
             # Pick the first file entry
