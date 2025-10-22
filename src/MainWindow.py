@@ -3677,13 +3677,14 @@ class MainWindow(QtWidgets.QMainWindow):
                                                                            doCover=True))
         moviesTableRightMenu.addAction(downloadDataAction)
 
-        downloadSubtitlesAction = QtWidgets.QAction("Download Subtitles", self)
-        downloadSubtitlesAction.triggered.connect(self.downloadSubtitles)
+        downloadOpenSubtitlesAction = QtWidgets.QAction("Download Subtitles", self)
+        downloadOpenSubtitlesAction.triggered.connect(self.downloadSubtitles)
+        moviesTableRightMenu.addAction(downloadOpenSubtitlesAction)
+
+        downloadSubtitlesAction = QtWidgets.QAction("Download Subtitles from YIFY", self)
+        downloadSubtitlesAction.triggered.connect(self.downloadSubtitlesYify)
         moviesTableRightMenu.addAction(downloadSubtitlesAction)
 
-        downloadOpenSubtitlesAction = QtWidgets.QAction("Download Subtitles with OpenSubtitles.com", self)
-        downloadOpenSubtitlesAction.triggered.connect(self.downloadSubtitlesOpenSubtitles)
-        moviesTableRightMenu.addAction(downloadOpenSubtitlesAction)
 
         moviesTableRightMenu.addSeparator()
 
@@ -4119,13 +4120,13 @@ class MainWindow(QtWidgets.QMainWindow):
             if 'tt' in movieId: movieId = movieId.replace('tt', '')
             webbrowser.open('http://imdb.com/title/tt%s' % movieId, new=2)
 
-    def downloadSubtitles(self):
+    def downloadSubtitlesYify(self):
         sourceRow = self.getSelectedRow()
         movieId = self.moviesTableModel.getId(sourceRow)
         if 'tt' in movieId: movieId = movieId.replace('tt', '')
         webbrowser.open(f'https://yifysubtitles.org/movie-imdb/tt{movieId}')
 
-    def downloadSubtitlesOpenSubtitles(self):
+    def downloadSubtitles(self):
         try:
             sourceRow = self.getSelectedRow()
         except Exception:
