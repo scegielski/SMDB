@@ -4150,7 +4150,20 @@ class MainWindow(QtWidgets.QMainWindow):
         folderName = self.moviesTableModel.getFolderName(sourceRow)
         baseName = str(folderName)
         language = 'en'
-        targetPath = os.path.join(moviePath, f"{baseName}.{language}.srt")
+
+        # Check for any existing .srt subtitles in the folder
+        existing_srts = [f for f in os.listdir(moviePath) if f.lower().endswith('.srt')]
+        if existing_srts:
+            QtWidgets.QMessageBox.information(self,
+                                              "OpenSubtitles",
+                                              f"A subtitle already exists in this folder:\n{os.path.join(moviePath, existing_srts[0])}")
+            return
+
+        # For English, omit the .en and save as <base>.srt
+        if language == 'en':
+            targetPath = os.path.join(moviePath, f"{baseName}.srt")
+        else:
+            targetPath = os.path.join(moviePath, f"{baseName}.{language}.srt")
 
         # Query OpenSubtitles API
         headers = {
