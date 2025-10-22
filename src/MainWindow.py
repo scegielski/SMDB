@@ -39,8 +39,11 @@ import requests
 import stat
 import time
 from pymediainfo import MediaInfo
+import re
 from pprint import pprint
 import urllib.parse
+import zipfile
+import io
 
 from .utilities import *
 from .MoviesTableModel import MoviesTableModel, Columns, defaultColumnWidths
@@ -58,6 +61,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Create IMDB database
         self.db = IMDb()
+
+        # OpenSubtitles API key (temporary, can be moved to settings later)
+        self.openSubtitlesApiKey = "9iBc6gQ0mlsC9hdapJs6IR2JfmT6F3f1"
 
         # Read the movies folder from the settings
         self.settings = QtCore.QSettings("STC", "SMDB")
@@ -3675,6 +3681,10 @@ class MainWindow(QtWidgets.QMainWindow):
         downloadSubtitlesAction.triggered.connect(self.downloadSubtitles)
         moviesTableRightMenu.addAction(downloadSubtitlesAction)
 
+        downloadOpenSubtitlesAction = QtWidgets.QAction("Download Subtitles with OpenSubtitles.com", self)
+        downloadOpenSubtitlesAction.triggered.connect(self.downloadSubtitlesOpenSubtitles)
+        moviesTableRightMenu.addAction(downloadOpenSubtitlesAction)
+
         moviesTableRightMenu.addSeparator()
 
         filterBySubmenu = QtWidgets.QMenu("Filter by:")
@@ -4114,6 +4124,135 @@ class MainWindow(QtWidgets.QMainWindow):
         movieId = self.moviesTableModel.getId(sourceRow)
         if 'tt' in movieId: movieId = movieId.replace('tt', '')
         webbrowser.open(f'https://yifysubtitles.org/movie-imdb/tt{movieId}')
+
+    def downloadSubtitlesOpenSubtitles(self):
+        try:
+            sourceRow = self.getSelectedRow()
+        except Exception:
+            return
+
+        # Resolve IMDb ID (numeric, without 'tt')
+        movieId = self.moviesTableModel.getId(sourceRow)
+        if isinstance(movieId, str) and 'tt' in movieId:
+            movieId = movieId.replace('tt', '')
+        imdb_id = str(movieId).strip()
+        if not imdb_id.isdigit():
+            QtWidgets.QMessageBox.warning(self, "OpenSubtitles", "Unable to determine IMDb ID for this title.")
+            return
+
+        # Resolve movie path and a target base filename
+        moviePath = self.moviesTableModel.getPath(sourceRow)
+        if not os.path.exists(moviePath):
+            QtWidgets.QMessageBox.warning(self, "OpenSubtitles", "Movie folder does not exist on disk.")
+            return
+
+        # Use the folder name as the base file name
+        folderName = self.moviesTableModel.getFolderName(sourceRow)
+        baseName = str(folderName)
+        language = 'en'
+        targetPath = os.path.join(moviePath, f"{baseName}.{language}.srt")
+
+        # Query OpenSubtitles API
+        headers = {
+            'Api-Key': self.openSubtitlesApiKey,
+            'Accept': 'application/json',
+            'User-Agent': 'SMDB/1.0'
+        }
+        params = {
+            'imdb_id': imdb_id,
+            'languages': language,
+            'order_by': 'downloads',
+            'order_direction': 'desc',
+            'type': 'movie'
+        }
+
+        try:
+            self.statusBar().showMessage("Searching OpenSubtitles…", 5000)
+            r = requests.get("https://api.opensubtitles.com/api/v1/subtitles", params=params, headers=headers, timeout=20)
+            if r.status_code == 403:
+                # Allow user to provide a valid API key, then retry once
+                newKey, ok = QtWidgets.QInputDialog.getText(self, "OpenSubtitles API Key",
+                                                           "Access forbidden (403). Enter a valid OpenSubtitles API key:",
+                                                           text=self.openSubtitlesApiKey)
+                if ok and newKey:
+                    self.openSubtitlesApiKey = newKey
+                    headers['Api-Key'] = newKey
+                    r = requests.get("https://api.opensubtitles.com/api/v1/subtitles", params=params, headers=headers, timeout=20)
+            r.raise_for_status()
+            data = r.json()
+            items = data.get('data') or []
+            if not items:
+                QtWidgets.QMessageBox.information(self, "OpenSubtitles", "No subtitles found (English).")
+                return
+
+            # Pick the first file entry
+            files = items[0].get('attributes', {}).get('files', [])
+            if not files:
+                QtWidgets.QMessageBox.information(self, "OpenSubtitles", "No downloadable files found for this subtitle.")
+                return
+            file_id = files[0].get('file_id')
+            if not file_id:
+                QtWidgets.QMessageBox.information(self, "OpenSubtitles", "Subtitle file id missing.")
+                return
+
+            # Include content type for POST
+            post_headers = dict(headers)
+            post_headers['Content-Type'] = 'application/json'
+            dl = requests.post("https://api.opensubtitles.com/api/v1/download", json={"file_id": file_id}, headers=post_headers, timeout=20)
+            if dl.status_code == 403:
+                # Retry once if API key was updated by user earlier
+                dl = requests.post("https://api.opensubtitles.com/api/v1/download", json={"file_id": file_id}, headers=post_headers, timeout=20)
+            dl.raise_for_status()
+            dl_json = dl.json()
+            link = dl_json.get('link')
+            if not link:
+                QtWidgets.QMessageBox.warning(self, "OpenSubtitles", "Download link not provided by API.")
+                return
+
+            # Download the actual subtitle file
+            resp = requests.get(link, timeout=60)
+            resp.raise_for_status()
+
+            content_type = resp.headers.get('Content-Type', '')
+            saved = False
+            if 'zip' in content_type.lower() or link.lower().endswith('.zip'):
+                # Extract first .srt from the zip
+                with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
+                    # Prefer .srt, else take first file
+                    srt_names = [n for n in zf.namelist() if n.lower().endswith('.srt')]
+                    name_to_extract = srt_names[0] if srt_names else (zf.namelist()[0] if zf.namelist() else None)
+                    if not name_to_extract:
+                        QtWidgets.QMessageBox.warning(self, "OpenSubtitles", "Downloaded archive is empty.")
+                        return
+                    with zf.open(name_to_extract) as zf_member, open(targetPath, 'wb') as out:
+                        out.write(zf_member.read())
+                        saved = True
+            else:
+                # Assume direct subtitle content
+                with open(targetPath, 'wb') as f:
+                    f.write(resp.content)
+                    saved = True
+
+            if saved:
+                self.statusBar().showMessage(f"Subtitle saved: {targetPath}", 5000)
+                QtWidgets.QMessageBox.information(self, "OpenSubtitles", f"Subtitle downloaded to:\n{targetPath}")
+        except requests.HTTPError as e:
+            try:
+                code = e.response.status_code if e.response is not None else None
+            except Exception:
+                code = None
+            if code in (401, 403):
+                # Offer to open OpenSubtitles web search as fallback
+                open_web = QtWidgets.QMessageBox.question(self, "OpenSubtitles",
+                                                          f"Access denied (HTTP {code}). Open the OpenSubtitles website instead?",
+                                                          QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+                                                          QtWidgets.QMessageBox.Yes)
+                if open_web == QtWidgets.QMessageBox.Yes:
+                    webbrowser.open(f"https://www.opensubtitles.org/en/search2/sublanguageid-eng/imdbid-{imdb_id}", new=2)
+            else:
+                QtWidgets.QMessageBox.critical(self, "OpenSubtitles", f"HTTP error: {e}")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "OpenSubtitles", f"Error downloading subtitles: {e}")
 
     def get_imdb_movie_page(self, title, year):
         # Format the search query
