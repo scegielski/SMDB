@@ -4150,6 +4150,7 @@ class MainWindow(QtWidgets.QMainWindow):
         folderName = self.moviesTableModel.getFolderName(sourceRow)
         baseName = str(folderName)
         language = 'en'
+        displayTitle = f"{self.moviesTableModel.getTitle(sourceRow)} ({self.moviesTableModel.getYear(sourceRow)})"
 
         # Check for any existing .srt subtitles in the folder
         existing_srts = [f for f in os.listdir(moviePath) if f.lower().endswith('.srt')]
@@ -4195,13 +4196,13 @@ class MainWindow(QtWidgets.QMainWindow):
             data = r.json()
             items = data.get('data') or []
             if not items:
-                QtWidgets.QMessageBox.information(self, "OpenSubtitles", "No subtitles found (English).")
+                QtWidgets.QMessageBox.information(self, "OpenSubtitles", f"No subtitles found (English) for {displayTitle}.")
                 return
 
             # Pick the first file entry
             files = items[0].get('attributes', {}).get('files', [])
             if not files:
-                QtWidgets.QMessageBox.information(self, "OpenSubtitles", "No downloadable files found for this subtitle.")
+                QtWidgets.QMessageBox.information(self, "OpenSubtitles", f"No downloadable files found for {displayTitle}.")
                 return
             file_id = files[0].get('file_id')
             if not file_id:
@@ -4247,6 +4248,48 @@ class MainWindow(QtWidgets.QMainWindow):
                     saved = True
 
             if saved:
+                # After saving, ensure there is a video file with the same base name
+                base_without_ext = os.path.splitext(os.path.basename(targetPath))[0]
+                video_exts = ['.mp4', '.avi', '.mkv']
+                expected_exists = any(os.path.exists(os.path.join(moviePath, base_without_ext + ext)) for ext in video_exts)
+                if not expected_exists:
+                    # Find candidate video files to optionally rename
+                    candidates = [f for f in os.listdir(moviePath) if os.path.splitext(f)[1].lower() in video_exts]
+                    chosen = None
+                    if len(candidates) == 1:
+                        ans = QtWidgets.QMessageBox.question(
+                            self,
+                            "Rename Video",
+                            f"No video named '{base_without_ext}.mp4/.avi/.mkv' found.\n"
+                            f"Found '{candidates[0]}'.\n\n"
+                            f"Rename it to '{base_without_ext}{os.path.splitext(candidates[0])[1]}'?",
+                            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+                            QtWidgets.QMessageBox.Yes)
+                        if ans == QtWidgets.QMessageBox.Yes:
+                            chosen = candidates[0]
+                    elif len(candidates) > 1:
+                        chosen, ok = QtWidgets.QInputDialog.getItem(
+                            self,
+                            "Rename Video",
+                            "Select a video file to rename to match the subtitle base name:",
+                            candidates,
+                            0,
+                            False)
+                        if not ok:
+                            chosen = None
+
+                    if chosen:
+                        old_path = os.path.join(moviePath, chosen)
+                        new_path = os.path.join(moviePath, base_without_ext + os.path.splitext(chosen)[1])
+                        if os.path.exists(new_path):
+                            QtWidgets.QMessageBox.warning(self, "Rename Video", f"Cannot rename. Target already exists:\n{new_path}")
+                        else:
+                            try:
+                                os.rename(old_path, new_path)
+                                self.statusBar().showMessage(f"Renamed video to: {os.path.basename(new_path)}", 5000)
+                            except Exception as e:
+                                QtWidgets.QMessageBox.critical(self, "Rename Video", f"Failed to rename file:\n{e}")
+
                 self.statusBar().showMessage(f"Subtitle saved: {targetPath}", 5000)
                 QtWidgets.QMessageBox.information(self, "OpenSubtitles", f"Subtitle downloaded to:\n{targetPath}")
         except requests.HTTPError as e:
