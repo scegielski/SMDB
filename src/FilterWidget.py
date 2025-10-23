@@ -22,7 +22,8 @@ class FilterWidget(QtWidgets.QFrame):
     wheelSpun = QtCore.pyqtSignal(int)
 
     def wheelEvent(self, event):
-        self.wheelSpun.emit(event.angleDelta().y() / 120)
+        dy = event.angleDelta().y()
+        self.wheelSpun.emit(1 if dy > 0 else (-1 if dy < 0 else 0))
         event.accept()
 
     def __init__(self,

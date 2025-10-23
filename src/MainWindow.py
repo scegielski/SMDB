@@ -94,6 +94,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.defaultFontSize = 12
         self.fontSize = self.settings.value('fontSize', self.defaultFontSize, type=int)
+        self._debugZoom = False  # set True to log Ctrl+wheel handling
         self.bgColorA = 'rgb(50, 50, 50)'
         self.bgColorB = 'rgb(25, 25, 25)'
         self.bgColorC = 'rgb(0, 0, 0)'
@@ -438,18 +439,34 @@ class MainWindow(QtWidgets.QMainWindow):
         self.showMoviesTableSelectionStatus()
 
     def wheelEvent(self, event):
-        self.changeFontSize(event.angleDelta().y() / 120)
+        dy = event.angleDelta().y()
+        self.changeFontSize(1 if dy > 0 else (-1 if dy < 0 else 0))
         event.accept()
 
     def changeFontSize(self, delta):
-        if QtWidgets.QApplication.keyboardModifiers() != QtCore.Qt.ControlModifier:
+        # Require Ctrl to be held (allow other modifiers too)
+        mods = QtWidgets.QApplication.keyboardModifiers()
+        if not (mods & QtCore.Qt.ControlModifier):
+            if self._debugZoom:
+                print(f"zoom: ignored (no Ctrl). mods={int(mods)} raw={delta}")
             return
 
-        if 5 >= self.fontSize <= 30:
+        # Normalize to step of -1, 0, or +1
+        raw = delta
+        delta = -1 if delta < 0 else (1 if delta > 0 else 0)
+
+        if self._debugZoom:
+            print(f"zoom: mods={int(mods)} raw={raw} norm={delta} font={self.fontSize}")
+
+        # Avoid redundant updates at bounds
+        if (self.fontSize <= 6 and delta < 0) or (self.fontSize >= 29 and delta > 0):
+            if self._debugZoom:
+                print("zoom: at bound, no change")
             return
 
-        delta = min(1, max(-1, delta))
         self.setFontSize(self.fontSize + delta)
+        if self._debugZoom:
+            print(f"zoom: new font={self.fontSize}")
 
     def setFontSize(self, fontSize):
         self.fontSize = max(6, min(29, fontSize))
