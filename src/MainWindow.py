@@ -3677,6 +3677,11 @@ class MainWindow(QtWidgets.QMainWindow):
                                                                            doCover=True))
         moviesTableRightMenu.addAction(downloadDataAction)
 
+        # OpenSubtitles download actions
+        downloadOpenSubtitlesSelectAction = QtWidgets.QAction("Download Subtitles", self)
+        downloadOpenSubtitlesSelectAction.triggered.connect(lambda: self.downloadSubtitles('select'))
+        moviesTableRightMenu.addAction(downloadOpenSubtitlesSelectAction)
+
         downloadOpenSubtitlesAction = QtWidgets.QAction("Download English Subtitles", self)
         downloadOpenSubtitlesAction.triggered.connect(lambda: self.downloadSubtitles('en'))
         moviesTableRightMenu.addAction(downloadOpenSubtitlesAction)
@@ -4151,6 +4156,7 @@ class MainWindow(QtWidgets.QMainWindow):
         folderName = self.moviesTableModel.getFolderName(sourceRow)
         baseName = str(folderName)
         displayTitle = f"{self.moviesTableModel.getTitle(sourceRow)} ({self.moviesTableModel.getYear(sourceRow)})"
+        selecting_mode = (language == 'select')
         language_label = {
             'en': 'English', 'es': 'Spanish', 'fr': 'French', 'pt': 'Portuguese', 'de': 'German',
             'it': 'Italian', 'nl': 'Dutch', 'pl': 'Polish', 'ru': 'Russian', 'sv': 'Swedish',
@@ -4159,19 +4165,15 @@ class MainWindow(QtWidgets.QMainWindow):
             'fa': 'Persian', 'zh': 'Chinese', 'ja': 'Japanese', 'ko': 'Korean'
         }.get(language, language)
 
-        # Check for any existing .srt subtitles in the folder
-        existing_srts = [f for f in os.listdir(moviePath) if f.lower().endswith('.srt')]
-        if existing_srts:
-            QtWidgets.QMessageBox.information(self,
-                                              "OpenSubtitles",
-                                              f"A subtitle already exists in this folder:\n{os.path.join(moviePath, existing_srts[0])}")
-            return
-
-        # For English, omit the .en and save as <base>.srt
-        if language == 'en':
-            targetPath = os.path.join(moviePath, f"{baseName}.srt")
-        else:
-            targetPath = os.path.join(moviePath, f"{baseName}.{language}.srt")
+        # For the 'select' language flow, skip early subtitle existence check.
+        # Otherwise, keep the current behavior and avoid redundant downloads.
+        if not selecting_mode:
+            existing_srts = [f for f in os.listdir(moviePath) if f.lower().endswith('.srt')]
+            if existing_srts:
+                QtWidgets.QMessageBox.information(self,
+                                                  "OpenSubtitles",
+                                                  f"A subtitle already exists in this folder:\n{os.path.join(moviePath, existing_srts[0])}")
+                return
 
         # Query OpenSubtitles API
         headers = {
@@ -4179,6 +4181,79 @@ class MainWindow(QtWidgets.QMainWindow):
             'Accept': 'application/json',
             'User-Agent': 'SMDB/1.0'
         }
+
+        # If user chose to select language, fetch available languages first
+        if language == 'select':
+            params_select = {
+                'imdb_id': imdb_id,
+                'order_by': 'downloads',
+                'order_direction': 'desc',
+                'type': 'movie'
+            }
+            try:
+                r_pre = requests.get("https://api.opensubtitles.com/api/v1/subtitles", params=params_select, headers=headers, timeout=20)
+                if r_pre.status_code == 403:
+                    newKey, ok = QtWidgets.QInputDialog.getText(self, "OpenSubtitles API Key",
+                                                               "Access forbidden (403). Enter a valid OpenSubtitles API key:",
+                                                               text=self.openSubtitlesApiKey)
+                    if ok and newKey:
+                        self.openSubtitlesApiKey = newKey
+                        headers['Api-Key'] = newKey
+                        r_pre = requests.get("https://api.opensubtitles.com/api/v1/subtitles", params=params_select, headers=headers, timeout=20)
+                r_pre.raise_for_status()
+                items_pre = (r_pre.json() or {}).get('data') or []
+                # Collect available languages
+                seen = set()
+                langs = []  # list of (code, name)
+                for it in items_pre:
+                    attr = it.get('attributes', {})
+                    code = attr.get('language')
+                    name = attr.get('language_name') or code
+                    if code and code not in seen:
+                        langs.append((code, name))
+                        seen.add(code)
+                if not langs:
+                    QtWidgets.QMessageBox.information(self, "OpenSubtitles", f"No subtitles found for {displayTitle}.")
+                    return
+                # Build selection list
+                options = [f"{name} ({code})" for code, name in langs]
+                preselect = 0
+                for i, (code, _) in enumerate(langs):
+                    if code == 'en':
+                        preselect = i
+                        break
+                selected, ok = QtWidgets.QInputDialog.getItem(self,
+                                                              "Select Subtitle Language",
+                                                              "Available languages:",
+                                                              options,
+                                                              preselect,
+                                                              False)
+                if not ok or not selected:
+                    return
+                # Parse selection to language code
+                sel_code = selected[selected.rfind('(')+1:selected.rfind(')')].strip()
+                # Find human label
+                sel_name = next((name for code, name in langs if code == sel_code), sel_code)
+                language = sel_code
+                language_label = sel_name
+            except Exception as e:
+                QtWidgets.QMessageBox.critical(self, "OpenSubtitles", f"Failed to list languages: {e}")
+                return
+
+        # For English, omit the .en and save as <base>.srt
+        if language == 'en':
+            targetPath = os.path.join(moviePath, f"{baseName}.srt")
+        else:
+            targetPath = os.path.join(moviePath, f"{baseName}.{language}.srt")
+
+        # In 'select' mode, now that we have the chosen language, check
+        # if a subtitle with the target filename already exists.
+        if selecting_mode and os.path.exists(targetPath):
+            QtWidgets.QMessageBox.information(self,
+                                              "OpenSubtitles",
+                                              f"A subtitle for the selected language already exists:\n{targetPath}")
+            return
+
         params = {
             'imdb_id': imdb_id,
             'languages': language,
@@ -4260,9 +4335,16 @@ class MainWindow(QtWidgets.QMainWindow):
                 QtWidgets.QMessageBox.information(self, "OpenSubtitles", f"Subtitle downloaded to:\n{targetPath}")
 
                 # After saving, ensure there is a video file with the same base name
-                base_without_ext = os.path.splitext(os.path.basename(targetPath))[0]
+                base_sub = os.path.splitext(os.path.basename(targetPath))[0]
+                # Omit language suffix from the base when matching video files
+                base_for_video = base_sub
+                try:
+                    if language and language != 'en' and base_for_video.endswith(f".{language}"):
+                        base_for_video = base_for_video[:-(len(language)+1)]
+                except Exception:
+                    pass
                 video_exts = ['.mp4', '.avi', '.mkv']
-                expected_exists = any(os.path.exists(os.path.join(moviePath, base_without_ext + ext)) for ext in video_exts)
+                expected_exists = any(os.path.exists(os.path.join(moviePath, base_for_video + ext)) for ext in video_exts)
                 if not expected_exists:
                     # Find candidate video files to optionally rename
                     candidates = [f for f in os.listdir(moviePath) if os.path.splitext(f)[1].lower() in video_exts]
@@ -4271,9 +4353,9 @@ class MainWindow(QtWidgets.QMainWindow):
                         ans = QtWidgets.QMessageBox.question(
                             self,
                             "Rename Video",
-                            f"No video named '{base_without_ext}.mp4/.avi/.mkv' found.\n"
+                            f"No video named '{base_for_video}.mp4/.avi/.mkv' found.\n"
                             f"Found '{candidates[0]}'.\n\n"
-                            f"Rename it to '{base_without_ext}{os.path.splitext(candidates[0])[1]}'?",
+                            f"Rename it to '{base_for_video}{os.path.splitext(candidates[0])[1]}'?",
                             QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
                             QtWidgets.QMessageBox.Yes)
                         if ans == QtWidgets.QMessageBox.Yes:
@@ -4291,7 +4373,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
                     if chosen:
                         old_path = os.path.join(moviePath, chosen)
-                        new_path = os.path.join(moviePath, base_without_ext + os.path.splitext(chosen)[1])
+                        new_path = os.path.join(moviePath, base_for_video + os.path.splitext(chosen)[1])
                         if os.path.exists(new_path):
                             QtWidgets.QMessageBox.warning(self, "Rename Video", f"Cannot rename. Target already exists:\n{new_path}")
                         else:
