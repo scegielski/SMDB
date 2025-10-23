@@ -3677,6 +3677,8 @@ class MainWindow(QtWidgets.QMainWindow):
                                                                            doCover=True))
         moviesTableRightMenu.addAction(downloadDataAction)
 
+        moviesTableRightMenu.addSeparator()
+
         # OpenSubtitles download actions
         downloadOpenSubtitlesSelectAction = QtWidgets.QAction("Download Subtitles", self)
         downloadOpenSubtitlesSelectAction.triggered.connect(lambda: self.downloadSubtitles('select'))
