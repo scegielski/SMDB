@@ -34,6 +34,7 @@ class Columns(Enum):
     Size = auto()
     DateModified = auto()
     DateWatched = auto()
+    SubtitlesExist = auto()
 
 
 defaultColumnWidths = {Columns.Cover.value: 150,
@@ -61,7 +62,8 @@ defaultColumnWidths = {Columns.Cover.value: 150,
                        Columns.Channels.value: 50,
                        Columns.Size.value: 100,
                        Columns.DateModified.value: 150,
-                       Columns.DateWatched.value: 150}
+                       Columns.DateWatched.value: 150,
+                       Columns.SubtitlesExist.value: 65}
 
 class MoviesTableModel(QtCore.QAbstractTableModel):
     emitCoverSignal = QtCore.pyqtSignal(int)
@@ -202,6 +204,12 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                     else:
                         print(f"coverFile {coverFile} does not exist")
                         movieData.append("False")
+                else:
+                    movieData.append("")
+            elif column == Columns.SubtitlesExist:
+                if force:
+                    has_srt = any([f.lower().endswith('.srt') for f in os.listdir(moviePath)]) if os.path.exists(moviePath) else False
+                    movieData.append("True" if has_srt else "False")
                 else:
                     movieData.append("")
             elif column == Columns.Folder:
