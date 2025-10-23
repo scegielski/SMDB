@@ -62,8 +62,10 @@ class MainWindow(QtWidgets.QMainWindow):
         # Create IMDB database
         self.db = IMDb()
 
-        # OpenSubtitles API key (temporary, can be moved to settings later)
+        # Define API keys here and use throughout the class
         self.openSubtitlesApiKey = "9iBc6gQ0mlsC9hdapJs6IR2JfmT6F3f1"
+        self.tmdbApiKey = "acaa3a2b3d6ebbb8749bfa43bd3d8af7"
+        self.omdbApiKey = "fe5db83f"
 
         # Read the movies folder from the settings
         self.settings = QtCore.QSettings("STC", "SMDB")
@@ -3089,22 +3091,21 @@ class MainWindow(QtWidgets.QMainWindow):
             imdbId = f"tt{imdbId}"
 
         size = "original"
-        TMDB_KEY = "acaa3a2b3d6ebbb8749bfa43bd3d8af7"
         f = requests.get("https://api.themoviedb.org/3/find/{}".format(imdbId),
-                         params={"api_key": TMDB_KEY, "external_source": "imdb_id"}).json()
+                         params={"api_key": self.tmdbApiKey, "external_source": "imdb_id"}).json()
         movies = f.get("movie_results") or []
         if not movies:
             return
 
         tmdb_id = movies[0]["id"]
         imgs = requests.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}/images",
-                            params={"api_key": TMDB_KEY}).json()
+                            params={"api_key": self.tmdbApiKey}).json()
         posters = imgs.get("posters") or []
         if not posters:
             return
 
         cfg = requests.get("https://api.themoviedb.org/3/configuration",
-                           params={"api_key": TMDB_KEY}).json()
+                           params={"api_key": self.tmdbApiKey}).json()
         base = cfg["images"]["secure_base_url"]
         movieCoverUrl = f"{base}{size}{posters[0]['file_path']}"
         try:
@@ -3120,8 +3121,6 @@ class MainWindow(QtWidgets.QMainWindow):
         if not imdbId.startswith("tt"):
             imdbId = f"tt{imdbId}"
 
-        TMDB_KEY = "acaa3a2b3d6ebbb8749bfa43bd3d8af7"
-
         # If imdbId not provided, you could reuse your local search logic here if needed
         if not imdbId:
             return []
@@ -3129,7 +3128,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Step 1: Find the TMDb ID using the IMDb ID
         find_url = f"https://api.themoviedb.org/3/find/{imdbId}"
         f = requests.get(find_url, params={
-            "api_key": TMDB_KEY,
+            "api_key": self.tmdbApiKey,
             "external_source": "imdb_id"
         }).json()
 
@@ -3141,7 +3140,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Step 2: Query movie details for production companies
         details_url = f"https://api.themoviedb.org/3/movie/{tmdb_id}"
-        d = requests.get(details_url, params={"api_key": TMDB_KEY}).json()
+        d = requests.get(details_url, params={"api_key": self.tmdbApiKey}).json()
         companies = d.get("production_companies", [])
 
         if not companies:
@@ -3157,9 +3156,8 @@ class MainWindow(QtWidgets.QMainWindow):
         then TMDb as a fallback. Returns an ID like 'tt1234567' or None.
         """
         # 1) Try OMDb
-        omdbApiKey = "fe5db83f"
         try:
-            data = self.getMovieOmdb(title, year, api_key=omdbApiKey)
+            data = self.getMovieOmdb(title, year, api_key=self.omdbApiKey)
             if data and data.get('imdbID'):
                 imdb_id = data.get('imdbID')
                 if imdb_id and not imdb_id.startswith('tt'):
@@ -3170,8 +3168,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # 2) Fallback to TMDb: search by title/year, then get external_ids
         try:
-            TMDB_KEY = "acaa3a2b3d6ebbb8749bfa43bd3d8af7"
-            params = {"api_key": TMDB_KEY, "query": title}
+            params = {"api_key": self.tmdbApiKey, "query": title}
             if year:
                 params["year"] = int(year)
             search = requests.get("https://api.themoviedb.org/3/search/movie", params=params).json()
@@ -3197,7 +3194,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if not tmdb_id:
                 return None
             ext = requests.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}/external_ids",
-                               params={"api_key": TMDB_KEY}).json()
+                               params={"api_key": self.tmdbApiKey}).json()
             imdb_id = ext.get("imdb_id")
             if imdb_id and not imdb_id.startswith('tt'):
                 imdb_id = f"tt{imdb_id}"
@@ -3225,12 +3222,10 @@ class MainWindow(QtWidgets.QMainWindow):
             year = int(m.group(2))
             titleYear = f"{title} ({year})"
 
-            omdbApiKey = "fe5db83f"
-
             if not imdbId:
                 imdbId = self.resolve_imdb_id(title, year)
 
-            movie = self.getMovieOmdb(title, year, api_key=omdbApiKey, imdbId=imdbId)
+            movie = self.getMovieOmdb(title, year, api_key=self.omdbApiKey, imdbId=imdbId)
 
             if not movie: return ""
 
