@@ -2962,28 +2962,38 @@ class MainWindow(QtWidgets.QMainWindow):
                 if 'runtime' in jsonData and jsonData['runtime']:
                     jsonRuntime = jsonData['runtime']
 
+                # Subtitles exist status comes from current model value if present
+                try:
+                    if len(model._data[row]) > Columns.SubtitlesExist.value:
+                        subtitlesExist = model._data[row][Columns.SubtitlesExist.value] or "unknown"
+                    else:
+                        subtitlesExist = "unknown"
+                except Exception:
+                    subtitlesExist = "unknown"
+
                 titles[moviePath] = {'folder': folderName,
-                                      'id': jsonId,
-                                      'title': jsonTitle,
-                                      'year': jsonYear,
-                                      'rating': jsonRating,
-                                      'mpaa rating': jsonMpaaRating,
-                                      'runtime': jsonRuntime,
-                                      'box office': jsonBoxOffice,
-                                      'directors': movieDirectorList,
-                                      'genres': jsonGenres,
-                                      'user tags': jsonUserTags,
-                                      'countries': jsonCountries,
-                                      'companies': jsonCompanies,
-                                      'actors': movieActorsList,
-                                      'rank': rank,
-                                      'width': jsonWidth,
-                                      'height': jsonHeight,
-                                      'channels': jsonChannels,
-                                      'size': jsonSize,
-                                      'path': moviePath,
-                                      'date': dateModified,
-                                      'date watched': dateWatched}
+                                       'id': jsonId,
+                                       'title': jsonTitle,
+                                       'year': jsonYear,
+                                       'rating': jsonRating,
+                                       'mpaa rating': jsonMpaaRating,
+                                       'runtime': jsonRuntime,
+                                       'box office': jsonBoxOffice,
+                                       'directors': movieDirectorList,
+                                       'genres': jsonGenres,
+                                       'user tags': jsonUserTags,
+                                       'countries': jsonCountries,
+                                       'companies': jsonCompanies,
+                                       'actors': movieActorsList,
+                                       'rank': rank,
+                                       'width': jsonWidth,
+                                       'height': jsonHeight,
+                                       'channels': jsonChannels,
+                                       'size': jsonSize,
+                                       'path': moviePath,
+                                       'date': dateModified,
+                                       'subtitles exist': subtitlesExist,
+                                       'date watched': dateWatched}
 
         self.progressBar.setValue(0)
 

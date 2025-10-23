@@ -211,7 +211,15 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                     has_srt = any([f.lower().endswith('.srt') for f in os.listdir(moviePath)]) if os.path.exists(moviePath) else False
                     movieData.append("True" if has_srt else "False")
                 else:
-                    movieData.append("")
+                    # Populate from smdb_data.json if available, otherwise blank
+                    val = None
+                    if 'subtitles exist' in data:
+                        val = data['subtitles exist']
+                        if isinstance(val, bool):
+                            val = "True" if val else "False"
+                        else:
+                            val = str(val)
+                    movieData.append(val if val is not None else "")
             elif column == Columns.Folder:
                 movieData.append(movieFolderName)
             elif column == Columns.Rank and generateNewRank:
