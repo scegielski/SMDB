@@ -1257,8 +1257,8 @@ class MainWindow(QtWidgets.QMainWindow):
         columnsVisible = []
         for c in Columns:
             index = c.value
-            if index in columnWidths:
-                tableView.setColumnWidth(index, columnWidths[index])
+            if isinstance(columnWidths, (list, tuple)) and index < len(columnWidths):
+                tableView.setColumnWidth(index, int(columnWidths[index]))
             else:
                 tableView.setColumnWidth(index, defaultColumnWidths[index])
             if index not in columnsToShow:
