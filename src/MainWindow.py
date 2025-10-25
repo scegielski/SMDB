@@ -1649,7 +1649,8 @@ class MainWindow(QtWidgets.QMainWindow):
             sourceIndex = self.moviesTableProxyModel.mapToSource(proxyIndex)
             movieFolderName = self.moviesTableModel.getFolderName(sourceIndex.row())
             moviePath = self.moviesTableModel.getPath(sourceIndex.row())
-            if not os.path.exists(moviePath):
+            moviePath = self.findMovie(moviePath, movieFolderName)
+            if not moviePath or not os.path.exists(moviePath):
                 continue
 
             self.calculateFolderSize(sourceIndex, moviePath, movieFolderName)
@@ -1687,6 +1688,9 @@ class MainWindow(QtWidgets.QMainWindow):
         return 0, 0, 0
 
     def getMovieFileInfo(self, sourceIndex, moviePath, movieFolderName):
+        moviePath = self.findMovie(moviePath, movieFolderName)
+        if not moviePath:
+            return
         width, height, numChannels = self.getMovieFileData(moviePath)
 
         jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
@@ -1737,7 +1741,8 @@ class MainWindow(QtWidgets.QMainWindow):
             sourceIndex = self.moviesTableProxyModel.mapToSource(proxyIndex)
             movieFolderName = self.moviesTableModel.getFolderName(sourceIndex.row())
             moviePath = self.moviesTableModel.getPath(sourceIndex.row())
-            if not os.path.exists(moviePath):
+            moviePath = self.findMovie(moviePath, movieFolderName)
+            if not moviePath or not os.path.exists(moviePath):
                 continue
 
             self.getMovieFileInfo(sourceIndex, moviePath, movieFolderName)
@@ -1767,7 +1772,11 @@ class MainWindow(QtWidgets.QMainWindow):
             self.progressBar.setValue(progress)
 
             modelIndex = self.moviesTableModel.index(row, 0)
+            movieFolderName = self.moviesTableModel.getFolderName(modelIndex.row())
             moviePath = self.moviesTableModel.getPath(modelIndex.row())
+            moviePath = self.findMovie(moviePath, movieFolderName)
+            if not moviePath or not os.path.exists(moviePath):
+                continue
             with os.scandir(moviePath) as files:
                 for f in files:
                     if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
@@ -1851,8 +1860,11 @@ class MainWindow(QtWidgets.QMainWindow):
             sourceIndex = self.backupListTableProxyModel.mapToSource(modelIndex)
             sourceRow = sourceIndex.row()
             title = self.backupListTableModel.getTitle(sourceRow)
-            sourcePath = self.backupListTableModel.getPath(sourceRow)
             sourceFolderName = self.backupListTableModel.getFolderName(sourceRow)
+            sourcePath = self.backupListTableModel.getPath(sourceRow)
+            sourcePath = self.findMovie(sourcePath, sourceFolderName)
+            if not sourcePath:
+                continue
             destPath = os.path.join(self.backupFolder, sourceFolderName)
 
             sourceFolderSize = getFolderSize(sourcePath)
@@ -2221,6 +2233,9 @@ class MainWindow(QtWidgets.QMainWindow):
         folderName = model.getFolderName(sourceRow)
         # Use findMovie to get the actual path
         moviePath = self.findMovie(moviePath, folderName)
+        if not moviePath:
+            self.summary.clear()
+            return
         year = model.getYear(sourceRow)
         jsonFile = os.path.join(moviePath, '%s.json' % folderName)
         coverFile = os.path.join(moviePath, '%s.jpg' % folderName)
@@ -2320,6 +2335,9 @@ class MainWindow(QtWidgets.QMainWindow):
             print(f"Searching plot for {title}")
             moviePath = self.moviesTableModel.getPath(sourceRow)
             folderName = self.moviesTableModel.getFolderName(sourceRow)
+            moviePath = self.findMovie(moviePath, folderName)
+            if not moviePath:
+                return
             jsonFile = os.path.join(moviePath, '%s.json' % folderName)
             jsonData = None
             if os.path.exists(jsonFile):
@@ -2804,13 +2822,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
             rank = model.getRank(row)
             moviePath = model.getPath(row)
-            if not os.path.exists(moviePath):
+            folderName = model.getFolderName(row)
+            moviePath = self.findMovie(moviePath, folderName)
+            if not moviePath or not os.path.exists(moviePath):
                 print(f"path does not exist: {moviePath}")
                 continue
 
             dateModified = datetime.datetime.fromtimestamp(pathlib.Path(moviePath).stat().st_mtime)
             dateModified = f"{dateModified.year}/{str(dateModified.month).zfill(2)}/{str(dateModified.day).zfill(2)}"
-            folderName = model.getFolderName(row)
             jsonFile = os.path.join(moviePath, '%s.json' % folderName)
             if not os.path.exists(jsonFile):
                 continue
@@ -3216,8 +3235,11 @@ class MainWindow(QtWidgets.QMainWindow):
     def downloadMovieData(self, proxyIndex, force=False, imdbId=None, doJson=True, doCover=True):
         sourceIndex = self.moviesTableProxyModel.mapToSource(proxyIndex)
         sourceRow = sourceIndex.row()
-        moviePath = self.moviesTableModel.getPath(sourceRow)
         movieFolderName = self.moviesTableModel.getFolderName(sourceRow)
+        moviePath = self.moviesTableModel.getPath(sourceRow)
+        moviePath = self.findMovie(moviePath, movieFolderName)
+        if not moviePath:
+            return
         jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
         coverFile = os.path.join(moviePath, '%s.jpg' % movieFolderName)
         if not os.path.exists(coverFile):
@@ -3440,7 +3462,6 @@ class MainWindow(QtWidgets.QMainWindow):
         if not moviePath:
             print("Folder doesn't exist")
             return
-        
         runFile(moviePath)
 
     def openBackupDestinationFolder(self):
