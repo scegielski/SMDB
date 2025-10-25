@@ -2219,6 +2219,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         moviePath = model.getPath(sourceRow)
         folderName = model.getFolderName(sourceRow)
+        # Use findMovie to get the actual path
+        moviePath = self.findMovie(moviePath, folderName)
         year = model.getYear(sourceRow)
         jsonFile = os.path.join(moviePath, '%s.json' % folderName)
         coverFile = os.path.join(moviePath, '%s.jpg' % folderName)
