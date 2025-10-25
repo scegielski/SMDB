@@ -105,7 +105,6 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
         else:
             for moviesFolder in moviesFolders:
                 output(f"Scanning: {moviesFolder} ...")
-                QtCore.QCoreApplication.processEvents()
                 if not os.path.exists(moviesFolder):
                     continue
                 numMovies = 0
@@ -122,15 +121,11 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                             output(f"Added: {moviePath} to movie list")
                         else:
                             output(f"Not adding: {f.path} to movie list")
-                        QtCore.QCoreApplication.processEvents()
                 output(f"Scanned {numMovies} movies for {moviesFolder}")
 
         for key in moviesFolderDict.keys():
             movieFolderName = moviesFolderDict[key][0]
             moviePath = moviesFolderDict[key][1]
-            #if forceScan:
-            #    QtCore.QCoreApplication.processEvents()
-            #    output(f"Processing: {movieFolderName} at {moviePath} ...")
             data = {}
             if useSmdbData:
                 data = smdbData['titles'][moviePath]

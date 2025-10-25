@@ -504,6 +504,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.logTextWidget.moveCursor(QtGui.QTextCursor.End)
             self.logTextWidget.insertPlainText(message)
             self.logTextWidget.moveCursor(QtGui.QTextCursor.End)
+            # Process events so log updates in real-time during loops
+            QtCore.QCoreApplication.processEvents()
 
     def wheelEvent(self, event):
         dy = event.angleDelta().y()
