@@ -161,8 +161,28 @@ def copyCoverImage(movie, coverFile):
 
 
 def runFile(file):
+    import shutil
     if sys.platform == "win32":
         subprocess.Popen(f"start \"\" \"{file}\"", shell=True)
+    elif "microsoft" in os.uname().release.lower():  # WSL detection
+        # Try xdg-open first
+        if shutil.which("xdg-open"):
+            try:
+                subprocess.call(["xdg-open", file])
+                return
+            except Exception as e:
+                print(f"xdg-open failed: {e}")
+        # Fallback to Windows default app
+        win_path = os.path.abspath(file)
+        # Convert WSL path to Windows path
+        try:
+            import subprocess
+            completed = subprocess.run(["wslpath", "-w", win_path], capture_output=True, text=True)
+            if completed.returncode == 0:
+                win_path = completed.stdout.strip()
+        except Exception as e:
+            print(f"wslpath failed: {e}")
+        subprocess.Popen(["cmd.exe", "/C", "start", "", win_path])
     else:
         opener = "open" if sys.platform == "darwin" else "xdg-open"
         subprocess.call([opener, file])
