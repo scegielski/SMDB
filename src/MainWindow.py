@@ -1309,10 +1309,16 @@ class MainWindow(QtWidgets.QMainWindow):
 
         moviesFolders = [self.moviesFolder]
         moviesFolders += self.additionalMoviesFolders
+        def progress_callback(current, total):
+            self.progressBar.setMaximum(100)
+            percent = int((current / total) * 100) if total else 0
+            self.progressBar.setValue(percent)
+
         model = MoviesTableModel(smdbData,
                                  moviesFolders,
                                  forceScan,
-                                 neverScan)
+                                 neverScan,
+                                 progress_callback if forceScan else None)
 
         # If there is no smdb file and neverScan is False (as it
         # is for the main movie list) then write a new smdb file

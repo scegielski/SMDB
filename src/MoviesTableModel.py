@@ -72,7 +72,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                  smdbData,
                  moviesFolders,
                  forceScan=False,
-                 neverScan=False):
+                 neverScan=False,
+                 progress_callback=None):
 
         super().__init__()
 
@@ -108,21 +109,27 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                 if not os.path.exists(moviesFolder):
                     continue
                 numMovies = 0
+                movieDirs = []
                 with os.scandir(moviesFolder) as files:
                     for f in files:
                         if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
-                            folderName = f.name
-                            moviePath = f.path
-                            key = moviePath
-                            if key in moviesFolderDict:
-                                key = key + "duplicate"
-                            moviesFolderDict[key] = [folderName, moviePath]
-                            numMovies += 1
-                        else:
-                            output(f"Not adding: {f.path} to movie list")
+                            movieDirs.append(f)
+                totalMovies = len(movieDirs)
+                for idx, f in enumerate(movieDirs):
+                    folderName = f.name
+                    moviePath = f.path
+                    key = moviePath
+                    if key in moviesFolderDict:
+                        key = key + "duplicate"
+                    moviesFolderDict[key] = [folderName, moviePath]
+                    numMovies += 1
+                    if forceScan and progress_callback:
+                        percent = int(((idx + 1) / totalMovies) * 100) if totalMovies else 0
+                        progress_callback(percent, 100)
                 output(f"Scanned {numMovies} movies for {moviesFolder}")
 
-        for key in moviesFolderDict.keys():
+        totalFolders = len(moviesFolderDict)
+        for idx, key in enumerate(moviesFolderDict.keys()):
             movieFolderName = moviesFolderDict[key][0]
             moviePath = moviesFolderDict[key][1]
             data = {}
@@ -131,6 +138,10 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
             else:
                 if (forceScan):
                     output(f"Processing movie folder: {movieFolderName} at {moviePath}")
+                    if progress_callback:
+                        percent = int(((idx + 1) / totalFolders) * 100) if totalFolders else 0
+                        progress_callback(percent, 100)
+
                 jsonFile = os.path.join(moviePath,
                                         '%s.json' % movieFolderName)
                 if os.path.exists(jsonFile):
