@@ -442,6 +442,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.showMoviesTableSelectionStatus()
 
+
+    def clearMovie(self):
+        self.summary.clear()
+        self.titleLabel.clear()
+        self.showCoverFile(None)
+        self.movieInfoListView.clear()
+
     def wheelEvent(self, event):
         dy = event.angleDelta().y()
         self.changeFontSize(1 if dy > 0 else (-1 if dy < 0 else 0))
@@ -2234,7 +2241,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Use findMovie to get the actual path
         moviePath = self.findMovie(moviePath, folderName)
         if not moviePath:
-            self.summary.clear()
+            self.clearMovie()
             return
         year = model.getYear(sourceRow)
         jsonFile = os.path.join(moviePath, '%s.json' % folderName)
