@@ -124,8 +124,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                     moviesFolderDict[key] = [folderName, moviePath]
                     numMovies += 1
                     if forceScan and progress_callback:
-                        percent = int(((idx + 1) / totalMovies) * 100) if totalMovies else 0
-                        progress_callback(percent, 100)
+                        progress_callback(idx, totalMovies)
                 output(f"Scanned {numMovies} movies for {moviesFolder}")
 
         totalFolders = len(moviesFolderDict)
@@ -139,8 +138,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                 if (forceScan):
                     output(f"Processing movie folder: {movieFolderName} at {moviePath}")
                     if progress_callback:
-                        percent = int(((idx + 1) / totalFolders) * 100) if totalFolders else 0
-                        progress_callback(percent, 100)
+                        progress_callback(idx, totalFolders)
 
                 jsonFile = os.path.join(moviePath,
                                         '%s.json' % movieFolderName)

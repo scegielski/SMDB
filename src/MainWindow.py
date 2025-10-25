@@ -1310,9 +1310,9 @@ class MainWindow(QtWidgets.QMainWindow):
         moviesFolders = [self.moviesFolder]
         moviesFolders += self.additionalMoviesFolders
         def progress_callback(current, total):
-            self.progressBar.setMaximum(100)
-            percent = int((current / total) * 100) if total else 0
-            self.progressBar.setValue(percent)
+            self.progressBar.setMaximum(total)
+            self.progressBar.setValue(current)
+            self.statusBar().showMessage(f"{current}/{total}")
 
         model = MoviesTableModel(smdbData,
                                  moviesFolders,
