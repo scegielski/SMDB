@@ -104,6 +104,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                 moviesFolderDict[path] = [folder, path]
         else:
             for moviesFolder in moviesFolders:
+                output(f"Scanning: {moviesFolder} ...")
+                QtCore.QCoreApplication.processEvents()
                 if not os.path.exists(moviesFolder):
                     continue
                 numMovies = 0
@@ -117,13 +119,18 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                 key = key + "duplicate"
                             moviesFolderDict[key] = [folderName, moviePath]
                             numMovies += 1
+                            output(f"Added: {moviePath} to movie list")
                         else:
-                            output("Not adding: %s to movie list" % f.path)
+                            output(f"Not adding: {f.path} to movie list")
+                        QtCore.QCoreApplication.processEvents()
                 output(f"Scanned {numMovies} movies for {moviesFolder}")
 
         for key in moviesFolderDict.keys():
             movieFolderName = moviesFolderDict[key][0]
             moviePath = moviesFolderDict[key][1]
+            #if forceScan:
+            #    QtCore.QCoreApplication.processEvents()
+            #    output(f"Processing: {movieFolderName} at {moviePath} ...")
             data = {}
             if useSmdbData:
                 data = smdbData['titles'][moviePath]
