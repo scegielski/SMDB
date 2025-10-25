@@ -3431,16 +3431,13 @@ class MainWindow(QtWidgets.QMainWindow):
         sourceIndex = self.backupListTableProxyModel.mapToSource(proxyIndex)
         sourceRow = sourceIndex.row()
         moviePath = self.backupListTableModel.getPath(sourceRow)
+        folderName = self.backupListTableModel.getFolderName(sourceRow)
         
-        # Try fallback if the stored path doesn't exist
-        if not os.path.exists(moviePath):
-            folderName = self.backupListTableModel.getFolderName(sourceRow)
-            alternatePath = self.findMovieInAlternateFolders(folderName)
-            if alternatePath:
-                moviePath = alternatePath
-            else:
-                print("Folder doesn't exist")
-                return
+        # Find the movie (checks stored path, then searches alternate folders)
+        moviePath = self.findMovie(moviePath, folderName)
+        if not moviePath:
+            print("Folder doesn't exist")
+            return
         
         runFile(moviePath)
 
@@ -3755,17 +3752,21 @@ class MainWindow(QtWidgets.QMainWindow):
         table.selectAll()
         pass
 
-    def findMovieInAlternateFolders(self, folderName):
+    def findMovie(self, moviePath, folderName):
         """
-        Search for a movie folder by name in the primary and additional movies folders.
-        Returns the full path if found, otherwise returns None.
+        Find a movie folder, first checking the given path, then searching alternate folders.
         
         Args:
+            moviePath: The original/stored path to check first
             folderName: The folder name to search for (e.g., "MovieTitle(2020)")
         
         Returns:
             Full path to the movie folder if found, None otherwise
         """
+        # First check if the original path exists
+        if os.path.exists(moviePath):
+            return moviePath
+        
         # Build list of all folders to search
         foldersToSearch = []
         if self.moviesFolder and self.moviesFolder != "No movies folder set.  Use the \"File->Set movies folder\" menu to set it.":
@@ -3788,15 +3789,12 @@ class MainWindow(QtWidgets.QMainWindow):
         sourceIndex = proxy.mapToSource(proxyIndex)
         sourceRow = sourceIndex.row()
         moviePath = proxy.sourceModel().getPath(sourceRow)
+        folderName = proxy.sourceModel().getFolderName(sourceRow)
         
-        # Try fallback if the stored path doesn't exist
-        if not os.path.exists(moviePath):
-            folderName = proxy.sourceModel().getFolderName(sourceRow)
-            alternatePath = self.findMovieInAlternateFolders(folderName)
-            if alternatePath:
-                moviePath = alternatePath
-            else:
-                return
+        # Find the movie (checks stored path, then searches alternate folders)
+        moviePath = self.findMovie(moviePath, folderName)
+        if not moviePath:
+            return
 
         validExtentions = ['.mkv', '.mpg', '.mp4', '.avi', '.flv', '.wmv', '.m4v', '.divx', '.ogm']
 
@@ -4176,16 +4174,13 @@ class MainWindow(QtWidgets.QMainWindow):
     def openMovieFolder(self):
         sourceRow = self.getSelectedRow()
         moviePath = self.moviesTableModel.getPath(sourceRow)
+        folderName = self.moviesTableModel.getFolderName(sourceRow)
         
-        # Try fallback if the stored path doesn't exist
-        if not os.path.exists(moviePath):
-            folderName = self.moviesTableModel.getFolderName(sourceRow)
-            alternatePath = self.findMovieInAlternateFolders(folderName)
-            if alternatePath:
-                moviePath = alternatePath
-            else:
-                print("Folder doesn't exist")
-                return
+        # Find the movie (checks stored path, then searches alternate folders)
+        moviePath = self.findMovie(moviePath, folderName)
+        if not moviePath:
+            print("Folder doesn't exist")
+            return
         
         runFile(moviePath)
 
@@ -4194,14 +4189,11 @@ class MainWindow(QtWidgets.QMainWindow):
         moviePath = self.moviesTableModel.getPath(sourceRow)
         folderName = self.moviesTableModel.getFolderName(sourceRow)
         
-        # Try fallback if the stored path doesn't exist
-        if not os.path.exists(moviePath):
-            alternatePath = self.findMovieInAlternateFolders(folderName)
-            if alternatePath:
-                moviePath = alternatePath
-            else:
-                print("moviePath: %s doesn't exist" % moviePath)
-                return
+        # Find the movie (checks stored path, then searches alternate folders)
+        moviePath = self.findMovie(moviePath, folderName)
+        if not moviePath:
+            print("Folder doesn't exist")
+            return
         
         jsonFile = os.path.join(moviePath, '%s.json' % folderName)
         if os.path.exists(jsonFile):
