@@ -410,6 +410,9 @@ class MainWindow(QtWidgets.QMainWindow):
                                         f"font-size: {self.fontSize}px;")
         logVLayout.addWidget(self.logTextWidget)
         
+        # Set the global output function so all modules can use it
+        set_output_function(self.output)
+        
         self.mainContentLogSplitter.addWidget(self.logWidget)
         if not self.showLog:
             self.logWidget.hide()
