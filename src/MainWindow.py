@@ -406,10 +406,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.logTextWidget = QtWidgets.QTextEdit()
         self.logTextWidget.setReadOnly(True)
         self.logTextWidget.setStyleSheet(f"background: {self.bgColorC};"
-                                        f"color: {self.fgColor};")
-        font = self.logTextWidget.font()
-        font.setPointSize(self.fontSize)
-        self.logTextWidget.setFont(font)
+                                        f"color: {self.fgColor};"
+                                        f"font-size: {self.fontSize}px;")
         logVLayout.addWidget(self.logTextWidget)
         
         self.mainContentLogSplitter.addWidget(self.logWidget)
@@ -568,9 +566,9 @@ class MainWindow(QtWidgets.QMainWindow):
         
         # Update log panel font size if it exists
         if self.logTextWidget is not None:
-            font = self.logTextWidget.font()
-            font.setPointSize(self.fontSize)
-            self.logTextWidget.setFont(font)
+            self.logTextWidget.setStyleSheet(f"background: {self.bgColorC};"
+                                             f"color: {self.fgColor};"
+                                             f"font-size: {self.fontSize}px;")
 
 
     def clearSettings(self):
