@@ -118,7 +118,6 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                 key = key + "duplicate"
                             moviesFolderDict[key] = [folderName, moviePath]
                             numMovies += 1
-                            output(f"Added: {moviePath} to movie list")
                         else:
                             output(f"Not adding: {f.path} to movie list")
                 output(f"Scanned {numMovies} movies for {moviesFolder}")
@@ -130,6 +129,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
             if useSmdbData:
                 data = smdbData['titles'][moviePath]
             else:
+                if (forceScan):
+                    output(f"Processing movie folder: {movieFolderName} at {moviePath}")
                 jsonFile = os.path.join(moviePath,
                                         '%s.json' % movieFolderName)
                 if os.path.exists(jsonFile):
