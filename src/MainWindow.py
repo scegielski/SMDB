@@ -3755,6 +3755,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def findMovie(self, moviePath, folderName):
         """
         Find a movie folder, first checking the given path, then searching alternate folders.
+        If multiple paths are found during fallback, prompts user to choose.
         
         Args:
             moviePath: The original/stored path to check first
@@ -3774,15 +3775,34 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.additionalMoviesFolders:
             foldersToSearch.extend(self.additionalMoviesFolders)
         
-        # Search each folder for the movie
+        # Search each folder for the movie and collect all matches
+        foundPaths = []
         for folder in foldersToSearch:
             if not os.path.exists(folder):
                 continue
             candidatePath = os.path.join(folder, folderName)
             if os.path.exists(candidatePath) and os.path.isdir(candidatePath):
-                return candidatePath
+                foundPaths.append(candidatePath)
         
-        return None
+        # Return based on number of matches found
+        if len(foundPaths) == 0:
+            return None
+        elif len(foundPaths) == 1:
+            return foundPaths[0]
+        else:
+            # Multiple paths found - ask user to choose
+            selectedPath, ok = QtWidgets.QInputDialog.getItem(
+                self,
+                "Multiple Locations Found",
+                f"Movie '{folderName}' found in multiple locations.\nSelect the path to open:",
+                foundPaths,
+                0,
+                False
+            )
+            if ok and selectedPath:
+                return selectedPath
+            else:
+                return None
 
     def playMovie(self, tableView, proxy):
         proxyIndex = tableView.selectionModel().selectedRows()[0]
