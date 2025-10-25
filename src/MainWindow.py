@@ -143,7 +143,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(centralWidget)
 
         # Divides top h splitter and bottom progress bar
-        mainVLayout = QtWidgets.QVBoxLayout(self)
+        # Do not parent layouts to QMainWindow; set on central widget instead
+        mainVLayout = QtWidgets.QVBoxLayout()
         centralWidget.setLayout(mainVLayout)
 
         # Main H Splitter for filter, movies list, and cover/info
@@ -382,7 +383,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.mainHSplitter.setSizes(sizes)
 
         # Bottom
-        bottomLayout = QtWidgets.QHBoxLayout(self)
+        # Create bottom layout without parenting to QMainWindow
+        bottomLayout = QtWidgets.QHBoxLayout()
         mainVLayout.addLayout(bottomLayout)
         self.progressBar = QtWidgets.QProgressBar()
         self.progressBar.setStyleSheet(f"background: {self.bgColorC};"
@@ -2559,24 +2561,31 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.movieCover:
             sz = self.movieCover.size()
             coverFile = self.movieCover.property('cover file')
-            pixMap = QtGui.QPixmap(coverFile)
-            self.movieCover.setPixmap(pixMap.scaled(sz.width(), sz.height(),
-                                                    QtCore.Qt.KeepAspectRatio,
-                                                    QtCore.Qt.SmoothTransformation))
+            if coverFile and isinstance(coverFile, str) and os.path.exists(coverFile):
+                pm = QtGui.QPixmap(coverFile)
+                if not pm.isNull():
+                    self.movieCover.setPixmap(pm.scaled(sz.width(), sz.height(),
+                                                        QtCore.Qt.KeepAspectRatio,
+                                                        QtCore.Qt.SmoothTransformation))
+                    return
+            # If no valid cover, clear pixmap to avoid scaling null pixmap
+            self.movieCover.setPixmap(QtGui.QPixmap())
 
     def resizeEvent(self, a0: QtGui.QResizeEvent) -> None:
         self.resizeCoverFile()
 
     def showCoverFile(self, coverFile):
-        if os.path.exists(coverFile):
-            pixMap = QtGui.QPixmap(coverFile)
-            sz = self.movieCover.size()
-            self.movieCover.setPixmap(pixMap.scaled(sz.width(), sz.height(),
+        if coverFile and os.path.exists(coverFile):
+            pm = QtGui.QPixmap(coverFile)
+            if not pm.isNull():
+                sz = self.movieCover.size()
+                self.movieCover.setPixmap(pm.scaled(sz.width(), sz.height(),
                                                     QtCore.Qt.KeepAspectRatio,
                                                     QtCore.Qt.SmoothTransformation))
-            self.movieCover.setProperty('cover file', coverFile)
+                self.movieCover.setProperty('cover file', coverFile)
+                return
         else:
-            self.movieCover.setPixmap(QtGui.QPixmap(0, 0))
+            self.movieCover.setPixmap(QtGui.QPixmap())
 
     def movieInfoAddSection(self, jsonData, jsonName, smdbName, userRoleName):
         if not jsonData:

@@ -537,10 +537,13 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                 folderName = self.getFolderName(row)
                 moviePath = self.getPath(row)
                 coverFile = os.path.join(moviePath, '%s.jpg' % folderName)
-                pixMap = QtGui.QPixmap(coverFile).scaled(200, 200,
-                                                         QtCore.Qt.KeepAspectRatio,
-                                                         QtCore.Qt.SmoothTransformation)
-                return pixMap;
+                if os.path.exists(coverFile):
+                    pm = QtGui.QPixmap(coverFile)
+                    if not pm.isNull():
+                        return pm.scaled(200, 200,
+                                         QtCore.Qt.KeepAspectRatio,
+                                         QtCore.Qt.SmoothTransformation)
+                return None
 
     def headerData(self, section, orientation, role):
         if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
