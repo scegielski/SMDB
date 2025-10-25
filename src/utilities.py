@@ -22,6 +22,22 @@ import re
 from unidecode import unidecode
 
 
+# Global output function - can be set by MainWindow to redirect to log panel
+_output_function = None
+
+def set_output_function(func):
+    """Set the global output function to be used by all modules"""
+    global _output_function
+    _output_function = func
+
+def output(*args, **kwargs):
+    """Output function that uses the global output function if set, otherwise prints to console"""
+    if _output_function is not None:
+        _output_function(*args, **kwargs)
+    else:
+        print(*args, **kwargs)
+
+
 def getCollection(input_file):
     collection = []
     with open(input_file, 'r', encoding='utf-8') as input_f:
@@ -71,7 +87,7 @@ def readSmdbFile(fileName):
             with open(fileName) as f:
                 return json.load(f)
         except IOError:
-            print("Could not open file: %s" % fileName)
+            output("Could not open file: %s" % fileName)
 
 
 def getMovieKey(movie, key):
@@ -89,13 +105,13 @@ def openPersonImdbPage(personName, db):
         try:
             results = db.search_person(personName)
             if not results:
-                print('No matches for: %s' % personName)
+                output('No matches for: %s' % personName)
                 return
             person = results[0]
             if isinstance(person, imdb.Person.Person):
                 personId = person.getID()
         except imdb._exceptions.IMDbDataAccessError as err:
-            print(f"Error: {err}")
+            output(f"Error: {err}")
 
     if personId:
         webbrowser.open('http://imdb.com/name/nm%s' % personId, new=2)
@@ -148,7 +164,7 @@ def copyCoverImage(movie, coverFile):
     elif 'cover url' in movie:
         movieCoverUrl = movie['cover']
     else:
-        print("Error: No cover image available")
+        output("Error: No cover image available")
         return ""
     extension = os.path.splitext(movieCoverUrl)[1]
     if extension == '.png':
@@ -156,7 +172,7 @@ def copyCoverImage(movie, coverFile):
     try:
         urllib.request.urlretrieve(movieCoverUrl, coverFile)
     except URLError as e:
-        print(f"Problem downloading cover file: {coverFile} - {e}")
+        output(f"Problem downloading cover file: {coverFile} - {e}")
     return coverFile
 
 
@@ -171,7 +187,7 @@ def runFile(file):
                 subprocess.call(["xdg-open", file])
                 return
             except Exception as e:
-                print(f"xdg-open failed: {e}")
+                output(f"xdg-open failed: {e}")
         # Fallback to Windows default app
         win_path = os.path.abspath(file)
         # Convert WSL path to Windows path
@@ -181,7 +197,7 @@ def runFile(file):
             if completed.returncode == 0:
                 win_path = completed.stdout.strip()
         except Exception as e:
-            print(f"wslpath failed: {e}")
+            output(f"wslpath failed: {e}")
         subprocess.Popen(["cmd.exe", "/C", "start", "", win_path])
     else:
         opener = "open" if sys.platform == "darwin" else "xdg-open"
@@ -198,7 +214,7 @@ def removeFolders(parent, foldersToDelete):
 
         if ret == QMessageBox.Yes:
             for f in foldersToDelete:
-                print('Deleting folder: %s' % f)
+                output('Deleting folder: %s' % f)
                 try:
                     shutil.rmtree(f,
                                   ignore_errors=False,
@@ -217,7 +233,7 @@ def removeFiles(parent, filesToDelete, extension):
 
         if ret == QMessageBox.Yes:
             for f in filesToDelete:
-                print('Deleting file: %s' % f)
+                output('Deleting file: %s' % f)
                 os.remove(f)
 
 

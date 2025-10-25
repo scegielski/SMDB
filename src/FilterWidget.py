@@ -166,7 +166,7 @@ class FilterWidget(QtWidgets.QFrame):
 
     def populateFiltersTable(self):
         if not self.moviesSmdbData:
-            print("Error: No smbdData")
+            output("Error: No smbdData")
             return
 
         if self.useMovieList and len(self.movieList) == 0:
@@ -188,7 +188,7 @@ class FilterWidget(QtWidgets.QFrame):
             self.filterTable.setContextMenuPolicy(QtCore.Qt.NoContextMenu)
 
         if filterByKey not in self.moviesSmdbData:
-            print("Error: '%s' not in smdbData" % filterByKey)
+            output("Error: '%s' not in smdbData" % filterByKey)
             return
 
         self.filterTable.clear()
