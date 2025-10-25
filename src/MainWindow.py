@@ -3431,10 +3431,15 @@ class MainWindow(QtWidgets.QMainWindow):
         sourceIndex = self.backupListTableProxyModel.mapToSource(proxyIndex)
         sourceRow = sourceIndex.row()
         moviePath = self.backupListTableModel.getPath(sourceRow)
-        if os.path.exists(moviePath):
-            runFile(moviePath)
-        else:
+        folderName = self.backupListTableModel.getFolderName(sourceRow)
+        
+        # Find the movie (checks stored path, then searches alternate folders)
+        moviePath = self.findMovie(moviePath, folderName)
+        if not moviePath:
             print("Folder doesn't exist")
+            return
+        
+        runFile(moviePath)
 
     def openBackupDestinationFolder(self):
         if not self.backupFolder:
@@ -3747,14 +3752,69 @@ class MainWindow(QtWidgets.QMainWindow):
         table.selectAll()
         pass
 
+    def findMovie(self, moviePath, folderName):
+        """
+        Find a movie folder, first checking the given path, then searching alternate folders.
+        If multiple paths are found during fallback, prompts user to choose.
+        
+        Args:
+            moviePath: The original/stored path to check first
+            folderName: The folder name to search for (e.g., "MovieTitle(2020)")
+        
+        Returns:
+            Full path to the movie folder if found, None otherwise
+        """
+        # First check if the original path exists
+        if os.path.exists(moviePath):
+            return moviePath
+        
+        # Build list of all folders to search
+        foldersToSearch = []
+        if self.moviesFolder and self.moviesFolder != "No movies folder set.  Use the \"File->Set movies folder\" menu to set it.":
+            foldersToSearch.append(self.moviesFolder)
+        if self.additionalMoviesFolders:
+            foldersToSearch.extend(self.additionalMoviesFolders)
+        
+        # Search each folder for the movie and collect all matches
+        foundPaths = []
+        for folder in foldersToSearch:
+            if not os.path.exists(folder):
+                continue
+            candidatePath = os.path.join(folder, folderName)
+            if os.path.exists(candidatePath) and os.path.isdir(candidatePath):
+                foundPaths.append(candidatePath)
+        
+        # Return based on number of matches found
+        if len(foundPaths) == 0:
+            return None
+        elif len(foundPaths) == 1:
+            return foundPaths[0]
+        else:
+            # Multiple paths found - ask user to choose
+            selectedPath, ok = QtWidgets.QInputDialog.getItem(
+                self,
+                "Multiple Locations Found",
+                f"Movie '{folderName}' found in multiple locations.\nSelect the path to open:",
+                foundPaths,
+                0,
+                False
+            )
+            if ok and selectedPath:
+                return selectedPath
+            else:
+                return None
+
     def playMovie(self, tableView, proxy):
         proxyIndex = tableView.selectionModel().selectedRows()[0]
         sourceIndex = proxy.mapToSource(proxyIndex)
         sourceRow = sourceIndex.row()
         moviePath = proxy.sourceModel().getPath(sourceRow)
-        if not os.path.exists(moviePath):
+        folderName = proxy.sourceModel().getFolderName(sourceRow)
+        
+        # Find the movie (checks stored path, then searches alternate folders)
+        moviePath = self.findMovie(moviePath, folderName)
+        if not moviePath:
             return
-
 
         validExtentions = ['.mkv', '.mpg', '.mp4', '.avi', '.flv', '.wmv', '.m4v', '.divx', '.ogm']
 
@@ -4134,15 +4194,27 @@ class MainWindow(QtWidgets.QMainWindow):
     def openMovieFolder(self):
         sourceRow = self.getSelectedRow()
         moviePath = self.moviesTableModel.getPath(sourceRow)
-        if os.path.exists(moviePath):
-            runFile(moviePath)
-        else:
+        folderName = self.moviesTableModel.getFolderName(sourceRow)
+        
+        # Find the movie (checks stored path, then searches alternate folders)
+        moviePath = self.findMovie(moviePath, folderName)
+        if not moviePath:
             print("Folder doesn't exist")
+            return
+        
+        runFile(moviePath)
 
     def openMovieJson(self):
         sourceRow = self.getSelectedRow()
         moviePath = self.moviesTableModel.getPath(sourceRow)
         folderName = self.moviesTableModel.getFolderName(sourceRow)
+        
+        # Find the movie (checks stored path, then searches alternate folders)
+        moviePath = self.findMovie(moviePath, folderName)
+        if not moviePath:
+            print("Folder doesn't exist")
+            return
+        
         jsonFile = os.path.join(moviePath, '%s.json' % folderName)
         if os.path.exists(jsonFile):
             runFile(jsonFile)
