@@ -31,7 +31,6 @@ import fnmatch
 import pathlib
 import datetime
 import collections
-import webbrowser
 import shutil
 import os
 import random
@@ -4434,16 +4433,16 @@ class MainWindow(QtWidgets.QMainWindow):
         sourceRow = self.getSelectedRow()
         movieId = self.moviesTableModel.getId(sourceRow)
         if 'http://' in movieId or 'https://' in movieId:
-            webbrowser.open(movieId, new=2)
+            open_url(movieId, new=2)
         else:
             if 'tt' in movieId: movieId = movieId.replace('tt', '')
-            webbrowser.open('http://imdb.com/title/tt%s' % movieId, new=2)
+            open_url('http://imdb.com/title/tt%s' % movieId, new=2)
 
     def downloadSubtitlesYify(self):
         sourceRow = self.getSelectedRow()
         movieId = self.moviesTableModel.getId(sourceRow)
         if 'tt' in movieId: movieId = movieId.replace('tt', '')
-        webbrowser.open(f'https://yifysubtitles.org/movie-imdb/tt{movieId}')
+        open_url(f'https://yifysubtitles.org/movie-imdb/tt{movieId}', new=2)
 
     def downloadSubtitles(self, language='en'):
         try:
@@ -4708,7 +4707,7 @@ class MainWindow(QtWidgets.QMainWindow):
                                                           QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
                                                           QtWidgets.QMessageBox.Yes)
                 if open_web == QtWidgets.QMessageBox.Yes:
-                    webbrowser.open(f"https://www.opensubtitles.org/en/search2/sublanguageid-eng/imdbid-{imdb_id}", new=2)
+                    open_url(f"https://www.opensubtitles.org/en/search2/sublanguageid-eng/imdbid-{imdb_id}", new=2)
             else:
                 QtWidgets.QMessageBox.critical(self, "OpenSubtitles", f"HTTP error: {e}")
         except Exception as e:
@@ -4751,7 +4750,7 @@ class MainWindow(QtWidgets.QMainWindow):
         urlAmz = self.get_prime_video_search_url(f"{title} {year}")
         urls = [urlPirateBay, url1337x, usrlLimeTorrents, urlYts, urlImdb, urlYt, urlAmz]
         for u in urls:
-            webbrowser.open(u, new=2)
+            open_url(u, new=2)
 
     def overrideID(self):
         movieId, ok = QtWidgets.QInputDialog.getText(self,

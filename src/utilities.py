@@ -1,4 +1,3 @@
-import re
 import os
 import shutil
 import sys
@@ -7,7 +6,8 @@ import subprocess
 import urllib.request
 from urllib.error import URLError
 from unidecode import unidecode
-
+import platform
+import re
 
 import webbrowser
 import imdb
@@ -95,8 +95,56 @@ def getMovieKey(movie, key):
         return None
     return movie.get(key, None)
 
+def _is_wsl():
+    """Return True when running under Windows Subsystem for Linux."""
+    if 'WSL_DISTRO_NAME' in os.environ:
+        return True
+    try:
+        return 'microsoft' in platform.release().lower()
+    except Exception:
+        return False
+
+
+def open_url(url, new=2):
+    """
+    Open the provided URL, handling WSL by delegating to Windows when needed.
+
+    Returns True when an opener was launched successfully, False otherwise.
+    """
+    try:
+        if sys.platform == "win32":
+            return webbrowser.open(url, new=new)
+
+        if _is_wsl():
+            wslview = shutil.which("wslview")
+            if wslview:
+                try:
+                    subprocess.Popen([wslview, url])
+                    return True
+                except Exception as e:
+                    output(f"wslview failed: {e}")
+
+            if shutil.which("powershell.exe"):
+                subprocess.Popen(["powershell.exe", "-NoProfile", "Start-Process", url])
+                return True
+
+            if shutil.which("cmd.exe"):
+                subprocess.Popen(["cmd.exe", "/C", "start", "", url])
+                return True
+
+        opener = "open" if sys.platform == "darwin" else "xdg-open"
+        if shutil.which(opener):
+            subprocess.Popen([opener, url])
+            return True
+
+        return webbrowser.open(url, new=new)
+    except Exception as e:
+        output(f"Failed to open URL {url}: {e}")
+        return False
+
+
 def openYearImdbPage(year):
-    webbrowser.open('https://www.imdb.com/search/title/?release_date=%s-01-01,%s-12-31' % (year, year), new=2)
+    open_url('https://www.imdb.com/search/title/?release_date=%s-01-01,%s-12-31' % (year, year), new=2)
 
 
 def openPersonImdbPage(personName, db):
@@ -114,7 +162,7 @@ def openPersonImdbPage(personName, db):
             output(f"Error: {err}")
 
     if personId:
-        webbrowser.open('http://imdb.com/name/nm%s' % personId, new=2)
+        open_url('http://imdb.com/name/nm%s' % personId, new=2)
 
 
 def getFolderSize(startPath='.'):
