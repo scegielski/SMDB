@@ -83,6 +83,7 @@ class OperationCanceledError(Exception):
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
+        start_time = time.perf_counter()
 
         self.numVisibleMovies = 0
         
@@ -450,6 +451,8 @@ class MainWindow(QtWidgets.QMainWindow):
         contentLogSizes = [int(x) for x in self.settings.value('mainContentLogSplitterSizes', [700, 150], type=list)]
         self.mainContentLogSplitter.setSizes(contentLogSizes)
 
+        self.output("Welcome to SMDB")
+
         # Bottom
         # Create bottom layout without parenting to QMainWindow
         bottomLayout = QtWidgets.QHBoxLayout()
@@ -509,6 +512,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.refreshBackupList()
 
         self.showMoviesTableSelectionStatus()
+
+        # Startup messages at end of initialization
+        elapsed = time.perf_counter() - start_time
+        self.output(f"Time to startup: {elapsed:.3f}s")
 
 
     def clearMovie(self):
@@ -1343,8 +1350,19 @@ class MainWindow(QtWidgets.QMainWindow):
                      sortAscending=True):
 
         smdbData = dict()
+        read_time = None
         if os.path.exists(smdbFile):
+            t0 = time.perf_counter()
             smdbData = readSmdbFile(smdbFile)
+            read_time = time.perf_counter() - t0
+            # Capture and log read time for the main movies SMDB at startup
+            try:
+                if smdbFile == self.moviesSmdbFile and not getattr(self, "_readMoviesSmdbLogged", False):
+                    self._lastMoviesSmdbReadSeconds = read_time
+                    self.output(f"Read smdb_data.json in {read_time:.3f}s")
+                    self._readMoviesSmdbLogged = True
+            except Exception:
+                pass
         else:
             forceScan = False
 
