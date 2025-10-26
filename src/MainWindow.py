@@ -413,6 +413,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.logTextWidget.setStyleSheet(f"background: {self.bgColorC};"
                                         f"color: {self.fgColor};"
                                         f"font-size: {self.fontSize}px;")
+        self.logTextWidget.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.logTextWidget.customContextMenuRequested.connect(self.showLogContextMenu)
         logVLayout.addWidget(self.logTextWidget)
         
         # Set the global output function so all modules can use it
@@ -2608,6 +2610,19 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.logWidget.hide()
             else:
                 self.logWidget.show()
+
+    def showLogContextMenu(self, position):
+        if not self.logTextWidget:
+            return
+        menu = self.logTextWidget.createStandardContextMenu()
+        menu.addSeparator()
+        select_all_action = menu.addAction("Select All")
+        clear_action = menu.addAction("Clear Log")
+        selected_action = menu.exec_(self.logTextWidget.mapToGlobal(position))
+        if selected_action == select_all_action:
+            self.logTextWidget.selectAll()
+        elif selected_action == clear_action:
+            self.logTextWidget.clear()
 
     def movieInfoSelectionChanged(self):
         if len(self.movieInfoListView.selectedItems()) == 0:
