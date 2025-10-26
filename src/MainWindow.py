@@ -3828,7 +3828,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.moviesTableModel.changedLayout()
 
-        sort_column = Columns.Rank.value if collection_type == 'criterion' else Columns.Year.value
+        name = os.path.splitext(os.path.basename(str(collection_type)))[0].lower()
+        sort_column = Columns.Rank.value if name == 'criterion' else Columns.Year.value
         self.moviesTableProxyModel.sort(sort_column, QtCore.Qt.AscendingOrder)
 
     def moviesTableRightMenuShow(self, QPos):
@@ -3966,7 +3967,8 @@ class MainWindow(QtWidgets.QMainWindow):
         moviesTableRightMenu.addMenu(filterBySubmenu)
 
         for c in self.collections:
-            action = QtWidgets.QAction(f"Filter by {c} Collection", self)
+            label = os.path.splitext(os.path.basename(c))[0]
+            action = QtWidgets.QAction(f"Filter by {label} Collection", self)
             action.triggered.connect(lambda checked, collection=c: self.filterCollection(collection))
             filterBySubmenu.addAction(action)
 
