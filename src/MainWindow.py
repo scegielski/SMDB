@@ -53,6 +53,11 @@ from .MovieInfoListView import MovieInfoListView
 from .MovieTableView import MovieTableView
 
 
+class OperationCanceledError(Exception):
+    """Raised when a long-running task is canceled by the user."""
+    pass
+
+
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
@@ -1310,9 +1315,17 @@ class MainWindow(QtWidgets.QMainWindow):
         moviesFolders = [self.moviesFolder]
         moviesFolders += self.additionalMoviesFolders
         def progress_callback(current, total):
-            self.progressBar.setMaximum(total)
-            self.progressBar.setValue(current)
-            self.statusBar().showMessage(f"{current}/{total}")
+            QtCore.QCoreApplication.processEvents()
+            if self.isCanceled:
+                raise OperationCanceledError()
+            original_total = total
+            safe_total = max(original_total, 1)
+            current_value = min(current, safe_total)
+            self.progressBar.setMaximum(safe_total)
+            self.progressBar.setValue(current_value)
+            display_total = original_total if original_total else 0
+            display_current = min(current, display_total) if display_total else 0
+            self.statusBar().showMessage(f"{display_current}/{display_total}")
 
         model = MoviesTableModel(smdbData,
                                  moviesFolders,
@@ -1390,17 +1403,32 @@ class MainWindow(QtWidgets.QMainWindow):
         return smdbData, model, proxyModel, columnsVisible, smdbData
 
     def refreshMoviesList(self, forceScan=False):
-        (self.moviesSmdbData,
-         self.moviesTableModel,
-         self.moviesTableProxyModel,
-         self.moviesTableColumnsVisible,
-         self.moviesSmdbData) = self.refreshTable(self.moviesSmdbFile,
-                                                  self.moviesTableView,
-                                                  self.moviesTableColumns,
-                                                  self.moviesTableColumnWidths,
-                                                  Columns.Year.value,
-                                                  forceScan,
-                                                  neverScan=True)
+        if forceScan:
+            self.isCanceled = False
+            self.progressBar.setValue(0)
+
+        try:
+            (self.moviesSmdbData,
+             self.moviesTableModel,
+             self.moviesTableProxyModel,
+             self.moviesTableColumnsVisible,
+             self.moviesSmdbData) = self.refreshTable(self.moviesSmdbFile,
+                                                      self.moviesTableView,
+                                                      self.moviesTableColumns,
+                                                      self.moviesTableColumnWidths,
+                                                      Columns.Year.value,
+                                                      forceScan,
+                                                      neverScan=True)
+        except OperationCanceledError:
+            self.statusBar().showMessage("Cancelled")
+            self.output("Cancelled")
+            self.progressBar.setValue(0)
+            self.isCanceled = False
+            return
+
+        if forceScan:
+            self.progressBar.setValue(0)
+        self.isCanceled = False
 
         self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
         self.showMoviesTableSelectionStatus()
@@ -2223,6 +2251,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def cancelButtonClicked(self):
         self.isCanceled = True
+        self.statusBar().showMessage('Cancelling...')
 
     def showMoviesTableSelectionStatus(self):
         numSelected = len(self.moviesTableView.selectionModel().selectedRows())
