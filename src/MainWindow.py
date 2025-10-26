@@ -514,10 +514,16 @@ class MainWindow(QtWidgets.QMainWindow):
             message = full_message
             if end == '\n':
                 message += '\n'
-            # Append to log panel
-            self.logTextWidget.moveCursor(QtGui.QTextCursor.End)
-            self.logTextWidget.insertPlainText(message)
-            self.logTextWidget.moveCursor(QtGui.QTextCursor.End)
+            scrollbar = self.logTextWidget.verticalScrollBar()
+            prev_value = scrollbar.value()
+            at_bottom = prev_value >= scrollbar.maximum()
+            cursor = self.logTextWidget.textCursor()
+            cursor.movePosition(QtGui.QTextCursor.End)
+            cursor.insertText(message)
+            if at_bottom:
+                scrollbar.setValue(scrollbar.maximum())
+            else:
+                scrollbar.setValue(min(prev_value, scrollbar.maximum()))
             # Process events so log updates in real-time during loops
             QtCore.QCoreApplication.processEvents()
 
