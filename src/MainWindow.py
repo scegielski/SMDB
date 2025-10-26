@@ -38,6 +38,7 @@ import random
 import requests
 import stat
 import time
+import sys
 from pymediainfo import MediaInfo
 import re
 from pprint import pprint
@@ -497,15 +498,21 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def output(self, *args, **kwargs):
         """Output function that replaces print() - outputs to both console and log panel"""
-        # Print to console (original behavior)
-        print(*args, **kwargs)
-        
+        sep = kwargs.pop('sep', ' ')
+        end = kwargs.pop('end', '\n')
+        file = kwargs.pop('file', sys.stdout)
+        flush = kwargs.pop('flush', False)
+
+        message_body = sep.join(str(arg) for arg in args)
+        timestamp = datetime.datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
+        full_message = f"{timestamp} {message_body}" if message_body else timestamp
+
+        print(full_message, end=end, file=file, flush=flush)
+
         # Also append to log panel if it exists
         if self.logTextWidget is not None:
-            # Convert args to string
-            message = ' '.join(str(arg) for arg in args)
-            # Add newline if not disabled by end parameter
-            if kwargs.get('end', '\n') == '\n':
+            message = full_message
+            if end == '\n':
                 message += '\n'
             # Append to log panel
             self.logTextWidget.moveCursor(QtGui.QTextCursor.End)
