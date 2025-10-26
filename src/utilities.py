@@ -240,7 +240,6 @@ def runFile(file):
         win_path = os.path.abspath(file)
         # Convert WSL path to Windows path
         try:
-            import subprocess
             completed = subprocess.run(["wslpath", "-w", win_path], capture_output=True, text=True)
             if completed.returncode == 0:
                 win_path = completed.stdout.strip()
