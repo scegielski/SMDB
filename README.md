@@ -29,6 +29,12 @@ SMDB is a PyQt5 desktop application for browsing and maintaining a local movie l
 
 Application settings (window layout, filters, last-selected folders, etc.) are saved through Qt's `QSettings` and reused on subsequent launches.
 
+## Prebuilt Executables
+- Prebuilt binaries are included under `dist/` — no Python install required.
+- Windows: `dist/windows/SMDB-onefile/SMDB.exe` — double‑click or run from a terminal.
+- Linux: `dist/linux/SMDB-onefile/SMDB` — if needed run `chmod +x SMDB` and then `./SMDB`.
+- Notes: Builds are unsigned (Windows SmartScreen may prompt). On Linux, ensure the Qt/XCB libraries from the prerequisites are present.
+
 ## Collections and Metadata
 - Text files inside `smdb/collections/` define curated sets such as Noir or Criterion; drop your own lists in the same format to extend the filter menu.
 - Movie metadata is cached in `.smdb` JSON files next to your media. Existing files are read with `utilities.readSmdbFile`, and the app supplements missing details by querying online APIs when possible.
