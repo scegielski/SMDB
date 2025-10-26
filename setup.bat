@@ -88,5 +88,17 @@ echo.
 echo [setup] Done. To activate the venv in cmd:
 echo   call "%VENV_DIR%\Scripts\activate.bat"
 
-exit /b 0
+set "MAKE_SCRIPT=MakeExe.bat"
+if exist "%MAKE_SCRIPT%" (
+  echo.
+  set "RUN_BUILD="
+  set /P RUN_BUILD=Run %MAKE_SCRIPT% now to build executables? [y/N]:
+  if /I "!RUN_BUILD!"=="Y" (
+    echo Launching %MAKE_SCRIPT%...
+    call "%MAKE_SCRIPT%"
+  ) else (
+    echo Skipping executable build.
+  )
+)
 
+exit /b 0

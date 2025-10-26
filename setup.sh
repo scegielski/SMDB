@@ -83,9 +83,12 @@ fi
 
 echo "Dependencies installed successfully inside ${VENV_DIR}."
 
+MAKE_EXE="$PWD/MakeExe.sh"
+
 if [[ "${OS:-}" == "Windows_NT" ]]; then
   ACTIVATE_SCRIPT="${VENV_DIR}/Scripts/activate"
   ACTIVATE_HINT="To activate run: ${VENV_DIR}\\\\Scripts\\\\activate.bat (cmd) or ${VENV_DIR}\\\\Scripts\\\\Activate.ps1 (PowerShell)"
+  MAKE_EXE="$PWD/MakeExe.bat"
 else
   ACTIVATE_SCRIPT="${VENV_DIR}/bin/activate"
   ACTIVATE_HINT="To activate run: source ${VENV_DIR}/bin/activate"
@@ -101,4 +104,21 @@ if [[ -f "${ACTIVATE_SCRIPT}" ]]; then
   fi
 else
   echo "Warning: activation script not found at ${ACTIVATE_SCRIPT}." >&2
+fi
+
+if [[ -f "${MAKE_EXE}" ]]; then
+  echo
+  read -r -p "Run $(basename "${MAKE_EXE}") now to build executables? [y/N]: " run_make
+  case "${run_make}" in
+    [yY][eE][sS]|[yY])
+      if [[ "${MAKE_EXE}" == *.bat ]]; then
+        cmd.exe /c "\"${MAKE_EXE}\""
+      else
+        bash "${MAKE_EXE}"
+      fi
+      ;;
+    *)
+      echo "Skipping executable build."
+      ;;
+  esac
 fi
