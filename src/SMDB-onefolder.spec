@@ -1,4 +1,4 @@
-# -*- mode: python ; coding: utf-8 -*-
+﻿# -*- mode: python ; coding: utf-8 -*-
 
 import os
 from glob import glob
@@ -19,7 +19,7 @@ collections_glob = os.path.join(REPO_ROOT, 'src', 'collections', '*')
 datas += [(path, 'collections') for path in glob(collections_glob) if os.path.isfile(path)]
 
 a = Analysis(
-    [os.path.join(REPO_ROOT, 'run.py')],
+    [os.path.join(REPO_ROOT, 'src', '__main__.py')],
     pathex=[REPO_ROOT],
     binaries=[],
     datas=datas,
@@ -61,3 +61,4 @@ coll = COLLECT(
     upx_exclude=[],
     name='SMDB-onedir',
 )
+

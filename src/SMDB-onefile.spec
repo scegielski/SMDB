@@ -1,4 +1,4 @@
-# PyInstaller one-file build spec for SMDB
+﻿# PyInstaller one-file build spec for SMDB
 # Note: For bundled data (e.g., 'collections') to be found at runtime
 # in one-file mode, the app code should resolve resources via
 # getattr(sys, '_MEIPASS', os.getcwd()). Without that tweak, defaults
@@ -23,7 +23,7 @@ if os.path.exists(mediainfo_dll):
     binaries.append((mediainfo_dll, '.'))
 
 a = Analysis(
-    [os.path.join(REPO_ROOT, 'run.py')],
+    [os.path.join(REPO_ROOT, 'src', '__main__.py')],
     pathex=[REPO_ROOT],
     binaries=binaries,
     datas=datas,
@@ -56,3 +56,4 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
 )
+

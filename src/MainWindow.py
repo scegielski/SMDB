@@ -1,4 +1,4 @@
-# TODO List
+﻿# TODO List
 # OpenGL cover viewer (wip)
 # color preference
 # Preset layouts
@@ -15,10 +15,10 @@
 # Commands to make stand alone executable.  Run from Console inside PyCharm
 
 # PC
-# pyinstaller --add-data ./src/MediaInfo.dll;. --onefile --noconsole --name SMDB run.py
+# pyinstaller --add-data ./src/MediaInfo.dll;. --onefile --noconsole --name SMDB src/__main__.py
 
 # MAC
-# /Users/House/Library/Python/3.9/bin/pyinstaller --onefile --noconsole --name SMDB run.py
+# /Users/House/Library/Python/3.9/bin/pyinstaller --onefile --noconsole --name SMDB src/__main__.py
 
 
 from PyQt5 import QtGui, QtWidgets, QtCore
@@ -3108,7 +3108,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         jsonYear = int(jsonData['year'])
                     except ValueError:
                         jy = jsonData['year']
-                        jy = jy.split('–')[0]
+                        jy = jy.split('â€“')[0]
                         self.output(f"jy={jy}")
                         jsonYear = int(jy)
                     except:
@@ -3798,10 +3798,10 @@ class MainWindow(QtWidgets.QMainWindow):
         title = title.replace('&', 'and')
         title = title.replace("'", "")
         title = title.replace("`", "")
-        title = title.replace("’", "")
+        title = title.replace("â€™", "")
         title = title.replace("...", "")
         title = title.replace("-", " ")
-        title = title.replace("—", " ")
+        title = title.replace("â€”", " ")
         title = title.replace("(", "")
         title = title.replace(")", "")
         title = title.encode('ascii', 'replace').decode()
@@ -4633,7 +4633,7 @@ class MainWindow(QtWidgets.QMainWindow):
         }
 
         try:
-            self.statusBar().showMessage("Searching OpenSubtitles…", 5000)
+            self.statusBar().showMessage("Searching OpenSubtitlesâ€¦", 5000)
             r = requests.get("https://api.opensubtitles.com/api/v1/subtitles", params=params, headers=headers, timeout=20)
             if r.status_code == 403:
                 # Allow user to provide a valid API key, then retry once
@@ -4892,3 +4892,4 @@ class MainWindow(QtWidgets.QMainWindow):
             foldersToDelete.append(moviePath)
 
         removeFolders(self, foldersToDelete)
+
