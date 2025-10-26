@@ -1314,6 +1314,16 @@ class MainWindow(QtWidgets.QMainWindow):
 
         moviesFolders = [self.moviesFolder]
         moviesFolders += self.additionalMoviesFolders
+        start_time = time.monotonic()
+
+        def format_eta(seconds):
+            seconds = max(0, int(round(seconds)))
+            hours, remainder = divmod(seconds, 3600)
+            minutes, secs = divmod(remainder, 60)
+            if hours:
+                return f"{hours:d}:{minutes:02d}:{secs:02d}"
+            return f"{minutes:02d}:{secs:02d}"
+
         def progress_callback(current, total):
             QtCore.QCoreApplication.processEvents()
             if self.isCanceled:
@@ -1325,7 +1335,21 @@ class MainWindow(QtWidgets.QMainWindow):
             self.progressBar.setValue(current_value)
             display_total = original_total if original_total else 0
             display_current = min(current, display_total) if display_total else 0
-            self.statusBar().showMessage(f"{display_current}/{display_total}")
+            elapsed = time.monotonic() - start_time
+            eta_seconds = None
+            if original_total and original_total > 0:
+                processed = min(current + 1, original_total)
+                if processed > 0:
+                    remaining = max(original_total - processed, 0)
+                    if remaining == 0:
+                        eta_seconds = 0
+                    elif elapsed > 0:
+                        eta_seconds = remaining * (elapsed / processed)
+            if eta_seconds is None:
+                eta_text = "estimating..."
+            else:
+                eta_text = f"{format_eta(eta_seconds)} remaining"
+            self.statusBar().showMessage(f"{display_current}/{display_total} ({eta_text})")
 
         model = MoviesTableModel(smdbData,
                                  moviesFolders,
