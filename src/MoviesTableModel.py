@@ -72,7 +72,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                  smdbData,
                  moviesFolders,
                  forceScan=False,
-                 neverScan=False):
+                 neverScan=False,
+                 progress_callback=None):
 
         super().__init__()
 
@@ -87,7 +88,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
         for moviesFolder in moviesFolders:
             if not os.path.exists(moviesFolder):
-                print(f"Error: Movies folder {moviesFolder} does not exist")
+                output(f"Error: Movies folder {moviesFolder} does not exist")
 
         # Either read the list of movies from the smdb data
         # or scan the movies folder(s)
@@ -104,30 +105,41 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                 moviesFolderDict[path] = [folder, path]
         else:
             for moviesFolder in moviesFolders:
+                output(f"Scanning: {moviesFolder} ...")
                 if not os.path.exists(moviesFolder):
                     continue
                 numMovies = 0
+                movieDirs = []
                 with os.scandir(moviesFolder) as files:
                     for f in files:
                         if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
-                            folderName = f.name
-                            moviePath = f.path
-                            key = moviePath
-                            if key in moviesFolderDict:
-                                key = key + "duplicate"
-                            moviesFolderDict[key] = [folderName, moviePath]
-                            numMovies += 1
-                        else:
-                            print("Not adding: %s to movie list" % f.path)
-                print(f"Scanned {numMovies} movies for {moviesFolder}")
+                            movieDirs.append(f)
+                totalMovies = len(movieDirs)
+                for idx, f in enumerate(movieDirs):
+                    folderName = f.name
+                    moviePath = f.path
+                    key = moviePath
+                    if key in moviesFolderDict:
+                        key = key + "duplicate"
+                    moviesFolderDict[key] = [folderName, moviePath]
+                    numMovies += 1
+                    if forceScan and progress_callback:
+                        progress_callback(idx, totalMovies)
+                output(f"Scanned {numMovies} movies for {moviesFolder}")
 
-        for key in moviesFolderDict.keys():
+        totalFolders = len(moviesFolderDict)
+        for idx, key in enumerate(moviesFolderDict.keys()):
             movieFolderName = moviesFolderDict[key][0]
             moviePath = moviesFolderDict[key][1]
             data = {}
             if useSmdbData:
                 data = smdbData['titles'][moviePath]
             else:
+                if (forceScan):
+                    output(f"Processing movie folder: {movieFolderName} at {moviePath}")
+                    if progress_callback:
+                        progress_callback(idx, totalFolders)
+
                 jsonFile = os.path.join(moviePath,
                                         '%s.json' % movieFolderName)
                 if os.path.exists(jsonFile):
@@ -135,7 +147,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                         try:
                             data = json.load(f)
                         except UnicodeDecodeError:
-                            print("Error reading %s" % jsonFile)
+                            output("Error reading %s" % jsonFile)
 
             movieData = self.createMovieData(data,
                                              moviePath,
@@ -192,7 +204,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                     if os.path.exists(jsonFile):
                         movieData.append("True")
                     else:
-                        print(f"jsonFile {jsonFile} does not exist")
+                        output(f"jsonFile {jsonFile} does not exist")
                         movieData.append("False")
                 else:
                     movieData.append("")
@@ -202,7 +214,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                     if os.path.exists(coverFile):
                         movieData.append("True")
                     else:
-                        print(f"coverFile {coverFile} does not exist")
+                        output(f"coverFile {coverFile} does not exist")
                         movieData.append("False")
                 else:
                     movieData.append("")
@@ -330,7 +342,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                 try:
                     data = json.load(f)
                 except UnicodeDecodeError:
-                    print("Error reading %s" % jsonFile)
+                    output("Error reading %s" % jsonFile)
         self.setMovieData(row, data, moviePath, movieFolderName)
 
     def setMovieData(self, row, data, moviePath, movieFolderName):

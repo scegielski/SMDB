@@ -58,6 +58,9 @@ class MainWindow(QtWidgets.QMainWindow):
         super(MainWindow, self).__init__()
 
         self.numVisibleMovies = 0
+        
+        # Initialize log panel text widget reference (will be created later in UI setup)
+        self.logTextWidget = None
 
         # Create IMDB database
         self.db = IMDb()
@@ -128,6 +131,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.showWatchList = self.settings.value('showWatchList', False, type=bool)
         self.showBackupList = self.settings.value('showBackupList', False, type=bool)
         self.showHistoryList = self.settings.value('showHistoryList', False, type=bool)
+        self.showLog = self.settings.value('showLog', True, type=bool)
 
         # Default state of cancel button
         self.isCanceled = False
@@ -147,10 +151,15 @@ class MainWindow(QtWidgets.QMainWindow):
         mainVLayout = QtWidgets.QVBoxLayout()
         centralWidget.setLayout(mainVLayout)
 
+        # Create a vertical splitter to separate main content from log panel
+        self.mainContentLogSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
+        self.mainContentLogSplitter.setHandleWidth(10)
+        mainVLayout.addWidget(self.mainContentLogSplitter)
+
         # Main H Splitter for filter, movies list, and cover/info
         self.mainHSplitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
         self.mainHSplitter.setHandleWidth(10)
-        mainVLayout.addWidget(self.mainHSplitter)
+        self.mainContentLogSplitter.addWidget(self.mainHSplitter)
 
         # Splitter for filters
         self.filtersVSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
@@ -382,6 +391,36 @@ class MainWindow(QtWidgets.QMainWindow):
         sizes = [int(x) for x in self.settings.value('mainHSplitterSizes', [270, 750, 800], type=list)]
         self.mainHSplitter.setSizes(sizes)
 
+        # Log Panel
+        self.logWidget = QtWidgets.QFrame()
+        self.logWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
+        self.logWidget.setLineWidth(5)
+        self.logWidget.setStyleSheet(f"background: {self.bgColorB};"
+                                     f"border-radius: 10px;")
+        logVLayout = QtWidgets.QVBoxLayout()
+        self.logWidget.setLayout(logVLayout)
+        
+        logLabel = QtWidgets.QLabel("Log")
+        logVLayout.addWidget(logLabel)
+        
+        self.logTextWidget = QtWidgets.QTextEdit()
+        self.logTextWidget.setReadOnly(True)
+        self.logTextWidget.setStyleSheet(f"background: {self.bgColorC};"
+                                        f"color: {self.fgColor};"
+                                        f"font-size: {self.fontSize}px;")
+        logVLayout.addWidget(self.logTextWidget)
+        
+        # Set the global output function so all modules can use it
+        set_output_function(self.output)
+        
+        self.mainContentLogSplitter.addWidget(self.logWidget)
+        if not self.showLog:
+            self.logWidget.hide()
+        
+        # Set sizes for content/log splitter (main content gets most space, log gets smaller portion)
+        contentLogSizes = [int(x) for x in self.settings.value('mainContentLogSplitterSizes', [700, 150], type=list)]
+        self.mainContentLogSplitter.setSizes(contentLogSizes)
+
         # Bottom
         # Create bottom layout without parenting to QMainWindow
         bottomLayout = QtWidgets.QHBoxLayout()
@@ -449,6 +488,25 @@ class MainWindow(QtWidgets.QMainWindow):
         self.showCoverFile(None)
         self.movieInfoListView.clear()
 
+    def output(self, *args, **kwargs):
+        """Output function that replaces print() - outputs to both console and log panel"""
+        # Print to console (original behavior)
+        print(*args, **kwargs)
+        
+        # Also append to log panel if it exists
+        if self.logTextWidget is not None:
+            # Convert args to string
+            message = ' '.join(str(arg) for arg in args)
+            # Add newline if not disabled by end parameter
+            if kwargs.get('end', '\n') == '\n':
+                message += '\n'
+            # Append to log panel
+            self.logTextWidget.moveCursor(QtGui.QTextCursor.End)
+            self.logTextWidget.insertPlainText(message)
+            self.logTextWidget.moveCursor(QtGui.QTextCursor.End)
+            # Process events so log updates in real-time during loops
+            QtCore.QCoreApplication.processEvents()
+
     def wheelEvent(self, event):
         dy = event.angleDelta().y()
         self.changeFontSize(1 if dy > 0 else (-1 if dy < 0 else 0))
@@ -459,7 +517,7 @@ class MainWindow(QtWidgets.QMainWindow):
         mods = QtWidgets.QApplication.keyboardModifiers()
         if not (mods & QtCore.Qt.ControlModifier):
             if self._debugZoom:
-                print(f"zoom: ignored (no Ctrl). mods={int(mods)} raw={delta}")
+                self.output(f"zoom: ignored (no Ctrl). mods={int(mods)} raw={delta}")
             return
 
         # Normalize to step of -1, 0, or +1
@@ -467,17 +525,17 @@ class MainWindow(QtWidgets.QMainWindow):
         delta = -1 if delta < 0 else (1 if delta > 0 else 0)
 
         if self._debugZoom:
-            print(f"zoom: mods={int(mods)} raw={raw} norm={delta} font={self.fontSize}")
+            self.output(f"zoom: mods={int(mods)} raw={raw} norm={delta} font={self.fontSize}")
 
         # Avoid redundant updates at bounds
         if (self.fontSize <= 6 and delta < 0) or (self.fontSize >= 29 and delta > 0):
             if self._debugZoom:
-                print("zoom: at bound, no change")
+                self.output("zoom: at bound, no change")
             return
 
         self.setFontSize(self.fontSize + delta)
         if self._debugZoom:
-            print(f"zoom: new font={self.fontSize}")
+            self.output(f"zoom: new font={self.fontSize}")
 
     def setFontSize(self, fontSize):
         self.fontSize = max(6, min(29, fontSize))
@@ -510,6 +568,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.primaryFilterWidget.filterTable.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
         self.secondaryFilterWidget.filterTable.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+        
+        # Update log panel font size if it exists
+        if self.logTextWidget is not None:
+            self.logTextWidget.setStyleSheet(f"background: {self.bgColorC};"
+                                             f"color: {self.fgColor};"
+                                             f"font-size: {self.fontSize}px;")
 
 
     def clearSettings(self):
@@ -518,6 +582,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
         self.settings.setValue('geometry', self.geometry())
         self.settings.setValue('mainHSplitterSizes', self.mainHSplitter.sizes())
+        self.settings.setValue('mainContentLogSplitterSizes', self.mainContentLogSplitter.sizes())
         self.settings.setValue('coverInfoHSplitterSizes', self.coverInfoHSplitter.sizes())
         self.settings.setValue('coverSummaryVSplitterSizes', self.coverSummaryVSplitter.sizes())
         self.settings.setValue('moviesWatchListBackupVSplitterSizes', self.moviesWatchListBackupVSplitter.sizes())
@@ -532,6 +597,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings.setValue('showWatchList', self.showWatchList)
         self.settings.setValue('showHistoryList', self.showHistoryList)
         self.settings.setValue('showBackupList', self.showBackupList)
+        self.settings.setValue('showLog', self.showLog)
         self.settings.setValue('fontSize', self.fontSize)
 
         self.saveTableColumns('moviesTable', self.moviesTableView, self.moviesTableColumnsVisible)
@@ -673,6 +739,12 @@ class MainWindow(QtWidgets.QMainWindow):
         showSummaryAction.setChecked(self.showSummary)
         showSummaryAction.triggered.connect(self.showSummaryMenu)
         viewMenu.addAction(showSummaryAction)
+
+        showLogAction = QtWidgets.QAction("Show Log", self)
+        showLogAction.setCheckable(True)
+        showLogAction.setChecked(self.showLog)
+        showLogAction.triggered.connect(self.showLogMenu)
+        viewMenu.addAction(showLogAction)
 
         restoreDefaultWindowsAction = QtWidgets.QAction("Restore default window configuration", self)
         restoreDefaultWindowsAction.triggered.connect(self.restoreDefaultWindows)
@@ -1237,10 +1309,16 @@ class MainWindow(QtWidgets.QMainWindow):
 
         moviesFolders = [self.moviesFolder]
         moviesFolders += self.additionalMoviesFolders
+        def progress_callback(current, total):
+            self.progressBar.setMaximum(total)
+            self.progressBar.setValue(current)
+            self.statusBar().showMessage(f"{current}/{total}")
+
         model = MoviesTableModel(smdbData,
                                  moviesFolders,
                                  forceScan,
-                                 neverScan)
+                                 neverScan,
+                                 progress_callback if forceScan else None)
 
         # If there is no smdb file and neverScan is False (as it
         # is for the main movie list) then write a new smdb file
@@ -1456,15 +1534,15 @@ class MainWindow(QtWidgets.QMainWindow):
                         newFolderName += t
 
                     if newFolderName == folderName:
-                        print(f"Skipping. New name same as old name: {newFolderName}")
+                        self.output(f"Skipping. New name same as old name: {newFolderName}")
                         continue
                     newFolderPath = os.path.join(parentPath, newFolderName)
                     if os.path.exists(newFolderPath) or newFolderName in renamedFolders:
                         newFolderName = newFolderName + '2'
                         newFolderPath = newFolderPath + '2'
-                        print(f"Duplicate folder renamed to: {newFolderName}")
+                        self.output(f"Duplicate folder renamed to: {newFolderName}")
                     renamedFolders.add(newFolderName)
-                    print(f"Renaming folder: \"{folderPath}\"    to    \"{newFolderPath}\"")
+                    self.output(f"Renaming folder: \"{folderPath}\"    to    \"{newFolderPath}\"")
 
                     with os.scandir(f.path) as childFiles:
                         for c in childFiles:
@@ -1472,32 +1550,32 @@ class MainWindow(QtWidgets.QMainWindow):
                             if extension == '.mp4' or extension == '.srt' or extension == '.mkv':
                                 newFilePath = os.path.join(folderPath, newFolderName + extension)
                                 if c.path != newFilePath:
-                                    print(f"\tRenaming file: {c.path} to {newFilePath}")
+                                    self.output(f"\tRenaming file: {c.path} to {newFilePath}")
                                     try:
                                         os.rename(c.path, newFilePath)
                                     except FileExistsError:
-                                        print(f"Can't Rename file {c.path, newFilePath}")
+                                        self.output(f"Can't Rename file {c.path, newFilePath}")
                                         continue
                             elif extension == '.jpg':
                                 try:
-                                    print(f"\tRemoving file: {c.path}")
+                                    self.output(f"\tRemoving file: {c.path}")
                                     os.remove(c.path)
                                 except:
-                                    print(f"\tCould not remove file: {c.path}")
+                                    self.output(f"\tCould not remove file: {c.path}")
                             else:
-                                print(f"\tNot touching file: {c.path}")
+                                self.output(f"\tNot touching file: {c.path}")
 
                     try:
                         os.rename(folderPath, newFolderPath)
                     except FileExistsError:
-                        print(f"Can't Rename folder {folderPath, newFolderPath}")
+                        self.output(f"Can't Rename folder {folderPath, newFolderPath}")
                         continue
                 else:
                     rejectedFolders.add(folderPath)
                     foldersRejected += 1
         for f in rejectedFolders:
-            print(f"Rejected folder: {f}")
-        print(f"foldersRenamed={foldersRenamed} foldersRejected={foldersRejected}")
+            self.output(f"Rejected folder: {f}")
+        self.output(f"foldersRenamed={foldersRenamed} foldersRejected={foldersRejected}")
 
     def setTitleBar(self):
         additionalMoviesFoldersString = ""
@@ -1526,7 +1604,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.collectionsFolder = collectionsFolder
             self.settings.setValue('collections_folder', self.collectionsFolder)
             self.setTitleBar()
-            print("Saved: collectionsFolder = %s" % self.collectionsFolder)
+            self.output("Saved: collectionsFolder = %s" % self.collectionsFolder)
             self.refreshCollectionsList()
 
     def refreshCollectionsList(self):
@@ -1547,7 +1625,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.moviesFolder = moviesFolder
             self.settings.setValue('movies_folder', self.moviesFolder)
             self.setTitleBar()
-            print("Saved: moviesFolder = %s" % self.moviesFolder)
+            self.output("Saved: moviesFolder = %s" % self.moviesFolder)
             self.moviesSmdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
             readSmdbFile(self.moviesSmdbFile)
             self.refreshMoviesList()
@@ -1566,7 +1644,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.additionalMoviesFolders.append(additionalMoviesFolder)
             self.setTitleBar()
             self.settings.setValue('additional_movies_folders', self.additionalMoviesFolders)
-            print("Saved: additionalMoviesFolder = %s" % additionalMoviesFolder)
+            self.output("Saved: additionalMoviesFolder = %s" % additionalMoviesFolder)
 
     def clearAdditionalMoviesFolders(self):
         self.additionalMoviesFolders = []
@@ -1624,14 +1702,14 @@ class MainWindow(QtWidgets.QMainWindow):
             try:
                 data = ujson.load(f)
             except UnicodeDecodeError:
-                print("Error reading %s" % jsonFile)
+                self.output("Error reading %s" % jsonFile)
 
         data["size"] = folderSize
         try:
             with open(jsonFile, "w") as f:
                 ujson.dump(data, f, indent=4)
         except:
-            print("Error writing json file: %s" % jsonFile)
+            self.output("Error writing json file: %s" % jsonFile)
 
         self.moviesTableModel.setSize(sourceIndex, folderSize)
 
@@ -1691,7 +1769,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     channels = track.channel_s
             return width, height, channels
         else:
-            print("No movie files in %s" % moviePath)
+            self.output("No movie files in %s" % moviePath)
         return 0, 0, 0
 
     def getMovieFileInfo(self, sourceIndex, moviePath, movieFolderName):
@@ -1709,7 +1787,7 @@ class MainWindow(QtWidgets.QMainWindow):
             try:
                 data = ujson.load(f)
             except UnicodeDecodeError:
-                print("Error reading %s" % jsonFile)
+                self.output("Error reading %s" % jsonFile)
 
         data["width"] = width
         data["height"] = height
@@ -1724,7 +1802,7 @@ class MainWindow(QtWidgets.QMainWindow):
             with open(jsonFile, "w") as f:
                 ujson.dump(data, f, indent=4)
         except:
-            print("Error writing json file: %s" % jsonFile)
+            self.output("Error writing json file: %s" % jsonFile)
         pass
 
     def getMovieFilesInfo(self):
@@ -1787,7 +1865,7 @@ class MainWindow(QtWidgets.QMainWindow):
             with os.scandir(moviePath) as files:
                 for f in files:
                     if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
-                        print(f"Movie: {moviePath} contains other movie: {f.name}")
+                        self.output(f"Movie: {moviePath} contains other movie: {f.name}")
 
         self.moviesTableModel.changedLayout()
         self.progressBar.setValue(0)
@@ -1913,7 +1991,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         destFileSize = os.path.getsize(fullDestPath)
                     sourceFileSize = sourceFilesAndSizes[f]
                     if sourceFileSize != destFileSize:
-                        print(f'{title} file size difference.  File:{f} Source={sourceFileSize} Dest={destFileSize}')
+                        self.output(f'{title} file size difference.  File:{f} Source={sourceFileSize} Dest={destFileSize}')
                         self.backupListTableModel.setBackupStatus(sourceIndex, "File Size Difference")
                         replaceFolder = True
                         break
@@ -1924,7 +2002,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     # Check if the destination file exists
                     fullSourcePath = os.path.join(sourcePath, f)
                     if not os.path.exists(fullSourcePath):
-                        print(f'missing source file {fullDestPath}')
+                        self.output(f'missing source file {fullDestPath}')
                         self.backupListTableModel.setBackupStatus(sourceIndex, "Files Missing (Source)")
                         replaceFolder = True
                         break
@@ -2137,7 +2215,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         estimatedMinutesRemaining = (estimatedSecondsRemaining // 60) % 60
                         estimatedHoursRemaining = estimatedSecondsRemaining // 3600
             except Exception as e:
-                print(f"Problem copying movie: {title} - {e}")
+                self.output(f"Problem copying movie: {title} - {e}")
 
         self.backupListTableModel.changedLayout()
         self.statusBar().showMessage("Done")
@@ -2260,7 +2338,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 try:
                     jsonData = ujson.load(f)
                 except UnicodeDecodeError:
-                    print("Error reading %s" % jsonFile)
+                    self.output("Error reading %s" % jsonFile)
         else:
             self.summary.clear()
 
@@ -2339,7 +2417,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
             # Get Summary
             title = self.moviesTableModel.getTitle(sourceRow)
-            print(f"Searching plot for {title}")
+            self.output(f"Searching plot for {title}")
             moviePath = self.moviesTableModel.getPath(sourceRow)
             folderName = self.moviesTableModel.getFolderName(sourceRow)
             moviePath = self.findMovie(moviePath, folderName)
@@ -2352,7 +2430,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     try:
                         jsonData = ujson.load(f)
                     except UnicodeDecodeError:
-                        print("Error reading %s" % jsonFile)
+                        self.output("Error reading %s" % jsonFile)
 
             summary = self.getPlot(jsonData)
 
@@ -2360,7 +2438,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 if not plotsRegex.match(summary) and not plotsRegex.match(title):
                     self.moviesTableView.hideRow(proxyRow)
             except TypeError:
-                print(f"TypeError when searching plot for movie: {title}")
+                self.output(f"TypeError when searching plot for movie: {title}")
                 self.moviesTableView.hideRow(proxyRow)
 
             progress += 1
@@ -2457,6 +2535,14 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.summary.hide()
             else:
                 self.summary.show()
+
+    def showLogMenu(self):
+        if self.logWidget:
+            self.showLog = not self.showLog
+            if not self.showLog:
+                self.logWidget.hide()
+            else:
+                self.logWidget.show()
 
     def movieInfoSelectionChanged(self):
         if len(self.movieInfoListView.selectedItems()) == 0:
@@ -2755,7 +2841,7 @@ class MainWindow(QtWidgets.QMainWindow):
         d['title'] = getMovieKey(movie, 'Title')
         d['id'] = getMovieKey(movie, 'imdbID')
         if d['id'] is None:
-            print(f"Movie: {d['title']} has no imdbId")
+            self.output(f"Movie: {d['title']} has no imdbId")
         else:
             d['id'] = d['id'].replace('tt', '')
         d['kind'] = getMovieKey(movie, 'Type')
@@ -2784,7 +2870,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 import ujson
                 ujson.dump(d, f, indent=4)
         except Exception as e:
-            print(f"Error writing JSON file '{jsonFile}': {e}")
+            self.output(f"Error writing JSON file '{jsonFile}': {e}")
 
     def writeSmdbFile(self, fileName, model, titlesOnly=False):
         titles = {}
@@ -2832,7 +2918,7 @@ class MainWindow(QtWidgets.QMainWindow):
             folderName = model.getFolderName(row)
             moviePath = self.findMovie(moviePath, folderName)
             if not moviePath or not os.path.exists(moviePath):
-                print(f"path does not exist: {moviePath}")
+                self.output(f"path does not exist: {moviePath}")
                 continue
 
             dateModified = datetime.datetime.fromtimestamp(pathlib.Path(moviePath).stat().st_mtime)
@@ -2845,7 +2931,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 try:
                     jsonData = ujson.load(f)
                 except UnicodeDecodeError:
-                    print("Error reading %s" % jsonFile)
+                    self.output("Error reading %s" % jsonFile)
                     continue
 
             if 'title' in jsonData and 'year' in jsonData:
@@ -2876,7 +2962,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     except ValueError:
                         jy = jsonData['year']
                         jy = jy.split('–')[0]
-                        print(f"jy={jy}")
+                        self.output(f"jy={jy}")
                         jsonYear = int(jy)
                     except:
                         jsonYear = 0
@@ -3106,10 +3192,10 @@ class MainWindow(QtWidgets.QMainWindow):
             with open(jsonFile, "w", encoding="utf-8") as f:
                 ujson.dump(d, f, indent=4)
         except Exception as e:
-            print(f"Error writing json file: {e}")
+            self.output(f"Error writing json file: {e}")
 
     def downloadTMDBCover(self, titleYear, imdbId, coverFile):
-        print(f"Trying to download cover for \"{titleYear}\" using TMDB...")
+        self.output(f"Trying to download cover for \"{titleYear}\" using TMDB...")
         if not imdbId:
             m = re.match(r"(.*)\((\d{4})\)", titleYear)
             title = titleYear
@@ -3148,8 +3234,8 @@ class MainWindow(QtWidgets.QMainWindow):
         try:
             urllib.request.urlretrieve(movieCoverUrl, coverFile)
         except Exception as e:
-            print(f"Problem downloading cover from TMDB for \"{titleYear}\" from: {movieCoverUrl} - {e}")
-        print(f"Successfully downloaded cover from TMDB for \"{titleYear}\"")
+            self.output(f"Problem downloading cover from TMDB for \"{titleYear}\" from: {movieCoverUrl} - {e}")
+        self.output(f"Successfully downloaded cover from TMDB for \"{titleYear}\"")
 
     def getTMDBProductionCompanies(self, titleYear, imdbId):
         if not imdbId:
@@ -3278,7 +3364,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
             if doCover:
                 if not 'Poster' in movie:
-                    print("Error: No cover image available")
+                    self.output("Error: No cover image available")
                     return ""
                 movieCoverUrl = movie['Poster']
                 extension = os.path.splitext(movieCoverUrl)[1]
@@ -3287,7 +3373,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 try:
                     urllib.request.urlretrieve(movieCoverUrl, coverFile)
                 except Exception as e:
-                    print(f"Problem downloading cover for \"{titleYear}\" from: {movieCoverUrl} - {e}")
+                    self.output(f"Problem downloading cover for \"{titleYear}\" from: {movieCoverUrl} - {e}")
                     self.downloadTMDBCover(titleYear, imdbId, coverFile)
 
 
@@ -3315,12 +3401,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
         response = requests.get("http://www.omdbapi.com/", params=params)
         if response.status_code != 200:
-            print(f"OMDb request failed for \"{title}\"({year}): {response.status_code}")
+            self.output(f"OMDb request failed for \"{title}\"({year}): {response.status_code}")
             return None
 
         data = response.json()
         if data.get('Response') == 'False':
-            print(f"OMDb error for \"{title}\"({year}): {data.get('Error')}")
+            self.output(f"OMDb error for \"{title}\"({year}): {data.get('Error')}")
             return None
 
         return data
@@ -3333,13 +3419,13 @@ class MainWindow(QtWidgets.QMainWindow):
         try:
             year = int(m.group(2))
         except ValueError:
-            print('Problem converting year to integer for movie: %s' % folderName)
+            self.output('Problem converting year to integer for movie: %s' % folderName)
             return None
 
         splitTitle = splitCamelCase(title)
 
         searchText = ' '.join(splitTitle)
-        print('Searching for: %s' % searchText)
+        self.output('Searching for: %s' % searchText)
 
         foundMovie = False
         for i in range(10):
@@ -3349,14 +3435,14 @@ class MainWindow(QtWidgets.QMainWindow):
                 try:
                     results = self.db.search_movie(searchText)
                 except:
-                    print("Error accessing imdb")
+                    self.output("Error accessing imdb")
                     return None
 
             if results:
                 foundMovie = True
                 break
             else:
-                print(f'Try {i}: No matches for: {searchText}')
+                self.output(f'Try {i}: No matches for: {searchText}')
                 #return None
 
         if not foundMovie:
@@ -3369,7 +3455,7 @@ class MainWindow(QtWidgets.QMainWindow):
             try:
                 self.db.update(movie, info=['main', 'vote details'])
             except Exception as e:
-                print(f'Error updating movie: {res}, {e}')
+                self.output(f'Error updating movie: {res}, {e}')
                 continue
 
             if 'year' in res.data and 'kind' in res.data:
@@ -3377,7 +3463,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 imdbyear = res.data['year']
                 if imdbyear == year and (kind in acceptableKinds):
                     movie = res
-                    print('Found result: %s (%s)' % (movie['title'], movie['year']))
+                    self.output('Found result: %s (%s)' % (movie['title'], movie['year']))
                     break
 
         return movie
@@ -3467,7 +3553,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Find the movie (checks stored path, then searches alternate folders)
         moviePath = self.findMovie(moviePath, folderName)
         if not moviePath:
-            print("Folder doesn't exist")
+            self.output("Folder doesn't exist")
             return
         runFile(moviePath)
 
@@ -3482,7 +3568,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if os.path.exists(moviePath):
             runFile(moviePath)
         else:
-            print("Folder doesn't exist")
+            self.output("Folder doesn't exist")
 
     def backupListAddAllMoviesFrom(self, moviesFolder):
         self.backupListTableModel.layoutAboutToBeChanged.emit()
@@ -3962,7 +4048,7 @@ class MainWindow(QtWidgets.QMainWindow):
             try:
                 data = ujson.load(f)
             except UnicodeDecodeError:
-                print("Error reading %s" % jsonFile)
+                self.output("Error reading %s" % jsonFile)
 
         data["user tags"] = []
 
@@ -3970,7 +4056,7 @@ class MainWindow(QtWidgets.QMainWindow):
             with open(jsonFile, "w") as f:
                 ujson.dump(data, f, indent=4)
         except:
-            print("Error writing json file: %s" % jsonFile)
+            self.output("Error writing json file: %s" % jsonFile)
 
         self.moviesTableModel.setMovieData(sourceRow, data, moviePath, movieFolderName)
 
@@ -3990,7 +4076,7 @@ class MainWindow(QtWidgets.QMainWindow):
             try:
                 data = ujson.load(f)
             except UnicodeDecodeError:
-                print("Error reading %s" % jsonFile)
+                self.output("Error reading %s" % jsonFile)
 
         if "user tags" not in data:
             data["user tags"] = []
@@ -4002,7 +4088,7 @@ class MainWindow(QtWidgets.QMainWindow):
             with open(jsonFile, "w") as f:
                 ujson.dump(data, f, indent=4)
         except:
-            print("Error writing json file: %s" % jsonFile)
+            self.output("Error writing json file: %s" % jsonFile)
 
         self.moviesTableModel.setMovieData(sourceRow, data, moviePath, movieFolderName)
 
@@ -4094,7 +4180,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     destFolder = f.name
                     if destFolder not in sourceFolders:
                         destPath = os.path.join(self.backupFolder, destFolder)
-                        print(f'delete: {destPath}')
+                        self.output(f'delete: {destPath}')
                         destPathsToDelete.append(destPath)
 
         if len(destPathsToDelete) != 0:
@@ -4105,7 +4191,7 @@ class MainWindow(QtWidgets.QMainWindow):
             mb.setDefaultButton(QMessageBox.Cancel)
             if mb.exec() == QMessageBox.Ok:
                 for p in destPathsToDelete:
-                    print(f"Deleting: {p}")
+                    self.output(f"Deleting: {p}")
                     shutil.rmtree(p,
                                   ignore_errors=False,
                                   onerror=handleRemoveReadonly)
@@ -4229,7 +4315,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Find the movie (checks stored path, then searches alternate folders)
         moviePath = self.findMovie(moviePath, folderName)
         if not moviePath:
-            print("Folder doesn't exist")
+            self.output("Folder doesn't exist")
             return
         
         runFile(moviePath)
@@ -4242,14 +4328,14 @@ class MainWindow(QtWidgets.QMainWindow):
         # Find the movie (checks stored path, then searches alternate folders)
         moviePath = self.findMovie(moviePath, folderName)
         if not moviePath:
-            print("Folder doesn't exist")
+            self.output("Folder doesn't exist")
             return
         
         jsonFile = os.path.join(moviePath, '%s.json' % folderName)
         if os.path.exists(jsonFile):
             runFile(jsonFile)
         else:
-            print("jsonFile: %s doesn't exist" % jsonFile)
+            self.output("jsonFile: %s doesn't exist" % jsonFile)
 
     def openMovieImdbPage(self):
         sourceRow = self.getSelectedRow()
