@@ -9,6 +9,13 @@ SMDB is a PyQt5 desktop application for browsing and maintaining a local movie l
 - Maintain watch lists, backup lists, and curated sub-collections (see `smdb/collections/`).
 - Package cross-platform executables with the included PyInstaller specs and helper scripts.
 
+## Prebuilt Executables
+- Prebuilt binaries are included under `dist/` — no Python install required.
+- Windows: `dist/windows/SMDB-onefile/SMDB.exe` — double‑click or run from a terminal.
+- Linux: `dist/linux/SMDB-onefile/SMDB` — if needed run `chmod +x SMDB` and then `./SMDB`.
+- Notes: Builds are unsigned (Windows SmartScreen may prompt). On Linux, ensure the Qt/XCB libraries from the prerequisites are present.
+
+
 ## Prerequisites
 - Python 3.9+ (Python 3.11 works well on all supported platforms).
 - `pip` (installed automatically inside the virtual environment).
@@ -28,12 +35,6 @@ SMDB is a PyQt5 desktop application for browsing and maintaining a local movie l
 4. On first launch, use `File → Set movies folder` to point SMDB at the directory containing your movie files.
 
 Application settings (window layout, filters, last-selected folders, etc.) are saved through Qt's `QSettings` and reused on subsequent launches.
-
-## Prebuilt Executables
-- Prebuilt binaries are included under `dist/` — no Python install required.
-- Windows: `dist/windows/SMDB-onefile/SMDB.exe` — double‑click or run from a terminal.
-- Linux: `dist/linux/SMDB-onefile/SMDB` — if needed run `chmod +x SMDB` and then `./SMDB`.
-- Notes: Builds are unsigned (Windows SmartScreen may prompt). On Linux, ensure the Qt/XCB libraries from the prerequisites are present.
 
 ## Collections and Metadata
 - Text files inside `smdb/collections/` define curated sets such as Noir or Criterion; drop your own lists in the same format to extend the filter menu.
