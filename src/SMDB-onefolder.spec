@@ -10,7 +10,7 @@ REPO_ROOT = os.path.abspath(os.getcwd())
 
 # Bundle MediaInfo.dll if present, IMDb data, and the collections folder
 datas = []
-mediainfo_dll = os.path.join(REPO_ROOT, 'MediaInfo.dll')
+mediainfo_dll = os.path.join(REPO_ROOT, 'src', 'MediaInfo.dll')
 if os.path.exists(mediainfo_dll):
     datas.append((mediainfo_dll, '.'))
 

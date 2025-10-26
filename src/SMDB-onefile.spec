@@ -18,7 +18,7 @@ collections_glob = os.path.join(REPO_ROOT, 'src', 'collections', '*')
 datas += [(path, 'collections') for path in glob(collections_glob) if os.path.isfile(path)]
 
 binaries = []
-mediainfo_dll = os.path.join(REPO_ROOT, 'MediaInfo.dll')
+mediainfo_dll = os.path.join(REPO_ROOT, 'src', 'MediaInfo.dll')
 if os.path.exists(mediainfo_dll):
     binaries.append((mediainfo_dll, '.'))
 

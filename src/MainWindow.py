@@ -15,7 +15,7 @@
 # Commands to make stand alone executable.  Run from Console inside PyCharm
 
 # PC
-# pyinstaller --add-data ./MediaInfo.dll;. --onefile --noconsole --name SMDB run.py
+# pyinstaller --add-data ./src/MediaInfo.dll;. --onefile --noconsole --name SMDB run.py
 
 # MAC
 # /Users/House/Library/Python/3.9/bin/pyinstaller --onefile --noconsole --name SMDB run.py
