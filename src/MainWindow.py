@@ -4462,12 +4462,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Resolve movie path and a target base filename
         moviePath = self.moviesTableModel.getPath(sourceRow)
+        folderName = self.moviesTableModel.getFolderName(sourceRow)
+        moviePath = self.findMovie(moviePath, folderName)
         if not os.path.exists(moviePath):
             QtWidgets.QMessageBox.warning(self, "OpenSubtitles", "Movie folder does not exist on disk.")
             return
 
-        # Use the folder name as the base file name
-        folderName = self.moviesTableModel.getFolderName(sourceRow)
         baseName = str(folderName)
         displayTitle = f"{self.moviesTableModel.getTitle(sourceRow)} ({self.moviesTableModel.getYear(sourceRow)})"
         selecting_mode = (language == 'select')
