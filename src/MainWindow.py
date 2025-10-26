@@ -46,6 +46,7 @@ import zipfile
 import io
 
 from .utilities import *
+from . import __version__
 from .MoviesTableModel import MoviesTableModel, Columns, defaultColumnWidths
 from .MovieCover import MovieCover
 from .FilterWidget import FilterWidget
@@ -451,8 +452,8 @@ class MainWindow(QtWidgets.QMainWindow):
         contentLogSizes = [int(x) for x in self.settings.value('mainContentLogSplitterSizes', [700, 150], type=list)]
         self.mainContentLogSplitter.setSizes(contentLogSizes)
 
-        self.output("Welcome to SMDB")
-
+        self.output(f"Welcome to SMDB v{__version__}")
+        
         # Bottom
         # Create bottom layout without parenting to QMainWindow
         bottomLayout = QtWidgets.QHBoxLayout()
