@@ -36,7 +36,7 @@ Application settings (window layout, filters, last-selected folders, etc.) are s
 
 ## Building Stand-alone Packages
 - `MakeExe.sh` / `MakeExe.bat` wrap PyInstaller to build one-file and one-folder bundles using the specs in `smdb/SMDB-onefile.spec` and `smdb/SMDB-onefolder.spec`.
-- Each build prompts you to choose the target layout and opens the `dist/` output folder when it finishes.
+- Each build prompts you to choose the target layout and opens the platform-specific `dist/<platform>/` output folder when it finishes.
 - PyInstaller ships with the default setup because it is listed in `requirements.txt`; you can re-run the helper scripts anytime after `setup.sh`/`setup.bat`.
 
 ## Development Notes

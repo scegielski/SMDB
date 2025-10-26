@@ -7,6 +7,10 @@ cd /d "%~dp0"
 REM Prefer PyInstaller via local venv Python if present
 set "VENV_PY=.\.venv\Scripts\python.exe"
 
+REM Use a platform-specific dist root (e.g., dist\windows)
+set "PLATFORM_SUBDIR=windows"
+set "DIST_ROOT=dist\%PLATFORM_SUBDIR%"
+if not exist "%DIST_ROOT%" mkdir "%DIST_ROOT%"
 
 echo.
 echo Select build type:
@@ -21,27 +25,33 @@ if "%CHOICE%" NEQ "1" if "%CHOICE%" NEQ "2" if "%CHOICE%" NEQ "3" set "CHOICE=3"
 if "%CHOICE%"=="1" (
   REM Clean only the one-file output
   if exist "dist\SMDB-onefile" rmdir /s /q "dist\SMDB-onefile"
-  call :run_build "smdb\SMDB-onefile.spec" "dist\SMDB-onefile"
-  set "OUT_DIR=dist\SMDB-onefile"
+  if exist "%DIST_ROOT%\SMDB-onefile" rmdir /s /q "%DIST_ROOT%\SMDB-onefile"
+  call :run_build "smdb\SMDB-onefile.spec" "%DIST_ROOT%\SMDB-onefile"
+  set "OUT_DIR=%DIST_ROOT%\SMDB-onefile"
   goto :open_out
 )
 
 if "%CHOICE%"=="2" (
   REM Clean only the onedir output
   if exist "dist\SMDB-onedir" rmdir /s /q "dist\SMDB-onedir"
+  if exist "%DIST_ROOT%\SMDB-onedir" rmdir /s /q "%DIST_ROOT%\SMDB-onedir"
   if exist "dist\SMDB.exe" del /q "dist\SMDB.exe"
-  call :run_build "smdb\SMDB-onefolder.spec" "dist\SMDB-onedir" "SMDB"
-  set "OUT_DIR=dist\SMDB-onedir"
+  if exist "%DIST_ROOT%\SMDB.exe" del /q "%DIST_ROOT%\SMDB.exe"
+  call :run_build "smdb\SMDB-onefolder.spec" "%DIST_ROOT%" "SMDB"
+  set "OUT_DIR=%DIST_ROOT%\SMDB-onedir"
   goto :open_out
 )
 
 REM Default: build both (clean each before its build)
 if exist "dist\SMDB-onefile" rmdir /s /q "dist\SMDB-onefile"
-call :run_build "smdb\SMDB-onefile.spec" "dist\SMDB-onefile" || goto :fail
+if exist "%DIST_ROOT%\SMDB-onefile" rmdir /s /q "%DIST_ROOT%\SMDB-onefile"
+call :run_build "smdb\SMDB-onefile.spec" "%DIST_ROOT%\SMDB-onefile" || goto :fail
 if exist "dist\SMDB-onedir" rmdir /s /q "dist\SMDB-onedir"
 if exist "dist\SMDB.exe" del /q "dist\SMDB.exe"
-call :run_build "smdb\SMDB-onefolder.spec" "dist\SMDB-onedir" "SMDB" || goto :fail
-set "OUT_DIR=dist"
+if exist "%DIST_ROOT%\SMDB-onedir" rmdir /s /q "%DIST_ROOT%\SMDB-onedir"
+if exist "%DIST_ROOT%\SMDB.exe" del /q "%DIST_ROOT%\SMDB.exe"
+call :run_build "smdb\SMDB-onefolder.spec" "%DIST_ROOT%" "SMDB" || goto :fail
+set "OUT_DIR=%DIST_ROOT%"
 goto :open_out
 
 :run_build
@@ -50,7 +60,7 @@ set "SPEC=%~1"
 set "OUT=%~2"
 set "EXENAME=%~3"
 set "DISTARG="
-if defined OUT if not defined EXENAME set "DISTARG=--distpath"
+if defined OUT set "DISTARG=--distpath"
 echo.
 echo Building with %SPEC% ...
 if exist "%VENV_PY%" (
@@ -78,6 +88,7 @@ if errorlevel 1 (
 echo Build succeeded for %SPEC%.
 REM Clean up duplicate top-level EXE left by onedir build
 if defined EXENAME (
+  if exist "%DIST_ROOT%\%EXENAME%.exe" del /q "%DIST_ROOT%\%EXENAME%.exe"
   if exist "dist\%EXENAME%.exe" del /q "dist\%EXENAME%.exe"
 )
 endlocal & exit /b 0

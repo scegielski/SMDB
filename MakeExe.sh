@@ -9,6 +9,16 @@ ROOT="$SCRIPT_DIR"
 VENV_PY="$ROOT/.venv/bin/python"
 PYINSTALLER_CMD=()
 
+uname_out="$(uname -s)"
+case "$uname_out" in
+  Linux) platform_subdir="linux" ;;
+  Darwin) platform_subdir="macos" ;;
+  MINGW*|MSYS*|CYGWIN*) platform_subdir="windows" ;;
+  *) platform_subdir="$(printf '%s' "$uname_out" | tr '[:upper:]' '[:lower:]')" ;;
+esac
+DIST_ROOT="$ROOT/dist/$platform_subdir"
+mkdir -p "$DIST_ROOT"
+
 cd "$ROOT"
 
 run_build() {
@@ -17,7 +27,7 @@ run_build() {
   local exename="${3:-}"
   local -a dist_args=()
 
-  if [[ -n "$out" && -z "$exename" ]]; then
+  if [[ -n "$out" ]]; then
     dist_args=(--distpath "$out")
   fi
 
@@ -53,6 +63,7 @@ run_build() {
   echo "Build succeeded for $spec."
 
   if [[ -n "$exename" ]]; then
+    rm -f "$DIST_ROOT/${exename}.exe" "$DIST_ROOT/${exename}"
     rm -f "dist/${exename}.exe" "dist/${exename}"
   fi
 }
@@ -79,34 +90,38 @@ OUT_DIR=""
 case "$choice" in
   "1")
     rm -rf "dist/SMDB-onefile"
-    if ! run_build "smdb/SMDB-onefile.spec" "dist/SMDB-onefile"; then
+    rm -rf "$DIST_ROOT/SMDB-onefile"
+    if ! run_build "smdb/SMDB-onefile.spec" "$DIST_ROOT/SMDB-onefile"; then
       echo "One or more builds failed."
       exit 1
     fi
-    OUT_DIR="dist/SMDB-onefile"
+    OUT_DIR="$DIST_ROOT/SMDB-onefile"
     ;;
   "2")
     rm -rf "dist/SMDB-onedir"
-    rm -f "dist/SMDB.exe"
-    if ! run_build "smdb/SMDB-onefolder.spec" "dist/SMDB-onedir" "SMDB"; then
+    rm -rf "$DIST_ROOT/SMDB-onedir"
+    rm -f "dist/SMDB.exe" "dist/SMDB" "$DIST_ROOT/SMDB.exe" "$DIST_ROOT/SMDB"
+    if ! run_build "smdb/SMDB-onefolder.spec" "$DIST_ROOT" "SMDB"; then
       echo "One or more builds failed."
       exit 1
     fi
-    OUT_DIR="dist/SMDB-onedir"
+    OUT_DIR="$DIST_ROOT/SMDB-onedir"
     ;;
   *)
     rm -rf "dist/SMDB-onefile"
-    if ! run_build "smdb/SMDB-onefile.spec" "dist/SMDB-onefile"; then
+    rm -rf "$DIST_ROOT/SMDB-onefile"
+    if ! run_build "smdb/SMDB-onefile.spec" "$DIST_ROOT/SMDB-onefile"; then
       echo "One or more builds failed."
       exit 1
     fi
     rm -rf "dist/SMDB-onedir"
-    rm -f "dist/SMDB.exe"
-    if ! run_build "smdb/SMDB-onefolder.spec" "dist/SMDB-onedir" "SMDB"; then
+    rm -rf "$DIST_ROOT/SMDB-onedir"
+    rm -f "dist/SMDB.exe" "dist/SMDB" "$DIST_ROOT/SMDB.exe" "$DIST_ROOT/SMDB"
+    if ! run_build "smdb/SMDB-onefolder.spec" "$DIST_ROOT" "SMDB"; then
       echo "One or more builds failed."
       exit 1
     fi
-    OUT_DIR="dist"
+    OUT_DIR="$DIST_ROOT"
     ;;
 esac
 
