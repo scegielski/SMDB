@@ -479,7 +479,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.moviesTableModel = None
         self.moviesTableProxyModel = None
 
-        self.refreshMoviesList()
+        self.refreshMoviesList(writeToLog=True)
 
         self.primaryFilterWidget.moviesSmdbData = self.moviesSmdbData
         self.primaryFilterWidget.db = self.db
@@ -1347,7 +1347,8 @@ class MainWindow(QtWidgets.QMainWindow):
                      sortColumn,
                      forceScan=False,
                      neverScan=True,
-                     sortAscending=True):
+                     sortAscending=True,
+                     writeToLog=False):
 
         smdbData = dict()
         read_time = None
@@ -1359,7 +1360,8 @@ class MainWindow(QtWidgets.QMainWindow):
             try:
                 if smdbFile == self.moviesSmdbFile and not getattr(self, "_readMoviesSmdbLogged", False):
                     self._lastMoviesSmdbReadSeconds = read_time
-                    self.output(f"Read smdb_data.json in {read_time:.3f}s")
+                    if writeToLog:
+                        self.output(f"Read smdb_data.json in {read_time:.3f}s")
                     self._readMoviesSmdbLogged = True
             except Exception:
                 pass
@@ -1405,11 +1407,16 @@ class MainWindow(QtWidgets.QMainWindow):
                 eta_text = f"{format_eta(eta_seconds)} remaining"
             self.statusBar().showMessage(f"{display_current}/{display_total} ({eta_text})")
 
+        t0 = time.perf_counter()
         model = MoviesTableModel(smdbData,
                                  moviesFolders,
                                  forceScan,
                                  neverScan,
                                  progress_callback if forceScan else None)
+        if writeToLog:
+            create_model_time = time.perf_counter() - t0
+            self.output(f"Created MoviesTableModel in {create_model_time:.3f}s")
+
 
         # If there is no smdb file and neverScan is False (as it
         # is for the main movie list) then write a new smdb file
@@ -1422,12 +1429,17 @@ class MainWindow(QtWidgets.QMainWindow):
         proxyModel.setSourceModel(model)
         tableView.setModel(proxyModel)
 
+        t0 = time.perf_counter()
         if sortAscending:
             proxyModel.sort(sortColumn,
                             QtCore.Qt.AscendingOrder)
         else:
             proxyModel.sort(sortColumn,
                             QtCore.Qt.DescendingOrder)
+
+        if writeToLog:
+            sort_time = time.perf_counter() - t0
+            self.output(f"Sorted movies in {sort_time:.3f}s")
 
         tableView.selectionModel().selectionChanged.connect(
             lambda: self.tableSelectionChanged(tableView,
@@ -1478,9 +1490,10 @@ class MainWindow(QtWidgets.QMainWindow):
             tableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerItem)
             tableView.verticalScrollBar().setSingleStep(5)
 
+        refresh_table_remaining_time = time.perf_counter() - t0
         return smdbData, model, proxyModel, columnsVisible, smdbData
 
-    def refreshMoviesList(self, forceScan=False):
+    def refreshMoviesList(self, forceScan=False, writeToLog=False):
         if forceScan:
             self.isCanceled = False
             self.progressBar.setValue(0)
@@ -1499,7 +1512,8 @@ class MainWindow(QtWidgets.QMainWindow):
                                                       self.moviesTableColumnWidths,
                                                       Columns.Year.value,
                                                       forceScan,
-                                                      neverScan=True)
+                                                      neverScan=True,
+                                                      writeToLog=writeToLog)
         except OperationCanceledError:
             self.statusBar().showMessage("Cancelled")
             self.output("Cancelled")
