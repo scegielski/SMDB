@@ -79,7 +79,7 @@ OUT_DIR=""
 case "$choice" in
   "1")
     rm -rf "dist/SMDB-onefile"
-    if ! run_build "src/SMDB-onefile.spec" "dist/SMDB-onefile"; then
+    if ! run_build "smdb/SMDB-onefile.spec" "dist/SMDB-onefile"; then
       echo "One or more builds failed."
       exit 1
     fi
@@ -88,7 +88,7 @@ case "$choice" in
   "2")
     rm -rf "dist/SMDB-onedir"
     rm -f "dist/SMDB.exe"
-    if ! run_build "src/SMDB-onefolder.spec" "dist/SMDB-onedir" "SMDB"; then
+    if ! run_build "smdb/SMDB-onefolder.spec" "dist/SMDB-onedir" "SMDB"; then
       echo "One or more builds failed."
       exit 1
     fi
@@ -96,13 +96,13 @@ case "$choice" in
     ;;
   *)
     rm -rf "dist/SMDB-onefile"
-    if ! run_build "src/SMDB-onefile.spec" "dist/SMDB-onefile"; then
+    if ! run_build "smdb/SMDB-onefile.spec" "dist/SMDB-onefile"; then
       echo "One or more builds failed."
       exit 1
     fi
     rm -rf "dist/SMDB-onedir"
     rm -f "dist/SMDB.exe"
-    if ! run_build "src/SMDB-onefolder.spec" "dist/SMDB-onedir" "SMDB"; then
+    if ! run_build "smdb/SMDB-onefolder.spec" "dist/SMDB-onedir" "SMDB"; then
       echo "One or more builds failed."
       exit 1
     fi

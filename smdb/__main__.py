@@ -12,7 +12,7 @@ if str(PACKAGE_PARENT) not in sys.path:
 try:
     from .MainWindow import MainWindow
 except ImportError:
-    from src.MainWindow import MainWindow
+    from smdb.MainWindow import MainWindow
 
 def main():
     app = QApplication(sys.argv)

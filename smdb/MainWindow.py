@@ -15,10 +15,10 @@
 # Commands to make stand alone executable.  Run from Console inside PyCharm
 
 # PC
-# pyinstaller --add-data ./src/MediaInfo.dll;. --onefile --noconsole --name SMDB src/__main__.py
+# pyinstaller --add-data ./smdb/MediaInfo.dll;. --onefile --noconsole --name SMDB smdb/__main__.py
 
 # MAC
-# /Users/House/Library/Python/3.9/bin/pyinstaller --onefile --noconsole --name SMDB src/__main__.py
+# /Users/House/Library/Python/3.9/bin/pyinstaller --onefile --noconsole --name SMDB smdb/__main__.py
 
 
 from PyQt5 import QtGui, QtWidgets, QtCore
@@ -65,7 +65,7 @@ def _default_collections_folder():
             candidates.append(os.path.join(meipass, 'collections'))
     here = os.path.dirname(os.path.abspath(__file__))
     repo_root = os.path.abspath(os.path.join(here, os.pardir))
-    candidates.append(os.path.join(repo_root, 'src', 'collections'))
+    candidates.append(os.path.join(repo_root, 'smdb', 'collections'))
     candidates.append(os.path.join(repo_root, 'collections'))
     candidates.append(os.path.join(os.getcwd(), 'collections'))
     candidates.append('collections')
@@ -4892,4 +4892,3 @@ class MainWindow(QtWidgets.QMainWindow):
             foldersToDelete.append(moviePath)
 
         removeFolders(self, foldersToDelete)
-

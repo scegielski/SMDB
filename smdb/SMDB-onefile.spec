@@ -14,16 +14,16 @@ from PyInstaller.building.build_main import Analysis, PYZ, EXE
 REPO_ROOT = os.path.abspath(os.getcwd())
 
 datas = collect_data_files('imdb', include_py_files=False)
-collections_glob = os.path.join(REPO_ROOT, 'src', 'collections', '*')
+collections_glob = os.path.join(REPO_ROOT, 'smdb', 'collections', '*')
 datas += [(path, 'collections') for path in glob(collections_glob) if os.path.isfile(path)]
 
 binaries = []
-mediainfo_dll = os.path.join(REPO_ROOT, 'src', 'MediaInfo.dll')
+mediainfo_dll = os.path.join(REPO_ROOT, 'smdb', 'MediaInfo.dll')
 if os.path.exists(mediainfo_dll):
     binaries.append((mediainfo_dll, '.'))
 
 a = Analysis(
-    [os.path.join(REPO_ROOT, 'src', '__main__.py')],
+    [os.path.join(REPO_ROOT, 'smdb', '__main__.py')],
     pathex=[REPO_ROOT],
     binaries=binaries,
     datas=datas,
@@ -56,4 +56,3 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
 )
-
