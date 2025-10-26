@@ -53,6 +53,28 @@ from .MovieInfoListView import MovieInfoListView
 from .MovieTableView import MovieTableView
 
 
+def _default_collections_folder():
+    candidates = []
+    if getattr(sys, 'frozen', False):
+        exe_dir = os.path.dirname(sys.executable)
+        candidates.append(os.path.join(exe_dir, 'collections'))
+        candidates.append(os.path.join(exe_dir, '_internal', 'collections'))
+        meipass = getattr(sys, '_MEIPASS', None)
+        if meipass:
+            candidates.append(os.path.join(meipass, 'collections'))
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.abspath(os.path.join(here, os.pardir))
+    candidates.append(os.path.join(repo_root, 'src', 'collections'))
+    candidates.append(os.path.join(repo_root, 'collections'))
+    candidates.append(os.path.join(os.getcwd(), 'collections'))
+    candidates.append('collections')
+    candidates.append('./collections')
+    for p in candidates:
+        if os.path.isdir(p):
+            return p
+    return './collections'
+
+
 class OperationCanceledError(Exception):
     """Raised when a long-running task is canceled by the user."""
     pass
@@ -84,10 +106,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.additionalMoviesFolders = self.settings.value('additional_movies_folders', [], type=list)
 
         # Collections for filter by menu
-        self.collections =  []
+        self.collections = []
         self.collectionsFolder = self.settings.value('collections_folder', "", type=str)
         if self.collectionsFolder == "":
-            self.collectionsFolder = './collections'
+            self.collectionsFolder = _default_collections_folder()
         self.refreshCollectionsList()
 
 
