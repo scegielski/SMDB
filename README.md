@@ -11,8 +11,8 @@ SMDB is a PyQt5 desktop application for browsing and maintaining a local movie l
 
 ## Prebuilt Executables
 - Prebuilt binaries are included under `dist/` — no Python install required.
-- Windows: `dist/windows/SMDB-onefile/SMDB.exe` — double‑click or run from a terminal.
-- Linux: `dist/linux/SMDB-onefile/SMDB` — if needed run `chmod +x SMDB` and then `./SMDB`.
+- Windows: `dist/windows/SMDB.exe` — double‑click or run from a terminal.
+- Linux: `dist/linux/SMDB` — if needed run `chmod +x SMDB` and then `./SMDB`.
 - Notes: Builds are unsigned (Windows SmartScreen may prompt). On Linux, ensure the Qt/XCB libraries from the prerequisites are present.
 
 
