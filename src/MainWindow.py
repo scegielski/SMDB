@@ -1430,6 +1430,9 @@ class MainWindow(QtWidgets.QMainWindow):
         if forceScan:
             self.isCanceled = False
             self.progressBar.setValue(0)
+            rescan_start = time.monotonic()
+        else:
+            rescan_start = None
 
         try:
             (self.moviesSmdbData,
@@ -1452,6 +1455,15 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if forceScan:
             self.progressBar.setValue(0)
+            total_seconds = time.monotonic() - rescan_start if rescan_start is not None else 0
+            duration = max(0, int(round(total_seconds)))
+            minutes, secs = divmod(duration, 60)
+            hours, minutes = divmod(minutes, 60)
+            if hours:
+                duration_text = f"{hours:d}:{minutes:02d}:{secs:02d}"
+            else:
+                duration_text = f"{minutes:02d}:{secs:02d}"
+            self.output(f"Rescan completed in {duration_text}")
         self.isCanceled = False
 
         self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
