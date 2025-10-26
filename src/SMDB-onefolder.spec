@@ -5,17 +5,22 @@ from glob import glob
 from PyInstaller.utils.hooks import collect_data_files
 from PyInstaller.building.build_main import COLLECT
 
+# Resolve paths relative to the current working directory (the repo root when using MakeExe.bat)
+REPO_ROOT = os.path.abspath(os.getcwd())
+
 # Bundle MediaInfo.dll if present, IMDb data, and the collections folder
 datas = []
-if os.path.exists('./MediaInfo.dll'):
-    datas.append(('./MediaInfo.dll', '.'))
+mediainfo_dll = os.path.join(REPO_ROOT, 'MediaInfo.dll')
+if os.path.exists(mediainfo_dll):
+    datas.append((mediainfo_dll, '.'))
 
 datas += collect_data_files('imdb', include_py_files=False)
-datas += [(path, 'collections') for path in glob('src/collections/*') if os.path.isfile(path)]
+collections_glob = os.path.join(REPO_ROOT, 'src', 'collections', '*')
+datas += [(path, 'collections') for path in glob(collections_glob) if os.path.isfile(path)]
 
 a = Analysis(
-    ['run.py'],
-    pathex=['.'],
+    [os.path.join(REPO_ROOT, 'run.py')],
+    pathex=[REPO_ROOT],
     binaries=[],
     datas=datas,
     hiddenimports=[],
@@ -54,5 +59,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='SMDB',
+    name='SMDB-onedir',
 )

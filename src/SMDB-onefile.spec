@@ -10,16 +10,21 @@ from glob import glob
 from PyInstaller.utils.hooks import collect_data_files
 from PyInstaller.building.build_main import Analysis, PYZ, EXE
 
+# Resolve paths relative to the current working directory (the repo root when using MakeExe.bat)
+REPO_ROOT = os.path.abspath(os.getcwd())
+
 datas = collect_data_files('imdb', include_py_files=False)
-datas += [(path, 'collections') for path in glob('src/collections/*') if os.path.isfile(path)]
+collections_glob = os.path.join(REPO_ROOT, 'src', 'collections', '*')
+datas += [(path, 'collections') for path in glob(collections_glob) if os.path.isfile(path)]
 
 binaries = []
-if os.path.exists('MediaInfo.dll'):
-    binaries.append(('MediaInfo.dll', '.'))
+mediainfo_dll = os.path.join(REPO_ROOT, 'MediaInfo.dll')
+if os.path.exists(mediainfo_dll):
+    binaries.append((mediainfo_dll, '.'))
 
 a = Analysis(
-    ['run.py'],
-    pathex=['.'],
+    [os.path.join(REPO_ROOT, 'run.py')],
+    pathex=[REPO_ROOT],
     binaries=binaries,
     datas=datas,
     hiddenimports=[],
