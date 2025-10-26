@@ -184,18 +184,28 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                         generateNewRank=False,
                         force=False):
 
+        def _comma_join(items):
+            if not items:
+                return ''
+            return ', '.join(str(item) for item in items if item)
+
         movieData = []
+        title_year_cache = None
+        missing = object()
+
+        list_columns = {
+            Columns.Countries: 'countries',
+            Columns.Companies: 'companies',
+            Columns.Genres: 'genres',
+            Columns.Directors: 'directors',
+            Columns.UserTags: 'user tags',
+        }
+
         for column in Columns:
             if column == Columns.DateModified:
-                if 'date' in data:
-                    movieData.append(data['date'])
-                else:
-                    movieData.append('no date')
+                movieData.append(data['date'] if 'date' in data else 'no date')
             elif column == Columns.DateWatched:
-                if 'date watched' in data:
-                    movieData.append(data['date watched'])
-                else:
-                    movieData.append('no date')
+                movieData.append(data['date watched'] if 'date watched' in data else 'no date')
             elif column == Columns.Path:
                 movieData.append(moviePath)
             elif column == Columns.JsonExists:
@@ -220,7 +230,9 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                     movieData.append("")
             elif column == Columns.SubtitlesExist:
                 if force:
-                    has_srt = any([f.lower().endswith('.srt') for f in os.listdir(moviePath)]) if os.path.exists(moviePath) else False
+                    has_srt = any(
+                        f.lower().endswith('.srt') for f in os.listdir(moviePath)
+                    ) if os.path.exists(moviePath) else False
                     movieData.append("True" if has_srt else "False")
                 else:
                     # Populate from smdb_data.json if available, otherwise blank
@@ -235,80 +247,29 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
             elif column == Columns.Folder:
                 movieData.append(movieFolderName)
             elif column == Columns.Rank and generateNewRank:
-                rank = len(self._data)
-                movieData.append(rank)
-            elif column == Columns.Countries:
-                if 'countries' in data and data['countries']:
-                    countries = ""
-                    for country in data['countries']:
-                        if country == data['countries'][-1]:
-                            countries += '%s' % country
-                        else:
-                            countries += '%s, ' % country
-                    movieData.append(countries)
-                else:
-                    movieData.append('')
-            elif column == Columns.Companies:
-                if 'companies' in data and data['companies']:
-                    companies = ""
-                    for company in data['companies']:
-                        if company == data['companies'][-1]:
-                            companies += '%s' % company
-                        else:
-                            companies += '%s, ' % company
-                    movieData.append(companies)
-                else:
-                    movieData.append('')
-            elif column == Columns.Genres:
-                if 'genres' in data and data['genres']:
-                    genres = ""
-                    for genre in data['genres']:
-                        if genre == data['genres'][-1]:
-                            genres += '%s' % genre
-                        else:
-                            genres += '%s, ' % genre
-                    movieData.append(genres)
-                else:
-                    movieData.append('')
-            elif column == Columns.Directors:
-                if 'directors' in data and data['directors']:
-                    directors = ""
-                    for director in data['directors']:
-                        if director == data['directors'][-1]:
-                            directors += '%s' % director
-                        else:
-                            directors += '%s, ' % director
-                    movieData.append(directors)
-                else:
-                    movieData.append('')
-            elif column == Columns.UserTags:
-                if 'user tags' in data and data['user tags']:
-                    userTags = ""
-                    for userTag in data['user tags']:
-                        if userTag == data['user tags'][-1]:
-                            userTags += '%s' % userTag
-                        else:
-                            userTags += '%s, ' % userTag
-                    movieData.append(userTags)
-                else:
-                    movieData.append('')
+                movieData.append(len(self._data))
+            elif column in list_columns:
+                movieData.append(_comma_join(data.get(list_columns[column])))
             else:
                 # Get a lower case version of the header name
                 # which matches the smdb data keys
                 header = self._headers[column.value]
                 headerLower = header.lower()
-                if headerLower not in data:
+                value = data.get(headerLower, missing)
+                if value is missing:
                     if column == Columns.Title:
-                        title, year = getNiceTitleAndYear(movieFolderName)
-                        movieData.append(title)
+                        if title_year_cache is None:
+                            title_year_cache = getNiceTitleAndYear(movieFolderName)
+                        movieData.append(title_year_cache[0])
                     elif column == Columns.Year:
-                        title, year = getNiceTitleAndYear(movieFolderName)
-                        movieData.append(year)
+                        if title_year_cache is None:
+                            title_year_cache = getNiceTitleAndYear(movieFolderName)
+                        movieData.append(title_year_cache[1])
                     else:
                         movieData.append('')
                 else:
                     if column == Columns.Runtime:
-                        runtime = data[headerLower]
+                        runtime = value
                         if not runtime:
                             runtime = '000'
                         else:
@@ -319,7 +280,7 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                 pass
                         movieData.append(runtime)
                     elif column == Columns.Rating:
-                        rating = data[headerLower]
+                        rating = value
                         if not rating:
                             rating = '0.0'
                         else:
@@ -328,12 +289,9 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                                 rating = '%s.0' % rating
                         movieData.append(rating)
                     elif column == Columns.MpaaRating:
-                        mpaaRating = "No Rating"
-                        if 'mpaa rating' in data and data['mpaa rating']:
-                            mpaaRating = data['mpaa rating']
-                        movieData.append(mpaaRating)
+                        movieData.append(value if value else "No Rating")
                     else:
-                        movieData.append(data[headerLower])
+                        movieData.append(value)
         return movieData
 
     def setMovieDataWithJson(self, row, jsonFile, moviePath, movieFolderName):
