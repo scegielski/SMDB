@@ -4,6 +4,7 @@ from PyQt5.QtGui import QImage
 from OpenGL.GL import *
 from OpenGL.GLU import *
 import numpy as np
+import threading
 
 class CoverFlowGLWidget(QOpenGLWidget):
     import threading
@@ -19,7 +20,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         self._start_async_cache()
 
     def _start_async_cache(self):
-        # Start a background thread to cache covers
+        # Start a background thread to cache covers and their GL textures/geometry
         def cache_worker():
             for offset in range(-self.CACHE_RADIUS, self.CACHE_RADIUS + 1):
                 idx = self._current_index + offset
@@ -32,15 +33,19 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 if cover_path:
                     image = QImage(cover_path)
                     texture_id = None
+                    quad_geom = None
                     if not image.isNull():
                         texture_id = self.createTextureFromQImage(image)
+                        # Precompute quad geometry (width, height, aspect)
+                        aspect = image.width() / image.height() if image.height() != 0 else 1.0
+                        quad_geom = (aspect, image.width(), image.height())
                     with self.QMutexLocker(self._cover_cache_mutex):
-                        self._cover_cache[idx] = (image, texture_id)
+                        self._cover_cache[idx] = (image, texture_id, quad_geom)
         threading.Thread(target=cache_worker, daemon=True).start()
 
     def getCachedCover(self, idx):
         with self.QMutexLocker(self._cover_cache_mutex):
-            return self._cover_cache.get(idx, (None, None))
+            return self._cover_cache.get(idx, (None, None, None))
 
 
     def _store_prev_cover(self):
@@ -61,7 +66,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
     def timerEvent(self, event):
         if getattr(self, '_animating', False):
             # Use elapsed time for constant speed
-            duration_ms = 370  # Animation duration in ms (adjust as needed)
+            duration_ms = 740  # Animation duration in ms (slowed down by 0.5x)
             elapsed_ms = self._anim_elapsed.elapsed() if hasattr(self, '_anim_elapsed') else 0
             self._anim_progress = min(1.0, elapsed_ms / duration_ms)
             if self._anim_progress >= 1.0:
@@ -140,6 +145,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         if widget_h == 0:
             widget_h = 1
         window_aspect = widget_w / widget_h
+        # Use cached geometry if available
         cover_aspect = self.aspect_ratio
         max_quad_h = 1.0
         max_quad_w = window_aspect
@@ -151,7 +157,6 @@ class CoverFlowGLWidget(QOpenGLWidget):
         import math
         fov_y = 30.0
         z = (quad_h / 2) / math.tan(math.radians(fov_y / 2))
-        # Apply zoom level (camera translation)
         z += getattr(self, 'zoom_level', 0.0)
         # Animation: dual covers
         if getattr(self, '_animating', False) and self._prev_cover_image is not None:
@@ -160,19 +165,30 @@ class CoverFlowGLWidget(QOpenGLWidget):
             direction = getattr(self, '_anim_direction', 1)
             # Outgoing cover offset
             if direction == 1:
-                prev_y_offset = -(smooth_progress) * 2.0  # move up (outgoing goes up)
-                curr_y_offset = (1.0 - smooth_progress) * 2.0  # move up from below (incoming comes up)
+                prev_y_offset = -(smooth_progress) * 2.0
+                curr_y_offset = (1.0 - smooth_progress) * 2.0
             else:
-                prev_y_offset = smooth_progress * 2.0  # move down (outgoing goes down)
-                curr_y_offset = -(1.0 - smooth_progress) * 2.0  # move down from above (incoming comes down)
+                prev_y_offset = smooth_progress * 2.0
+                curr_y_offset = -(1.0 - smooth_progress) * 2.0
             # Draw previous cover
             glPushMatrix()
             glTranslatef(0.0, prev_y_offset, -z)
             glRotatef(self.y_rotation, 0.0, 1.0, 0.0)
-            if self._prev_texture_id is None and self._prev_cover_image and not self._prev_cover_image.isNull():
-                self._prev_texture_id = self.createTextureFromQImage(self._prev_cover_image)
-            if self._prev_texture_id:
-                glBindTexture(GL_TEXTURE_2D, self._prev_texture_id)
+            # Use cached texture and geometry if available
+            prev_texture_id = self._prev_texture_id
+            prev_quad_geom = None
+            if hasattr(self, '_prev_cover_idx'):
+                _, prev_texture_id, prev_quad_geom = self.getCachedCover(self._prev_cover_idx)
+            if prev_texture_id is None and self._prev_cover_image and not self._prev_cover_image.isNull():
+                prev_texture_id = self.createTextureFromQImage(self._prev_cover_image)
+            if prev_quad_geom:
+                aspect, w, h = prev_quad_geom
+                quad_w = aspect * quad_h
+                if quad_w > max_quad_w:
+                    quad_w = max_quad_w
+                    quad_h = quad_w / aspect
+            if prev_texture_id:
+                glBindTexture(GL_TEXTURE_2D, prev_texture_id)
                 glBegin(GL_QUADS)
                 glTexCoord2f(0.0, 1.0)
                 glVertex3f(-quad_w/2, -quad_h/2, 0.0)
@@ -188,10 +204,20 @@ class CoverFlowGLWidget(QOpenGLWidget):
             glPushMatrix()
             glTranslatef(0.0, curr_y_offset, -z)
             glRotatef(self.y_rotation, 0.0, 1.0, 0.0)
+            curr_texture_id = self.texture_id
+            curr_quad_geom = None
+            if hasattr(self, '_current_index'):
+                _, curr_texture_id, curr_quad_geom = self.getCachedCover(self._current_index)
+            if curr_quad_geom:
+                aspect, w, h = curr_quad_geom
+                quad_w = aspect * quad_h
+                if quad_w > max_quad_w:
+                    quad_w = max_quad_w
+                    quad_h = quad_w / aspect
             if self.cover_image and not self.cover_image.isNull():
-                if self.texture_id is None:
-                    self.texture_id = self.createTextureFromQImage(self.cover_image)
-                glBindTexture(GL_TEXTURE_2D, self.texture_id)
+                if curr_texture_id is None:
+                    curr_texture_id = self.createTextureFromQImage(self.cover_image)
+                glBindTexture(GL_TEXTURE_2D, curr_texture_id)
                 glBegin(GL_QUADS)
                 glTexCoord2f(0.0, 1.0)
                 glVertex3f(-quad_w/2, -quad_h/2, 0.0)
@@ -207,10 +233,20 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # Normal render (single cover)
             glTranslatef(0.0, 0.0, -z)
             glRotatef(self.y_rotation, 0.0, 1.0, 0.0)
+            curr_texture_id = self.texture_id
+            curr_quad_geom = None
+            if hasattr(self, '_current_index'):
+                _, curr_texture_id, curr_quad_geom = self.getCachedCover(self._current_index)
+            if curr_quad_geom:
+                aspect, w, h = curr_quad_geom
+                quad_w = aspect * quad_h
+                if quad_w > max_quad_w:
+                    quad_w = max_quad_w
+                    quad_h = quad_w / aspect
             if self.cover_image and not self.cover_image.isNull():
-                if self.texture_id is None:
-                    self.texture_id = self.createTextureFromQImage(self.cover_image)
-                glBindTexture(GL_TEXTURE_2D, self.texture_id)
+                if curr_texture_id is None:
+                    curr_texture_id = self.createTextureFromQImage(self.cover_image)
+                glBindTexture(GL_TEXTURE_2D, curr_texture_id)
                 glBegin(GL_QUADS)
                 glTexCoord2f(0.0, 1.0)
                 glVertex3f(-quad_w/2, -quad_h/2, 0.0)
