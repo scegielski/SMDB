@@ -2692,16 +2692,30 @@ class MainWindow(QtWidgets.QMainWindow):
             self.logTextWidget.clear()
 
     def movieInfoSelectionChanged(self):
-        if len(self.movieInfoListView.selectedItems()) == 0:
+        selected_items = self.movieInfoListView.selectedItems()
+        if len(selected_items) == 0:
             return
+
+        for item in selected_items:
+            data = item.data(QtCore.Qt.UserRole)
+            if data and len(data) >= 3 and data[0] == 'similar_movie':
+                title = data[1]
+                year = data[2]
+                self.selectMovieByTitleYear(title, year)
+                return
 
         self.moviesTableTitleFilterBox.clear()
 
         movieList = []
-        for item in self.movieInfoListView.selectedItems():
+        for item in selected_items:
             smdbKey = None
-            category = item.data(QtCore.Qt.UserRole)[0]
-            name = str(item.data(QtCore.Qt.UserRole)[1])
+            data = item.data(QtCore.Qt.UserRole)
+            if not data or len(data) < 2:
+                continue
+            category = data[0]
+            if category == 'similar_movie':
+                continue
+            name = str(data[1])
             if category:
                 if category == 'actor':
                     smdbKey = 'actors'
@@ -2749,6 +2763,51 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.progressBar.setValue(0)
         self.showMoviesTableSelectionStatus()
+
+    def selectMovieByTitleYear(self, title, year=None, resetFilters=True):
+        if not title or not self.moviesTableProxyModel or not self.moviesTableModel:
+            return False
+
+        title_normalized = title.strip().lower()
+        year_str = str(year).strip() if year else None
+
+        match_row = None
+        match_proxy_index = None
+
+        for row in range(self.moviesTableProxyModel.rowCount()):
+            proxy_index = self.moviesTableProxyModel.index(row, Columns.Title.value)
+            if not proxy_index.isValid():
+                continue
+            source_index = self.moviesTableProxyModel.mapToSource(proxy_index)
+            source_row = source_index.row()
+            row_title = self.moviesTableModel.getTitle(source_row)
+            if not row_title or row_title.strip().lower() != title_normalized:
+                continue
+            row_year = self.moviesTableModel.getYear(source_row)
+            if year_str and str(row_year) != year_str:
+                continue
+            match_row = row
+            match_proxy_index = proxy_index
+            break
+
+        if match_row is None and resetFilters:
+            self.showAllMoviesTableView()
+            return self.selectMovieByTitleYear(title, year, resetFilters=False)
+
+        if match_row is None:
+            return False
+
+        if self.moviesTableView.isRowHidden(match_row) and resetFilters:
+            self.showAllMoviesTableView()
+            return self.selectMovieByTitleYear(title, year, resetFilters=False)
+
+        if match_proxy_index is None or not match_proxy_index.isValid():
+            match_proxy_index = self.moviesTableProxyModel.index(match_row, 0)
+
+        self.moviesTableView.clearSelection()
+        self.moviesTableView.selectRow(match_row)
+        self.moviesTableView.scrollTo(match_proxy_index, QtWidgets.QAbstractItemView.PositionAtCenter)
+        return True
 
     def filterTableSelectionChanged(self, mainFilter=True):
         if len(self.primaryFilterWidget.filterTable.selectedItems()) == 0:
@@ -2870,6 +2929,16 @@ class MainWindow(QtWidgets.QMainWindow):
         spacerItem.setFlags(QtCore.Qt.ItemIsEnabled)
         self.movieInfoListView.addItem(spacerItem)
 
+    def parseSimilarMovieEntry(self, entry):
+        text = str(entry).strip()
+        title = text
+        year = None
+        match = re.match(r'^(.*?)[ ]?\((\d{4})\)$', text)
+        if match:
+            title = match.group(1).strip()
+            year = match.group(2).strip()
+        return text, title, year
+
     def movieInfoRefresh(self, jsonData):
         if not jsonData:
             return
@@ -2940,9 +3009,11 @@ class MainWindow(QtWidgets.QMainWindow):
         if isinstance(similar_movies, list) and similar_movies:
             self.movieInfoAddSpacer()
             self.movieInfoAddHeading("Similar Movies:")
-            for title in similar_movies:
-                item = QtWidgets.QListWidgetItem(str(title))
-                item.setFlags(QtCore.Qt.ItemIsEnabled)
+            for entry in similar_movies:
+                display_text, title_value, year_value = self.parseSimilarMovieEntry(entry)
+                item = QtWidgets.QListWidgetItem(display_text)
+                item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable)
+                item.setData(QtCore.Qt.UserRole, ['similar_movie', title_value, year_value])
                 self.movieInfoListView.addItem(item)
 
         self.movieInfoListView.setCurrentRow(0)
