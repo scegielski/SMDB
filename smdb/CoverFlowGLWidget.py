@@ -145,19 +145,16 @@ class CoverFlowGLWidget(QOpenGLWidget):
         if widget_h == 0:
             widget_h = 1
         window_aspect = widget_w / widget_h
-        # Use cached geometry if available
-        cover_aspect = self.aspect_ratio
+        # Define max quad dimensions based on window aspect
         max_quad_h = 1.0
         max_quad_w = window_aspect
-        quad_h = max_quad_h
-        quad_w = cover_aspect * quad_h
-        if quad_w > max_quad_w:
-            quad_w = max_quad_w
-            quad_h = quad_w / cover_aspect
+        
         import math
         fov_y = 30.0
-        z = (quad_h / 2) / math.tan(math.radians(fov_y / 2))
+        # Use a reference quad height for camera positioning
+        z = (max_quad_h / 2) / math.tan(math.radians(fov_y / 2))
         z += getattr(self, 'zoom_level', 0.0)
+        
         # Animation: dual covers
         if getattr(self, '_animating', False) and self._prev_cover_image is not None:
             progress = self._anim_progress
@@ -171,7 +168,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
             else:
                 prev_y_offset = smooth_progress * vertical_distance
                 curr_y_offset = -(1.0 - smooth_progress) * vertical_distance
-            # Draw previous cover
+            
+            # Draw previous cover with its own quad dimensions
             glPushMatrix()
             glTranslatef(0.0, prev_y_offset, -z)
             glRotatef(self.y_rotation, 0.0, 1.0, 0.0)
@@ -182,26 +180,34 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 _, prev_texture_id, prev_quad_geom = self.getCachedCover(self._prev_cover_idx)
             if prev_texture_id is None and self._prev_cover_image and not self._prev_cover_image.isNull():
                 prev_texture_id = self.createTextureFromQImage(self._prev_cover_image)
+            
+            # Calculate previous cover's quad dimensions
             if prev_quad_geom:
-                aspect, w, h = prev_quad_geom
-                quad_w = aspect * quad_h
-                if quad_w > max_quad_w:
-                    quad_w = max_quad_w
-                    quad_h = quad_w / aspect
+                prev_aspect, w, h = prev_quad_geom
+            else:
+                prev_aspect = self._prev_cover_image.width() / self._prev_cover_image.height() if self._prev_cover_image and not self._prev_cover_image.isNull() and self._prev_cover_image.height() != 0 else 1.0
+            
+            prev_quad_h = max_quad_h
+            prev_quad_w = prev_aspect * prev_quad_h
+            if prev_quad_w > max_quad_w:
+                prev_quad_w = max_quad_w
+                prev_quad_h = prev_quad_w / prev_aspect
+            
             if prev_texture_id:
                 glBindTexture(GL_TEXTURE_2D, prev_texture_id)
                 glBegin(GL_QUADS)
                 glTexCoord2f(0.0, 1.0)
-                glVertex3f(-quad_w/2, -quad_h/2, 0.0)
+                glVertex3f(-prev_quad_w/2, -prev_quad_h/2, 0.0)
                 glTexCoord2f(1.0, 1.0)
-                glVertex3f(quad_w/2, -quad_h/2, 0.0)
+                glVertex3f(prev_quad_w/2, -prev_quad_h/2, 0.0)
                 glTexCoord2f(1.0, 0.0)
-                glVertex3f(quad_w/2, quad_h/2, 0.0)
+                glVertex3f(prev_quad_w/2, prev_quad_h/2, 0.0)
                 glTexCoord2f(0.0, 0.0)
-                glVertex3f(-quad_w/2, quad_h/2, 0.0)
+                glVertex3f(-prev_quad_w/2, prev_quad_h/2, 0.0)
                 glEnd()
             glPopMatrix()
-            # Draw current cover
+            
+            # Draw current cover with its own quad dimensions
             glPushMatrix()
             glTranslatef(0.0, curr_y_offset, -z)
             glRotatef(self.y_rotation, 0.0, 1.0, 0.0)
@@ -209,54 +215,68 @@ class CoverFlowGLWidget(QOpenGLWidget):
             curr_quad_geom = None
             if hasattr(self, '_current_index'):
                 _, curr_texture_id, curr_quad_geom = self.getCachedCover(self._current_index)
+            
+            # Calculate current cover's quad dimensions
             if curr_quad_geom:
-                aspect, w, h = curr_quad_geom
-                quad_w = aspect * quad_h
-                if quad_w > max_quad_w:
-                    quad_w = max_quad_w
-                    quad_h = quad_w / aspect
+                curr_aspect, w, h = curr_quad_geom
+            else:
+                curr_aspect = self.cover_image.width() / self.cover_image.height() if self.cover_image and not self.cover_image.isNull() and self.cover_image.height() != 0 else 1.0
+            
+            curr_quad_h = max_quad_h
+            curr_quad_w = curr_aspect * curr_quad_h
+            if curr_quad_w > max_quad_w:
+                curr_quad_w = max_quad_w
+                curr_quad_h = curr_quad_w / curr_aspect
+            
             if self.cover_image and not self.cover_image.isNull():
                 if curr_texture_id is None:
                     curr_texture_id = self.createTextureFromQImage(self.cover_image)
                 glBindTexture(GL_TEXTURE_2D, curr_texture_id)
                 glBegin(GL_QUADS)
                 glTexCoord2f(0.0, 1.0)
-                glVertex3f(-quad_w/2, -quad_h/2, 0.0)
+                glVertex3f(-curr_quad_w/2, -curr_quad_h/2, 0.0)
                 glTexCoord2f(1.0, 1.0)
-                glVertex3f(quad_w/2, -quad_h/2, 0.0)
+                glVertex3f(curr_quad_w/2, -curr_quad_h/2, 0.0)
                 glTexCoord2f(1.0, 0.0)
-                glVertex3f(quad_w/2, quad_h/2, 0.0)
+                glVertex3f(curr_quad_w/2, curr_quad_h/2, 0.0)
                 glTexCoord2f(0.0, 0.0)
-                glVertex3f(-quad_w/2, quad_h/2, 0.0)
+                glVertex3f(-curr_quad_w/2, curr_quad_h/2, 0.0)
                 glEnd()
             glPopMatrix()
         else:
-            # Normal render (single cover)
+            # Normal render (single cover) with its own quad dimensions
             glTranslatef(0.0, 0.0, -z)
             glRotatef(self.y_rotation, 0.0, 1.0, 0.0)
             curr_texture_id = self.texture_id
             curr_quad_geom = None
             if hasattr(self, '_current_index'):
                 _, curr_texture_id, curr_quad_geom = self.getCachedCover(self._current_index)
+            
+            # Calculate current cover's quad dimensions
             if curr_quad_geom:
-                aspect, w, h = curr_quad_geom
-                quad_w = aspect * quad_h
-                if quad_w > max_quad_w:
-                    quad_w = max_quad_w
-                    quad_h = quad_w / aspect
+                curr_aspect, w, h = curr_quad_geom
+            else:
+                curr_aspect = self.cover_image.width() / self.cover_image.height() if self.cover_image and not self.cover_image.isNull() and self.cover_image.height() != 0 else 1.0
+            
+            curr_quad_h = max_quad_h
+            curr_quad_w = curr_aspect * curr_quad_h
+            if curr_quad_w > max_quad_w:
+                curr_quad_w = max_quad_w
+                curr_quad_h = curr_quad_w / curr_aspect
+            
             if self.cover_image and not self.cover_image.isNull():
                 if curr_texture_id is None:
                     curr_texture_id = self.createTextureFromQImage(self.cover_image)
                 glBindTexture(GL_TEXTURE_2D, curr_texture_id)
                 glBegin(GL_QUADS)
                 glTexCoord2f(0.0, 1.0)
-                glVertex3f(-quad_w/2, -quad_h/2, 0.0)
+                glVertex3f(-curr_quad_w/2, -curr_quad_h/2, 0.0)
                 glTexCoord2f(1.0, 1.0)
-                glVertex3f(quad_w/2, -quad_h/2, 0.0)
+                glVertex3f(curr_quad_w/2, -curr_quad_h/2, 0.0)
                 glTexCoord2f(1.0, 0.0)
-                glVertex3f(quad_w/2, quad_h/2, 0.0)
+                glVertex3f(curr_quad_w/2, curr_quad_h/2, 0.0)
                 glTexCoord2f(0.0, 0.0)
-                glVertex3f(-quad_w/2, quad_h/2, 0.0)
+                glVertex3f(-curr_quad_w/2, curr_quad_h/2, 0.0)
                 glEnd()
 
     def createTextureFromQImage(self, qimage):
