@@ -6,6 +6,41 @@ from OpenGL.GLU import *
 import numpy as np
 
 class CoverFlowGLWidget(QOpenGLWidget):
+    import threading
+    from PyQt5.QtCore import QMutex, QMutexLocker
+
+    CACHE_RADIUS = 25
+
+    def setModelAndIndex(self, model, current_index):
+        self._model = model
+        self._current_index = current_index
+        self._cover_cache = {}
+        self._cover_cache_mutex = self.QMutex()
+        self._start_async_cache()
+
+    def _start_async_cache(self):
+        # Start a background thread to cache covers
+        def cache_worker():
+            for offset in range(-self.CACHE_RADIUS, self.CACHE_RADIUS + 1):
+                idx = self._current_index + offset
+                if idx < 0 or idx >= self._model.rowCount():
+                    continue
+                with self.QMutexLocker(self._cover_cache_mutex):
+                    if idx in self._cover_cache:
+                        continue
+                cover_path = self._model.getCoverPath(idx)
+                if cover_path:
+                    image = QImage(cover_path)
+                    texture_id = None
+                    if not image.isNull():
+                        texture_id = self.createTextureFromQImage(image)
+                    with self.QMutexLocker(self._cover_cache_mutex):
+                        self._cover_cache[idx] = (image, texture_id)
+        threading.Thread(target=cache_worker, daemon=True).start()
+
+    def getCachedCover(self, idx):
+        with self.QMutexLocker(self._cover_cache_mutex):
+            return self._cover_cache.get(idx, (None, None))
     def _init_anim_queue(self):
         self._anim_queue = []
 
