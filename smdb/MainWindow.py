@@ -2936,6 +2936,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.movieInfoAddHeading("Cast:")
         self.movieInfoAddSection(jsonData, 'cast', 'actors', 'actor')
 
+        similar_movies = jsonData.get('similar movies') or []
+        if isinstance(similar_movies, list) and similar_movies:
+            self.movieInfoAddSpacer()
+            self.movieInfoAddHeading("Similar Movies:")
+            for title in similar_movies:
+                item = QtWidgets.QListWidgetItem(str(title))
+                item.setFlags(QtCore.Qt.ItemIsEnabled)
+                self.movieInfoListView.addItem(item)
+
         self.movieInfoListView.setCurrentRow(0)
 
     def getPlot(self, jsonData):
@@ -3251,6 +3260,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 if 'runtime' in jsonData and jsonData['runtime']:
                     jsonRuntime = jsonData['runtime']
 
+                jsonSimilarMovies = jsonData.get('similar movies') or []
+                if not isinstance(jsonSimilarMovies, list):
+                    jsonSimilarMovies = [jsonSimilarMovies] if jsonSimilarMovies else []
+
                 # Subtitles exist status comes from current model value if present
                 try:
                     if len(model._data[row]) > Columns.SubtitlesExist.value:
@@ -3282,7 +3295,8 @@ class MainWindow(QtWidgets.QMainWindow):
                                        'path': moviePath,
                                        'date': dateModified,
                                        'subtitles exist': subtitlesExist,
-                                       'date watched': dateWatched}
+                                       'date watched': dateWatched,
+                                       'similar movies': jsonSimilarMovies}
 
         self.progressBar.setValue(0)
 
@@ -3312,7 +3326,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         return data
 
-    def writeMovieJsonOmdb(self, movieData, productionCompanies, jsonFile):
+    def writeMovieJsonOmdb(self, movieData, productionCompanies, similarMovies, jsonFile):
         d = {}
 
         d['title'] = movieData.get('Title')
@@ -3334,6 +3348,7 @@ class MainWindow(QtWidgets.QMainWindow):
         d['summary'] = movieData.get('Plot')  # same
         d['cover url'] = movieData.get('Poster')
         d['full-size cover url'] = movieData.get('Poster')  # OMDb only provides one
+        d['similar movies'] = similarMovies or []
 
         try:
             with open(jsonFile, "w", encoding="utf-8") as f:
@@ -3575,10 +3590,19 @@ class MainWindow(QtWidgets.QMainWindow):
             if not movie: return ""
 
             productionCompanies = self.getTMDBProductionCompanies(titleYear, imdbId)
-            self.getYTSSimilarMovies(titleYear, imdbId)
+            similarMovies = self.getYTSSimilarMovies(titleYear, imdbId)
 
             if doJson:
-                self.writeMovieJsonOmdb(movie, productionCompanies, jsonFile)
+                self.writeMovieJsonOmdb(movie, productionCompanies, similarMovies, jsonFile)
+                if self.moviesSmdbData and 'titles' in self.moviesSmdbData:
+                    titleEntry = self.moviesSmdbData['titles'].get(moviePath)
+                    if titleEntry is not None:
+                        titleEntry['similar movies'] = similarMovies or []
+                        try:
+                            with open(self.moviesSmdbFile, "w") as smdbFileHandle:
+                                ujson.dump(self.moviesSmdbData, smdbFileHandle, indent=4)
+                        except Exception as e:
+                            self.output(f"Error updating smdb_data.json with similar movies: {e}")
                 self.calculateFolderSize(proxyIndex, moviePath, movieFolderName)
                 self.getMovieFileInfo(proxyIndex, moviePath, movieFolderName)
 
