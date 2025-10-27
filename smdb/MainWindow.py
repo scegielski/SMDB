@@ -254,8 +254,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self.moviesWatchListBackupVSplitter.setHandleWidth(20)
 
         # Movies Table
+        # TabView for Movies List and Cover Flow
+        self.moviesTabWidget = QtWidgets.QTabWidget()
+        # Movies List Tab
         self.moviesTableWidget = QtWidgets.QFrame()
         self.moviesTableView = MovieTableView()
+        self.moviesTabWidget.addTab(self.moviesTableWidget, "List")
+        # Cover Flow Tab (OpenGL)
+        from .CoverFlowGLWidget import CoverFlowGLWidget
+        self.coverFlowWidget = CoverFlowGLWidget()
+        self.moviesTabWidget.addTab(self.coverFlowWidget, "Cover Flow")
         self.moviesTableDefaultColumns = [Columns.Year.value,
                                           Columns.Title.value,
                                           Columns.Rating.value,
@@ -285,7 +293,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.moviesTableColumnsVisible = []
         self.moviesListHeaderActions = []
         self.initUIMoviesTable()
-        self.moviesWatchListBackupVSplitter.addWidget(self.moviesTableWidget)
+        # Add tabview instead of direct table widget
+        self.moviesWatchListBackupVSplitter.addWidget(self.moviesTabWidget)
         if not self.showMoviesTable:
             self.moviesTableWidget.hide()
 
@@ -2465,6 +2474,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.titleLabel.setText('"%s" (%s)' % (title, year))
         self.showCoverFile(coverFile)
+
+        # Update Cover Flow tab with selected movie cover
+        if hasattr(self, 'coverFlowWidget') and coverFile and os.path.exists(coverFile):
+            self.coverFlowWidget.set_cover_image(coverFile)
 
         jsonData = None
         if os.path.exists(jsonFile):
