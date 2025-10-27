@@ -3420,6 +3420,78 @@ class MainWindow(QtWidgets.QMainWindow):
         result = [c.get("name") for c in companies if c.get("name")]
         return result
 
+    def getYTSSimilarMovies(self, titleYear, imdbId, limit=5):
+        if not imdbId:
+            self.output(f"No IMDb ID available to fetch similar titles for \"{titleYear}\".")
+            return []
+
+        imdbId = str(imdbId).strip()
+        if not imdbId.startswith("tt"):
+            imdbId = f"tt{imdbId}"
+
+        # Step 1: Look up the YTS movie id using the IMDb id
+        details_url = "https://yts.mx/api/v2/movie_details.json"
+        try:
+            details_resp = requests.get(details_url, params={
+                "imdb_id": imdbId
+            })
+            if details_resp.status_code != 200:
+                self.output(f"YTS movie details request failed for \"{titleYear}\": HTTP {details_resp.status_code}")
+                return []
+            details = details_resp.json()
+        except Exception as exc:
+            self.output(f"YTS movie details request failed for \"{titleYear}\": {exc}")
+            return []
+
+        if details.get("status") != "ok":
+            self.output(f"YTS movie details lookup returned error for \"{titleYear}\": {details.get('status_message')}")
+            return []
+
+        movie_data = (details.get("data") or {}).get("movie") or {}
+        movie_id = movie_data.get("id")
+        if not movie_id:
+            self.output(f"YTS movie details missing movie id for \"{titleYear}\".")
+            return []
+
+        # Step 2: Fetch suggestions from YTS
+        similar_url = "https://yts.mx/api/v2/movie_suggestions.json"
+        try:
+            similar_resp = requests.get(similar_url, params={
+                "movie_id": movie_id
+            })
+            if similar_resp.status_code != 200:
+                self.output(f"YTS similar request failed for \"{titleYear}\": HTTP {similar_resp.status_code}")
+                return []
+            similar = similar_resp.json()
+        except Exception as exc:
+            self.output(f"YTS similar request failed for \"{titleYear}\": {exc}")
+            return []
+
+        if similar.get("status") != "ok":
+            self.output(f"YTS similar lookup returned error for \"{titleYear}\": {similar.get('status_message')}")
+            return []
+
+        results = (similar.get("data") or {}).get("movies") or []
+        if not results:
+            self.output(f"No similar movies found for \"{titleYear}\" on YTS.")
+            return []
+
+        similar_titles = []
+        for movie in results[:limit]:
+            title = movie.get("title")
+            year = movie.get("year")
+            if title:
+                formatted = f"{title} ({year})" if year else title
+                similar_titles.append(formatted)
+
+        if similar_titles:
+            joined = ", ".join(similar_titles)
+            self.output(f"Similar movies from YTS for \"{titleYear}\": {joined}")
+        else:
+            self.output(f"No similar movies found for \"{titleYear}\" on YTS.")
+
+        return similar_titles
+
     def resolve_imdb_id(self, title, year=None):
         """
         Resolve an IMDb ID for a movie using title and optional year via OMDb first,
@@ -3503,6 +3575,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if not movie: return ""
 
             productionCompanies = self.getTMDBProductionCompanies(titleYear, imdbId)
+            self.getYTSSimilarMovies(titleYear, imdbId)
 
             if doJson:
                 self.writeMovieJsonOmdb(movie, productionCompanies, jsonFile)
@@ -4845,6 +4918,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
             movieFolderName = self.moviesTableModel.getFolderName(sourceRow)
             moviePath = self.moviesTableModel.getPath(sourceRow)
+            moviePath = self.findMovie(moviePath, movieFolderName)
             if not os.path.exists(moviePath):
                 continue
 
