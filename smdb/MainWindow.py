@@ -3249,10 +3249,13 @@ class MainWindow(QtWidgets.QMainWindow):
                     try:
                         jsonYear = int(jsonData['year'])
                     except ValueError:
-                        jy = jsonData['year']
-                        jy = jy.split('â€“')[0]
-                        self.output(f"jy={jy}")
-                        jsonYear = int(jy)
+                        try:
+                            jy = jsonData['year']
+                            jy = jy.split('â€“')[0]
+                            self.output(f"jy={jy}")
+                            jsonYear = int(jy)
+                        except:
+                            jsonYear = 0
                     except:
                         jsonYear = 0
 

@@ -155,8 +155,6 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                     # Track folder modified time for later decision
                     folderMtimes[key] = mtime_ts
                     numMovies += 1
-                    if (forceScan or modifiedSince is not None):
-                        maybe_progress(idx, totalMovies)
                 output(f"Scanned {numMovies} movies for {moviesFolder}")
 
         totalFolders = len(moviesFolderDict)
@@ -282,7 +280,6 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                     if os.path.exists(jsonFile):
                         movieData.append("True")
                     else:
-                        output(f"jsonFile {jsonFile} does not exist")
                         movieData.append("False")
                 else:
                     movieData.append("")
@@ -292,7 +289,6 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                     if os.path.exists(coverFile):
                         movieData.append("True")
                     else:
-                        output(f"coverFile {coverFile} does not exist")
                         movieData.append("False")
                 else:
                     movieData.append("")
