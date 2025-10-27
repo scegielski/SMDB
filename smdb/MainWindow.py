@@ -3162,6 +3162,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.output(f"Error writing JSON file '{jsonFile}': {e}")
 
     def writeSmdbFile(self, fileName, model, titlesOnly=False):
+        import time
         titles = {}
         directors = {}
         actors = {}
@@ -3173,6 +3174,34 @@ class MainWindow(QtWidgets.QMainWindow):
         countries = {}
         userTags = {}
 
+        # Small helpers to index aggregate dicts efficiently
+        # Use dict-as-set for O(1) membership and to preserve insertion order
+        def add_to_index(index_dict, key, title_year):
+            if key is None:
+                return
+            entry = index_dict.get(key)
+            if entry is None:
+                entry = {'num movies': 0, 'movies': {}}
+                index_dict[key] = entry
+            movies = entry.get('movies')
+            if isinstance(movies, list):
+                # Backward compatibility if a list slips in
+                if title_year not in movies:
+                    movies.append(title_year)
+                    entry['num movies'] += 1
+            else:
+                # dict-as-set path
+                if title_year not in movies:
+                    movies[title_year] = None
+                    entry['num movies'] += 1
+
+        def normalize_index_for_json(index_dict):
+            for _, entry in index_dict.items():
+                movies = entry.get('movies')
+                if isinstance(movies, dict):
+                    entry['movies'] = list(movies.keys())
+                    entry['num movies'] = len(entry['movies'])
+
         count = model.rowCount()
         self.progressBar.setMaximum(count)
         progress = 0
@@ -3182,197 +3211,167 @@ class MainWindow(QtWidgets.QMainWindow):
         reMoneyValue = re.compile(r'(\d+(?:,\d+)*(?:\.\d+)?)')
         reCurrency = re.compile(r'^([A-Z][A-Z][A-Z])(.*)')
 
+        # Simple timing buckets for profiling the loop
+        loop_start_time = time.perf_counter()
+        timing = collections.defaultdict(float)
+        # Throttle UI updates to reduce overhead while keeping responsiveness
+        ui_update_interval = 0.1  # seconds
+        ui_last_update = loop_start_time
+
         for row in range(count):
-            QtCore.QCoreApplication.processEvents()
-            if self.isCanceled:
-                self.statusBar().showMessage('Cancelled')
-                self.isCanceled = False
-                self.progressBar.setValue(0)
-                return
-
+            # advance progress and throttle UI updates
             progress += 1
-            self.progressBar.setValue(progress)
+            now = time.perf_counter()
+            if (now - ui_last_update) >= ui_update_interval or row == (count - 1):
+                # Show percentage, throughput, and ETA in status
+                elapsed = now - loop_start_time
+                avg_per_item = (elapsed / progress) if progress else 0.0
+                remaining = max(0, count - progress)
+                eta_seconds = remaining * avg_per_item
+                eta_h = int(eta_seconds // 3600)
+                eta_m = int((eta_seconds % 3600) // 60)
+                eta_s = int(eta_seconds % 60)
+                if eta_h > 0:
+                    eta_str = f"{eta_h}:{eta_m:02d}:{eta_s:02d}"
+                else:
+                    eta_str = f"{eta_m:02d}:{eta_s:02d}"
+                pct = (progress / count * 100.0) if count else 0.0
+                ips = (progress / elapsed) if elapsed > 0 else 0.0
+                message = "Processing (%d/%d, %4.1f%%, %4.1f it/s): ETA %s" % (progress, count, pct, ips, eta_str)
+                t0 = time.perf_counter()
+                self.progressBar.setValue(progress)
+                self.statusBar().showMessage(message)
+                QtCore.QCoreApplication.processEvents()
+                timing['ui'] += time.perf_counter() - t0
+                ui_last_update = now
 
-            title = model.getTitle(row)
+                if self.isCanceled:
+                    self.statusBar().showMessage('Cancelled')
+                    self.isCanceled = False
+                    self.progressBar.setValue(0)
+                    return
+
             dateWatched = model.getDateWatched(row)
-
-            message = "Processing item (%d/%d): %s" % (progress + 1,
-                                                       count,
-                                                       title)
-            self.statusBar().showMessage(message)
-            QtCore.QCoreApplication.processEvents()
-
             rank = model.getRank(row)
             moviePath = model.getPath(row)
             folderName = model.getFolderName(row)
+            t0 = time.perf_counter()
             moviePath = self.findMovie(moviePath, folderName)
+            timing['find_movie'] += time.perf_counter() - t0
             if not moviePath or not os.path.exists(moviePath):
                 self.output(f"path does not exist: {moviePath}")
                 continue
 
+            t0 = time.perf_counter()
             dateModified = datetime.datetime.fromtimestamp(pathlib.Path(moviePath).stat().st_mtime)
             dateModified = f"{dateModified.year}/{str(dateModified.month).zfill(2)}/{str(dateModified.day).zfill(2)}"
+            timing['fs_stat'] += time.perf_counter() - t0
             jsonFile = os.path.join(moviePath, '%s.json' % folderName)
             if not os.path.exists(jsonFile):
                 continue
 
-            with open(jsonFile) as f:
+            t0 = time.perf_counter()
+            with open(jsonFile, encoding="utf-8") as f:
                 try:
                     jsonData = ujson.load(f)
                 except UnicodeDecodeError:
                     self.output("Error reading %s" % jsonFile)
                     continue
+            timing['json_load'] += time.perf_counter() - t0
 
             if 'title' in jsonData and 'year' in jsonData:
-                jsonTitle = jsonData['title']
-                jsonYear = jsonData['year']
-                titleYear = (jsonTitle, jsonYear)
+                t_fields_accum = 0.0
+                t0f = time.perf_counter()
+                jsonTitle = jsonData.get('title')
+                titleYearTuple = (jsonTitle, jsonData.get('year'))
 
-                jsonWidth = 0
-                if 'width' in jsonData and jsonData['width']:
-                    jsonWidth = jsonData['width']
+                jsonWidth = jsonData.get('width') or 0
+                jsonHeight = jsonData.get('height') or 0
+                jsonChannels = jsonData.get('channels') or 0
+                jsonSize = jsonData.get('size') or 0
 
-                jsonHeight = 0
-                if 'height' in jsonData and jsonData['height']:
-                    jsonHeight = jsonData['height']
-
-                jsonChannels = 0
-                if 'channels' in jsonData and jsonData['channels']:
-                    jsonChannels = jsonData['channels']
-
-                jsonSize = 0
-                if 'size' in jsonData and jsonData['size']:
-                    jsonSize = jsonData['size']
-
-                jsonYear = None
-                if 'year' in jsonData and jsonData['year']:
+                # Parse numeric year for indexing
+                jsonYearInt = 0
+                if jsonData.get('year'):
                     try:
-                        jsonYear = int(jsonData['year'])
+                        jsonYearInt = int(jsonData.get('year'))
                     except ValueError:
                         try:
-                            jy = jsonData['year']
-                            jy = jy.split('â€“')[0]
-                            self.output(f"jy={jy}")
-                            jsonYear = int(jy)
-                        except:
-                            jsonYear = 0
-                    except:
-                        jsonYear = 0
+                            jy = str(jsonData.get('year')).split('â€“')[0]
+                            jsonYearInt = int(jy)
+                        except Exception:
+                            jsonYearInt = 0
+                t_fields_accum += time.perf_counter() - t0f
 
-                    if jsonYear not in years:
-                        years[jsonYear] = {}
-                        years[jsonYear]['num movies'] = 0
-                        years[jsonYear]['movies'] = []
-                    if titleYear not in years[jsonYear]:
-                        years[jsonYear]['movies'].append(titleYear)
-                        years[jsonYear]['num movies'] += 1
+                # Indexing block
+                t0i = time.perf_counter()
+                if not titlesOnly and jsonYearInt:
+                    add_to_index(years, jsonYearInt, titleYearTuple)
 
+                # Directors
                 movieDirectorList = []
-                if 'directors' in jsonData and jsonData['directors']:
-                    for director in jsonData['directors']:
-                        if director not in directors:
-                            directors[director] = {}
-                            directors[director]['num movies'] = 0
-                            directors[director]['movies'] = []
-                        if titleYear not in directors[director]['movies']:
-                            directors[director]['movies'].append(titleYear)
-                            directors[director]['num movies'] += 1
+                jsonDirectors = jsonData.get('directors') or []
+                for director in jsonDirectors:
+                    movieDirectorList.append(director)
+                    if not titlesOnly:
+                        add_to_index(directors, director, titleYearTuple)
 
-                        movieDirectorList.append(director)
-
+                # Actors
                 movieActorsList = []
-                if 'cast' in jsonData and jsonData['cast']:
-                    for actor in jsonData['cast']:
-                        if actor not in actors:
-                            actors[actor] = {}
-                            actors[actor]['num movies'] = 0
-                            actors[actor]['movies'] = []
-                        if titleYear not in actors[actor]['movies']:
-                            actors[actor]['movies'].append(titleYear)
-                            actors[actor]['num movies'] += 1
+                jsonCast = jsonData.get('cast') or []
+                for actor in jsonCast:
+                    movieActorsList.append(actor)
+                    if not titlesOnly:
+                        add_to_index(actors, actor, titleYearTuple)
 
-                        movieActorsList.append(actor)
-
-                jsonUserTags = None
-                if 'user tags' in jsonData and jsonData['user tags']:
-                    jsonUserTags = jsonData['user tags']
+                # User tags
+                jsonUserTags = jsonData.get('user tags') or []
+                if not titlesOnly:
                     for tag in jsonUserTags:
-                        if tag not in userTags:
-                            userTags[tag] = {}
-                            userTags[tag]['num movies'] = 0
-                            userTags[tag]['movies'] = []
-                        if titleYear not in userTags[tag]['movies']:
-                            userTags[tag]['movies'].append(titleYear)
-                            userTags[tag]['num movies'] += 1
+                        add_to_index(userTags, tag, titleYearTuple)
 
-                jsonGenres = None
-                if 'genres' in jsonData and jsonData['genres']:
-                    jsonGenres = jsonData['genres']
+                # Genres
+                jsonGenres = jsonData.get('genres') or []
+                if not titlesOnly:
                     for genre in jsonGenres:
-                        if genre not in genres:
-                            genres[genre] = {}
-                            genres[genre]['num movies'] = 0
-                            genres[genre]['movies'] = []
-                        if titleYear not in genres[genre]['movies']:
-                            genres[genre]['movies'].append(titleYear)
-                            genres[genre]['num movies'] += 1
+                        add_to_index(genres, genre, titleYearTuple)
 
-                jsonCompanies = None
-                if 'companies' in jsonData and jsonData['companies']:
-                    jsonCompanies = jsonData['companies']
+                # Companies
+                jsonCompanies = jsonData.get('companies') or []
+                if not titlesOnly:
                     for company in jsonCompanies:
-                        if company not in companies:
-                            companies[company] = {}
-                            companies[company]['num movies'] = 0
-                            companies[company]['movies'] = []
-                        if titleYear not in companies[company]['movies']:
-                            companies[company]['movies'].append(titleYear)
-                            companies[company]['num movies'] += 1
+                        add_to_index(companies, company, titleYearTuple)
 
-                jsonCountries = None
-                if 'countries' in jsonData and jsonData['countries']:
-                    jsonCountries = jsonData['countries']
+                # Countries
+                jsonCountries = jsonData.get('countries') or []
+                if not titlesOnly:
                     for country in jsonCountries:
-                        if country not in countries:
-                            countries[country] = {}
-                            countries[country]['num movies'] = 0
-                            countries[country]['movies'] = []
-                        if titleYear not in countries[country]['movies']:
-                            countries[country]['movies'].append(titleYear)
-                            countries[country]['num movies'] += 1
+                        add_to_index(countries, country, titleYearTuple)
 
-                jsonId = None
-                if 'id' in jsonData and jsonData['id']:
-                    jsonId = jsonData['id']
+                # IDs and ratings
+                jsonId = jsonData.get('id') or None
 
                 jsonRating = None
-                if 'rating' in jsonData and jsonData['rating']:
+                if jsonData.get('rating'):
                     try:
-                        jsonRating = float(jsonData['rating'])
+                        jsonRating = float(jsonData.get('rating'))
                     except ValueError:
                         jsonRating = 0.0
-                    if jsonRating not in ratings:
-                        ratings[jsonRating] = {}
-                        ratings[jsonRating]['num movies'] = 0
-                        ratings[jsonRating]['movies'] = []
-                    if titleYear not in ratings[jsonRating]['movies']:
-                        ratings[jsonRating]['movies'].append(titleYear)
-                        ratings[jsonRating]['num movies'] += 1
+                    if not titlesOnly:
+                        add_to_index(ratings, jsonRating, titleYearTuple)
 
                 jsonMpaaRating = None
-                if 'mpaa rating' in jsonData and jsonData['mpaa rating']:
-                    jsonMpaaRating = jsonData['mpaa rating']
-                    if jsonMpaaRating not in mpaaRatings:
-                        mpaaRatings[jsonMpaaRating] = {}
-                        mpaaRatings[jsonMpaaRating]['num movies'] = 0
-                        mpaaRatings[jsonMpaaRating]['movies'] = []
-                    if titleYear not in mpaaRatings[jsonMpaaRating]['movies']:
-                        mpaaRatings[jsonMpaaRating]['movies'].append(titleYear)
-                        mpaaRatings[jsonMpaaRating]['num movies'] += 1
+                if jsonData.get('mpaa rating'):
+                    jsonMpaaRating = jsonData.get('mpaa rating')
+                    if not titlesOnly:
+                        add_to_index(mpaaRatings, jsonMpaaRating, titleYearTuple)
+                timing['indexing'] += time.perf_counter() - t0i
 
+                # Box office formatting and other fields
+                t0f = time.perf_counter()
                 jsonBoxOffice = None
-                if 'box office' in jsonData and jsonData['box office']:
-                    jsonBoxOffice = jsonData['box office']
+                if jsonData.get('box office'):
+                    jsonBoxOffice = jsonData.get('box office')
                     try:
                         currency = 'USD'
                         if jsonBoxOffice:
@@ -3382,19 +3381,17 @@ class MainWindow(QtWidgets.QMainWindow):
                                 currency = match.group(1)
                                 jsonBoxOffice = '$%s' % match.group(2)
                             results = re.findall(reMoneyValue, jsonBoxOffice)
-                            if currency == 'USD':
-                                amount = '$%s' % results[0]
+                            if results:
+                                amount = ('$' + results[0]) if currency == 'USD' else results[0]
                             else:
-                                amount = '%s' % results[0]
+                                amount = '$0'
                         else:
                             amount = '$0'
                         jsonBoxOffice = '%-3s %15s' % (currency, amount)
                     except Exception:
                         pass
 
-                jsonRuntime = None
-                if 'runtime' in jsonData and jsonData['runtime']:
-                    jsonRuntime = jsonData['runtime']
+                jsonRuntime = jsonData.get('runtime') or None
 
                 jsonSimilarMovies = jsonData.get('similar movies') or []
                 if not isinstance(jsonSimilarMovies, list):
@@ -3408,39 +3405,56 @@ class MainWindow(QtWidgets.QMainWindow):
                         subtitlesExist = "unknown"
                 except Exception:
                     subtitlesExist = "unknown"
+                t_fields_accum += time.perf_counter() - t0f
+                timing['fields_compute'] += t_fields_accum
 
-                titles[moviePath] = {'folder': folderName,
-                                       'id': jsonId,
-                                       'title': jsonTitle,
-                                       'year': jsonYear,
-                                       'rating': jsonRating,
-                                       'mpaa rating': jsonMpaaRating,
-                                       'runtime': jsonRuntime,
-                                       'box office': jsonBoxOffice,
-                                       'directors': movieDirectorList,
-                                       'genres': jsonGenres,
-                                       'user tags': jsonUserTags,
-                                       'countries': jsonCountries,
-                                       'companies': jsonCompanies,
-                                       'actors': movieActorsList,
-                                       'rank': rank,
-                                       'width': jsonWidth,
-                                       'height': jsonHeight,
-                                       'channels': jsonChannels,
-                                       'size': jsonSize,
-                                       'path': moviePath,
-                                       'date': dateModified,
-                                       'subtitles exist': subtitlesExist,
-                                       'date watched': dateWatched,
-                                       'similar movies': jsonSimilarMovies}
+                # Build title entry
+                t0t = time.perf_counter()
+                titles[moviePath] = {
+                    'folder': folderName,
+                    'id': jsonId,
+                    'title': jsonTitle,
+                    'year': jsonYearInt,
+                    'rating': jsonRating,
+                    'mpaa rating': jsonMpaaRating,
+                    'runtime': jsonRuntime,
+                    'box office': jsonBoxOffice,
+                    'directors': movieDirectorList,
+                    'genres': jsonGenres or None,
+                    'user tags': jsonUserTags or None,
+                    'countries': jsonCountries or None,
+                    'companies': jsonCompanies or None,
+                    'actors': movieActorsList,
+                    'rank': rank,
+                    'width': jsonWidth,
+                    'height': jsonHeight,
+                    'channels': jsonChannels,
+                    'size': jsonSize,
+                    'path': moviePath,
+                    'date': dateModified,
+                    'subtitles exist': subtitlesExist,
+                    'date watched': dateWatched,
+                    'similar movies': jsonSimilarMovies
+                }
+                timing['title_entry'] += time.perf_counter() - t0t
 
         self.progressBar.setValue(0)
 
         self.statusBar().showMessage('Sorting Data...')
         QtCore.QCoreApplication.processEvents()
 
+        # Normalize indexes (convert dict-as-set to lists) before serializing
         data = {'titles': collections.OrderedDict(sorted(titles.items()))}
         if not titlesOnly:
+            normalize_index_for_json(years)
+            normalize_index_for_json(genres)
+            normalize_index_for_json(directors)
+            normalize_index_for_json(actors)
+            normalize_index_for_json(companies)
+            normalize_index_for_json(countries)
+            normalize_index_for_json(userTags)
+            normalize_index_for_json(mpaaRatings)
+            normalize_index_for_json(ratings)
             data['years'] = collections.OrderedDict(sorted(years.items()))
             data['genres'] = collections.OrderedDict(sorted(genres.items()))
             data['directors'] = collections.OrderedDict(sorted(directors.items()))
@@ -3459,6 +3473,17 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.statusBar().showMessage('Done')
         QtCore.QCoreApplication.processEvents()
+
+        # Emit profiling summary
+        loop_total = time.perf_counter() - loop_start_time
+        if count:
+            try:
+                breakdown = sorted(timing.items(), key=lambda kv: kv[1], reverse=True)
+                self.output("writeSmdbFile profiling (items=%d, total=%.3fs):" % (count, loop_total))
+                for k, v in breakdown:
+                    self.output("  %-14s %8.3fs  (%6.2f ms/item)" % (k + ':', v, (v / count) * 1000.0))
+            except Exception:
+                pass
 
         return data
 
