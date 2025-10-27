@@ -1,7 +1,9 @@
 import json
+import os
 import fnmatch
 import pathlib
 import datetime
+import time
 from enum import Enum, auto
 from PyQt5 import QtGui, QtCore
 
@@ -73,7 +75,8 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                  moviesFolders,
                  forceScan=False,
                  neverScan=False,
-                 progress_callback=None):
+                 progress_callback=None,
+                 modifiedSince=None):
 
         super().__init__()
 
@@ -91,69 +94,134 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                 output(f"Error: Movies folder {moviesFolder} does not exist")
 
         # Either read the list of movies from the smdb data
-        # or scan the movies folder(s)
+        # or scan the movies folder(s). When modifiedSince is provided,
+        # scan all folders but decide per-folder whether to use smdb data.
         moviesFolderDict = dict()
+        folderMtimes = dict()  # key -> folder mtime (float seconds)
         useSmdbData = False
+
+        # Throttled progress updater to reduce UI overhead
+        last_update_time = 0.0
+        last_value = -1
+
+        def maybe_progress(current, total):
+            nonlocal last_update_time, last_value
+            if not progress_callback:
+                return
+            now = time.monotonic()
+            # Update at most every 50ms or every 10 items, and always on last
+            if (current == max(total - 1, 0) or
+                now - last_update_time >= 0.05 or
+                current - last_value >= 10):
+                last_update_time = now
+                last_value = current
+                try:
+                    progress_callback(current, total)
+                except Exception:
+                    pass
 
         if neverScan and (not smdbData or 'titles' not in smdbData):
             return
 
-        if not forceScan and smdbData and 'titles' in smdbData:
+        if modifiedSince is None and not forceScan and smdbData and 'titles' in smdbData:
+            # Fast path: use smdb data as-is
             useSmdbData = True
             for path in smdbData['titles']:
                 folder = smdbData['titles'][path]['folder']
                 moviesFolderDict[path] = [folder, path]
         else:
+            # Scan folders from disk (for forceScan or modifiedSince)
             for moviesFolder in moviesFolders:
                 output(f"Scanning: {moviesFolder} ...")
                 if not os.path.exists(moviesFolder):
                     continue
                 numMovies = 0
-                movieDirs = []
+                movieDirs = []  # list of (name, path, mtime)
                 with os.scandir(moviesFolder) as files:
                     for f in files:
                         if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
-                            movieDirs.append(f)
+                            try:
+                                mtime = f.stat().st_mtime
+                            except Exception:
+                                mtime = None
+                            movieDirs.append((f.name, f.path, mtime))
+                output(f"Found {len(movieDirs)} movie folders in {moviesFolder}")
                 totalMovies = len(movieDirs)
-                for idx, f in enumerate(movieDirs):
-                    folderName = f.name
-                    moviePath = f.path
+                for idx, (folderName, moviePath, mtime_ts) in enumerate(movieDirs):
                     key = moviePath
                     if key in moviesFolderDict:
                         key = key + "duplicate"
                     moviesFolderDict[key] = [folderName, moviePath]
+                    # Track folder modified time for later decision
+                    folderMtimes[key] = mtime_ts
                     numMovies += 1
-                    if forceScan and progress_callback:
-                        progress_callback(idx, totalMovies)
+                    if (forceScan or modifiedSince is not None):
+                        maybe_progress(idx, totalMovies)
                 output(f"Scanned {numMovies} movies for {moviesFolder}")
 
         totalFolders = len(moviesFolderDict)
+        # Precompute threshold for modifiedSince if provided
+        threshold_ts = None
+        if modifiedSince is not None:
+            try:
+                threshold_ts = modifiedSince.timestamp()
+            except Exception:
+                try:
+                    threshold_ts = datetime.datetime(
+                        modifiedSince.year,
+                        modifiedSince.month,
+                        modifiedSince.day
+                    ).timestamp()
+                except Exception:
+                    threshold_ts = None
+
         for idx, key in enumerate(moviesFolderDict.keys()):
             movieFolderName = moviesFolderDict[key][0]
             moviePath = moviesFolderDict[key][1]
             data = {}
-            if useSmdbData:
-                data = smdbData['titles'][moviePath]
-            else:
-                if (forceScan):
+            force_flag = False
+            if modifiedSince is not None and threshold_ts is not None:
+                # Decide per-folder based on mtime
+                mtime_ts = folderMtimes.get(key)
+                is_newer = (mtime_ts is not None and mtime_ts > threshold_ts)
+                if not is_newer and smdbData and 'titles' in smdbData and moviePath in smdbData['titles']:
+                    data = smdbData['titles'][moviePath]
+                    force_flag = False
+                else:
+                    # Process from disk
+                    maybe_progress(idx, totalFolders)
                     output(f"Processing movie folder: {movieFolderName} at {moviePath}")
-                    if progress_callback:
-                        progress_callback(idx, totalFolders)
-
-                jsonFile = os.path.join(moviePath,
-                                        '%s.json' % movieFolderName)
-                if os.path.exists(jsonFile):
-                    with open(jsonFile) as f:
-                        try:
-                            data = json.load(f)
-                        except UnicodeDecodeError:
-                            output("Error reading %s" % jsonFile)
+                    jsonFile = os.path.join(moviePath, f'{movieFolderName}.json')
+                    if os.path.exists(jsonFile):
+                        with open(jsonFile) as f:
+                            try:
+                                data = json.load(f)
+                            except UnicodeDecodeError:
+                                output("Error reading %s" % jsonFile)
+                    force_flag = True
+            else:
+                if useSmdbData:
+                    data = smdbData['titles'][moviePath]
+                    force_flag = False
+                else:
+                    if forceScan:
+                        maybe_progress(idx, totalFolders)
+                    if forceScan:
+                        output(f"Processing movie folder: {movieFolderName} at {moviePath}")
+                    jsonFile = os.path.join(moviePath, f'{movieFolderName}.json')
+                    if os.path.exists(jsonFile):
+                        with open(jsonFile) as f:
+                            try:
+                                data = json.load(f)
+                            except UnicodeDecodeError:
+                                output("Error reading %s" % jsonFile)
+                    force_flag = forceScan
 
             movieData = self.createMovieData(data,
                                              moviePath,
                                              movieFolderName,
                                              False,  # Don't generate new rank here, it's for watch list
-                                             forceScan)
+                                             force_flag)
 
             folderName = movieData[Columns.Folder.value]
             self.movieSet.add(folderName)

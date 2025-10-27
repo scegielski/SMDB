@@ -726,9 +726,13 @@ class MainWindow(QtWidgets.QMainWindow):
         clearAdditionalMoviesFolderAction.triggered.connect(self.clearAdditionalMoviesFolders)
         fileMenu.addAction(clearAdditionalMoviesFolderAction)
 
-        rescanAction = QtWidgets.QAction("Rescan movie folders", self)
+        rescanAction = QtWidgets.QAction("Rescan all movie folders", self)
         rescanAction.triggered.connect(lambda: self.refreshMoviesList(forceScan=True))
         fileMenu.addAction(rescanAction)
+
+        rescanNewAction = QtWidgets.QAction("Rescan new movie folders", self)
+        rescanNewAction.triggered.connect(self.rescanModifiedSince)
+        fileMenu.addAction(rescanNewAction)
 
         rebuildSmdbFileAction = QtWidgets.QAction("Rebuild SMDB file", self)
         rebuildSmdbFileAction.triggered.connect(lambda: self.writeSmdbFile(self.moviesSmdbFile,
@@ -1380,6 +1384,7 @@ class MainWindow(QtWidgets.QMainWindow):
                      sortColumn,
                      forceScan=False,
                      neverScan=True,
+                     modifiedSince=None,
                      sortAscending=True,
                      writeToLog=False):
 
@@ -1445,7 +1450,8 @@ class MainWindow(QtWidgets.QMainWindow):
                                  moviesFolders,
                                  forceScan,
                                  neverScan,
-                                 progress_callback if forceScan else None)
+                                 progress_callback if (forceScan or modifiedSince is not None) else None,
+                                 modifiedSince=modifiedSince)
         if writeToLog:
             create_model_time = time.perf_counter() - t0
             self.output(f"Created MoviesTableModel in {create_model_time:.3f}s")
@@ -1526,8 +1532,8 @@ class MainWindow(QtWidgets.QMainWindow):
         refresh_table_remaining_time = time.perf_counter() - t0
         return smdbData, model, proxyModel, columnsVisible, smdbData
 
-    def refreshMoviesList(self, forceScan=False, writeToLog=False):
-        if forceScan:
+    def refreshMoviesList(self, forceScan=False, writeToLog=False, modifiedSince=None):
+        if forceScan or (modifiedSince is not None):
             self.isCanceled = False
             self.progressBar.setValue(0)
             rescan_start = time.monotonic()
@@ -1546,6 +1552,7 @@ class MainWindow(QtWidgets.QMainWindow):
                                                       Columns.Year.value,
                                                       forceScan,
                                                       neverScan=True,
+                                                      modifiedSince=modifiedSince,
                                                       writeToLog=writeToLog)
         except OperationCanceledError:
             self.statusBar().showMessage("Cancelled")
@@ -1554,7 +1561,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.isCanceled = False
             return
 
-        if forceScan:
+        if forceScan or (modifiedSince is not None):
             self.progressBar.setValue(0)
             total_seconds = time.monotonic() - rescan_start if rescan_start is not None else 0
             duration = max(0, int(round(total_seconds)))
@@ -1607,6 +1614,25 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def preferences(self):
         pass
+
+    def rescanModifiedSince(self):
+        dialog = QtWidgets.QDialog(self)
+        dialog.setWindowTitle("Select cutoff date")
+        layout = QtWidgets.QVBoxLayout(dialog)
+        calendar = QtWidgets.QCalendarWidget(dialog)
+        calendar.setGridVisible(True)
+        layout.addWidget(calendar)
+        buttons = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel,
+            parent=dialog
+        )
+        layout.addWidget(buttons)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        if dialog.exec_() == QtWidgets.QDialog.Accepted:
+            qdate = calendar.selectedDate()
+            selected_dt = datetime.datetime(qdate.year(), qdate.month(), qdate.day())
+            self.refreshMoviesList(modifiedSince=selected_dt, writeToLog=True)
 
     def restoreDefaultWindows(self):
         self.setGeometry(QtCore.QRect(50, 50, 1820, 900))
