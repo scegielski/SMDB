@@ -163,13 +163,14 @@ class CoverFlowGLWidget(QOpenGLWidget):
             progress = self._anim_progress
             smooth_progress = progress * progress * (3 - 2 * progress)
             direction = getattr(self, '_anim_direction', 1)
-            # Outgoing cover offset
+            # Outgoing cover offset (closer to current cover)
+            vertical_distance = 1.2  # Reduce from 2.0 to 0.7 for visibility
             if direction == 1:
-                prev_y_offset = -(smooth_progress) * 2.0
-                curr_y_offset = (1.0 - smooth_progress) * 2.0
+                prev_y_offset = -(smooth_progress) * vertical_distance
+                curr_y_offset = (1.0 - smooth_progress) * vertical_distance
             else:
-                prev_y_offset = smooth_progress * 2.0
-                curr_y_offset = -(1.0 - smooth_progress) * 2.0
+                prev_y_offset = smooth_progress * vertical_distance
+                curr_y_offset = -(1.0 - smooth_progress) * vertical_distance
             # Draw previous cover
             glPushMatrix()
             glTranslatef(0.0, prev_y_offset, -z)
