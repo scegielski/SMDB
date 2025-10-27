@@ -155,6 +155,9 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
                     # Track folder modified time for later decision
                     folderMtimes[key] = mtime_ts
                     numMovies += 1
+                    if (forceScan):
+                        maybe_progress(idx, totalMovies)
+
                 output(f"Scanned {numMovies} movies for {moviesFolder}")
 
         totalFolders = len(moviesFolderDict)
