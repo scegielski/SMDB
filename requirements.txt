@@ -5,3 +5,5 @@ requests
 ujson
 Unidecode
 pyinstaller
+PyOpenGL
+numpy
