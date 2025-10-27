@@ -67,14 +67,29 @@ class CoverFlowGLWidget(QOpenGLWidget):
             self.update()
     wheelMovieChange = pyqtSignal(int)  # +1 for next, -1 for previous
     def wheelEvent(self, event):
-        # Accumulate wheel delta and queue events for consistent animation speed
+        # Zoom in/out if Ctrl is held, otherwise animate cover change
         delta = event.angleDelta().y()
-        if delta > 0:
-            self.animate_cover_transition(-1)
-            self.wheelMovieChange.emit(-1)
-        elif delta < 0:
-            self.animate_cover_transition(1)
-            self.wheelMovieChange.emit(1)
+        if event.modifiers() & Qt.ControlModifier:
+            # Zoom: adjust zoom_level, clamp to reasonable range
+            if not hasattr(self, 'zoom_level'):
+                self.zoom_level = 0.0
+            zoom_step = 0.2
+            if delta > 0:
+                self.zoom_level -= zoom_step
+            elif delta < 0:
+                self.zoom_level += zoom_step
+            # Clamp zoom_level between -2.0 and 2.0
+            self.zoom_level = max(-2.0, min(2.0, self.zoom_level))
+            self.update()
+            event.accept()  # Prevent propagation to parent (no text size change)
+        else:
+            if delta > 0:
+                self.animate_cover_transition(-1)
+                self.wheelMovieChange.emit(-1)
+            elif delta < 0:
+                self.animate_cover_transition(1)
+                self.wheelMovieChange.emit(1)
+            event.accept()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -87,6 +102,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         self.y_rotation = 0.0
         self.last_mouse_x = None
         self.aspect_ratio = 1.0
+        self.zoom_level = 0.0  # Camera translation for zoom
 
     def set_cover_image(self, image_path):
         self.cover_image = QImage(image_path)
@@ -129,6 +145,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
         import math
         fov_y = 30.0
         z = (quad_h / 2) / math.tan(math.radians(fov_y / 2))
+        # Apply zoom level (camera translation)
+        z += getattr(self, 'zoom_level', 0.0)
         # Animation: dual covers
         if getattr(self, '_animating', False) and self._prev_cover_image is not None:
             progress = self._anim_progress
