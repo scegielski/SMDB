@@ -8,11 +8,16 @@ import numpy as np
 class CoverFlowGLWidget(QOpenGLWidget):
     wheelMovieChange = pyqtSignal(int)  # +1 for next, -1 for previous
     def wheelEvent(self, event):
-        delta = event.angleDelta().y()
-        if delta > 0:
+        # Accumulate wheel delta and emit for every full notch (±120)
+        if not hasattr(self, '_wheel_accum'):  # initialize accumulator
+            self._wheel_accum = 0
+        self._wheel_accum += event.angleDelta().y()
+        while self._wheel_accum >= 120:
             self.wheelMovieChange.emit(-1)  # Previous movie
-        elif delta < 0:
+            self._wheel_accum -= 120
+        while self._wheel_accum <= -120:
             self.wheelMovieChange.emit(1)   # Next movie
+            self._wheel_accum += 120
     def __init__(self, parent=None):
         super().__init__(parent)
         # Enable sample buffers for anti-aliasing
