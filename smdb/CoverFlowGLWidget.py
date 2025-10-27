@@ -48,16 +48,22 @@ class CoverFlowGLWidget(QOpenGLWidget):
         self._prev_texture_id = self.texture_id
 
     def animate_cover_transition(self, direction):
+        from PyQt5.QtCore import QElapsedTimer
         self._store_prev_cover()
         self._anim_direction = direction
         self._anim_progress = 0.0
         self._animating = True
         self._anim_timer = self.startTimer(16)  # ~60 FPS
+        self._anim_elapsed = QElapsedTimer()
+        self._anim_elapsed.start()
         self.update()
 
     def timerEvent(self, event):
         if getattr(self, '_animating', False):
-            self._anim_progress += 0.027
+            # Use elapsed time for constant speed
+            duration_ms = 370  # Animation duration in ms (adjust as needed)
+            elapsed_ms = self._anim_elapsed.elapsed() if hasattr(self, '_anim_elapsed') else 0
+            self._anim_progress = min(1.0, elapsed_ms / duration_ms)
             if self._anim_progress >= 1.0:
                 self._anim_progress = 1.0
                 self._animating = False
