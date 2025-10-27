@@ -8,6 +8,10 @@ import numpy as np
 class CoverFlowGLWidget(QOpenGLWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+        # Enable sample buffers for anti-aliasing
+        fmt = self.format()
+        fmt.setSamples(8)
+        self.setFormat(fmt)
         self.cover_image = None
         self.texture_id = None
         self.y_rotation = 0.0
@@ -24,6 +28,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
     def initializeGL(self):
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_TEXTURE_2D)
+        glEnable(GL_MULTISAMPLE)
         glClearColor(0.0, 0.0, 0.0, 1.0)  # Pure black background
         self.texture_id = None
 
