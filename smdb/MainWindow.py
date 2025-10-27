@@ -1468,17 +1468,6 @@ class MainWindow(QtWidgets.QMainWindow):
         proxyModel.setSourceModel(model)
         tableView.setModel(proxyModel)
 
-        t0 = time.perf_counter()
-        if sortAscending:
-            proxyModel.sort(sortColumn,
-                            QtCore.Qt.AscendingOrder)
-        else:
-            proxyModel.sort(sortColumn,
-                            QtCore.Qt.DescendingOrder)
-
-        if writeToLog:
-            sort_time = time.perf_counter() - t0
-            self.output(f"Sorted movies in {sort_time:.3f}s")
 
         tableView.selectionModel().selectionChanged.connect(
             lambda: self.tableSelectionChanged(tableView,
