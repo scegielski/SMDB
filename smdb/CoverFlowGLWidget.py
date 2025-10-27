@@ -6,17 +6,36 @@ from OpenGL.GLU import *
 import numpy as np
 
 class CoverFlowGLWidget(QOpenGLWidget):
+    def animate_cover_transition(self, direction):
+        # direction: +1 for next (from bottom), -1 for previous (from top)
+        self._anim_direction = direction
+        self._anim_progress = 0.0
+        self._animating = True
+        self._anim_timer = self.startTimer(16)  # ~60 FPS
+        self.update()
+
+    def timerEvent(self, event):
+        if getattr(self, '_animating', False):
+            # 3x slower: 0.08 / 3 = ~0.027
+            self._anim_progress += 0.027
+            if self._anim_progress >= 1.0:
+                self._anim_progress = 1.0
+                self._animating = False
+                self.killTimer(self._anim_timer)
+            self.update()
     wheelMovieChange = pyqtSignal(int)  # +1 for next, -1 for previous
     def wheelEvent(self, event):
         # Accumulate wheel delta and emit for every full notch (±120)
-        if not hasattr(self, '_wheel_accum'):  # initialize accumulator
+        if not hasattr(self, '_wheel_accum'):
             self._wheel_accum = 0
         self._wheel_accum += event.angleDelta().y()
         while self._wheel_accum >= 120:
-            self.wheelMovieChange.emit(-1)  # Previous movie
+            self.animate_cover_transition(-1)
+            self.wheelMovieChange.emit(-1)
             self._wheel_accum -= 120
         while self._wheel_accum <= -120:
-            self.wheelMovieChange.emit(1)   # Next movie
+            self.animate_cover_transition(1)
+            self.wheelMovieChange.emit(1)
             self._wheel_accum += 120
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -55,15 +74,12 @@ class CoverFlowGLWidget(QOpenGLWidget):
     def paintGL(self):
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glLoadIdentity()
-        # Camera distance so quad fits window
-        # Calculate scale so both width and height fit
         widget_w = self.width()
         widget_h = self.height()
         if widget_h == 0:
             widget_h = 1
         window_aspect = widget_w / widget_h
         cover_aspect = self.aspect_ratio
-        # Find scale so both dimensions fit
         max_quad_h = 1.0
         max_quad_w = window_aspect
         quad_h = max_quad_h
@@ -71,12 +87,22 @@ class CoverFlowGLWidget(QOpenGLWidget):
         if quad_w > max_quad_w:
             quad_w = max_quad_w
             quad_h = quad_w / cover_aspect
-        # Set camera z so quad fits (based on FOV)
-        # FOV is 30 deg, so tan(15) = quad_h/2 / z => z = quad_h/2 / tan(15deg)
         import math
         fov_y = 30.0
         z = (quad_h / 2) / math.tan(math.radians(fov_y / 2))
-        glTranslatef(0.0, 0.0, -z)
+        # Animation: slide in from top or bottom
+        y_offset = 0.0
+        if getattr(self, '_animating', False):
+            progress = self._anim_progress
+            # Ease-in-out using smoothstep
+            smooth_progress = progress * progress * (3 - 2 * progress)
+            direction = getattr(self, '_anim_direction', 1)
+            # Slide from top (-1) or bottom (+1)
+            if direction == 1:
+                y_offset = (1.0 - smooth_progress) * 2.0  # start below, move up
+            else:
+                y_offset = -(1.0 - smooth_progress) * 2.0  # start above, move down
+        glTranslatef(0.0, y_offset, -z)
         glRotatef(self.y_rotation, 0.0, 1.0, 0.0)
         if self.cover_image and not self.cover_image.isNull():
             if self.texture_id is None:
