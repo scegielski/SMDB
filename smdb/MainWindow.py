@@ -1390,7 +1390,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
         smdbData = dict()
         read_time = None
-        if os.path.exists(smdbFile):
+        # Support binary MessagePack file beside JSON for faster IO
+        mpk_path = os.path.splitext(smdbFile)[0] + ".mpk"
+        if os.path.exists(smdbFile) or os.path.exists(mpk_path):
             t0 = time.perf_counter()
             smdbData = readSmdbFile(smdbFile)
             read_time = time.perf_counter() - t0
@@ -1399,7 +1401,12 @@ class MainWindow(QtWidgets.QMainWindow):
                 if smdbFile == self.moviesSmdbFile and not getattr(self, "_readMoviesSmdbLogged", False):
                     self._lastMoviesSmdbReadSeconds = read_time
                     if writeToLog:
-                        self.output(f"Read smdb_data.json in {read_time:.3f}s")
+                        try:
+                            fmt = get_last_smdb_read_format()
+                        except Exception:
+                            fmt = None
+                        fmt_text = f" ({fmt})" if fmt else ""
+                        self.output(f"Read SMDB{fmt_text} in {read_time:.3f}s")
                     self._readMoviesSmdbLogged = True
             except Exception:
                 pass
@@ -3457,8 +3464,27 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage('Writing %s' % fileName)
         QtCore.QCoreApplication.processEvents()
 
+        # Write JSON (human-readable, backward-compatible)
         with open(fileName, "w") as f:
             ujson.dump(data, f, indent=4)
+
+        # Also write fast binary format (.mpk) for quicker IO on next runs
+        try:
+            try:
+                import msgpack  # optional dependency
+            except Exception:
+                msgpack = None
+            if msgpack:
+                base, ext = os.path.splitext(fileName)
+                mpk_path = f"{base}.mpk" if ext.lower() != ".mpk" else fileName
+                with open(mpk_path, "wb") as bf:
+                    msgpack.pack(data, bf, use_bin_type=True)
+        except Exception as e:
+            # Non-fatal; log and continue
+            try:
+                self.output(f"Warning: failed to write MessagePack SMDB: {e}")
+            except Exception:
+                pass
 
         self.statusBar().showMessage('Done')
         QtCore.QCoreApplication.processEvents()

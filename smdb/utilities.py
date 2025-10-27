@@ -18,6 +18,24 @@ from PyQt5 import QtCore
 import re
 from unidecode import unidecode
 
+# Optional binary serialization (MessagePack) for faster SMDB IO
+try:
+    import msgpack  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    msgpack = None
+
+# Track how SMDB was last read (for logging/reporting)
+_last_smdb_read_format = None  # 'msgpack' | 'json' | None
+_last_smdb_read_path = None
+
+
+def get_last_smdb_read_format():
+    return _last_smdb_read_format
+
+
+def get_last_smdb_read_path():
+    return _last_smdb_read_path
+
 import re
 from unidecode import unidecode
 
@@ -81,13 +99,69 @@ def bToMb(b):
     return b / (2**20)
 
 
+def _smdb_mpk_path(fileName: str) -> str:
+    base, ext = os.path.splitext(fileName)
+    # Prefer replacing .json with .mpk, otherwise append .mpk
+    return f"{base}.mpk" if ext.lower() != ".mpk" else fileName
+
+
+def _read_smdb_json(path: str):
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _write_smdb_mpk(path: str, data) -> None:
+    if not msgpack:
+        return
+    try:
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        with open(path, "wb") as f:
+            msgpack.pack(data, f, use_bin_type=True)
+    except Exception as e:
+        # Non-fatal; just log
+        output(f"Warning: failed to write MessagePack SMDB '{path}': {e}")
+
+
 def readSmdbFile(fileName):
+    """Read SMDB data with fast binary fallback.
+
+    Prefers MessagePack (".mpk") if present and msgpack is available; otherwise
+    reads the JSON file and, when possible, writes a one-time ".mpk" next to it
+    to speed up future loads.
+    """
+    global _last_smdb_read_format, _last_smdb_read_path
+    _last_smdb_read_format, _last_smdb_read_path = None, None
+
+    mpk_path = _smdb_mpk_path(fileName)
+    # 1) Prefer MessagePack if available
+    if msgpack and os.path.exists(mpk_path):
+        try:
+            with open(mpk_path, "rb") as f:
+                # Allow non-string keys (e.g., years as ints) to match in-memory data
+                data = msgpack.unpack(f, raw=False, strict_map_key=False)
+                _last_smdb_read_format, _last_smdb_read_path = 'msgpack', mpk_path
+                return data
+        except Exception as e:
+            output(f"Warning: failed to read MessagePack SMDB '{mpk_path}': {e}")
+            # Fall back to JSON
+
+    # 2) Fall back to JSON
     if os.path.exists(fileName):
         try:
-            with open(fileName) as f:
-                return json.load(f)
-        except IOError:
-            output("Could not open file: %s" % fileName)
+            data = _read_smdb_json(fileName)
+            _last_smdb_read_format, _last_smdb_read_path = 'json', fileName
+        except Exception as e:
+            output(f"Could not open or parse file: {fileName}: {e}")
+            return None
+
+        # 3) If we have msgpack, migrate/write .mpk for next time
+        if msgpack:
+            _write_smdb_mpk(mpk_path, data)
+        return data
+
+    # Nothing found
+    return None
 
 
 def getMovieKey(movie, key):

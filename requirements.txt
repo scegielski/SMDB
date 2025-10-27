@@ -7,3 +7,4 @@ Unidecode
 pyinstaller
 PyOpenGL
 numpy
+msgpack
