@@ -82,6 +82,28 @@ class OperationCanceledError(Exception):
 
 
 class MainWindow(QtWidgets.QMainWindow):
+    def coverFlowWheelNavigate(self, direction):
+        # direction: +1 for next, -1 for previous
+        view = self.moviesTableView
+        model = view.model()
+        proxy = getattr(self, 'moviesTableProxyModel', None)
+        if proxy:
+            model = proxy
+        sel_model = view.selectionModel()
+        selected = sel_model.selectedRows()
+        if not selected:
+            # If nothing selected, select first or last
+            if direction > 0:
+                view.selectRow(0)
+            else:
+                view.selectRow(model.rowCount() - 1)
+            return
+        current_row = selected[0].row()
+        next_row = current_row + direction
+        next_row = max(0, min(model.rowCount() - 1, next_row))
+        if next_row != current_row:
+            view.selectRow(next_row)
+
     def __init__(self):
         super(MainWindow, self).__init__()
         start_time = time.perf_counter()
@@ -263,6 +285,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Cover Flow Tab (OpenGL)
         from .CoverFlowGLWidget import CoverFlowGLWidget
         self.coverFlowWidget = CoverFlowGLWidget()
+        self.coverFlowWidget.wheelMovieChange.connect(self.coverFlowWheelNavigate)
         self.moviesTabWidget.addTab(self.coverFlowWidget, "Cover Flow")
         self.moviesTableDefaultColumns = [Columns.Year.value,
                                           Columns.Title.value,
