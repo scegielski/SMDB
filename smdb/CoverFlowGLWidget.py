@@ -41,8 +41,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
     def getCachedCover(self, idx):
         with self.QMutexLocker(self._cover_cache_mutex):
             return self._cover_cache.get(idx, (None, None))
-    def _init_anim_queue(self):
-        self._anim_queue = []
+
 
     def _store_prev_cover(self):
         self._prev_cover_image = self.cover_image
@@ -65,29 +64,18 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 self.killTimer(self._anim_timer)
                 self._prev_cover_image = None
                 self._prev_texture_id = None
-                self._process_anim_queue()  # Start next animation if queued
             self.update()
     wheelMovieChange = pyqtSignal(int)  # +1 for next, -1 for previous
     def wheelEvent(self, event):
         # Accumulate wheel delta and queue events for consistent animation speed
-        if not hasattr(self, '_wheel_accum'):
-            self._wheel_accum = 0
-        self._wheel_accum += event.angleDelta().y()
-        while self._wheel_accum >= 120:
-            self._anim_queue.append(-1)
-            self._wheel_accum -= 120
-        while self._wheel_accum <= -120:
-            self._anim_queue.append(1)
-            self._wheel_accum += 120
-        self._process_anim_queue()
+        delta = event.angleDelta().y()
+        if delta > 0:
+            self.animate_cover_transition(-1)
+            self.wheelMovieChange.emit(-1)
+        elif delta < 0:
+            self.animate_cover_transition(1)
+            self.wheelMovieChange.emit(1)
 
-    def _process_anim_queue(self):
-        if getattr(self, '_animating', False):
-            return  # Wait for current animation to finish
-        if self._anim_queue:
-            direction = self._anim_queue.pop(0)
-            self.animate_cover_transition(direction)
-            self.wheelMovieChange.emit(direction)
     def __init__(self, parent=None):
         super().__init__(parent)
         # Enable sample buffers for anti-aliasing
@@ -99,7 +87,6 @@ class CoverFlowGLWidget(QOpenGLWidget):
         self.y_rotation = 0.0
         self.last_mouse_x = None
         self.aspect_ratio = 1.0
-        self._init_anim_queue()
 
     def set_cover_image(self, image_path):
         self.cover_image = QImage(image_path)
