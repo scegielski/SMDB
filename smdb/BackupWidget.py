@@ -592,7 +592,10 @@ class BackupWidget(QtWidgets.QFrame):
         
         # Update space labels
         self.spaceFree = self.spaceTotal - newSize
-        self.spaceAvailableLabel.setText(f"{bToGb(newSize)}Gb  Of  {bToGb(self.spaceTotal)}Gb  Used       {bToGb(self.spaceFree)}Gb Free")
+        self.spaceAvailableLabel.setText("%dGb  Of  %dGb  Used       %dGb Free" % \
+                                         (bToGb(newSize),
+                                          bToGb(self.spaceTotal),
+                                          bToGb(self.spaceFree)))
 
     def run(self, moveFiles=False):
         """Run the backup/move operation."""
