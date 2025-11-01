@@ -9,7 +9,7 @@ import stat
 
 from .MoviesTableModel import MoviesTableModel, Columns, defaultColumnWidths
 from .MovieTableView import MovieTableView
-from .utilities import bToGb, bToMb, getFolderSize, getFolderSizes, handleRemoveReadonly, runFile
+from .utilities import bToGb, bToMb, getFolderSize, getFolderSizes, handleRemoveReadonly, runFile, formatSizeDiff
 
 
 class BackupWidget(QtWidgets.QFrame):
@@ -45,6 +45,9 @@ class BackupWidget(QtWidgets.QFrame):
         self.listDefaultColumns = [Columns.Title.value,
                                          Columns.Path.value,
                                          Columns.BackupStatus.value,
+                                         Columns.SrcSize.value,
+                                         Columns.DstSize.value,
+                                         Columns.SizeDiff.value,
                                          Columns.Size.value]
         
         try:
@@ -372,6 +375,13 @@ class BackupWidget(QtWidgets.QFrame):
                 destFolderSize = 0
                 
             self.destFolderSizes[sourceFolderName] = destFolderSize
+            
+            # Set the new backup size columns
+            self.listTableModel.setSrcSize(sourceIndex, '%05d Mb' % bToMb(sourceFolderSize))
+            self.listTableModel.setDstSize(sourceIndex, '%05d Mb' % bToMb(destFolderSize))
+            sizeDiff = sourceFolderSize - destFolderSize
+            self.listTableModel.setSizeDiff(sourceIndex, formatSizeDiff(sizeDiff))
+            
             timing_data['folder_size_calc'] += time.time() - size_start
 
             # Check destination folder existence

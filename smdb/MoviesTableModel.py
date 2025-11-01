@@ -29,6 +29,9 @@ class Columns(Enum):
     CoverExists = auto()
     Rank = auto()
     BackupStatus =auto()
+    SrcSize = auto()
+    DstSize = auto()
+    SizeDiff = auto()
     Duplicate = auto()
     Width = auto()
     Height = auto()
@@ -58,6 +61,9 @@ defaultColumnWidths = {Columns.Cover.value: 150,
                        Columns.CoverExists.value: 65,
                        Columns.Rank.value: 40,
                        Columns.BackupStatus.value: 150,
+                       Columns.SrcSize.value: 100,
+                       Columns.DstSize.value: 100,
+                       Columns.SizeDiff.value: 100,
                        Columns.Duplicate.value: 60,
                        Columns.Width.value: 50,
                        Columns.Height.value: 50,
@@ -399,6 +405,15 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
     def getBackupStatus(self, row):
         return self._data[row][Columns.BackupStatus.value]
 
+    def getSrcSize(self, row):
+        return self._data[row][Columns.SrcSize.value]
+
+    def getDstSize(self, row):
+        return self._data[row][Columns.DstSize.value]
+
+    def getSizeDiff(self, row):
+        return self._data[row][Columns.SizeDiff.value]
+
     def getYear(self, row):
         return self._data[row][Columns.Year.value]
 
@@ -519,6 +534,18 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
     def setBackupStatus(self, index, value):
         self._data[index.row()][Columns.BackupStatus.value] = value
+        self.dataChanged.emit(index, index)
+
+    def setSrcSize(self, index, value):
+        self._data[index.row()][Columns.SrcSize.value] = value
+        self.dataChanged.emit(index, index)
+
+    def setDstSize(self, index, value):
+        self._data[index.row()][Columns.DstSize.value] = value
+        self.dataChanged.emit(index, index)
+
+    def setSizeDiff(self, index, value):
+        self._data[index.row()][Columns.SizeDiff.value] = value
         self.dataChanged.emit(index, index)
 
     def setSize(self, index, value):

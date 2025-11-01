@@ -99,6 +99,34 @@ def bToMb(b):
     return b / (2**20)
 
 
+def bToKb(b):
+    return b / (2**10)
+
+
+def formatSizeDiff(sizeInBytes):
+    """Format a size difference with appropriate units (Kb or Mb) without zero padding.
+    
+    Args:
+        sizeInBytes: Size difference in bytes (can be positive or negative)
+        
+    Returns:
+        Formatted string like "+5 Mb", "-512 Kb", or "0 Kb"
+    """
+    if sizeInBytes == 0:
+        return "0 Kb"
+    
+    sizeMb = abs(bToMb(sizeInBytes))
+    sign = "+" if sizeInBytes > 0 else "-"
+    
+    if sizeMb < 1:
+        # Display in Kb if less than 1 Mb
+        sizeKb = abs(bToKb(sizeInBytes))
+        return f"{sign}{sizeKb:.0f} Kb"
+    else:
+        # Display in Mb
+        return f"{sign}{sizeMb:.0f} Mb"
+
+
 def _smdb_mpk_path(fileName: str) -> str:
     base, ext = os.path.splitext(fileName)
     # Prefer replacing .json with .mpk, otherwise append .mpk
