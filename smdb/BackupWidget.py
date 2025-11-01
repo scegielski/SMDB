@@ -668,7 +668,7 @@ class BackupWidget(QtWidgets.QFrame):
         numItems = self.parent.moviesTableModel.rowCount()
         for row in range(numItems):
             path = self.parent.moviesTableModel.getPath(row)
-            if moviesFolder in path:
+            if moviesFolder == os.path.dirname(path):
                 self.backupListTableModel.addMovie(self.moviesSmdbData, path)
         self.backupListTableModel.changedLayout()
         self.backupAnalysed = False
