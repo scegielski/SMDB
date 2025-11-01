@@ -1253,7 +1253,8 @@ class MainWindow(QtWidgets.QMainWindow):
                      neverScan=True,
                      modifiedSince=None,
                      sortAscending=True,
-                     writeToLog=False):
+                     writeToLog=False,
+                     proxyModelClass=None):
 
         smdbData = dict()
         read_time = None
@@ -1338,7 +1339,11 @@ class MainWindow(QtWidgets.QMainWindow):
                                           model,
                                           titlesOnly=False)
 
-        proxyModel = QtCore.QSortFilterProxyModel()
+        # Use custom proxy model class if provided, otherwise use default
+        if proxyModelClass is not None:
+            proxyModel = proxyModelClass()
+        else:
+            proxyModel = QtCore.QSortFilterProxyModel()
         proxyModel.setSourceModel(model)
         tableView.setModel(proxyModel)
 

@@ -6,10 +6,55 @@ import shutil
 import time
 import fnmatch
 import stat
+import re
 
 from .MoviesTableModel import MoviesTableModel, Columns, defaultColumnWidths
 from .MovieTableView import MovieTableView
 from .utilities import bToGb, bToMb, getFolderSize, getFolderSizes, handleRemoveReadonly, runFile, formatSizeDiff
+
+
+class BackupSortProxyModel(QtCore.QSortFilterProxyModel):
+    """Custom proxy model that provides special sorting for size difference column."""
+    
+    def lessThan(self, left, right):
+        """Custom comparison that sorts SizeDiff column with Kb values before Mb values."""
+        # Get the column being sorted
+        column = left.column()
+        
+        # Use custom sorting only for SizeDiff column
+        if column == Columns.SizeDiff.value:
+            leftData = self.sourceModel().data(left, QtCore.Qt.DisplayRole)
+            rightData = self.sourceModel().data(right, QtCore.Qt.DisplayRole)
+            
+            # Parse size difference strings (e.g., "+5 Mb", "-512 Kb", "0 Kb")
+            def parseSizeDiff(text):
+                if not text:
+                    return (0, 0)  # (bytes_value, 0)
+                
+                # Match pattern: optional +/-, number, space, unit (Kb or Mb)
+                match = re.match(r'([+-]?)(\d+(?:\.\d+)?)\s*(Kb|Mb)', str(text))
+                if not match:
+                    return (0, 0)
+                
+                sign = -1 if match.group(1) == '-' else 1
+                value = float(match.group(2))
+                unit = match.group(3)
+                
+                # Convert to bytes for comparison
+                if unit == 'Mb':
+                    bytes_value = sign * value * (2**20)
+                else:  # Kb
+                    bytes_value = sign * value * (2**10)
+                
+                return (bytes_value, value)
+            
+            leftBytes, _ = parseSizeDiff(leftData)
+            rightBytes, _ = parseSizeDiff(rightData)
+            
+            return leftBytes < rightBytes
+        else:
+            # Use default sorting for other columns
+            return super().lessThan(left, right)
 
 
 class BackupWidget(QtWidgets.QFrame):
@@ -989,7 +1034,8 @@ class BackupWidget(QtWidgets.QFrame):
                                                   self.listTableView,
                                                   self.listColumns,
                                                   self.listColumnWidths,
-                                                  Columns.Rank.value)
+                                                  Columns.Rank.value,
+                                                  proxyModelClass=BackupSortProxyModel)
             return (self.listSmdbData,
                     self.listTableModel,
                     self.listTableProxyModel,
