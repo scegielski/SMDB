@@ -251,14 +251,32 @@ def getFolderSize(startPath='.'):
 
 
 def getFolderSizes(path):
+    """Get sizes of immediate children (files and folders) in a single pass.
+    
+    Optimized to walk the tree once instead of calling getFolderSize() for each subdirectory.
+    """
     fileAndSizes = dict()
-    for f in os.listdir(path):
-        fullPath = os.path.join(path, f)
-        if os.path.isdir(fullPath):
-            fileSize = getFolderSize(fullPath)
+    
+    # Walk the entire tree once and accumulate sizes
+    for root, dirs, files in os.walk(path):
+        # Calculate relative path from the base path
+        rel_path = os.path.relpath(root, path)
+        
+        if rel_path == '.':
+            # Direct children of the base path
+            # Add file sizes
+            for f in files:
+                fileAndSizes[f] = os.path.getsize(os.path.join(root, f))
+            # Initialize folder sizes (will accumulate as we walk)
+            for d in dirs:
+                if d not in fileAndSizes:
+                    fileAndSizes[d] = 0
         else:
-            fileSize = os.path.getsize(fullPath)
-        fileAndSizes[f] = fileSize
+            # We're inside a subdirectory - add file sizes to the top-level folder
+            top_level_folder = rel_path.split(os.sep)[0]
+            for f in files:
+                fileAndSizes[top_level_folder] += os.path.getsize(os.path.join(root, f))
+    
     return fileAndSizes
 
 

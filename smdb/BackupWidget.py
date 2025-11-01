@@ -318,7 +318,10 @@ class BackupWidget(QtWidgets.QFrame):
         
         for row in range(numItems):
             row_start = time.time()
-            QtCore.QCoreApplication.processEvents()
+            
+            # Process events and check cancellation only every 10 items (reduce UI overhead)
+            if row % 10 == 0:
+                QtCore.QCoreApplication.processEvents()
             
             # Check for cancellation
             if getattr(self.parent, 'isCanceled', False):
@@ -329,9 +332,6 @@ class BackupWidget(QtWidgets.QFrame):
                     progressBar.setValue(0)
                 self.listTableModel.changedLayout()
                 return
-
-            if progressBar:
-                progressBar.setValue(row + 1)
 
             # Get source information
             modelIndex = self.listTableProxyModel.index(row, 0)
@@ -349,26 +349,35 @@ class BackupWidget(QtWidgets.QFrame):
                 
             destPath = os.path.join(self.folder, sourceFolderName)
 
-            # Calculate folder sizes
+            # Get file lists and calculate sizes in one pass (optimization: avoid double scanning)
             size_start = time.time()
-            sourceFolderSize = getFolderSize(sourcePath)
+            size_start = time.time()
+            sourceFilesAndSizes = getFolderSizes(sourcePath)
+            sourceFolderSize = sum(sourceFilesAndSizes.values())
+            
             self.listTableModel.setSize(sourceIndex, '%05d Mb' % bToMb(sourceFolderSize))
             self.sourceFolderSizes[sourceFolderName] = sourceFolderSize
 
-            destFolderSize = getFolderSize(destPath) if os.path.exists(destPath) else 0
+            # Get destination folder info on-demand
+            if os.path.exists(destPath):
+                destFilesAndSizes = getFolderSizes(destPath)
+                destFolderSize = sum(destFilesAndSizes.values())
+            else:
+                destFilesAndSizes = {}
+                destFolderSize = 0
+                
             self.destFolderSizes[sourceFolderName] = destFolderSize
             timing_data['folder_size_calc'] += time.time() - size_start
 
-            # Get file lists
-            compare_start = time.time()
-            sourceFilesAndSizes = getFolderSizes(sourcePath)
-            destFilesAndSizes = getFolderSizes(destPath) if os.path.exists(destPath) else {}
-
             # Check destination folder existence
+            compare_start = time.time()
             if not os.path.exists(destPath):
                 self.listTableModel.setBackupStatus(sourceIndex, "Folder Missing")
                 self.bytesToBeCopied += sourceFolderSize
-                self._updateStatusMessage(statusBar, row + 1, numItems, title)
+                if row % 10 == 0 or row == numItems - 1:
+                    if progressBar:
+                        progressBar.setValue(row + 1)
+                    self._updateStatusMessage(statusBar, row + 1, numItems, title)
                 continue
 
             # Assume no difference until proven otherwise
@@ -409,8 +418,12 @@ class BackupWidget(QtWidgets.QFrame):
                 self.bytesToBeCopied += sourceFolderSize - destFolderSize
             timing_data['status_updates'] += time.time() - status_start
 
+            # Update UI only every 10 items to reduce overhead
             ui_start = time.time()
-            self._updateStatusMessage(statusBar, row + 1, numItems, title)
+            if row % 10 == 0 or row == numItems - 1:
+                if progressBar:
+                    progressBar.setValue(row + 1)
+                self._updateStatusMessage(statusBar, row + 1, numItems, title)
             timing_data['ui_updates'] += time.time() - ui_start
 
         # Finalize
