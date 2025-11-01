@@ -26,12 +26,12 @@ class BackupWidget(QtWidgets.QFrame):
         self.bgColorC = bgColorC
         self.bgColorD = bgColorD
         self.moviesSmdbData = moviesSmdbData
-        self.backupListSmdbFile = backupListSmdbFile
+        self.listSmdbFile = backupListSmdbFile
         self.output = outputCallback
         
-        # Backup state variables
-        self.backupFolder = self.settings.value('backupFolder', "", type=str)
-        self.backupAnalysed = False
+        # State variables
+        self.folder = self.settings.value('backupFolder', "", type=str)
+        self.analysed = False
         self.spaceTotal = 0
         self.spaceUsed = 0
         self.spaceFree = 0
@@ -41,36 +41,36 @@ class BackupWidget(QtWidgets.QFrame):
         self.destFolderSizes = dict()
         
         # Table setup
-        self.backupListTableView = MovieTableView()
-        self.backupListDefaultColumns = [Columns.Title.value,
+        self.listTableView = MovieTableView()
+        self.listDefaultColumns = [Columns.Title.value,
                                          Columns.Path.value,
                                          Columns.BackupStatus.value,
                                          Columns.Size.value]
         
         try:
-            self.backupListColumns = self.settings.value('backupListTableColumns',
-                                                         self.backupListDefaultColumns,
+            self.listColumns = self.settings.value('backupListTableColumns',
+                                                         self.listDefaultColumns,
                                                          type=list)
-            self.backupListColumns = [int(m) for m in self.backupListColumns]
+            self.listColumns = [int(m) for m in self.listColumns]
         except TypeError:
-            self.backupListColumns = self.backupListDefaultColumns
+            self.listColumns = self.listDefaultColumns
 
         try:
-            self.backupListColumnWidths = self.settings.value('backupListTableColumnWidths',
+            self.listColumnWidths = self.settings.value('backupListTableColumnWidths',
                                                               defaultColumnWidths,
                                                               type=list)
-            self.backupListColumnWidths = [int(m) for m in self.backupListColumnWidths]
+            self.listColumnWidths = [int(m) for m in self.listColumnWidths]
         except TypeError:
-            self.backupListColumnWidths = defaultColumnWidths
+            self.listColumnWidths = defaultColumnWidths
 
-        self.backupListColumnsVisible = []
-        self.backupListHeaderActions = []
-        self.backupListTableModel = None
-        self.backupListTableProxyModel = None
-        self.backupListSmdbData = None
+        self.listColumnsVisible = []
+        self.listHeaderActions = []
+        self.listTableModel = None
+        self.listTableProxyModel = None
+        self.listSmdbData = None
         
         # UI elements
-        self.backupFolderEdit = QtWidgets.QLineEdit()
+        self.folderEdit = QtWidgets.QLineEdit()
         self.spaceBarLayout = QtWidgets.QHBoxLayout()
         self.spaceUsedWidget = QtWidgets.QWidget()
         self.spaceChangedWidget = QtWidgets.QWidget()
@@ -94,16 +94,16 @@ class BackupWidget(QtWidgets.QFrame):
         backupListVLayout.addWidget(backupListLabel)
 
         # Setup table view
-        self.backupListTableView.setSortingEnabled(True)
-        self.backupListTableView.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
-        self.backupListTableView.verticalHeader().hide()
-        self.backupListTableView.setStyleSheet(f"background: {self.bgColorC};"
+        self.listTableView.setSortingEnabled(True)
+        self.listTableView.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
+        self.listTableView.verticalHeader().hide()
+        self.listTableView.setStyleSheet(f"background: {self.bgColorC};"
                                                f"alternate-background-color: {self.bgColorD};")
-        self.backupListTableView.setAlternatingRowColors(True)
-        self.backupListTableView.setShowGrid(False)
+        self.listTableView.setAlternatingRowColors(True)
+        self.listTableView.setShowGrid(False)
 
         # Right click header menu
-        hh = self.backupListTableView.horizontalHeader()
+        hh = self.listTableView.horizontalHeader()
         hh.setSectionsMovable(True)
         hh.setStyleSheet(f"background: {self.bgColorB};"
                          f"border-radius: 0px;")
@@ -111,11 +111,11 @@ class BackupWidget(QtWidgets.QFrame):
         hh.customContextMenuRequested[QtCore.QPoint].connect(self.headerRightMenuShow)
 
         # Right click menu
-        self.backupListTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self.backupListTableView.customContextMenuRequested[QtCore.QPoint].connect(
-            self.backupListTableRightMenuShow)
+        self.listTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.listTableView.customContextMenuRequested[QtCore.QPoint].connect(
+            self.listTableRightMenuShow)
 
-        backupListVLayout.addWidget(self.backupListTableView)
+        backupListVLayout.addWidget(self.listTableView)
 
         # Buttons
         backupListButtonsHLayout = QtWidgets.QHBoxLayout()
@@ -124,38 +124,38 @@ class BackupWidget(QtWidgets.QFrame):
         addButton = QtWidgets.QPushButton('Add')
         addButton.setStyleSheet(f"background: {self.bgColorA};"
                                 "border-radius: 5px")
-        addButton.clicked.connect(self.backupListAdd)
+        addButton.clicked.connect(self.listAdd)
         backupListButtonsHLayout.addWidget(addButton)
 
         removeButton = QtWidgets.QPushButton('Remove')
         removeButton.setStyleSheet(f"background: {self.bgColorA};"
                                    "border-radius: 5px")
-        removeButton.clicked.connect(self.backupListRemove)
+        removeButton.clicked.connect(self.listRemove)
         backupListButtonsHLayout.addWidget(removeButton)
 
         removeNoDifferenceButton = QtWidgets.QPushButton('Remove Folders With No Difference')
         removeNoDifferenceButton.setFixedSize(300, 20)
         removeNoDifferenceButton.setStyleSheet(f"background: {self.bgColorA};"
                                                f"border-radius: 5px;")
-        removeNoDifferenceButton.clicked.connect(self.backupListRemoveNoDifference)
+        removeNoDifferenceButton.clicked.connect(self.listRemoveNoDifference)
         backupListButtonsHLayout.addWidget(removeNoDifferenceButton)
 
         analyseButton = QtWidgets.QPushButton("Analyse")
         analyseButton.setStyleSheet(f"background: {self.bgColorA};"
                                     "border-radius: 5px;")
-        analyseButton.clicked.connect(self.backupAnalyse)
+        analyseButton.clicked.connect(self.analyse)
         backupListButtonsHLayout.addWidget(analyseButton)
 
         backupButton = QtWidgets.QPushButton("Backup")
         backupButton.setStyleSheet(f"background: {self.bgColorA};"
                                    "border-radius: 5px;")
-        backupButton.clicked.connect(lambda: self.backupRun(moveFiles=False))
+        backupButton.clicked.connect(lambda: self.run(moveFiles=False))
         backupListButtonsHLayout.addWidget(backupButton)
 
         moveButton = QtWidgets.QPushButton("Move")
         moveButton.setStyleSheet(f"background: {self.bgColorA};"
                                  "border-radius: 5px;")
-        moveButton.clicked.connect(lambda: self.backupRun(moveFiles=True))
+        moveButton.clicked.connect(lambda: self.run(moveFiles=True))
         backupListButtonsHLayout.addWidget(moveButton)
 
         # Backup folder selection
@@ -165,16 +165,16 @@ class BackupWidget(QtWidgets.QFrame):
         backupFolderLabel = QtWidgets.QLabel("Destination Folder")
         backupFolderHLayout.addWidget(backupFolderLabel)
 
-        self.backupFolderEdit.setStyleSheet(f"background: {self.bgColorC};"
+        self.folderEdit.setStyleSheet(f"background: {self.bgColorC};"
                                             f"border-radius: 5px;")
-        self.backupFolderEdit.setReadOnly(True)
-        self.backupFolderEdit.setText(self.backupFolder)
-        backupFolderHLayout.addWidget(self.backupFolderEdit)
+        self.folderEdit.setReadOnly(True)
+        self.folderEdit.setText(self.folder)
+        backupFolderHLayout.addWidget(self.folderEdit)
 
         browseButton = QtWidgets.QPushButton("Browse")
         browseButton.setStyleSheet(f"background: {self.bgColorA};"
                                    "border-radius: 5px;")
-        browseButton.clicked.connect(self.backupBrowseFolder)
+        browseButton.clicked.connect(self.browseFolder)
         browseButton.setFixedSize(80, 20)
         backupFolderHLayout.addWidget(browseButton)
 
@@ -212,17 +212,17 @@ class BackupWidget(QtWidgets.QFrame):
         self.spaceBarLayout.setStretch(1, 0)
         self.spaceBarLayout.setStretch(2, 1000)
         
-        # Initialize backup folder display if previously set
-        if self.backupFolder and os.path.exists(self.backupFolder):
-            self.backupFolderEdit.setText(self.backupFolder)
+        # Initialize folder display if previously set
+        if self.folder and os.path.exists(self.folder):
+            self.folderEdit.setText(self.folder)
             self.updateDiskSpaceInfo()
 
     def updateDiskSpaceInfo(self):
-        """Update disk space information for the current backup folder."""
-        if not self.backupFolder or not os.path.exists(self.backupFolder):
+        """Update disk space information for the current destination folder."""
+        if not self.folder or not os.path.exists(self.folder):
             return
             
-        drive = os.path.splitdrive(self.backupFolder)[0]
+        drive = os.path.splitdrive(self.folder)[0]
         if not drive:
             return
             
@@ -240,18 +240,18 @@ class BackupWidget(QtWidgets.QFrame):
         """Show header context menu - delegate to parent."""
         if hasattr(self.parent, 'headerRightMenuShow'):
             self.parent.headerRightMenuShow(QPoint,
-                                           self.backupListTableView,
-                                           self.backupListColumnsVisible,
-                                           self.backupListTableModel)
+                                           self.listTableView,
+                                           self.listColumnsVisible,
+                                           self.listTableModel)
 
-    def backupBrowseFolder(self):
-        """Browse for backup destination folder."""
+    def browseFolder(self):
+        """Browse for destination folder."""
         # Use special shell folder for "This PC" on Windows to show all drive letters
         import sys
         
-        # Start from previously saved backup folder if it exists, otherwise C:\ on Windows
-        if self.backupFolder and os.path.exists(self.backupFolder):
-            browseDir = self.backupFolder
+        # Start from previously saved folder if it exists, otherwise C:\ on Windows
+        if self.folder and os.path.exists(self.folder):
+            browseDir = self.folder
         elif sys.platform == 'win32':
             browseDir = "C:\\"
         else:
@@ -267,25 +267,25 @@ class BackupWidget(QtWidgets.QFrame):
                                                        QtWidgets.QFileDialog.DontResolveSymlinks)
 
         if selectedFolder and os.path.exists(selectedFolder):
-            self.backupFolder = selectedFolder
-            self.backupFolderEdit.setText(self.backupFolder)
+            self.folder = selectedFolder
+            self.folderEdit.setText(self.folder)
             
             # Save to settings
-            self.settings.setValue('backupFolder', self.backupFolder)
+            self.settings.setValue('backupFolder', self.folder)
             
             # Update disk space info
             self.updateDiskSpaceInfo()
 
-    def backupAnalyse(self):
-        """Analyze backup status for all items in the backup list."""
-        if not self.backupFolder:
+    def analyse(self):
+        """Analyze status for all items in the list."""
+        if not self.folder:
             mb = QtWidgets.QMessageBox()
             mb.setText("Destination folder is not set")
             mb.setIcon(QtWidgets.QMessageBox.Critical)
             mb.exec()
             return
 
-        numItems = self.backupListTableProxyModel.rowCount()
+        numItems = self.listTableProxyModel.rowCount()
         
         # Get progress bar from parent
         progressBar = self.parent.progressBar if hasattr(self.parent, 'progressBar') else None
@@ -295,7 +295,7 @@ class BackupWidget(QtWidgets.QFrame):
             progressBar.setMaximum(numItems)
         progress = 0
         
-        self.backupListTableModel.aboutToChangeLayout()
+        self.listTableModel.aboutToChangeLayout()
         self.bytesToBeCopied = 0
         self.sourceFolderSizes = {}
         self.destFolderSizes = {}
@@ -308,29 +308,29 @@ class BackupWidget(QtWidgets.QFrame):
                 self.parent.isCanceled = False
                 if progressBar:
                     progressBar.setValue(0)
-                self.backupListTableModel.changedLayout()
+                self.listTableModel.changedLayout()
                 return
 
             progress += 1
             if progressBar:
                 progressBar.setValue(progress)
 
-            modelIndex = self.backupListTableProxyModel.index(row, 0)
-            sourceIndex = self.backupListTableProxyModel.mapToSource(modelIndex)
+            modelIndex = self.listTableProxyModel.index(row, 0)
+            sourceIndex = self.listTableProxyModel.mapToSource(modelIndex)
             sourceRow = sourceIndex.row()
-            title = self.backupListTableModel.getTitle(sourceRow)
-            sourceFolderName = self.backupListTableModel.getFolderName(sourceRow)
-            sourcePath = self.backupListTableModel.getPath(sourceRow)
+            title = self.listTableModel.getTitle(sourceRow)
+            sourceFolderName = self.listTableModel.getFolderName(sourceRow)
+            sourcePath = self.listTableModel.getPath(sourceRow)
             
             # Use parent's findMovie method if available
             if hasattr(self.parent, 'findMovie'):
                 sourcePath = self.parent.findMovie(sourcePath, sourceFolderName)
             if not sourcePath:
                 continue
-            destPath = os.path.join(self.backupFolder, sourceFolderName)
+            destPath = os.path.join(self.folder, sourceFolderName)
 
             sourceFolderSize = getFolderSize(sourcePath)
-            self.backupListTableModel.setSize(sourceIndex, '%05d Mb' % bToMb(sourceFolderSize))
+            self.listTableModel.setSize(sourceIndex, '%05d Mb' % bToMb(sourceFolderSize))
             self.sourceFolderSizes[sourceFolderName] = sourceFolderSize
 
             destFolderSize = 0
@@ -343,11 +343,11 @@ class BackupWidget(QtWidgets.QFrame):
                 destFilesAndSizes = getFolderSizes(destPath)
 
             if not os.path.exists(destPath):
-                self.backupListTableModel.setBackupStatus(sourceIndex, "Folder Missing")
+                self.listTableModel.setBackupStatus(sourceIndex, "Folder Missing")
                 self.bytesToBeCopied += sourceFolderSize
                 continue
             else:
-                self.backupListTableModel.setBackupStatus(sourceIndex, "No Difference")
+                self.listTableModel.setBackupStatus(sourceIndex, "No Difference")
 
             replaceFolder = False
 
@@ -355,7 +355,7 @@ class BackupWidget(QtWidgets.QFrame):
             for f in sourceFilesAndSizes.keys():
                 fullDestPath = os.path.join(destPath, f)
                 if not os.path.exists(fullDestPath):
-                    self.backupListTableModel.setBackupStatus(sourceIndex, "Files Missing (Destination)")
+                    self.listTableModel.setBackupStatus(sourceIndex, "Files Missing (Destination)")
                     replaceFolder = True
                     break
 
@@ -367,7 +367,7 @@ class BackupWidget(QtWidgets.QFrame):
                     sourceFileSize = sourceFilesAndSizes[f]
                     if sourceFileSize != destFileSize:
                         self.output(f'{title} file size difference.  File:{f} Source={sourceFileSize} Dest={destFileSize}')
-                        self.backupListTableModel.setBackupStatus(sourceIndex, "File Size Difference")
+                        self.listTableModel.setBackupStatus(sourceIndex, "File Size Difference")
                         replaceFolder = True
                         break
 
@@ -377,7 +377,7 @@ class BackupWidget(QtWidgets.QFrame):
                     fullSourcePath = os.path.join(sourcePath, f)
                     if not os.path.exists(fullSourcePath):
                         self.output(f'missing source file {fullDestPath}')
-                        self.backupListTableModel.setBackupStatus(sourceIndex, "Files Missing (Source)")
+                        self.listTableModel.setBackupStatus(sourceIndex, "Files Missing (Source)")
                         replaceFolder = True
                         break
 
@@ -390,7 +390,7 @@ class BackupWidget(QtWidgets.QFrame):
                 statusBar.showMessage(message)
             QtCore.QCoreApplication.processEvents()
 
-        self.backupListTableModel.changedLayout()
+        self.listTableModel.changedLayout()
         if statusBar:
             statusBar.showMessage("Done")
         if progressBar:
@@ -406,7 +406,7 @@ class BackupWidget(QtWidgets.QFrame):
             mb = QtWidgets.QMessageBox()
             spaceNeeded = self.spaceUsed + self.bytesToBeCopied - self.spaceTotal
             mb.setText("Error: Not enough space in backup folder: %s."
-                       "   Need %.2f Gb more space" % (self.backupFolder, bToGb(spaceNeeded)))
+                       "   Need %.2f Gb more space" % (self.folder, bToGb(spaceNeeded)))
             mb.setIcon(QtWidgets.QMessageBox.Critical)
             mb.exec()
         else:
@@ -425,18 +425,18 @@ class BackupWidget(QtWidgets.QFrame):
                                           bToGb(self.spaceTotal),
                                           bToGb(self.spaceFree)))
 
-        self.backupAnalysed = True
+        self.analysed = True
 
-    def backupRun(self, moveFiles=False):
+    def run(self, moveFiles=False):
         """Run the backup/move operation."""
-        if not self.backupFolder:
+        if not self.folder:
             mb = QtWidgets.QMessageBox()
             mb.setText("Destination folder is not set")
             mb.setIcon(QtWidgets.QMessageBox.Critical)
             mb.exec()
             return
 
-        if not self.backupAnalysed:
+        if not self.analysed:
             mb = QtWidgets.QMessageBox()
             mb.setText("Run analyses first by pressing Analyse button")
             mb.setIcon(QtWidgets.QMessageBox.Critical)
@@ -445,7 +445,7 @@ class BackupWidget(QtWidgets.QFrame):
 
         if hasattr(self.parent, 'isCanceled'):
             self.parent.isCanceled = False
-        self.backupListTableModel.aboutToChangeLayout()
+        self.listTableModel.aboutToChangeLayout()
 
         progress = 0
         lastBytesPerSecond = 0
@@ -456,7 +456,7 @@ class BackupWidget(QtWidgets.QFrame):
         estimatedHoursRemaining = 0
         estimatedMinutesRemaining = 0
 
-        numItems = self.backupListTableProxyModel.rowCount()
+        numItems = self.listTableProxyModel.rowCount()
         
         progressBar = self.parent.progressBar if hasattr(self.parent, 'progressBar') else None
         statusBar = self.parent.statusBar() if hasattr(self.parent, 'statusBar') else None
@@ -465,7 +465,7 @@ class BackupWidget(QtWidgets.QFrame):
             progressBar.setMaximum(numItems)
             
         for row in range(numItems):
-            self.backupListTableView.selectRow(row)
+            self.listTableView.selectRow(row)
             QtCore.QCoreApplication.processEvents()
             if hasattr(self.parent, 'isCanceled') and self.parent.isCanceled:
                 if statusBar:
@@ -473,26 +473,26 @@ class BackupWidget(QtWidgets.QFrame):
                 self.parent.isCanceled = False
                 if progressBar:
                     progressBar.setValue(0)
-                self.backupListTableModel.changedLayout()
+                self.listTableModel.changedLayout()
                 return
 
             progress += 1
             if progressBar:
                 progressBar.setValue(progress)
 
-            modelIndex = self.backupListTableProxyModel.index(row, 0)
-            sourceIndex = self.backupListTableProxyModel.mapToSource(modelIndex)
+            modelIndex = self.listTableProxyModel.index(row, 0)
+            sourceIndex = self.listTableProxyModel.mapToSource(modelIndex)
             sourceRow = sourceIndex.row()
-            title = self.backupListTableModel.getTitle(sourceRow)
+            title = self.listTableModel.getTitle(sourceRow)
 
             try:
-                sourcePath = self.backupListTableModel.getPath(sourceRow)
-                sourceFolderName = self.backupListTableModel.getFolderName(sourceRow)
+                sourcePath = self.listTableModel.getPath(sourceRow)
+                sourceFolderName = self.listTableModel.getFolderName(sourceRow)
                 sourceFolderSize = self.sourceFolderSizes[sourceFolderName]
                 destFolderSize = self.destFolderSizes[sourceFolderName]
-                destPath = os.path.join(self.backupFolder, sourceFolderName)
+                destPath = os.path.join(self.folder, sourceFolderName)
 
-                backupStatus = self.backupListTableModel.getBackupStatus(sourceIndex.row())
+                backupStatus = self.listTableModel.getBackupStatus(sourceIndex.row())
 
                 message = "Backing up" if not moveFiles else "Moving "
                 message += " folder (%05d/%05d): %-50s" \
@@ -601,61 +601,61 @@ class BackupWidget(QtWidgets.QFrame):
             except Exception as e:
                 self.output(f"Problem copying movie: {title} - {e}")
 
-        self.backupListTableModel.changedLayout()
+        self.listTableModel.changedLayout()
         if statusBar:
             statusBar.showMessage("Done")
         if progressBar:
             progressBar.setValue(0)
 
-    def backupListAdd(self):
+    def listAdd(self):
         """Add selected movies from main table to backup list."""
         if not hasattr(self.parent, 'moviesTableView'):
             return
             
-        self.backupListTableModel.layoutAboutToBeChanged.emit()
+        self.listTableModel.layoutAboutToBeChanged.emit()
         for modelIndex in self.parent.moviesTableView.selectionModel().selectedRows():
             if not self.parent.moviesTableView.isRowHidden(modelIndex.row()):
                 sourceIndex = self.parent.moviesTableProxyModel.mapToSource(modelIndex)
                 sourceRow = sourceIndex.row()
                 moviePath = self.parent.moviesTableModel.getPath(sourceRow)
-                self.backupListTableModel.addMovie(self.moviesSmdbData, moviePath)
+                self.listTableModel.addMovie(self.moviesSmdbData, moviePath)
 
-        self.backupListTableModel.changedLayout()
-        self.backupAnalysed = False
+        self.listTableModel.changedLayout()
+        self.analysed = False
 
-    def backupListRemove(self):
+    def listRemove(self):
         """Remove selected items from backup list."""
-        selectedRows = self.backupListTableView.selectionModel().selectedRows()
+        selectedRows = self.listTableView.selectionModel().selectedRows()
         if len(selectedRows) == 0:
             return
 
-        self.backupListTableModel.aboutToChangeLayout()
+        self.listTableModel.aboutToChangeLayout()
         rowsToDelete = list()
         for index in selectedRows:
-            sourceIndex = self.backupListTableProxyModel.mapToSource(index)
+            sourceIndex = self.listTableProxyModel.mapToSource(index)
             rowsToDelete.append(sourceIndex.row())
 
         for row in sorted(rowsToDelete, reverse=True):
-            self.backupListTableModel.removeMovie(row)
+            self.listTableModel.removeMovie(row)
 
-        self.backupListTableModel.changedLayout()
+        self.listTableModel.changedLayout()
 
-    def backupListRemoveNoDifference(self):
+    def listRemoveNoDifference(self):
         """Remove all items with 'No Difference' status."""
-        self.backupListTableModel.aboutToChangeLayout()
+        self.listTableModel.aboutToChangeLayout()
         rowsToDelete = list()
-        for row in range(self.backupListTableModel.rowCount()):
-            if self.backupListTableModel.getBackupStatus(row) == "No Difference":
+        for row in range(self.listTableModel.rowCount()):
+            if self.listTableModel.getBackupStatus(row) == "No Difference":
                 rowsToDelete.append(row)
 
         for row in sorted(rowsToDelete, reverse=True):
-            self.backupListTableModel.removeMovie(row)
+            self.listTableModel.removeMovie(row)
 
-        self.backupListTableModel.changedLayout()
+        self.listTableModel.changedLayout()
 
-    def backupListRemoveMissingInSource(self):
+    def listRemoveMissingInSource(self):
         """Remove destination folders that don't exist in source list."""
-        if not self.backupFolder:
+        if not self.folder:
             mb = QtWidgets.QMessageBox()
             mb.setText("Destination folder is not set")
             mb.setIcon(QtWidgets.QMessageBox.Critical)
@@ -663,16 +663,16 @@ class BackupWidget(QtWidgets.QFrame):
             return
 
         sourceFolders = list()
-        for row in range(self.backupListTableModel.rowCount()):
-            sourceFolders.append(self.backupListTableModel.getFolderName(row))
+        for row in range(self.listTableModel.rowCount()):
+            sourceFolders.append(self.listTableModel.getFolderName(row))
 
         destPathsToDelete = list()
-        with os.scandir(self.backupFolder) as files:
+        with os.scandir(self.folder) as files:
             for f in files:
                 if f.is_dir() and fnmatch.fnmatch(f, '*(*)'):
                     destFolder = f.name
                     if destFolder not in sourceFolders:
-                        destPath = os.path.join(self.backupFolder, destFolder)
+                        destPath = os.path.join(self.folder, destFolder)
                         self.output(f'delete: {destPath}')
                         destPathsToDelete.append(destPath)
 
@@ -689,27 +689,27 @@ class BackupWidget(QtWidgets.QFrame):
                                   ignore_errors=False,
                                   onerror=handleRemoveReadonly)
 
-    def backupListAddAllMoviesFrom(self, moviesFolder):
+    def listAddAllMoviesFrom(self, moviesFolder):
         """Add all movies from a specific folder to backup list."""
         if not hasattr(self.parent, 'moviesTableModel'):
             return
             
-        self.backupListTableModel.layoutAboutToBeChanged.emit()
+        self.listTableModel.layoutAboutToBeChanged.emit()
         numItems = self.parent.moviesTableModel.rowCount()
         for row in range(numItems):
             path = self.parent.moviesTableModel.getPath(row)
             if moviesFolder == os.path.dirname(path):
-                self.backupListTableModel.addMovie(self.moviesSmdbData, path)
-        self.backupListTableModel.changedLayout()
-        self.backupAnalysed = False
+                self.listTableModel.addMovie(self.moviesSmdbData, path)
+        self.listTableModel.changedLayout()
+        self.analysed = False
 
-    def openBackupSourceFolder(self):
+    def openSourceFolder(self):
         """Open the source folder for selected backup item."""
-        proxyIndex = self.backupListTableView.selectionModel().selectedRows()[0]
-        sourceIndex = self.backupListTableProxyModel.mapToSource(proxyIndex)
+        proxyIndex = self.listTableView.selectionModel().selectedRows()[0]
+        sourceIndex = self.listTableProxyModel.mapToSource(proxyIndex)
         sourceRow = sourceIndex.row()
-        moviePath = self.backupListTableModel.getPath(sourceRow)
-        folderName = self.backupListTableModel.getFolderName(sourceRow)
+        moviePath = self.listTableModel.getPath(sourceRow)
+        folderName = self.listTableModel.getFolderName(sourceRow)
         
         if hasattr(self.parent, 'findMovie'):
             moviePath = self.parent.findMovie(moviePath, folderName)
@@ -718,23 +718,23 @@ class BackupWidget(QtWidgets.QFrame):
             return
         runFile(moviePath)
 
-    def openBackupDestinationFolder(self):
+    def openDestinationFolder(self):
         """Open the destination folder for selected backup item."""
-        if not self.backupFolder:
+        if not self.folder:
             return
-        proxyIndex = self.backupListTableView.selectionModel().selectedRows()[0]
-        sourceIndex = self.backupListTableProxyModel.mapToSource(proxyIndex)
+        proxyIndex = self.listTableView.selectionModel().selectedRows()[0]
+        sourceIndex = self.listTableProxyModel.mapToSource(proxyIndex)
         sourceRow = sourceIndex.row()
-        movieFolder = self.backupListTableModel.getFolderName(sourceRow)
-        moviePath = os.path.join(self.backupFolder, movieFolder)
+        movieFolder = self.listTableModel.getFolderName(sourceRow)
+        moviePath = os.path.join(self.folder, movieFolder)
         if os.path.exists(moviePath):
             runFile(moviePath)
         else:
             self.output("Folder doesn't exist")
 
-    def backupListTableRightMenuShow(self, QPos):
+    def listTableRightMenuShow(self, QPos):
         """Show context menu for backup table."""
-        rightMenu = QtWidgets.QMenu(self.backupListTableView)
+        rightMenu = QtWidgets.QMenu(self.listTableView)
         rightMenu.clear()
 
         selectAllAction = QtWidgets.QAction("Select All", self)
@@ -749,7 +749,7 @@ class BackupWidget(QtWidgets.QFrame):
             actions = list()
             for f in movieFolders:
                 tmpAction = QtWidgets.QAction(f"Add all movies from {f}")
-                tmpAction.triggered.connect(lambda a, folder=f: self.backupListAddAllMoviesFrom(folder))
+                tmpAction.triggered.connect(lambda a, folder=f: self.listAddAllMoviesFrom(folder))
                 rightMenu.addAction(tmpAction)
                 actions.append(tmpAction)
 
@@ -758,23 +758,23 @@ class BackupWidget(QtWidgets.QFrame):
         rightMenu.addAction(playAction)
 
         openSourceFolderAction = QtWidgets.QAction("Open Source Folder", self)
-        openSourceFolderAction.triggered.connect(self.openBackupSourceFolder)
+        openSourceFolderAction.triggered.connect(self.openSourceFolder)
         rightMenu.addAction(openSourceFolderAction)
 
         openDestinationFolderAction = QtWidgets.QAction("Open Destination Folder", self)
-        openDestinationFolderAction.triggered.connect(self.openBackupDestinationFolder)
+        openDestinationFolderAction.triggered.connect(self.openDestinationFolder)
         rightMenu.addAction(openDestinationFolderAction)
 
         removeFromBackupListAction = QtWidgets.QAction("Remove From Backup List", self)
-        removeFromBackupListAction.triggered.connect(self.backupListRemove)
+        removeFromBackupListAction.triggered.connect(self.listRemove)
         rightMenu.addAction(removeFromBackupListAction)
 
         removeNoDifferenceAction = QtWidgets.QAction("Remove Entries With No Differences", self)
-        removeNoDifferenceAction.triggered.connect(self.backupListRemoveNoDifference)
+        removeNoDifferenceAction.triggered.connect(self.listRemoveNoDifference)
         rightMenu.addAction(removeNoDifferenceAction)
 
         removeMissingInSourceAction = QtWidgets.QAction("Remove destination folders missing in source", self)
-        removeMissingInSourceAction.triggered.connect(self.backupListRemoveMissingInSource)
+        removeMissingInSourceAction.triggered.connect(self.listRemoveMissingInSource)
         rightMenu.addAction(removeMissingInSourceAction)
 
         from enum import Enum
@@ -785,37 +785,37 @@ class BackupWidget(QtWidgets.QFrame):
             TOP = 2
 
         moveToTopAction = QtWidgets.QAction("Move To Top", self)
-        moveToTopAction.triggered.connect(lambda: self.backupListMoveRow(MoveTo.TOP))
+        moveToTopAction.triggered.connect(lambda: self.listMoveRow(MoveTo.TOP))
         rightMenu.addAction(moveToTopAction)
 
         moveUpAction = QtWidgets.QAction("Move Up", self)
-        moveUpAction.triggered.connect(lambda: self.backupListMoveRow(MoveTo.UP))
+        moveUpAction.triggered.connect(lambda: self.listMoveRow(MoveTo.UP))
         rightMenu.addAction(moveUpAction)
 
         moveDownAction = QtWidgets.QAction("Move Down", self)
-        moveDownAction.triggered.connect(lambda: self.backupListMoveRow(MoveTo.DOWN))
+        moveDownAction.triggered.connect(lambda: self.listMoveRow(MoveTo.DOWN))
         rightMenu.addAction(moveDownAction)
 
-        if self.backupListTableProxyModel.rowCount() > 0:
-            if len(self.backupListTableView.selectionModel().selectedRows()) > 0:
-                modelIndex = self.backupListTableView.selectionModel().selectedRows()[0]
+        if self.listTableProxyModel.rowCount() > 0:
+            if len(self.listTableView.selectionModel().selectedRows()) > 0:
+                modelIndex = self.listTableView.selectionModel().selectedRows()[0]
                 if hasattr(self.parent, 'clickedTable'):
                     self.parent.clickedTable(modelIndex,
-                                            self.backupListTableModel,
-                                            self.backupListTableProxyModel)
+                                            self.listTableModel,
+                                            self.listTableProxyModel)
 
         rightMenu.exec_(QtGui.QCursor.pos())
 
     def playMovie(self):
         """Play selected movie - delegate to parent."""
         if hasattr(self.parent, 'playMovie'):
-            self.parent.playMovie(self.backupListTableView, self.backupListTableProxyModel)
+            self.parent.playMovie(self.listTableView, self.listTableProxyModel)
 
     def tableSelectAll(self):
         """Select all items in backup table."""
-        self.backupListTableView.selectAll()
+        self.listTableView.selectAll()
 
-    def backupListMoveRow(self, moveTo):
+    def listMoveRow(self, moveTo):
         """Move selected rows in backup list."""
         from enum import Enum
         
@@ -824,20 +824,20 @@ class BackupWidget(QtWidgets.QFrame):
             UP = 1
             TOP = 2
             
-        selectedRows = self.backupListTableView.selectionModel().selectedRows()
+        selectedRows = self.listTableView.selectionModel().selectedRows()
         if len(selectedRows) == 0:
             return
 
         minProxyRow = selectedRows[0].row()
         maxProxyRow = selectedRows[-1].row()
-        minSourceRow = self.backupListTableProxyModel.mapToSource(selectedRows[0]).row()
-        maxSourceRow = self.backupListTableProxyModel.mapToSource(selectedRows[-1]).row()
+        minSourceRow = self.listTableProxyModel.mapToSource(selectedRows[0]).row()
+        maxSourceRow = self.listTableProxyModel.mapToSource(selectedRows[-1]).row()
 
         if ((moveTo == MoveTo.UP or moveTo == MoveTo.TOP) and minSourceRow == 0) or \
-                (moveTo == MoveTo.DOWN and maxSourceRow >= (self.backupListTableModel.getDataSize() - 1)):
+                (moveTo == MoveTo.DOWN and maxSourceRow >= (self.listTableModel.getDataSize() - 1)):
             return
 
-        self.backupListTableView.selectionModel().clearSelection()
+        self.listTableView.selectionModel().clearSelection()
 
         dstRow = 0
         topRow = 0
@@ -855,42 +855,42 @@ class BackupWidget(QtWidgets.QFrame):
             topRow = 0
             bottomRow = maxProxyRow - minProxyRow
 
-        self.backupListTableModel.moveRow(minSourceRow, maxSourceRow, dstRow)
-        topLeft = self.backupListTableProxyModel.index(topRow, 0)
+        self.listTableModel.moveRow(minSourceRow, maxSourceRow, dstRow)
+        topLeft = self.listTableProxyModel.index(topRow, 0)
         
         if hasattr(self.parent, 'moviesTableModel'):
             lastColumn = self.parent.moviesTableModel.getLastColumn()
         else:
-            lastColumn = len(self.backupListColumns) - 1
+            lastColumn = len(self.listColumns) - 1
             
-        bottomRight = self.backupListTableProxyModel.index(bottomRow, lastColumn)
+        bottomRight = self.listTableProxyModel.index(bottomRow, lastColumn)
 
-        selection = self.backupListTableView.selectionModel().selection()
+        selection = self.listTableView.selectionModel().selection()
         selection.select(topLeft, bottomRight)
-        self.backupListTableView.selectionModel().select(selection,
+        self.listTableView.selectionModel().select(selection,
                                                         QtCore.QItemSelectionModel.ClearAndSelect)
 
         # Write to file if parent has writeSmdbFile method
         if hasattr(self.parent, 'writeSmdbFile'):
-            self.parent.writeSmdbFile(self.backupListSmdbFile,
-                                     self.backupListTableModel,
+            self.parent.writeSmdbFile(self.listSmdbFile,
+                                     self.listTableModel,
                                      titlesOnly=True)
 
     def refreshBackupList(self):
         """Refresh the backup list table - delegate to parent."""
         if hasattr(self.parent, 'refreshTable'):
-            (self.backupListSmdbData,
-             self.backupListTableModel,
-             self.backupListTableProxyModel,
-             self.backupListColumnsVisible,
-             smdbData) = self.parent.refreshTable(self.backupListSmdbFile,
-                                                  self.backupListTableView,
-                                                  self.backupListColumns,
-                                                  self.backupListColumnWidths,
+            (self.listSmdbData,
+             self.listTableModel,
+             self.listTableProxyModel,
+             self.listColumnsVisible,
+             smdbData) = self.parent.refreshTable(self.listSmdbFile,
+                                                  self.listTableView,
+                                                  self.listColumns,
+                                                  self.listColumnWidths,
                                                   Columns.Rank.value)
-            return (self.backupListSmdbData,
-                    self.backupListTableModel,
-                    self.backupListTableProxyModel,
-                    self.backupListColumnsVisible,
+            return (self.listSmdbData,
+                    self.listTableModel,
+                    self.listTableProxyModel,
+                    self.listColumnsVisible,
                     smdbData)
         return None

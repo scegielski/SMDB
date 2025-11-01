@@ -374,14 +374,14 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         
         # Initialize references for backward compatibility
-        self.backupAnalysed = self.backupListWidget.backupAnalysed
-        self.backupFolder = self.backupListWidget.backupFolder
-        self.backupListTableView = self.backupListWidget.backupListTableView
-        self.backupListColumns = self.backupListWidget.backupListColumns
-        self.backupListColumnWidths = self.backupListWidget.backupListColumnWidths
-        self.backupListColumnsVisible = self.backupListWidget.backupListColumnsVisible
-        self.backupListHeaderActions = self.backupListWidget.backupListHeaderActions
-        self.backupFolderEdit = self.backupListWidget.backupFolderEdit
+        self.backupAnalysed = self.backupListWidget.analysed
+        self.backupFolder = self.backupListWidget.folder
+        self.backupListTableView = self.backupListWidget.listTableView
+        self.backupListColumns = self.backupListWidget.listColumns
+        self.backupListColumnWidths = self.backupListWidget.listColumnWidths
+        self.backupListColumnsVisible = self.backupListWidget.listColumnsVisible
+        self.backupListHeaderActions = self.backupListWidget.listHeaderActions
+        self.backupFolderEdit = self.backupListWidget.folderEdit
         
         # Connect wheel spin event
         self.backupListTableView.wheelSpun.connect(self.changeFontSize)
@@ -1715,9 +1715,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def backupBrowseFolder(self):
         """Delegate to BackupWidget."""
-        self.backupListWidget.backupBrowseFolder()
+        self.backupListWidget.browseFolder()
         # Update reference
-        self.backupFolder = self.backupListWidget.backupFolder
+        self.backupFolder = self.backupListWidget.folder
 
     def calculateFolderSize(self, sourceIndex, moviePath, movieFolderName):
         folderSize = '%05d Mb' % bToMb(getFolderSize(moviePath))
@@ -1944,15 +1944,15 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def backupAnalyse(self):
         """Delegate to BackupWidget."""
-        self.backupListWidget.backupAnalyse()
+        self.backupListWidget.analyse()
         # Update references
-        self.backupAnalysed = self.backupListWidget.backupAnalysed
+        self.backupAnalysed = self.backupListWidget.analysed
 
     def backupRun(self, moveFiles=False):
         """Delegate to BackupWidget."""
-        self.backupListWidget.backupRun(moveFiles)
+        self.backupListWidget.run(moveFiles)
         # Update references
-        self.backupAnalysed = self.backupListWidget.backupAnalysed
+        self.backupAnalysed = self.backupListWidget.analysed
 
     def cancelButtonClicked(self):
         self.isCanceled = True
@@ -3511,21 +3511,21 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def openBackupSourceFolder(self):
         """Delegate to BackupWidget."""
-        self.backupListWidget.openBackupSourceFolder()
+        self.backupListWidget.openSourceFolder()
 
     def openBackupDestinationFolder(self):
         """Delegate to BackupWidget."""
-        self.backupListWidget.openBackupDestinationFolder()
+        self.backupListWidget.openDestinationFolder()
 
     def backupListAddAllMoviesFrom(self, moviesFolder):
         """Delegate to BackupWidget."""
-        self.backupListWidget.backupListAddAllMoviesFrom(moviesFolder)
+        self.backupListWidget.listAddAllMoviesFrom(moviesFolder)
         # Update reference
-        self.backupAnalysed = self.backupListWidget.backupAnalysed
+        self.backupAnalysed = self.backupListWidget.analysed
 
     def backupListTableRightMenuShow(self, QPos):
         """Delegate to BackupWidget."""
-        self.backupListWidget.backupListTableRightMenuShow(QPos)
+        self.backupListWidget.listTableRightMenuShow(QPos)
 
     def conditionTitle(self, title, insensitive_the):
         title = title.lower()
@@ -3881,9 +3881,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def backupListAdd(self):
         """Delegate to BackupWidget."""
-        self.backupListWidget.backupListAdd()
+        self.backupListWidget.listAdd()
         # Update reference
-        self.backupAnalysed = self.backupListWidget.backupAnalysed
+        self.backupAnalysed = self.backupListWidget.analysed
 
 
     def addNewUserTag(self):
@@ -4012,15 +4012,15 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def backupListRemove(self):
         """Delegate to BackupWidget."""
-        self.backupListWidget.backupListRemove()
+        self.backupListWidget.listRemove()
 
     def backupListRemoveNoDifference(self):
         """Delegate to BackupWidget."""
-        self.backupListWidget.backupListRemoveNoDifference()
+        self.backupListWidget.listRemoveNoDifference()
 
     def backupListRemoveMissingInSource(self):
         """Delegate to BackupWidget."""
-        self.backupListWidget.backupListRemoveMissingInSource()
+        self.backupListWidget.listRemoveMissingInSource()
 
     class MoveTo(Enum):
         DOWN = 0
@@ -4029,7 +4029,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def backupListMoveRow(self, moveTo):
         """Delegate to BackupWidget."""
-        self.backupListWidget.backupListMoveRow(moveTo)
+        self.backupListWidget.listMoveRow(moveTo)
 
     def watchListMoveRow(self, moveTo):
         selectedRows = self.watchListTableView.selectionModel().selectedRows()
