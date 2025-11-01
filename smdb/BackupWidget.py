@@ -30,7 +30,7 @@ class BackupWidget(QtWidgets.QFrame):
         self.output = outputCallback
         
         # Backup state variables
-        self.backupFolder = ""
+        self.backupFolder = self.settings.value('backupFolder', "", type=str)
         self.backupAnalysed = False
         self.spaceTotal = 0
         self.spaceUsed = 0
@@ -211,6 +211,30 @@ class BackupWidget(QtWidgets.QFrame):
         self.spaceBarLayout.setStretch(0, 0)
         self.spaceBarLayout.setStretch(1, 0)
         self.spaceBarLayout.setStretch(2, 1000)
+        
+        # Initialize backup folder display if previously set
+        if self.backupFolder and os.path.exists(self.backupFolder):
+            self.backupFolderEdit.setText(self.backupFolder)
+            self.updateDiskSpaceInfo()
+
+    def updateDiskSpaceInfo(self):
+        """Update disk space information for the current backup folder."""
+        if not self.backupFolder or not os.path.exists(self.backupFolder):
+            return
+            
+        drive = os.path.splitdrive(self.backupFolder)[0]
+        if not drive:
+            return
+            
+        self.spaceTotal, self.spaceUsed, self.spaceFree = shutil.disk_usage(drive)
+        self.spaceUsedPercent = self.spaceUsed / self.spaceTotal
+        self.spaceBarLayout.setStretch(0, int(self.spaceUsedPercent * 1000))
+        self.spaceBarLayout.setStretch(2, int((1.0 - self.spaceUsedPercent) * 1000))
+
+        self.spaceAvailableLabel.setText("%dGb  Of  %dGb  Used       %dGb Free" % \
+                                         (bToGb(self.spaceUsed),
+                                          bToGb(self.spaceTotal),
+                                          bToGb(self.spaceFree)))
 
     def headerRightMenuShow(self, QPoint):
         """Show header context menu - delegate to parent."""
@@ -222,29 +246,35 @@ class BackupWidget(QtWidgets.QFrame):
 
     def backupBrowseFolder(self):
         """Browse for backup destination folder."""
-        browseDir = str(Path.home())
-        if os.path.exists('%s/Desktop' % browseDir):
-            browseDir = '%s/Desktop' % browseDir
-        self.backupFolder = \
+        # Use special shell folder for "This PC" on Windows to show all drive letters
+        import sys
+        
+        # Start from previously saved backup folder if it exists, otherwise C:\ on Windows
+        if self.backupFolder and os.path.exists(self.backupFolder):
+            browseDir = self.backupFolder
+        elif sys.platform == 'win32':
+            browseDir = "C:\\"
+        else:
+            browseDir = "/"
+        
+        # Use DontUseNativeDialog=False (default) to get native Windows dialog
+        # which allows easier navigation to different drives
+        selectedFolder = \
             QtWidgets.QFileDialog.getExistingDirectory(self,
                                                        "Select Backup Folder",
                                                        browseDir,
                                                        QtWidgets.QFileDialog.ShowDirsOnly |
                                                        QtWidgets.QFileDialog.DontResolveSymlinks)
 
-        if os.path.exists(self.backupFolder):
+        if selectedFolder and os.path.exists(selectedFolder):
+            self.backupFolder = selectedFolder
             self.backupFolderEdit.setText(self.backupFolder)
-            drive = os.path.splitdrive(self.backupFolder)[0]
-
-            self.spaceTotal, self.spaceUsed, self.spaceFree = shutil.disk_usage(drive)
-            self.spaceUsedPercent = self.spaceUsed / self.spaceTotal
-            self.spaceBarLayout.setStretch(0, int(self.spaceUsedPercent * 1000))
-            self.spaceBarLayout.setStretch(2, int((1.0 - self.spaceUsedPercent) * 1000))
-
-            self.spaceAvailableLabel.setText("%dGb  Of  %dGb  Used       %dGb Free" % \
-                                             (bToGb(self.spaceUsed),
-                                              bToGb(self.spaceTotal),
-                                              bToGb(self.spaceFree)))
+            
+            # Save to settings
+            self.settings.setValue('backupFolder', self.backupFolder)
+            
+            # Update disk space info
+            self.updateDiskSpaceInfo()
 
     def backupAnalyse(self):
         """Analyze backup status for all items in the backup list."""
