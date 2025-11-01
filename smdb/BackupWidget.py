@@ -286,15 +286,17 @@ class BackupWidget(QtWidgets.QFrame):
             return
 
         numItems = self.listTableProxyModel.rowCount()
+        if numItems == 0:
+            return
         
-        # Get progress bar from parent
-        progressBar = self.parent.progressBar if hasattr(self.parent, 'progressBar') else None
+        # Get progress bar and status bar from parent
+        progressBar = getattr(self.parent, 'progressBar', None)
         statusBar = self.parent.statusBar() if hasattr(self.parent, 'statusBar') else None
         
         if progressBar:
             progressBar.setMaximum(numItems)
-        progress = 0
         
+        # Initialize state
         self.listTableModel.aboutToChangeLayout()
         self.bytesToBeCopied = 0
         self.sourceFolderSizes = {}
@@ -302,7 +304,9 @@ class BackupWidget(QtWidgets.QFrame):
         
         for row in range(numItems):
             QtCore.QCoreApplication.processEvents()
-            if hasattr(self.parent, 'isCanceled') and self.parent.isCanceled:
+            
+            # Check for cancellation
+            if getattr(self.parent, 'isCanceled', False):
                 if statusBar:
                     statusBar.showMessage('Cancelled')
                 self.parent.isCanceled = False
@@ -311,10 +315,10 @@ class BackupWidget(QtWidgets.QFrame):
                 self.listTableModel.changedLayout()
                 return
 
-            progress += 1
             if progressBar:
-                progressBar.setValue(progress)
+                progressBar.setValue(row + 1)
 
+            # Get source information
             modelIndex = self.listTableProxyModel.index(row, 0)
             sourceIndex = self.listTableProxyModel.mapToSource(modelIndex)
             sourceRow = sourceIndex.row()
@@ -322,74 +326,70 @@ class BackupWidget(QtWidgets.QFrame):
             sourceFolderName = self.listTableModel.getFolderName(sourceRow)
             sourcePath = self.listTableModel.getPath(sourceRow)
             
-            # Use parent's findMovie method if available
+            # Find actual source path
             if hasattr(self.parent, 'findMovie'):
                 sourcePath = self.parent.findMovie(sourcePath, sourceFolderName)
             if not sourcePath:
                 continue
+                
             destPath = os.path.join(self.folder, sourceFolderName)
 
+            # Calculate folder sizes
             sourceFolderSize = getFolderSize(sourcePath)
             self.listTableModel.setSize(sourceIndex, '%05d Mb' % bToMb(sourceFolderSize))
             self.sourceFolderSizes[sourceFolderName] = sourceFolderSize
 
-            destFolderSize = 0
-            if os.path.exists(destPath):
-                destFolderSize = getFolderSize(destPath)
+            destFolderSize = getFolderSize(destPath) if os.path.exists(destPath) else 0
             self.destFolderSizes[sourceFolderName] = destFolderSize
 
+            # Get file lists
             sourceFilesAndSizes = getFolderSizes(sourcePath)
-            if os.path.exists(destPath):
-                destFilesAndSizes = getFolderSizes(destPath)
+            destFilesAndSizes = getFolderSizes(destPath) if os.path.exists(destPath) else {}
 
+            # Check destination folder existence
             if not os.path.exists(destPath):
                 self.listTableModel.setBackupStatus(sourceIndex, "Folder Missing")
                 self.bytesToBeCopied += sourceFolderSize
+                self._updateStatusMessage(statusBar, row + 1, numItems, title)
                 continue
-            else:
-                self.listTableModel.setBackupStatus(sourceIndex, "No Difference")
 
+            # Assume no difference until proven otherwise
+            self.listTableModel.setBackupStatus(sourceIndex, "No Difference")
             replaceFolder = False
 
-            # Check if any of the destination files are missing or have different sizes
-            for f in sourceFilesAndSizes.keys():
-                fullDestPath = os.path.join(destPath, f)
+            # Check for missing or different files in destination
+            for filename, sourceFileSize in sourceFilesAndSizes.items():
+                fullDestPath = os.path.join(destPath, filename)
+                
                 if not os.path.exists(fullDestPath):
                     self.listTableModel.setBackupStatus(sourceIndex, "Files Missing (Destination)")
                     replaceFolder = True
                     break
 
-                if not replaceFolder:
-                    if f in destFilesAndSizes:
-                        destFileSize = destFilesAndSizes[f]
-                    else:
-                        destFileSize = os.path.getsize(fullDestPath)
-                    sourceFileSize = sourceFilesAndSizes[f]
-                    if sourceFileSize != destFileSize:
-                        self.output(f'{title} file size difference.  File:{f} Source={sourceFileSize} Dest={destFileSize}')
-                        self.listTableModel.setBackupStatus(sourceIndex, "File Size Difference")
-                        replaceFolder = True
-                        break
+                destFileSize = destFilesAndSizes.get(filename, os.path.getsize(fullDestPath))
+                if sourceFileSize != destFileSize:
+                    self.output(f'{title} file size difference. File:{filename} Source={sourceFileSize} Dest={destFileSize}')
+                    self.listTableModel.setBackupStatus(sourceIndex, "File Size Difference")
+                    replaceFolder = True
+                    break
 
-            # Check if the destination has files that the source doesn't
+            # Check for extra files in destination
             if not replaceFolder:
-                for f in destFilesAndSizes.keys():
-                    fullSourcePath = os.path.join(sourcePath, f)
-                    if not os.path.exists(fullSourcePath):
-                        self.output(f'missing source file {fullDestPath}')
+                for filename in destFilesAndSizes.keys():
+                    if filename not in sourceFilesAndSizes:
+                        fullSourcePath = os.path.join(sourcePath, filename)
+                        self.output(f'Missing source file {fullSourcePath}')
                         self.listTableModel.setBackupStatus(sourceIndex, "Files Missing (Source)")
                         replaceFolder = True
                         break
 
+            # Update bytes to copy
             if replaceFolder:
-                self.bytesToBeCopied -= destFolderSize
-                self.bytesToBeCopied += sourceFolderSize
+                self.bytesToBeCopied += sourceFolderSize - destFolderSize
 
-            message = "Analysing folder (%d/%d): %s" % (progress + 1, numItems, title)
-            if statusBar:
-                statusBar.showMessage(message)
-            QtCore.QCoreApplication.processEvents()
+            self._updateStatusMessage(statusBar, row + 1, numItems, title)
 
+        # Finalize
         self.listTableModel.changedLayout()
         if statusBar:
             statusBar.showMessage("Done")
@@ -397,35 +397,46 @@ class BackupWidget(QtWidgets.QFrame):
             progressBar.setValue(0)
 
         # Update space visualization
-        if (self.spaceUsed + self.bytesToBeCopied > self.spaceTotal):
+        self._updateSpaceVisualization()
+        self.analysed = True
+
+    def _updateStatusMessage(self, statusBar, current, total, title):
+        """Helper to update status bar message."""
+        if statusBar:
+            message = f"Analysing folder ({current}/{total}): {title}"
+            statusBar.showMessage(message)
+            QtCore.QCoreApplication.processEvents()
+
+    def _updateSpaceVisualization(self):
+        """Helper to update the space usage visualization."""
+        newSize = self.spaceUsed + self.bytesToBeCopied
+        
+        if newSize > self.spaceTotal:
+            # Not enough space - show error
             self.spaceUsedWidget.setStyleSheet("background: rgb(255,0,0);"
                                                "border-radius: 0px 0px 0px 0px;")
             self.spaceBarLayout.setStretch(0, 1000)
             self.spaceBarLayout.setStretch(1, 0)
             self.spaceBarLayout.setStretch(2, 0)
+            
+            spaceNeeded = newSize - self.spaceTotal
             mb = QtWidgets.QMessageBox()
-            spaceNeeded = self.spaceUsed + self.bytesToBeCopied - self.spaceTotal
-            mb.setText("Error: Not enough space in backup folder: %s."
-                       "   Need %.2f Gb more space" % (self.folder, bToGb(spaceNeeded)))
+            mb.setText(f"Error: Not enough space in backup folder: {self.folder}. "
+                       f"Need {bToGb(spaceNeeded):.2f} Gb more space")
             mb.setIcon(QtWidgets.QMessageBox.Critical)
             mb.exec()
         else:
+            # Enough space - show green
             self.spaceUsedWidget.setStyleSheet("background: rgb(0,255,0);"
                                                "border-radius: 0px 0px 0px 0px;")
             changePercent = self.bytesToBeCopied / self.spaceTotal
             self.spaceBarLayout.setStretch(0, int(self.spaceUsedPercent * 1000))
             self.spaceBarLayout.setStretch(1, int(changePercent * 1000))
             self.spaceBarLayout.setStretch(2, int((1.0 - self.spaceUsedPercent - changePercent) * 1000))
-
-        newSize = self.spaceUsed + self.bytesToBeCopied
+        
+        # Update space labels
         self.spaceFree = self.spaceTotal - newSize
-        newSpacePercent = newSize / self.spaceTotal
-        self.spaceAvailableLabel.setText("%dGb  Of  %dGb  Used       %dGb Free" % \
-                                         (bToGb(newSize),
-                                          bToGb(self.spaceTotal),
-                                          bToGb(self.spaceFree)))
-
-        self.analysed = True
+        self.spaceAvailableLabel.setText(f"{bToGb(newSize)}Gb  Of  {bToGb(self.spaceTotal)}Gb  Used       {bToGb(self.spaceFree)}Gb Free")
 
     def run(self, moveFiles=False):
         """Run the backup/move operation."""
