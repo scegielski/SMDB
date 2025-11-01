@@ -490,6 +490,26 @@ class BackupWidget(QtWidgets.QFrame):
 
         # Finalize
         self.listTableModel.changedLayout()
+        
+        # Remove entries with no differences
+        if statusBar:
+            statusBar.showMessage("Removing entries with no differences...")
+        self.listTableModel.aboutToChangeLayout()
+        rowsToDelete = list()
+        for row in range(self.listTableModel.rowCount()):
+            if self.listTableModel.getBackupStatus(row) == "No Difference":
+                rowsToDelete.append(row)
+
+        for row in sorted(rowsToDelete, reverse=True):
+            self.listTableModel.removeMovie(row)
+
+        self.listTableModel.changedLayout()
+        
+        # Sort by size difference ascending
+        if statusBar:
+            statusBar.showMessage("Sorting by size difference...")
+        self.listTableProxyModel.sort(Columns.SizeDiff.value, QtCore.Qt.AscendingOrder)
+        
         if statusBar:
             statusBar.showMessage("Done")
         if progressBar:
@@ -503,6 +523,8 @@ class BackupWidget(QtWidgets.QFrame):
         total_time = time.time() - start_time
         self.output("\n=== Analyse Performance Profile ===")
         self.output(f"Total items analyzed: {timing_data['total_items']}")
+        self.output(f"Items removed (no difference): {len(rowsToDelete)}")
+        self.output(f"Items remaining: {self.listTableModel.rowCount()}")
         self.output(f"Total time: {total_time:.2f}s")
         self.output(f"Average time per item: {total_time / max(timing_data['total_items'], 1):.3f}s")
         self.output(f"\nBreakdown:")
