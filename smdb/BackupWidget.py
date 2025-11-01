@@ -278,6 +278,18 @@ class BackupWidget(QtWidgets.QFrame):
 
     def analyse(self):
         """Analyze status for all items in the list."""
+        import time
+        
+        # Start profiling
+        start_time = time.time()
+        timing_data = {
+            'total_items': 0,
+            'folder_size_calc': 0,
+            'file_comparison': 0,
+            'status_updates': 0,
+            'ui_updates': 0,
+        }
+        
         if not self.folder:
             mb = QtWidgets.QMessageBox()
             mb.setText("Destination folder is not set")
@@ -288,6 +300,8 @@ class BackupWidget(QtWidgets.QFrame):
         numItems = self.listTableProxyModel.rowCount()
         if numItems == 0:
             return
+        
+        timing_data['total_items'] = numItems
         
         # Get progress bar and status bar from parent
         progressBar = getattr(self.parent, 'progressBar', None)
@@ -303,6 +317,7 @@ class BackupWidget(QtWidgets.QFrame):
         self.destFolderSizes = {}
         
         for row in range(numItems):
+            row_start = time.time()
             QtCore.QCoreApplication.processEvents()
             
             # Check for cancellation
@@ -335,14 +350,17 @@ class BackupWidget(QtWidgets.QFrame):
             destPath = os.path.join(self.folder, sourceFolderName)
 
             # Calculate folder sizes
+            size_start = time.time()
             sourceFolderSize = getFolderSize(sourcePath)
             self.listTableModel.setSize(sourceIndex, '%05d Mb' % bToMb(sourceFolderSize))
             self.sourceFolderSizes[sourceFolderName] = sourceFolderSize
 
             destFolderSize = getFolderSize(destPath) if os.path.exists(destPath) else 0
             self.destFolderSizes[sourceFolderName] = destFolderSize
+            timing_data['folder_size_calc'] += time.time() - size_start
 
             # Get file lists
+            compare_start = time.time()
             sourceFilesAndSizes = getFolderSizes(sourcePath)
             destFilesAndSizes = getFolderSizes(destPath) if os.path.exists(destPath) else {}
 
@@ -382,12 +400,18 @@ class BackupWidget(QtWidgets.QFrame):
                         self.listTableModel.setBackupStatus(sourceIndex, "Files Missing (Source)")
                         replaceFolder = True
                         break
+            
+            timing_data['file_comparison'] += time.time() - compare_start
 
             # Update bytes to copy
+            status_start = time.time()
             if replaceFolder:
                 self.bytesToBeCopied += sourceFolderSize - destFolderSize
+            timing_data['status_updates'] += time.time() - status_start
 
+            ui_start = time.time()
             self._updateStatusMessage(statusBar, row + 1, numItems, title)
+            timing_data['ui_updates'] += time.time() - ui_start
 
         # Finalize
         self.listTableModel.changedLayout()
@@ -399,6 +423,22 @@ class BackupWidget(QtWidgets.QFrame):
         # Update space visualization
         self._updateSpaceVisualization()
         self.analysed = True
+        
+        # Output profiling results
+        total_time = time.time() - start_time
+        self.output("\n=== Analyse Performance Profile ===")
+        self.output(f"Total items analyzed: {timing_data['total_items']}")
+        self.output(f"Total time: {total_time:.2f}s")
+        self.output(f"Average time per item: {total_time / max(timing_data['total_items'], 1):.3f}s")
+        self.output(f"\nBreakdown:")
+        self.output(f"  Folder size calculation: {timing_data['folder_size_calc']:.2f}s ({timing_data['folder_size_calc']/total_time*100:.1f}%)")
+        self.output(f"  File comparison: {timing_data['file_comparison']:.2f}s ({timing_data['file_comparison']/total_time*100:.1f}%)")
+        self.output(f"  Status updates: {timing_data['status_updates']:.2f}s ({timing_data['status_updates']/total_time*100:.1f}%)")
+        self.output(f"  UI updates: {timing_data['ui_updates']:.2f}s ({timing_data['ui_updates']/total_time*100:.1f}%)")
+        overhead = total_time - sum([timing_data['folder_size_calc'], timing_data['file_comparison'], 
+                                      timing_data['status_updates'], timing_data['ui_updates']])
+        self.output(f"  Overhead: {overhead:.2f}s ({overhead/total_time*100:.1f}%)")
+        self.output("=" * 35 + "\n")
 
     def _updateStatusMessage(self, statusBar, current, total, title):
         """Helper to update status bar message."""
