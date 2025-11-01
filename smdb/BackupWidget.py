@@ -668,22 +668,61 @@ class BackupWidget(QtWidgets.QFrame):
                    backupStatus == 'Files Missing (Source)' or \
                    backupStatus == 'Files Missing (Destination)':
 
+                    # Build a map of destination files by size for rename detection
+                    # Map: size -> list of (filename, filepath, isDir)
+                    destFilesBySize = {}
+                    destFilesRenamed = set()  # Track which dest files have been renamed
+                    
+                    for f in os.listdir(destPath):
+                        destFilePath = os.path.join(destPath, f)
+                        if os.path.isdir(destFilePath):
+                            fileSize = getFolderSize(destFilePath)
+                            destFilesBySize.setdefault(fileSize, []).append((f, destFilePath, True))
+                        else:
+                            fileSize = os.path.getsize(destFilePath)
+                            destFilesBySize.setdefault(fileSize, []).append((f, destFilePath, False))
+
                     # Copy/move any files that are missing or have different sizes
                     for f in os.listdir(sourcePath):
                         sourceFilePath = os.path.join(sourcePath, f)
                         if os.path.isdir(sourceFilePath):
                             sourceFileSize = getFolderSize(sourceFilePath)
+                            isSourceDir = True
                         else:
                             sourceFileSize = os.path.getsize(sourceFilePath)
+                            isSourceDir = False
 
                         destFilePath = os.path.join(destPath, f)
 
                         if not os.path.exists(destFilePath):
-                            bytesCopied += sourceFileSize
-                            if os.path.isdir(sourceFilePath):
-                                shutil.copytree(sourceFilePath, destFilePath)
-                            else:
-                                shutil.copy(sourceFilePath, destFilePath)
+                            # Check if there's a file with same size in destination (potential rename)
+                            renamed = False
+                            if sourceFileSize in destFilesBySize:
+                                # Look for a matching file that hasn't been renamed yet
+                                for destName, destPath_candidate, isDestDir in destFilesBySize[sourceFileSize]:
+                                    if destPath_candidate not in destFilesRenamed and isSourceDir == isDestDir:
+                                        # Found a match - rename instead of copy
+                                        sourceFilePathInDest = os.path.join(sourcePath, destName)
+                                        if not os.path.exists(sourceFilePathInDest):
+                                            # Confirm this dest file doesn't exist in source
+                                            try:
+                                                os.rename(destPath_candidate, destFilePath)
+                                                destFilesRenamed.add(destPath_candidate)
+                                                destFilesRenamed.add(destFilePath)  # Mark new name too
+                                                renamed = True
+                                                fileType = "folder" if isSourceDir else "file"
+                                                self.output(f"[{title}] Renamed {fileType} (size: {bToMb(sourceFileSize)} Mb): '{destName}' -> '{f}'")
+                                                break
+                                            except Exception as e:
+                                                self.output(f"[{title}] Failed to rename {destName} to {f}: {e}")
+                            
+                            if not renamed:
+                                # No matching file found, copy as normal
+                                bytesCopied += sourceFileSize
+                                if isSourceDir:
+                                    shutil.copytree(sourceFilePath, destFilePath)
+                                else:
+                                    shutil.copy(sourceFilePath, destFilePath)
                         else:
                             destFileSize = 0
                             if os.path.exists(destFilePath):
@@ -694,7 +733,7 @@ class BackupWidget(QtWidgets.QFrame):
 
                             if sourceFileSize != destFileSize:
                                 bytesCopied += sourceFileSize
-                                if os.path.isdir(sourceFilePath):
+                                if isSourceDir:
                                     shutil.rmtree(destFilePath,
                                                   ignore_errors=False,
                                                   onerror=handleRemoveReadonly)
@@ -703,13 +742,20 @@ class BackupWidget(QtWidgets.QFrame):
                                     shutil.copy(sourceFilePath, destFilePath)
 
                         if moveFiles:
-                            shutil.rmtree(sourceFilePath,
-                                          ignore_errors=False,
-                                          onerror=handleRemoveReadonly)
+                            if os.path.isdir(sourceFilePath):
+                                shutil.rmtree(sourceFilePath,
+                                              ignore_errors=False,
+                                              onerror=handleRemoveReadonly)
+                            else:
+                                os.remove(sourceFilePath)
 
                     # Remove any files in the destination dir that are not in the source dir
+                    # Skip files that were renamed (already handled)
                     for f in os.listdir(destPath):
                         destFilePath = os.path.join(destPath, f)
+                        if destFilePath in destFilesRenamed:
+                            continue  # Skip renamed files
+                            
                         sourceFilePath = os.path.join(sourcePath, f)
                         if not os.path.exists(sourceFilePath):
                             if os.path.isdir(destFilePath):
