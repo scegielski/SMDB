@@ -316,6 +316,9 @@ class BackupWidget(QtWidgets.QFrame):
         self.sourceFolderSizes = {}
         self.destFolderSizes = {}
         
+        # Track timing for ETA calculation
+        analyse_start_time = time.time()
+        
         for row in range(numItems):
             row_start = time.time()
             
@@ -377,7 +380,7 @@ class BackupWidget(QtWidgets.QFrame):
                 if row % 10 == 0 or row == numItems - 1:
                     if progressBar:
                         progressBar.setValue(row + 1)
-                    self._updateStatusMessage(statusBar, row + 1, numItems, title)
+                    self._updateStatusMessage(statusBar, row + 1, numItems, analyse_start_time)
                 continue
 
             # Assume no difference until proven otherwise
@@ -423,7 +426,7 @@ class BackupWidget(QtWidgets.QFrame):
             if row % 10 == 0 or row == numItems - 1:
                 if progressBar:
                     progressBar.setValue(row + 1)
-                self._updateStatusMessage(statusBar, row + 1, numItems, title)
+                self._updateStatusMessage(statusBar, row + 1, numItems, analyse_start_time)
             timing_data['ui_updates'] += time.time() - ui_start
 
         # Finalize
@@ -453,10 +456,31 @@ class BackupWidget(QtWidgets.QFrame):
         self.output(f"  Overhead: {overhead:.2f}s ({overhead/total_time*100:.1f}%)")
         self.output("=" * 35 + "\n")
 
-    def _updateStatusMessage(self, statusBar, current, total, title):
-        """Helper to update status bar message."""
+    def _updateStatusMessage(self, statusBar, current, total, start_time):
+        """Helper to update status bar message with ETA."""
         if statusBar:
-            message = f"Analysing folder ({current}/{total}): {title}"
+            elapsed = time.time() - start_time
+            if current > 0:
+                avg_time_per_item = elapsed / current
+                remaining_items = total - current
+                eta_seconds = avg_time_per_item * remaining_items
+                
+                # Format ETA
+                if eta_seconds < 60:
+                    eta_str = f"{int(eta_seconds)}s"
+                elif eta_seconds < 3600:
+                    minutes = int(eta_seconds / 60)
+                    seconds = int(eta_seconds % 60)
+                    eta_str = f"{minutes}m {seconds}s"
+                else:
+                    hours = int(eta_seconds / 3600)
+                    minutes = int((eta_seconds % 3600) / 60)
+                    eta_str = f"{hours}h {minutes}m"
+                
+                message = f"Analysing folders ({current}/{total}) - ETA: {eta_str}"
+            else:
+                message = f"Analysing folders ({current}/{total})"
+            
             statusBar.showMessage(message)
             QtCore.QCoreApplication.processEvents()
 
