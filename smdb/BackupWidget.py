@@ -84,6 +84,7 @@ class BackupWidget(QtWidgets.QFrame):
         self.bytesToBeCopied = 0
         self.sourceFolderSizes = dict()
         self.destFolderSizes = dict()
+        self.renameMap = dict()  # Maps sourceFolderName -> dict of {sourceFileName: destFileName}
         
         # Table setup
         self.listTableView = MovieTableView()
@@ -363,6 +364,7 @@ class BackupWidget(QtWidgets.QFrame):
         self.bytesToBeCopied = 0
         self.sourceFolderSizes = {}
         self.destFolderSizes = {}
+        self.renameMap = {}  # Clear rename map
         
         # Track timing for ETA calculation
         analyse_start_time = time.time()
@@ -443,32 +445,66 @@ class BackupWidget(QtWidgets.QFrame):
             # Assume no difference until proven otherwise
             self.listTableModel.setBackupStatus(sourceIndex, "No Difference")
             replaceFolder = False
+            hasRenames = False
+            
+            # Build a map of destination files by size for rename detection
+            destFilesBySize = {}
+            for filename, fileSize in destFilesAndSizes.items():
+                destFilesBySize.setdefault(fileSize, []).append(filename)
+            
+            # Track which dest files have been matched for renames
+            destFilesMatched = set()
+            folderRenames = {}  # Map source filename to dest filename for this folder
 
             # Check for missing or different files in destination
             for filename, sourceFileSize in sourceFilesAndSizes.items():
                 fullDestPath = os.path.join(destPath, filename)
                 
                 if not os.path.exists(fullDestPath):
-                    self.listTableModel.setBackupStatus(sourceIndex, "Files Missing (Destination)")
-                    replaceFolder = True
-                    break
+                    # File missing - check if it's a rename (same size file exists)
+                    renameDetected = False
+                    if sourceFileSize in destFilesBySize:
+                        for destFilename in destFilesBySize[sourceFileSize]:
+                            if destFilename not in destFilesMatched and destFilename not in sourceFilesAndSizes:
+                                # Found a match: same size, not already matched, and doesn't exist in source
+                                # Check if both are same type (file vs directory)
+                                sourceFullPath = os.path.join(sourcePath, filename)
+                                destFullPath = os.path.join(destPath, destFilename)
+                                
+                                if os.path.isdir(sourceFullPath) == os.path.isdir(destFullPath):
+                                    folderRenames[filename] = destFilename
+                                    destFilesMatched.add(destFilename)
+                                    hasRenames = True
+                                    renameDetected = True
+                                    break
+                    
+                    if not renameDetected:
+                        self.listTableModel.setBackupStatus(sourceIndex, "Files Missing (Destination)")
+                        replaceFolder = True
+                        break
+                else:
+                    destFileSize = destFilesAndSizes.get(filename, os.path.getsize(fullDestPath))
+                    if sourceFileSize != destFileSize:
+                        sourceMB = bToMb(sourceFileSize)
+                        destMB = bToMb(destFileSize)
+                        self.listTableModel.setBackupStatus(sourceIndex, "File Size Difference")
+                        replaceFolder = True
+                        break
 
-                destFileSize = destFilesAndSizes.get(filename, os.path.getsize(fullDestPath))
-                if sourceFileSize != destFileSize:
-                    sourceMB = bToMb(sourceFileSize)
-                    destMB = bToMb(destFileSize)
-                    self.listTableModel.setBackupStatus(sourceIndex, "File Size Difference")
-                    replaceFolder = True
-                    break
-
-            # Check for extra files in destination
-            if not replaceFolder:
+            # Check for extra files in destination (that aren't part of renames)
+            if not replaceFolder and not hasRenames:
                 for filename in destFilesAndSizes.keys():
-                    if filename not in sourceFilesAndSizes:
+                    if filename not in sourceFilesAndSizes and filename not in destFilesMatched:
                         fullSourcePath = os.path.join(sourcePath, filename)
                         self.listTableModel.setBackupStatus(sourceIndex, "Files Missing (Source)")
                         replaceFolder = True
                         break
+            
+            # Store rename information and set status
+            if hasRenames and not replaceFolder:
+                self.listTableModel.setBackupStatus(sourceIndex, "File Renames")
+                self.renameMap[sourceFolderName] = folderRenames
+                # Renames don't change bytes to copy
             
             timing_data['file_comparison'] += time.time() - compare_start
 
@@ -664,23 +700,29 @@ class BackupWidget(QtWidgets.QFrame):
                 startTime = time.perf_counter()
                 bytesCopied = 0
 
-                if backupStatus == 'File Size Difference' or \
+                if backupStatus == 'File Renames':
+                    # Handle file renames (detected during analyse)
+                    renameDict = self.renameMap.get(sourceFolderName, {})
+                    for sourceFileName, destFileName in renameDict.items():
+                        sourceFilePath = os.path.join(sourcePath, sourceFileName)
+                        oldDestFilePath = os.path.join(destPath, destFileName)
+                        newDestFilePath = os.path.join(destPath, sourceFileName)
+                        
+                        try:
+                            os.rename(oldDestFilePath, newDestFilePath)
+                            isDir = os.path.isdir(newDestFilePath)
+                            fileType = "folder" if isDir else "file"
+                            fileSize = getFolderSize(newDestFilePath) if isDir else os.path.getsize(newDestFilePath)
+                            self.output(f"[{title}] Renamed {fileType} (size: {bToMb(fileSize)} Mb): '{destFileName}' -> '{sourceFileName}'")
+                        except Exception as e:
+                            self.output(f"[{title}] Failed to rename {destFileName} to {sourceFileName}: {e}")
+                    
+                    # No bytes copied for renames
+                    bytesCopied = 0
+                    
+                elif backupStatus == 'File Size Difference' or \
                    backupStatus == 'Files Missing (Source)' or \
                    backupStatus == 'Files Missing (Destination)':
-
-                    # Build a map of destination files by size for rename detection
-                    # Map: size -> list of (filename, filepath, isDir)
-                    destFilesBySize = {}
-                    destFilesRenamed = set()  # Track which dest files have been renamed
-                    
-                    for f in os.listdir(destPath):
-                        destFilePath = os.path.join(destPath, f)
-                        if os.path.isdir(destFilePath):
-                            fileSize = getFolderSize(destFilePath)
-                            destFilesBySize.setdefault(fileSize, []).append((f, destFilePath, True))
-                        else:
-                            fileSize = os.path.getsize(destFilePath)
-                            destFilesBySize.setdefault(fileSize, []).append((f, destFilePath, False))
 
                     # Copy/move any files that are missing or have different sizes
                     for f in os.listdir(sourcePath):
@@ -695,34 +737,12 @@ class BackupWidget(QtWidgets.QFrame):
                         destFilePath = os.path.join(destPath, f)
 
                         if not os.path.exists(destFilePath):
-                            # Check if there's a file with same size in destination (potential rename)
-                            renamed = False
-                            if sourceFileSize in destFilesBySize:
-                                # Look for a matching file that hasn't been renamed yet
-                                for destName, destPath_candidate, isDestDir in destFilesBySize[sourceFileSize]:
-                                    if destPath_candidate not in destFilesRenamed and isSourceDir == isDestDir:
-                                        # Found a match - rename instead of copy
-                                        sourceFilePathInDest = os.path.join(sourcePath, destName)
-                                        if not os.path.exists(sourceFilePathInDest):
-                                            # Confirm this dest file doesn't exist in source
-                                            try:
-                                                os.rename(destPath_candidate, destFilePath)
-                                                destFilesRenamed.add(destPath_candidate)
-                                                destFilesRenamed.add(destFilePath)  # Mark new name too
-                                                renamed = True
-                                                fileType = "folder" if isSourceDir else "file"
-                                                self.output(f"[{title}] Renamed {fileType} (size: {bToMb(sourceFileSize)} Mb): '{destName}' -> '{f}'")
-                                                break
-                                            except Exception as e:
-                                                self.output(f"[{title}] Failed to rename {destName} to {f}: {e}")
-                            
-                            if not renamed:
-                                # No matching file found, copy as normal
-                                bytesCopied += sourceFileSize
-                                if isSourceDir:
-                                    shutil.copytree(sourceFilePath, destFilePath)
-                                else:
-                                    shutil.copy(sourceFilePath, destFilePath)
+                            # File missing - copy it
+                            bytesCopied += sourceFileSize
+                            if isSourceDir:
+                                shutil.copytree(sourceFilePath, destFilePath)
+                            else:
+                                shutil.copy(sourceFilePath, destFilePath)
                         else:
                             destFileSize = 0
                             if os.path.exists(destFilePath):
@@ -750,12 +770,8 @@ class BackupWidget(QtWidgets.QFrame):
                                 os.remove(sourceFilePath)
 
                     # Remove any files in the destination dir that are not in the source dir
-                    # Skip files that were renamed (already handled)
                     for f in os.listdir(destPath):
                         destFilePath = os.path.join(destPath, f)
-                        if destFilePath in destFilesRenamed:
-                            continue  # Skip renamed files
-                            
                         sourceFilePath = os.path.join(sourcePath, f)
                         if not os.path.exists(sourceFilePath):
                             if os.path.isdir(destFilePath):
