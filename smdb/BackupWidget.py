@@ -457,7 +457,6 @@ class BackupWidget(QtWidgets.QFrame):
                 if sourceFileSize != destFileSize:
                     sourceMB = bToMb(sourceFileSize)
                     destMB = bToMb(destFileSize)
-                    self.output(f'{titleYear} - File: {filename} - Src: {sourceMB:.2f} MB, Dst: {destMB:.2f} MB')
                     self.listTableModel.setBackupStatus(sourceIndex, "File Size Difference")
                     replaceFolder = True
                     break
@@ -467,7 +466,6 @@ class BackupWidget(QtWidgets.QFrame):
                 for filename in destFilesAndSizes.keys():
                     if filename not in sourceFilesAndSizes:
                         fullSourcePath = os.path.join(sourcePath, filename)
-                        self.output(f'Missing source file {fullSourcePath}')
                         self.listTableModel.setBackupStatus(sourceIndex, "Files Missing (Source)")
                         replaceFolder = True
                         break
