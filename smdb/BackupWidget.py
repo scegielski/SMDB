@@ -341,6 +341,8 @@ class BackupWidget(QtWidgets.QFrame):
             sourceIndex = self.listTableProxyModel.mapToSource(modelIndex)
             sourceRow = sourceIndex.row()
             title = self.listTableModel.getTitle(sourceRow)
+            year = self.listTableModel.getYear(sourceRow)
+            titleYear = f"{title}({year})"
             sourceFolderName = self.listTableModel.getFolderName(sourceRow)
             sourcePath = self.listTableModel.getPath(sourceRow)
             
@@ -398,7 +400,9 @@ class BackupWidget(QtWidgets.QFrame):
 
                 destFileSize = destFilesAndSizes.get(filename, os.path.getsize(fullDestPath))
                 if sourceFileSize != destFileSize:
-                    self.output(f'{title} file size difference. File:{filename} Source={sourceFileSize} Dest={destFileSize}')
+                    sourceMB = bToMb(sourceFileSize)
+                    destMB = bToMb(destFileSize)
+                    self.output(f'{titleYear} - File: {filename} - Src: {sourceMB:.2f} MB, Dst: {destMB:.2f} MB')
                     self.listTableModel.setBackupStatus(sourceIndex, "File Size Difference")
                     replaceFolder = True
                     break

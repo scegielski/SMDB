@@ -254,6 +254,8 @@ def getFolderSizes(path):
     """Get sizes of immediate children (files and folders) in a single pass.
     
     Optimized to walk the tree once instead of calling getFolderSize() for each subdirectory.
+
+    The returned sizes are in bytes.
     """
     fileAndSizes = dict()
     
