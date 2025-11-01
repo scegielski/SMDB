@@ -646,10 +646,6 @@ class BackupWidget(QtWidgets.QFrame):
                 self.listTableModel.changedLayout()
                 return
 
-            progress += 1
-            if progressBar:
-                progressBar.setValue(progress)
-
             modelIndex = self.listTableProxyModel.index(row, 0)
             sourceIndex = self.listTableProxyModel.mapToSource(modelIndex)
             sourceRow = sourceIndex.row()
@@ -664,27 +660,6 @@ class BackupWidget(QtWidgets.QFrame):
 
                 backupStatus = self.listTableModel.getBackupStatus(sourceIndex.row())
 
-                message = "Backing up" if not moveFiles else "Moving "
-                message += " folder (%05d/%05d): %-50s" \
-                           "   Size: %06d Mb" \
-                           "   Last rate = %06d Mb/s" \
-                           "   Average rate = %06d Mb/s" \
-                           "   %10d Mb Remaining" \
-                           "   Time remaining: %03d Hours %02d minutes" % \
-                           (progress,
-                            numItems,
-                            title,
-                            bToMb(sourceFolderSize),
-                            bToMb(lastBytesPerSecond),
-                            bToMb(averageBytesPerSecond),
-                            bToMb(bytesRemaining),
-                            estimatedHoursRemaining,
-                            estimatedMinutesRemaining)
-
-                if statusBar:
-                    statusBar.showMessage(message)
-                QtCore.QCoreApplication.processEvents()
-
                 # Time the copy
                 startTime = time.perf_counter()
                 bytesCopied = 0
@@ -692,8 +667,6 @@ class BackupWidget(QtWidgets.QFrame):
                 if backupStatus == 'File Size Difference' or \
                    backupStatus == 'Files Missing (Source)' or \
                    backupStatus == 'Files Missing (Destination)':
-
-                    startTime = time.perf_counter()
 
                     # Copy/move any files that are missing or have different sizes
                     for f in os.listdir(sourcePath):
@@ -747,29 +720,60 @@ class BackupWidget(QtWidgets.QFrame):
                                 os.chmod(destFilePath, stat.S_IWRITE)
                                 os.remove(destFilePath)
 
-                    bytesRemaining += destFolderSize
-                    bytesRemaining -= sourceFolderSize
                 elif backupStatus == 'Folder Missing':
                     shutil.copytree(sourcePath, destPath)
                     bytesCopied = sourceFolderSize
-                    bytesRemaining -= sourceFolderSize
                 else:
                     bytesCopied = 0
-                    sourceFolderSize = 0
 
-                if sourceFolderSize != 0:
+                # Update statistics after the copy operation
+                if bytesCopied > 0:
                     endTime = time.perf_counter()
                     secondsToCopy = endTime - startTime
-                    lastBytesPerSecond = bytesCopied / secondsToCopy
+                    if secondsToCopy > 0:
+                        lastBytesPerSecond = bytesCopied / secondsToCopy
                     totalTimeToCopy += secondsToCopy
                     totalBytesCopied += bytesCopied
-                    averageBytesPerSecond = totalBytesCopied / totalTimeToCopy
-                    if averageBytesPerSecond != 0:
-                        estimatedSecondsRemaining = bytesRemaining // averageBytesPerSecond
-                        estimatedMinutesRemaining = (estimatedSecondsRemaining // 60) % 60
-                        estimatedHoursRemaining = estimatedSecondsRemaining // 3600
+                    bytesRemaining -= bytesCopied
+                    
+                    if totalTimeToCopy > 0:
+                        averageBytesPerSecond = totalBytesCopied / totalTimeToCopy
+                        if averageBytesPerSecond > 0:
+                            estimatedSecondsRemaining = bytesRemaining / averageBytesPerSecond
+                            estimatedMinutesRemaining = int((estimatedSecondsRemaining // 60) % 60)
+                            estimatedHoursRemaining = int(estimatedSecondsRemaining // 3600)
+
+                # Update progress and display status AFTER work is done
+                progress += 1
+                if progressBar:
+                    progressBar.setValue(progress)
+
+                message = "Backing up" if not moveFiles else "Moving "
+                message += " folder (%05d/%05d): %-50s" \
+                           "   Size: %06d Mb" \
+                           "   Last rate = %06d Mb/s" \
+                           "   Average rate = %06d Mb/s" \
+                           "   %10d Mb Remaining" \
+                           "   Time remaining: %03d Hours %02d minutes" % \
+                           (progress,
+                            numItems,
+                            title,
+                            bToMb(bytesCopied),
+                            bToMb(lastBytesPerSecond),
+                            bToMb(averageBytesPerSecond),
+                            bToMb(bytesRemaining),
+                            estimatedHoursRemaining,
+                            estimatedMinutesRemaining)
+
+                if statusBar:
+                    statusBar.showMessage(message)
+                QtCore.QCoreApplication.processEvents()
+                
             except Exception as e:
                 self.output(f"Problem copying movie: {title} - {e}")
+                progress += 1
+                if progressBar:
+                    progressBar.setValue(progress)
 
         self.listTableModel.changedLayout()
         if statusBar:
