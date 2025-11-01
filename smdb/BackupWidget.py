@@ -673,6 +673,14 @@ class BackupWidget(QtWidgets.QFrame):
         for row in range(numItems):
             self.listTableView.selectRow(row)
             QtCore.QCoreApplication.processEvents()
+            
+            # Show message AFTER processEvents (after selection change) so it overwrites the selection count
+            if statusBar:
+                message = ("Backing up" if not moveFiles else "Moving") + f" folder ({row + 1:05d}/{numItems:05d})..."
+                statusBar.showMessage(message)
+                QtCore.QCoreApplication.processEvents()  # Force UI update
+                statusBar.showMessage(message)  # Show again in case processEvents triggered another event
+            
             if hasattr(self.parent, 'isCanceled') and self.parent.isCanceled:
                 if statusBar:
                     statusBar.showMessage('Cancelled')
@@ -810,6 +818,7 @@ class BackupWidget(QtWidgets.QFrame):
                 if progressBar:
                     progressBar.setValue(progress)
 
+                # Build detailed status message
                 message = "Backing up" if not moveFiles else "Moving "
                 message += " folder (%05d/%05d): %-50s" \
                            "   Size: %06d Mb" \
@@ -827,16 +836,16 @@ class BackupWidget(QtWidgets.QFrame):
                             estimatedHoursRemaining,
                             estimatedMinutesRemaining)
 
+                # Show message AFTER all work is done for this iteration
                 if statusBar:
                     statusBar.showMessage(message)
-                QtCore.QCoreApplication.processEvents()
                 
             except Exception as e:
                 self.output(f"Problem copying movie: {title} - {e}")
                 progress += 1
                 if progressBar:
                     progressBar.setValue(progress)
-
+            
         self.listTableModel.changedLayout()
         if statusBar:
             statusBar.showMessage("Done")
