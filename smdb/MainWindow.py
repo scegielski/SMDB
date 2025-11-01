@@ -1869,8 +1869,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
             self.spaceTotal, self.spaceUsed, self.spaceFree = shutil.disk_usage(drive)
             self.spaceUsedPercent = self.spaceUsed / self.spaceTotal
-            self.spaceBarLayout.setStretch(0, self.spaceUsedPercent * 1000)
-            self.spaceBarLayout.setStretch(2, (1.0 - self.spaceUsedPercent) * 1000)
+            self.spaceBarLayout.setStretch(0, int(self.spaceUsedPercent * 1000))
+            self.spaceBarLayout.setStretch(2, int((1.0 - self.spaceUsedPercent) * 1000))
 
             self.spaceAvailableLabel.setText("%dGb  Of  %dGb  Used       %dGb Free" % \
                                              (bToGb(self.spaceUsed),
