@@ -661,6 +661,7 @@ class BackupWidget(QtWidgets.QFrame):
         bytesRemaining = self.bytesToBeCopied
         estimatedHoursRemaining = 0
         estimatedMinutesRemaining = 0
+        estimatedSecondsRemaining = 0
 
         numItems = self.listTableProxyModel.rowCount()
         
@@ -672,27 +673,32 @@ class BackupWidget(QtWidgets.QFrame):
             
         for row in range(numItems):
             self.listTableView.selectRow(row)
+
+            modelIndex = self.listTableProxyModel.index(row, 0)
+            sourceIndex = self.listTableProxyModel.mapToSource(modelIndex)
+            sourceRow = sourceIndex.row()
+            title = self.listTableModel.getTitle(sourceRow)
+            folderName = self.listTableModel.getFolderName(sourceRow)
             
             # Show message AFTER processEvents (after selection change) so it overwrites the selection count
             if statusBar:
-                if row == 0:
-                    message = ("Backing up" if not moveFiles else "Moving") + f" folder({row + 1:05d}/{numItems:05d})..."
-                else:
-                    # Build detailed status message
-                    message = "Backing up" if not moveFiles else "Moving "
-                    message += " folder(%05d/%05d):" \
-                            "\t\t\t\t\t ETA: %02d:%02d:%02d " \
-                            "\t\t\t\t\t %d Mb Remaining" \
-                            "\t\t\t\t\t Average rate = %06d Mb/s" % \
-                            (
-                                row + 1,
-                                numItems,
-                                estimatedHoursRemaining,
-                                estimatedMinutesRemaining,
-                                estimatedSecondsRemaining,
-                                bToMb(bytesRemaining),
-                                bToMb(averageBytesPerSecond)
-                            )
+                # Build detailed status message
+                message = "Backing up" if not moveFiles else "Moving "
+                message += " folder(%05d/%05d):" \
+                        "\t\t\t\t\t %s" \
+                        "\t\t\t\t\t ETA: %02d:%02d:%02d" \
+                        "\t\t\t\t\t %d Mb Remaining" \
+                        "\t\t\t\t\t Average rate = %06d Mb/s" % \
+                        (
+                            row + 1,
+                            numItems,
+                            folderName,
+                            estimatedHoursRemaining,
+                            estimatedMinutesRemaining,
+                            estimatedSecondsRemaining,
+                            bToMb(bytesRemaining),
+                            bToMb(averageBytesPerSecond)
+                        )
 
                 statusBar.showMessage(message)
                 QtCore.QCoreApplication.processEvents()  # Force UI update
@@ -706,10 +712,6 @@ class BackupWidget(QtWidgets.QFrame):
                 self.listTableModel.changedLayout()
                 return
 
-            modelIndex = self.listTableProxyModel.index(row, 0)
-            sourceIndex = self.listTableProxyModel.mapToSource(modelIndex)
-            sourceRow = sourceIndex.row()
-            title = self.listTableModel.getTitle(sourceRow)
 
             try:
                 sourcePath = self.listTableModel.getPath(sourceRow)
