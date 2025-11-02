@@ -685,7 +685,7 @@ class BackupWidget(QtWidgets.QFrame):
                             "   Last rate = %06d Mb/s" \
                             "   Average rate = %06d Mb/s" \
                             "   %10d Mb Remaining" \
-                            "   ETA: %03d Hours %02d minutes" % \
+                            "   ETA: %03d Hours %02d minutes %02d seconds" % \
                             (row + 1,
                                 numItems,
                                 bToMb(bytesCopied),
@@ -693,7 +693,8 @@ class BackupWidget(QtWidgets.QFrame):
                                 bToMb(averageBytesPerSecond),
                                 bToMb(bytesRemaining),
                                 estimatedHoursRemaining,
-                                estimatedMinutesRemaining)
+                                estimatedMinutesRemaining,
+                                estimatedSecondsRemaining)
 
                 statusBar.showMessage(message)
                 QtCore.QCoreApplication.processEvents()  # Force UI update
