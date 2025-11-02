@@ -685,17 +685,17 @@ class BackupWidget(QtWidgets.QFrame):
                 # Build detailed status message
                 message = "Backing up" if not moveFiles else "Moving "
                 message += " folder(%05d/%05d):" \
+                        "\t\t\t\t\t ETA: %03d:%02d:%02d" \
                         "\t\t\t\t\t %s" \
-                        "\t\t\t\t\t ETA: %02d:%02d:%02d" \
                         "\t\t\t\t\t %d Mb Remaining" \
                         "\t\t\t\t\t Average rate = %06d Mb/s" % \
                         (
                             row + 1,
                             numItems,
-                            folderName,
                             estimatedHoursRemaining,
                             estimatedMinutesRemaining,
                             estimatedSecondsRemaining,
+                            folderName,
                             bToMb(bytesRemaining),
                             bToMb(averageBytesPerSecond)
                         )
