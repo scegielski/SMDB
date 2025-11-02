@@ -672,14 +672,31 @@ class BackupWidget(QtWidgets.QFrame):
             
         for row in range(numItems):
             self.listTableView.selectRow(row)
-            QtCore.QCoreApplication.processEvents()
             
             # Show message AFTER processEvents (after selection change) so it overwrites the selection count
             if statusBar:
-                message = ("Backing up" if not moveFiles else "Moving") + f" folder ({row + 1:05d}/{numItems:05d})..."
+                if row == 0:
+                    message = ("Backing up" if not moveFiles else "Moving") + f" folder ({row + 1:05d}/{numItems:05d})..."
+                else:
+                    # Build detailed status message
+                    message = "Backing up" if not moveFiles else "Moving "
+                    message += " folder (%05d/%05d):" \
+                            "   Size: %06d Mb" \
+                            "   Last rate = %06d Mb/s" \
+                            "   Average rate = %06d Mb/s" \
+                            "   %10d Mb Remaining" \
+                            "   ETA: %03d Hours %02d minutes" % \
+                            (row + 1,
+                                numItems,
+                                bToMb(bytesCopied),
+                                bToMb(lastBytesPerSecond),
+                                bToMb(averageBytesPerSecond),
+                                bToMb(bytesRemaining),
+                                estimatedHoursRemaining,
+                                estimatedMinutesRemaining)
+
                 statusBar.showMessage(message)
                 QtCore.QCoreApplication.processEvents()  # Force UI update
-                statusBar.showMessage(message)  # Show again in case processEvents triggered another event
             
             if hasattr(self.parent, 'isCanceled') and self.parent.isCanceled:
                 if statusBar:
@@ -818,27 +835,6 @@ class BackupWidget(QtWidgets.QFrame):
                 if progressBar:
                     progressBar.setValue(progress)
 
-                # Build detailed status message
-                message = "Backing up" if not moveFiles else "Moving "
-                message += " folder (%05d/%05d): %-50s" \
-                           "   Size: %06d Mb" \
-                           "   Last rate = %06d Mb/s" \
-                           "   Average rate = %06d Mb/s" \
-                           "   %10d Mb Remaining" \
-                           "   Time remaining: %03d Hours %02d minutes" % \
-                           (progress,
-                            numItems,
-                            title,
-                            bToMb(bytesCopied),
-                            bToMb(lastBytesPerSecond),
-                            bToMb(averageBytesPerSecond),
-                            bToMb(bytesRemaining),
-                            estimatedHoursRemaining,
-                            estimatedMinutesRemaining)
-
-                # Show message AFTER all work is done for this iteration
-                if statusBar:
-                    statusBar.showMessage(message)
                 
             except Exception as e:
                 self.output(f"Problem copying movie: {title} - {e}")
