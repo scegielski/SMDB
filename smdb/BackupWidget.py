@@ -676,20 +676,16 @@ class BackupWidget(QtWidgets.QFrame):
             # Show message AFTER processEvents (after selection change) so it overwrites the selection count
             if statusBar:
                 if row == 0:
-                    message = ("Backing up" if not moveFiles else "Moving") + f" folder ({row + 1:05d}/{numItems:05d})..."
+                    message = ("Backing up" if not moveFiles else "Moving") + f" folder({row + 1:05d}/{numItems:05d})..."
                 else:
                     # Build detailed status message
                     message = "Backing up" if not moveFiles else "Moving "
-                    message += " folder (%05d/%05d):" \
-                            "   Size: %06d Mb" \
-                            "   Last rate = %06d Mb/s" \
+                    message += " folder(%05d/%05d):" \
                             "   Average rate = %06d Mb/s" \
                             "   %10d Mb Remaining" \
                             "   ETA: %03d Hours %02d minutes %02d seconds" % \
                             (row + 1,
                                 numItems,
-                                bToMb(bytesCopied),
-                                bToMb(lastBytesPerSecond),
                                 bToMb(averageBytesPerSecond),
                                 bToMb(bytesRemaining),
                                 estimatedHoursRemaining,
