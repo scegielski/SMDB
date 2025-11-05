@@ -2830,7 +2830,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 t_fields_accum = 0.0
                 t0f = time.perf_counter()
                 jsonTitle = jsonData.get('title')
-                titleYearTuple = (jsonTitle, jsonData.get('year'))
 
                 jsonWidth = jsonData.get('width') or 0
                 jsonHeight = jsonData.get('height') or 0
@@ -2848,6 +2847,9 @@ class MainWindow(QtWidgets.QMainWindow):
                             jsonYearInt = int(jy)
                         except Exception:
                             jsonYearInt = 0
+                
+                # Use integer year in tuple to match stored format
+                titleYearTuple = (jsonTitle, jsonYearInt)
                 t_fields_accum += time.perf_counter() - t0f
 
                 # Indexing block
