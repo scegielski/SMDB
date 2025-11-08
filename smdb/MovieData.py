@@ -4,6 +4,7 @@ import re
 import requests
 import urllib.request
 import ujson
+from pymediainfo import MediaInfo
 from .utilities import *
 
 
@@ -162,9 +163,48 @@ class MovieData:
             if not movie: return ""
 
             if doJson:
+                # Calculate folder size
+                total_size = 0
+                for dirpath, dirnames, filenames in os.walk(moviePath):
+                    for f in filenames:
+                        fp = os.path.join(dirpath, f)
+                        if not os.path.islink(fp):
+                            total_size += os.path.getsize(fp)
+                folderSize = '%05d Mb' % (total_size / (2**20))
+                
+                # Get movie file info
+                width, height, channels = 0, 0, 0
+                validExtentions = ['.mkv', '.mpg', '.mp4', '.avi', '.flv', '.wmv', '.m4v', '.divx', '.ogm']
+                movieFiles = []
+                for file in os.listdir(moviePath):
+                    extension = os.path.splitext(file)[1].lower()
+                    if extension in validExtentions:
+                        movieFiles.append(file)
+                if len(movieFiles) > 0:
+                    movieFile = os.path.join(moviePath, movieFiles[0])
+                    info = MediaInfo.parse(movieFile)
+                    for track in info.tracks:
+                        if track.track_type == 'Video':
+                            width = track.width
+                            height = track.height
+                        elif track.track_type == 'Audio':
+                            channels = track.channel_s
+                
+                # Add size and movie info to movie dict
+                movie['size'] = folderSize
+                movie['width'] = width
+                movie['height'] = height
+                movie['channels'] = channels
+                
+                # Write JSON with size and movie info
                 self.writeJson(movie, None, None, jsonFile)
-                parent.calculateFolderSize(proxyIndex, moviePath, movieFolderName)
-                parent.getMovieFileInfo(proxyIndex, moviePath, movieFolderName)
+                
+                # Update table model
+                parent.moviesTableModel.setSize(sourceIndex, folderSize)
+                parent.moviesTableModel.setMovieData(sourceRow, 
+                                                    {'width': width, 'height': height, 'channels': channels},
+                                                    moviePath, 
+                                                    movieFolderName)
 
             coverFile = ""
             if doCover:
@@ -468,6 +508,16 @@ class MovieData:
             d['budget'] = movieData.get('Budget')
         if movieData.get('Revenue'):
             d['revenue'] = movieData.get('Revenue')
+        
+        # Add size and movie file info if present in movieData
+        if movieData.get('size'):
+            d['size'] = movieData.get('size')
+        if movieData.get('width'):
+            d['width'] = movieData.get('width')
+        if movieData.get('height'):
+            d['height'] = movieData.get('height')
+        if movieData.get('channels'):
+            d['channels'] = movieData.get('channels')
 
         try:
             with open(jsonFile, "w", encoding="utf-8") as f:
