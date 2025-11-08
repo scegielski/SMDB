@@ -20,9 +20,45 @@ class MovieData:
         # API keys for external services
         self.tmdbApiKey = "acaa3a2b3d6ebbb8749bfa43bd3d8af7"
         self.omdbApiKey = "fe5db83f"
+        
+        # Cache for TMDB configuration (image base URLs)
+        self._tmdb_config_cache = None
+        
+        # Reusable session for connection pooling
+        self._session = requests.Session()
 
     def output(self, *args, **kwargs):
         return self.parent.output(*args, **kwargs)
+    
+    def _get_tmdb_config(self):
+        """Get TMDB configuration with caching to avoid redundant API calls."""
+        if self._tmdb_config_cache is None:
+            try:
+                response = self._session.get(
+                    "https://api.themoviedb.org/3/configuration",
+                    params={"api_key": self.tmdbApiKey},
+                    timeout=10
+                )
+                if response.status_code == 200:
+                    self._tmdb_config_cache = response.json()
+            except Exception as e:
+                self.output(f"Failed to fetch TMDB configuration: {e}")
+                # Fallback to default values
+                self._tmdb_config_cache = {
+                    "images": {
+                        "secure_base_url": "https://image.tmdb.org/t/p/"
+                    }
+                }
+        return self._tmdb_config_cache
+    
+    def _build_poster_urls(self, poster_path):
+        """Build poster URLs from TMDB poster path."""
+        if not poster_path:
+            return None, None
+        
+        config = self._get_tmdb_config()
+        base_url = config.get("images", {}).get("secure_base_url", "https://image.tmdb.org/t/p/")
+        return f"{base_url}w500{poster_path}", f"{base_url}original{poster_path}"
 
     def resolveImdbId(self, title, year=None):
         """
@@ -189,29 +225,35 @@ class MovieData:
         Fetch comprehensive movie data from TMDB.
         Returns a dictionary with OMDb-compatible keys (Title, imdbID, Year, etc.)
         plus additional TMDB-specific data.
+        
+        Optimized for:
+        - Reduced API calls via caching
+        - Connection pooling via session
+        - Single-pass data extraction
         """
         tmdb_id = None
         
         # Step 1: Find the TMDB ID
         if imdbId:
             # Use IMDb ID to find TMDB ID
-            find_url = f"https://api.themoviedb.org/3/find/{imdbId}"
             try:
-                response = requests.get(find_url, params={
-                    "api_key": self.tmdbApiKey,
-                    "external_source": "imdb_id"
-                })
-                if response.status_code != 200:
+                response = self._session.get(
+                    f"https://api.themoviedb.org/3/find/{imdbId}",
+                    params={
+                        "api_key": self.tmdbApiKey,
+                        "external_source": "imdb_id"
+                    },
+                    timeout=10
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    movies = data.get("movie_results", [])
+                    if movies:
+                        tmdb_id = movies[0].get("id")
+                else:
                     self.output(f"TMDB find request failed for IMDb ID {imdbId}: {response.status_code}")
-                    return None
-                
-                data = response.json()
-                movies = data.get("movie_results") or []
-                if movies:
-                    tmdb_id = movies[0].get("id")
             except Exception as e:
                 self.output(f"TMDB find request error for IMDb ID {imdbId}: {e}")
-                return None
         
         if not tmdb_id:
             # Search by title and year
@@ -220,21 +262,27 @@ class MovieData:
                 if year:
                     params["year"] = int(year)
                 
-                response = requests.get("https://api.themoviedb.org/3/search/movie", params=params)
+                response = self._session.get(
+                    "https://api.themoviedb.org/3/search/movie",
+                    params=params,
+                    timeout=10
+                )
                 if response.status_code != 200:
                     self.output(f"TMDB search request failed for \"{title}\"({year}): {response.status_code}")
                     return None
                 
-                search = response.json()
-                results = search.get("results") or []
+                results = response.json().get("results", [])
                 
+                # Retry without year if no results
                 if not results and year:
-                    # Retry without year constraint
                     params.pop("year", None)
-                    response = requests.get("https://api.themoviedb.org/3/search/movie", params=params)
+                    response = self._session.get(
+                        "https://api.themoviedb.org/3/search/movie",
+                        params=params,
+                        timeout=10
+                    )
                     if response.status_code == 200:
-                        search = response.json()
-                        results = search.get("results") or []
+                        results = response.json().get("results", [])
                 
                 if not results:
                     self.output(f"No TMDB results found for \"{title}\"({year})")
@@ -244,7 +292,7 @@ class MovieData:
                 best = results[0]
                 if year:
                     for r in results:
-                        date = (r.get("release_date") or "")[:4]
+                        date = (r.get("release_date", ""))[:4]
                         if date and date.isdigit() and int(date) == int(year):
                             best = r
                             break
@@ -257,14 +305,16 @@ class MovieData:
         if not tmdb_id:
             return None
         
-        # Step 2: Fetch comprehensive movie details
+        # Step 2: Fetch comprehensive movie details (single API call with append_to_response)
         try:
-            # Get main movie details with appended data
-            details_url = f"https://api.themoviedb.org/3/movie/{tmdb_id}"
-            response = requests.get(details_url, params={
-                "api_key": self.tmdbApiKey,
-                "append_to_response": "credits,images,videos,keywords,recommendations,similar,external_ids,release_dates"
-            })
+            response = self._session.get(
+                f"https://api.themoviedb.org/3/movie/{tmdb_id}",
+                params={
+                    "api_key": self.tmdbApiKey,
+                    "append_to_response": "credits,images,keywords,recommendations,similar,external_ids,release_dates"
+                },
+                timeout=15
+            )
             
             if response.status_code != 200:
                 self.output(f"TMDB details request failed for TMDB ID {tmdb_id}: {response.status_code}")
@@ -272,131 +322,86 @@ class MovieData:
             
             raw_data = response.json()
             
-            # Step 3: Transform to OMDb-compatible format with camelCase keys
-            movie_data = {}
-            
-            # Basic info
-            movie_data['Title'] = raw_data.get('title') or raw_data.get('original_title')
-            movie_data['Year'] = (raw_data.get('release_date') or '')[:4]
-            
-            # Get IMDb ID from external_ids
+            # Step 3: Transform to OMDb-compatible format - single-pass extraction
             external_ids = raw_data.get('external_ids', {})
-            movie_data['ImdbID'] = external_ids.get('imdb_id')
+            credits = raw_data.get('credits', {})
+            crew = credits.get('crew', [])
+            cast = credits.get('cast', [])
             
-            # Rating (TMDB uses vote_average out of 10, convert to string like OMDb)
-            vote_avg = raw_data.get('vote_average')
-            movie_data['ImdbRating'] = str(vote_avg) if vote_avg else None
+            # Build movie data dictionary
+            movie_data = {
+                # Basic info
+                'Title': raw_data.get('title') or raw_data.get('original_title'),
+                'Year': (raw_data.get('release_date', ''))[:4],
+                'ImdbID': external_ids.get('imdb_id'),
+                'ImdbRating': str(raw_data['vote_average']) if raw_data.get('vote_average') else None,
+                
+                # Runtime
+                'Runtime': f"{raw_data['runtime']} min" if raw_data.get('runtime') else None,
+                
+                # Plot
+                'Plot': raw_data.get('overview'),
+                
+                # Lists - use list comprehensions for efficiency
+                'Countries': [c['name'] for c in raw_data.get('production_countries', []) if c.get('name')],
+                'Directors': [c['name'] for c in crew if c.get('job') == 'Director' and c.get('name')],
+                'Actors': [c['name'] for c in cast[:10] if c.get('name')],
+                'Genres': [g['name'] for g in raw_data.get('genres', []) if g.get('name')],
+                'ProductionCompanies': [c['name'] for c in raw_data.get('production_companies', []) if c.get('name')],
+                'Writers': [c['name'] for c in crew if c.get('department') == 'Writing' and c.get('name')],
+                'Keywords': [k['name'] for k in raw_data.get('keywords', {}).get('keywords', []) if k.get('name')],
+                
+                # TMDB-specific
+                'TmdbId': tmdb_id,
+                'Budget': raw_data.get('budget'),
+                'Revenue': raw_data.get('revenue'),
+                'VoteCount': raw_data.get('vote_count'),
+                'Popularity': raw_data.get('popularity'),
+                'Tagline': raw_data.get('tagline'),
+                'RawTmdbData': raw_data
+            }
             
-            # Get certification/MPAA rating from release_dates
+            # Box office
+            revenue = raw_data.get('revenue')
+            movie_data['BoxOffice'] = f"${revenue:,}" if revenue and revenue > 0 else None
+            
+            # MPAA rating from release_dates
             mpaa_rating = None
-            release_dates = raw_data.get('release_dates', {}).get('results', [])
-            for country_data in release_dates:
+            for country_data in raw_data.get('release_dates', {}).get('results', []):
                 if country_data.get('iso_3166_1') == 'US':
-                    releases = country_data.get('release_dates', [])
-                    for release in releases:
+                    for release in country_data.get('release_dates', []):
                         cert = release.get('certification')
                         if cert:
                             mpaa_rating = cert
                             break
-                    break
+                    if mpaa_rating:
+                        break
             movie_data['Rated'] = mpaa_rating
             
-            # Countries (production_countries) - as list
-            countries = raw_data.get('production_countries', [])
-            movie_data['Countries'] = [c.get('name') for c in countries if c.get('name')]
+            # Poster URLs - optimized with single config fetch
+            posters = raw_data.get('images', {}).get('posters', [])
+            poster_path = posters[0]['file_path'] if posters else raw_data.get('poster_path')
+            if poster_path:
+                poster_url, poster_full = self._build_poster_urls(poster_path)
+                movie_data['Poster'] = poster_url
+                movie_data['PosterFullSize'] = poster_full
             
-            # Runtime (in minutes)
-            runtime = raw_data.get('runtime')
-            movie_data['Runtime'] = f"{runtime} min" if runtime else None
+            # Similar/Recommended movies - optimized formatting
+            def format_movies(movies_list, limit=5):
+                result = []
+                for m in movies_list[:limit]:
+                    title = m.get('title')
+                    if title:
+                        year_str = (m.get('release_date', ''))[:4]
+                        result.append(f"{title} ({year_str})" if year_str else title)
+                return result
             
-            # Box office (revenue)
-            revenue = raw_data.get('revenue')
-            if revenue and revenue > 0:
-                movie_data['BoxOffice'] = f"${revenue:,}"
-            else:
-                movie_data['BoxOffice'] = None
-            
-            # Directors and Actors from credits
-            credits = raw_data.get('credits', {})
-            
-            crew = credits.get('crew', [])
-            directors = [c.get('name') for c in crew if c.get('job') == 'Director']
-            movie_data['Directors'] = directors
-            
-            cast = credits.get('cast', [])
-            actors = [c.get('name') for c in cast[:10] if c.get('name')]  # Top 10 actors
-            movie_data['Actors'] = actors  # List format
-            
-            # Genres - as list
-            genres = raw_data.get('genres', [])
-            genre_names = [g.get('name') for g in genres if g.get('name')]
-            movie_data['Genres'] = genre_names  # List format
-            
-            # Plot/Overview
-            movie_data['Plot'] = raw_data.get('overview')
-            
-            # Poster - get from images
-            images = raw_data.get('images', {})
-            posters = images.get('posters', [])
-            if posters:
-                # Get configuration for image base URL
-                cfg = requests.get("https://api.themoviedb.org/3/configuration",
-                                 params={"api_key": self.tmdbApiKey}).json()
-                base = cfg["images"]["secure_base_url"]
-                poster_path = posters[0]['file_path']
-                movie_data['Poster'] = f"{base}w500{poster_path}"
-                movie_data['PosterFullSize'] = f"{base}original{poster_path}"
-            elif raw_data.get('poster_path'):
-                # Fallback to main poster_path
-                cfg = requests.get("https://api.themoviedb.org/3/configuration",
-                                 params={"api_key": self.tmdbApiKey}).json()
-                base = cfg["images"]["secure_base_url"]
-                movie_data['Poster'] = f"{base}w500{raw_data['poster_path']}"
-                movie_data['PosterFullSize'] = f"{base}original{raw_data['poster_path']}"
-            
-            # Additional TMDB-specific data (camelCase)
-            movie_data['TmdbId'] = tmdb_id
-            movie_data['Budget'] = raw_data.get('budget')
-            movie_data['Revenue'] = raw_data.get('revenue')
-            movie_data['VoteCount'] = raw_data.get('vote_count')
-            movie_data['Popularity'] = raw_data.get('popularity')
-            movie_data['Tagline'] = raw_data.get('tagline')
-            
-            # Production companies
-            companies = raw_data.get('production_companies', [])
-            movie_data['ProductionCompanies'] = [c.get('name') for c in companies if c.get('name')]
-            
-            # Writers
-            writers = [c.get('name') for c in crew if c.get('department') == 'Writing']
-            movie_data['Writers'] = writers
-            
-            # Keywords
-            keywords_data = raw_data.get('keywords', {}).get('keywords', [])
-            movie_data['Keywords'] = [k.get('name') for k in keywords_data if k.get('name')]
-            
-            # Similar/Recommended movies
-            similar = raw_data.get('similar', {}).get('results', [])
-            similar_titles = []
-            for m in similar[:5]:  # Top 5
-                sim_title = m.get('title')
-                sim_year = (m.get('release_date') or '')[:4]
-                if sim_title:
-                    formatted = f"{sim_title} ({sim_year})" if sim_year else sim_title
-                    similar_titles.append(formatted)
-            movie_data['SimilarMoviesTmdb'] = similar_titles
-            
-            recommendations = raw_data.get('recommendations', {}).get('results', [])
-            rec_titles = []
-            for m in recommendations[:5]:  # Top 5
-                rec_title = m.get('title')
-                rec_year = (m.get('release_date') or '')[:4]
-                if rec_title:
-                    formatted = f"{rec_title} ({rec_year})" if rec_year else rec_title
-                    rec_titles.append(formatted)
-            movie_data['RecommendedMoviesTmdb'] = rec_titles
-            
-            # Store raw data for debugging
-            movie_data['RawTmdbData'] = raw_data
+            movie_data['SimilarMoviesTmdb'] = format_movies(
+                raw_data.get('similar', {}).get('results', [])
+            )
+            movie_data['RecommendedMoviesTmdb'] = format_movies(
+                raw_data.get('recommendations', {}).get('results', [])
+            )
             
             return movie_data
             
