@@ -163,16 +163,6 @@ class MovieData:
 
             if doJson:
                 self.writeJson(movie, None, None, jsonFile)
-                if parent.moviesSmdbData and 'titles' in parent.moviesSmdbData:
-                    titleEntry = parent.moviesSmdbData['titles'].get(moviePath)
-                    if titleEntry is not None:
-                        similar_movies = movie.get('SimilarMoviesTmdb') or []
-                        titleEntry['similar movies'] = similar_movies
-                        try:
-                            with open(parent.moviesSmdbFile, "w") as smdbFileHandle:
-                                ujson.dump(parent.moviesSmdbData, smdbFileHandle, indent=4)
-                        except Exception as e:
-                            self.output(f"Error updating smdb_data.json with similar movies: {e}")
                 parent.calculateFolderSize(proxyIndex, moviePath, movieFolderName)
                 parent.getMovieFileInfo(proxyIndex, moviePath, movieFolderName)
 
