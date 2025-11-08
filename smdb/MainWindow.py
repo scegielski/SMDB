@@ -3401,6 +3401,10 @@ class MainWindow(QtWidgets.QMainWindow):
                                                             self.watchListTableProxyModel))
         rightMenu.addAction(playAction)
 
+        selectInMainListAction = QtWidgets.QAction("Select movie in main list", self)
+        selectInMainListAction.triggered.connect(self.watchListSelectMovieInMainList)
+        rightMenu.addAction(selectInMainListAction)
+
         removeFromWatchListAction = QtWidgets.QAction("Remove From Watch List", self)
         removeFromWatchListAction.triggered.connect(self.watchListRemove)
         rightMenu.addAction(removeFromWatchListAction)
@@ -3895,6 +3899,34 @@ class MainWindow(QtWidgets.QMainWindow):
         self.writeSmdbFile(self.watchListSmdbFile,
                            self.watchListTableModel,
                            titlesOnly=True)
+
+    def watchListSelectMovieInMainList(self):
+        """Select the current movie in the main movies list."""
+        selectedRows = self.watchListTableView.selectionModel().selectedRows()
+        if len(selectedRows) == 0:
+            return
+        
+        # Get the movie path from the watch list
+        proxyIndex = selectedRows[0]
+        sourceIndex = self.watchListTableProxyModel.mapToSource(proxyIndex)
+        moviePath = self.watchListTableModel.getPath(sourceIndex.row())
+        
+        # Find the movie in the main movies table
+        for row in range(self.moviesTableModel.rowCount()):
+            if self.moviesTableModel.getPath(row) == moviePath:
+                # Find the corresponding proxy row
+                sourceIndex = self.moviesTableModel.index(row, 0)
+                proxyIndex = self.moviesTableProxyModel.mapFromSource(sourceIndex)
+                
+                # Select the row in the main table
+                self.moviesTableView.selectRow(proxyIndex.row())
+                self.moviesTableView.scrollTo(proxyIndex)
+                
+                # Update the movie display
+                self.clickedTable(proxyIndex,
+                                self.moviesTableModel,
+                                self.moviesTableProxyModel)
+                break
 
     def historyListRemove(self):
         """Delegate to HistoryWidget."""
