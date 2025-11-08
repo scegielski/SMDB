@@ -24,7 +24,6 @@
 from PyQt5 import QtGui, QtWidgets, QtCore
 from enum import Enum
 from pathlib import Path
-from imdb import IMDb
 import json
 import ujson
 import fnmatch
@@ -116,9 +115,6 @@ class MainWindow(QtWidgets.QMainWindow):
         
         # Initialize log panel text widget reference (will be created later in UI setup)
         self.logTextWidget = None
-
-        # Create IMDB database
-        self.db = IMDb()
 
         # Define API keys here and use throughout the class
         self.openSubtitlesApiKey = "9iBc6gQ0mlsC9hdapJs6IR2JfmT6F3f1"
@@ -482,13 +478,11 @@ class MainWindow(QtWidgets.QMainWindow):
             self.backupListWidget.moviesSmdbData = self.moviesSmdbData
 
         self.primaryFilterWidget.moviesSmdbData = self.moviesSmdbData
-        self.primaryFilterWidget.db = self.db
         self.primaryFilterWidget.populateFiltersTable()
         self.primaryFilterWidget.tableSelectionChangedSignal.connect(
             lambda: self.filterTableSelectionChanged())
 
         self.secondaryFilterWidget.moviesSmdbData = self.moviesSmdbData
-        self.secondaryFilterWidget.db = self.db
         self.secondaryFilterWidget.populateFiltersTable()
         self.secondaryFilterWidget.tableSelectionChangedSignal.connect(
             lambda: self.filterTableSelectionChanged(mainFilter=False))
@@ -2859,7 +2853,7 @@ class MainWindow(QtWidgets.QMainWindow):
             openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
             itemText = selectedItem.text()
             if category == 'director' or category == 'actor':
-                openImdbAction.triggered.connect(lambda: openPersonImdbPage(itemText, self.db))
+                openImdbAction.triggered.connect(lambda: openPersonImdbPage(itemText))
             elif category == 'year':
                 openImdbAction.triggered.connect(lambda: openYearImdbPage(itemText))
             rightMenu.addAction(openImdbAction)

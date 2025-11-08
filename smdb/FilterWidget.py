@@ -48,7 +48,6 @@ class FilterWidget(QtWidgets.QFrame):
         self.fgColor = fgColor
 
         self.moviesSmdbData = None
-        self.db = None
         self.movieList = list()
         self.useMovieList = useMovieList
 
@@ -158,7 +157,7 @@ class FilterWidget(QtWidgets.QFrame):
         itemText = self.filterTable.item(row, 0).text()
         filterByText = self.filterByComboBox.currentText()
         if filterByText == 'Director' or filterByText == 'Actor':
-            openImdbAction.triggered.connect(lambda: openPersonImdbPage(itemText, self.db))
+            openImdbAction.triggered.connect(lambda: openPersonImdbPage(itemText))
         else:
             openImdbAction.triggered.connect(lambda: openYearImdbPage(itemText))
         rightMenu.addAction(openImdbAction)

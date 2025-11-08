@@ -249,7 +249,13 @@ def openYearImdbPage(year):
     open_url('https://www.imdb.com/search/title/?release_date=%s-01-01,%s-12-31' % (year, year), new=2)
 
 
-def openPersonImdbPage(personName, db):
+def openPersonImdbPage(personName, db=None):
+    # Create a static IMDb instance if needed (cached across calls)
+    if not hasattr(openPersonImdbPage, '_imdb_instance'):
+        openPersonImdbPage._imdb_instance = imdb.IMDb()
+    
+    db = openPersonImdbPage._imdb_instance
+    
     personId = db.name2imdbID(personName)
     if not personId:
         try:
