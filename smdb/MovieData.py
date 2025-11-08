@@ -198,13 +198,6 @@ class MovieData:
                 
                 # Write JSON with size and movie info
                 self.writeJson(movie, None, None, jsonFile)
-                
-                # Update table model
-                parent.moviesTableModel.setSize(sourceIndex, folderSize)
-                parent.moviesTableModel.setMovieData(sourceRow, 
-                                                    {'width': width, 'height': height, 'channels': channels},
-                                                    moviePath, 
-                                                    movieFolderName)
 
             coverFile = ""
             if doCover:
