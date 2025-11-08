@@ -2849,66 +2849,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         return data
 
-    def getMovieWithId(self, movieId):
-        movie = self.db.get_movie(movieId)
-        return movie
-
-    def getMovie(self, folderName) -> object:
-        m = re.match(r'(.*)\((.*)\)', folderName)
-        title = m.group(1)
-
-        try:
-            year = int(m.group(2))
-        except ValueError:
-            self.output('Problem converting year to integer for movie: %s' % folderName)
-            return None
-
-        splitTitle = splitCamelCase(title)
-
-        searchText = ' '.join(splitTitle)
-        self.output('Searching for: %s' % searchText)
-
-        foundMovie = False
-        for i in range(10):
-            try:
-                results = self.db.search_movie_advanced(searchText)
-            except:
-                try:
-                    results = self.db.search_movie(searchText)
-                except:
-                    self.output("Error accessing imdb")
-                    return None
-
-            if results:
-                foundMovie = True
-                break
-            else:
-                self.output(f'Try {i}: No matches for: {searchText}')
-                #return None
-
-        if not foundMovie:
-            return
-
-        acceptableKinds = ('movie', 'short', 'tv movie', 'tv miniseries')
-
-        movie = results[0]
-        for res in results:
-            try:
-                self.db.update(movie, info=['main', 'vote details'])
-            except Exception as e:
-                self.output(f'Error updating movie: {res}, {e}')
-                continue
-
-            if 'year' in res.data and 'kind' in res.data:
-                kind = res.data['kind']
-                imdbyear = res.data['year']
-                if imdbyear == year and (kind in acceptableKinds):
-                    movie = res
-                    self.output('Found result: %s (%s)' % (movie['title'], movie['year']))
-                    break
-
-        return movie
-
     # Context Menus -----------------------------------------------------------
 
     def movieInfoRightMenu(self):
