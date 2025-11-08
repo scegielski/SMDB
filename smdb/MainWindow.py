@@ -649,7 +649,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings.setValue('fontSize', self.fontSize)
 
         self.saveTableColumns('moviesTable', self.moviesTableView, self.moviesTableColumnsVisible)
-        self.saveTableColumns('watchListTable', self.watchListTableView, self.watchListColumnsVisible)
+        self.saveTableColumns('watchListTable', self.watchListWidget.listTableView, self.watchListWidget.listColumnsVisible)
         self.saveTableColumns('historyListTable', self.historyListWidget.listTableView, self.historyListWidget.listColumnsVisible)
         self.saveTableColumns('backupListTable', self.backupListTableView, self.backupListColumnsVisible)
 
