@@ -70,10 +70,6 @@ class MovieData:
             # Try to resolve IMDb ID without IMDbPY
             imdbId = self.resolve_imdb_id(title, year)
 
-        imdbId = str(imdbId).strip()
-        if not imdbId.startswith("tt"):
-            imdbId = f"tt{imdbId}"
-
         size = "original"
         f = requests.get("https://api.themoviedb.org/3/find/{}".format(imdbId),
                          params={"api_key": self.tmdbApiKey, "external_source": "imdb_id"}).json()
@@ -101,9 +97,6 @@ class MovieData:
     def getTMDBProductionCompanies(self, titleYear, imdbId):
         if not imdbId:
             return None
-        imdbId = str(imdbId).strip()
-        if not imdbId.startswith("tt"):
-            imdbId = f"tt{imdbId}"
 
         # Step 1: Find the TMDb ID using the IMDb ID
         find_url = f"https://api.themoviedb.org/3/find/{imdbId}"
@@ -134,10 +127,6 @@ class MovieData:
         if not imdbId:
             self.output(f"No IMDb ID available to fetch similar titles for \"{titleYear}\".")
             return []
-
-        imdbId = str(imdbId).strip()
-        if not imdbId.startswith("tt"):
-            imdbId = f"tt{imdbId}"
 
         # Step 1: Look up the YTS movie id using the IMDb id
         details_url = "https://yts.mx/api/v2/movie_details.json"
@@ -205,16 +194,18 @@ class MovieData:
     def resolve_imdb_id(self, title, year=None):
         """
         Resolve an IMDb ID for a movie using title and optional year via OMDb first,
-        then TMDb as a fallback. Returns an ID like 'tt1234567' or None.
+        then TMDb as a fallback. Always returns an ID with 'tt' prefix like 'tt1234567' or None.
         """
         # 1) Try OMDb
         try:
             data = self.getMovieOmdb(title, year, api_key=self.omdbApiKey)
             if data and data.get('imdbID'):
                 imdb_id = data.get('imdbID')
-                if imdb_id and not imdb_id.startswith('tt'):
-                    imdb_id = f"tt{imdb_id}"
-                return imdb_id
+                if imdb_id:
+                    # Ensure tt prefix
+                    if not imdb_id.startswith('tt'):
+                        imdb_id = f"tt{imdb_id}"
+                    return imdb_id
         except Exception:
             pass
 
@@ -248,11 +239,15 @@ class MovieData:
             ext = requests.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}/external_ids",
                                params={"api_key": self.tmdbApiKey}).json()
             imdb_id = ext.get("imdb_id")
-            if imdb_id and not imdb_id.startswith('tt'):
-                imdb_id = f"tt{imdb_id}"
-            return imdb_id
+            if imdb_id:
+                # Ensure tt prefix
+                if not imdb_id.startswith('tt'):
+                    imdb_id = f"tt{imdb_id}"
+                return imdb_id
         except Exception:
-            return None
+            pass
+        
+        return None
 
     def downloadMovieData(self, proxyIndex, force=False, imdbId=None, doJson=True, doCover=True):
         parent = self.parent
@@ -331,7 +326,6 @@ class MovieData:
         params = dict()
         params['apikey'] = api_key
         if imdbId:
-            if 'tt' not in imdbId: imdbId = f"tt{imdbId}"
             params['i'] = imdbId
         else:
             params['t'] = title
