@@ -100,44 +100,26 @@ class MovieData:
         except Exception as e:
             self.output(f"Error writing json file: {e}")
 
-    def downloadTMDBCover(self, titleYear, imdbId, coverFile):
-        self.output(f"Trying to download cover for \"{titleYear}\" using TMDB...")
-        if not imdbId:
-            m = re.match(r"(.*)\((\d{4})\)", titleYear)
-            title = titleYear
-            year = None
-            if m:
-                title = m.group(1).strip()
-                try:
-                    year = int(m.group(2))
-                except Exception:
-                    year = None
-            # Try to resolve IMDb ID without IMDbPY
-            imdbId = self.resolve_imdb_id(title, year)
-
-        size = "original"
-        f = requests.get("https://api.themoviedb.org/3/find/{}".format(imdbId),
-                         params={"api_key": self.tmdbApiKey, "external_source": "imdb_id"}).json()
-        movies = f.get("movie_results") or []
-        if not movies:
-            return
-
-        tmdb_id = movies[0]["id"]
-        imgs = requests.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}/images",
+    def downloadTMDBCover(self, tmdbId, coverFile):
+        self.output(f"Trying to download cover using TMDB ID {tmdbId}...")
+        
+        imgs = requests.get(f"https://api.themoviedb.org/3/movie/{tmdbId}/images",
                             params={"api_key": self.tmdbApiKey}).json()
         posters = imgs.get("posters") or []
         if not posters:
+            self.output("No posters found in TMDB images")
             return
 
         cfg = requests.get("https://api.themoviedb.org/3/configuration",
                            params={"api_key": self.tmdbApiKey}).json()
         base = cfg["images"]["secure_base_url"]
+        size = "original"
         movieCoverUrl = f"{base}{size}{posters[0]['file_path']}"
         try:
             urllib.request.urlretrieve(movieCoverUrl, coverFile)
+            self.output(f"Successfully downloaded cover from TMDB")
         except Exception as e:
-            self.output(f"Problem downloading cover from TMDB for \"{titleYear}\" from: {movieCoverUrl} - {e}")
-        self.output(f"Successfully downloaded cover from TMDB for \"{titleYear}\"")
+            self.output(f"Problem downloading cover from TMDB: {movieCoverUrl} - {e}")
 
     def resolve_imdb_id(self, title, year=None):
         """
@@ -264,7 +246,12 @@ class MovieData:
                     urllib.request.urlretrieve(movieCoverUrl, coverFile)
                 except Exception as e:
                     self.output(f"Problem downloading cover for \"{titleYear}\" from: {movieCoverUrl} - {e}")
-                    self.downloadTMDBCover(titleYear, imdbId, coverFile)
+                    # Use tmdbId from movie data if available
+                    tmdbId = movie.get('TmdbId')
+                    if tmdbId:
+                        self.downloadTMDBCover(tmdbId, coverFile)
+                    else:
+                        self.output("No TMDB ID available for fallback cover download")
 
 
             parent.moviesTableModel.setMovieDataWithJson(sourceRow,
