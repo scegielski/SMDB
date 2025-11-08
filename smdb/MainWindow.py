@@ -1622,8 +1622,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.moviesTableModel.changedLayout()
         self.progressBar.setValue(0)
 
-    @staticmethod
-    def getMovieFileData(moviePath):
+    def getMovieFileData(self, moviePath):
         if not os.path.exists(moviePath):
             return 0, 0, 0
 
