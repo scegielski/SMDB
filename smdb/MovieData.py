@@ -100,27 +100,6 @@ class MovieData:
         except Exception as e:
             self.output(f"Error writing json file: {e}")
 
-    def downloadTMDBCover(self, tmdbId, coverFile):
-        self.output(f"Trying to download cover using TMDB ID {tmdbId}...")
-        
-        imgs = requests.get(f"https://api.themoviedb.org/3/movie/{tmdbId}/images",
-                            params={"api_key": self.tmdbApiKey}).json()
-        posters = imgs.get("posters") or []
-        if not posters:
-            self.output("No posters found in TMDB images")
-            return
-
-        cfg = requests.get("https://api.themoviedb.org/3/configuration",
-                           params={"api_key": self.tmdbApiKey}).json()
-        base = cfg["images"]["secure_base_url"]
-        size = "original"
-        movieCoverUrl = f"{base}{size}{posters[0]['file_path']}"
-        try:
-            urllib.request.urlretrieve(movieCoverUrl, coverFile)
-            self.output(f"Successfully downloaded cover from TMDB")
-        except Exception as e:
-            self.output(f"Problem downloading cover from TMDB: {movieCoverUrl} - {e}")
-
     def resolveImdbId(self, title, year=None):
         """
         Resolve an IMDb ID for a movie using title and optional year via OMDb first,
