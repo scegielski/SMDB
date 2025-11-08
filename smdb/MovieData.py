@@ -24,30 +24,75 @@ class MovieData:
     def output(self, *args, **kwargs):
         return self.parent.output(*args, **kwargs)
 
-    def writeMovieJsonOmdb(self, movieData, productionCompanies, similarMovies, jsonFile):
+    def writeMovieJson(self, movieData, productionCompanies, similarMovies, jsonFile):
         d = {}
 
         d['title'] = movieData.get('Title')
-        d['id'] = movieData.get('imdbID')
-        d['kind'] = 'movie'  # OMDb doesn't distinguish TV/miniseries cleanly
+        d['id'] = movieData.get('ImdbID') or movieData.get('imdbID')  # Support both formats
+        d['kind'] = 'movie'
         d['year'] = movieData.get('Year')
-        d['rating'] = movieData.get('imdbRating')
+        d['rating'] = movieData.get('ImdbRating') or movieData.get('imdbRating')
         d['mpaa rating'] = movieData.get('Rated')
-        d['countries'] = [c.strip() for c in movieData.get('Country', '').split(',')]
-        d['companies'] = productionCompanies
+        
+        # Handle both list format (TMDB) and comma-separated string (OMDb)
+        countries = movieData.get('Countries')
+        if isinstance(countries, list):
+            d['countries'] = countries
+        else:
+            country_str = movieData.get('Country', '')
+            d['countries'] = [c.strip() for c in country_str.split(',') if c.strip()]
+        
+        # Use production companies from TMDB data if available, otherwise use passed parameter
+        d['companies'] = movieData.get('ProductionCompanies') or productionCompanies or []
+        
         runtime = (movieData.get('Runtime') or '')
         d['runtime'] = runtime.split()[0] if runtime else None
         d['box office'] = movieData.get('BoxOffice')
-        d['directors'] = [d.strip() for d in movieData.get('Director', '').split(',') if d.strip()]
-        d['cast'] = [a.strip() for a in movieData.get('Actors', '').split(',') if a.strip()]
-        d['genres'] = [g.strip() for g in movieData.get('Genre', '').split(',') if g.strip()]
+        
+        # Handle both list format (TMDB) and comma-separated string (OMDb)
+        directors = movieData.get('Directors')
+        if isinstance(directors, list):
+            d['directors'] = directors
+        else:
+            director_str = movieData.get('Director', '')
+            d['directors'] = [d.strip() for d in director_str.split(',') if d.strip()]
+        
+        # Handle both list format (TMDB) and comma-separated string (OMDb)
+        actors = movieData.get('Actors')
+        if isinstance(actors, list):
+            d['cast'] = actors
+        else:
+            d['cast'] = [a.strip() for a in actors.split(',') if a.strip()] if actors else []
+        
+        # Handle both list format (TMDB) and comma-separated string (OMDb)
+        genres = movieData.get('Genres')
+        if isinstance(genres, list):
+            d['genres'] = genres
+        else:
+            genre_str = movieData.get('Genre', '')
+            d['genres'] = [g.strip() for g in genre_str.split(',') if g.strip()]
+        
         d['plot'] = movieData.get('Plot')
-        d['plot outline'] = movieData.get('Plot')  # OMDb doesn't separate this
-        d['synopsis'] = movieData.get('Plot')  # same
-        d['summary'] = movieData.get('Plot')  # same
+        d['plot outline'] = movieData.get('Plot')
+        d['synopsis'] = movieData.get('Plot')
+        d['summary'] = movieData.get('Plot')
         d['cover url'] = movieData.get('Poster')
-        d['full-size cover url'] = movieData.get('Poster')  # OMDb only provides one
-        d['similar movies'] = similarMovies or []
+        d['full-size cover url'] = movieData.get('PosterFullSize') or movieData.get('Poster')
+        
+        # Use TMDB similar movies if available, otherwise use passed parameter
+        d['similar movies'] = movieData.get('SimilarMoviesTmdb') or similarMovies or []
+        
+        # Add additional TMDB data if available
+        if movieData.get('Writers'):
+            d['writers'] = movieData.get('Writers')
+        if movieData.get('Keywords'):
+            d['keywords'] = movieData.get('Keywords')
+        if movieData.get('Tagline'):
+            d['tagline'] = movieData.get('Tagline')
+        if movieData.get('Budget'):
+            d['budget'] = movieData.get('Budget')
+        if movieData.get('Revenue'):
+            d['revenue'] = movieData.get('Revenue')
 
         try:
             with open(jsonFile, "w", encoding="utf-8") as f:
@@ -279,10 +324,13 @@ class MovieData:
             if not imdbId:
                 imdbId = self.resolve_imdb_id(title, year)
 
-            movie = self.getMovieOmdb(title, year, api_key=self.omdbApiKey, imdbId=imdbId)
+            # Try TMDB first
+            movie = self.getMovieTmdb(title, year, imdbId=imdbId)
             
-            # Fetch TMDB data for comparison/debugging
-            tmdbMovie = self.getMovieTmdb(title, year, imdbId=imdbId)
+            # Fall back to OMDb if TMDB fails
+            if not movie:
+                self.output(f"TMDB lookup failed, falling back to OMDb for \"{titleYear}\"")
+                movie = self.getMovieOmdb(title, year, api_key=self.omdbApiKey, imdbId=imdbId)
 
             if not movie: return ""
 
@@ -290,7 +338,7 @@ class MovieData:
             similarMovies = self.getYTSSimilarMovies(titleYear, imdbId)
 
             if doJson:
-                self.writeMovieJsonOmdb(movie, productionCompanies, similarMovies, jsonFile)
+                self.writeMovieJson(movie, productionCompanies, similarMovies, jsonFile)
                 if parent.moviesSmdbData and 'titles' in parent.moviesSmdbData:
                     titleEntry = parent.moviesSmdbData['titles'].get(moviePath)
                     if titleEntry is not None:
