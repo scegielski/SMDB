@@ -234,24 +234,19 @@ class MovieData:
                 parent.calculateFolderSize(proxyIndex, moviePath, movieFolderName)
                 parent.getMovieFileInfo(proxyIndex, moviePath, movieFolderName)
 
+            coverFile = ""
             if doCover:
-                if not 'Poster' in movie:
+                if 'PosterFullSize' in movie:
+                    movieCoverUrl = movie['PosterFullSize']
+                elif 'Poster' in movie:
+                    movieCoverUrl = movie['Poster']
+                else:
                     self.output("Error: No cover image available")
-                    return ""
-                movieCoverUrl = movie['Poster']
-                extension = os.path.splitext(movieCoverUrl)[1]
-                if extension == '.png':
-                    coverFile = coverFile.replace('.jpg', '.png')
+
                 try:
                     urllib.request.urlretrieve(movieCoverUrl, coverFile)
                 except Exception as e:
-                    self.output(f"Problem downloading cover for \"{titleYear}\" from: {movieCoverUrl} - {e}")
-                    # Use tmdbId from movie data if available
-                    tmdbId = movie.get('TmdbId')
-                    if tmdbId:
-                        self.downloadTMDBCover(tmdbId, coverFile)
-                    else:
-                        self.output("No TMDB ID available for fallback cover download")
+                    self.output("No TMDB ID available for fallback cover download")
 
 
             parent.moviesTableModel.setMovieDataWithJson(sourceRow,
