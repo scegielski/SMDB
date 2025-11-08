@@ -54,6 +54,7 @@ from .MovieInfoListView import MovieInfoListView
 from .MovieTableView import MovieTableView
 from .BackupWidget import BackupWidget
 from .HistoryWidget import HistoryWidget
+from .WatchListWidget import WatchListWidget
 
 
 def _default_collections_folder():
@@ -324,33 +325,21 @@ class MainWindow(QtWidgets.QMainWindow):
             self.moviesTableWidget.hide()
 
         # Watch List
-        self.watchListWidget = QtWidgets.QFrame()
-        self.watchListTableView = MovieTableView()
-        self.watchListDefaultColumns = [Columns.Rank.value,
-                                        Columns.Year.value,
-                                        Columns.Title.value,
-                                        Columns.Rating.value]
-
-        try:
-            self.watchListColumns = self.settings.value('watchListTableColumns',
-                                                        self.watchListDefaultColumns,
-                                                        type=list)
-            self.watchListColumns = [int(m) for m in self.watchListColumns]
-        except TypeError:
-            self.watchListColumns = self.watchListDefaultColumns
-
-        try:
-            self.watchListColumnWidths = self.settings.value('watchListTableColumnWidths',
-                                                             defaultColumnWidths,
-                                                             type=list)
-            self.watchListColumnWidths = [int(m) for m in self.watchListColumnWidths]
-        except TypeError:
-            self.watchListColumnWidths = defaultColumnWidths
-
-        self.watchListTableView.wheelSpun.connect(self.changeFontSize)
-        self.watchListColumnsVisible = []
-        self.watchListHeaderActions = []
-        self.initUIWatchList()
+        # Initialize early for WatchListWidget
+        if not hasattr(self, 'moviesSmdbData'):
+            self.moviesSmdbData = None
+        watchListSmdbFile = os.path.join(self.moviesFolder, "smdb_data_watch_list.json")
+        self.watchListWidget = WatchListWidget(
+            parent=self,
+            settings=self.settings,
+            bgColorA=self.bgColorA,
+            bgColorB=self.bgColorB,
+            bgColorC=self.bgColorC,
+            bgColorD=self.bgColorD,
+            moviesSmdbData=self.moviesSmdbData,
+            watchListSmdbFile=watchListSmdbFile,
+            outputCallback=self.output
+        )
         self.moviesWatchListBackupVSplitter.addWidget(self.watchListWidget)
         if not self.showWatchList:
             self.watchListWidget.hide()
@@ -606,10 +595,10 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.moviesTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
 
-        if len(self.watchListColumnsVisible) > 0 and self.watchListColumnsVisible[Columns.Cover.value]:
-            self.watchListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
+        if len(self.watchListWidget.listColumnsVisible) > 0 and self.watchListWidget.listColumnsVisible[Columns.Cover.value]:
+            self.watchListWidget.listTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
         else:
-            self.watchListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+            self.watchListWidget.listTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
 
         if len(self.backupListColumnsVisible) > 0 and self.backupListColumnsVisible[Columns.Cover.value]:
             self.backupListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
@@ -1001,77 +990,6 @@ class MainWindow(QtWidgets.QMainWindow):
         moviesTableSearchHLayout.setStretch(0, 3)
         moviesTableSearchHLayout.setStretch(1, 10)
 
-    def initUIWatchList(self):
-        self.watchListWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
-        self.watchListWidget.setLineWidth(5)
-        self.watchListWidget.setStyleSheet(f"background: {self.bgColorB};"
-                                           f"border-radius: 10px;")
-
-        watchListVLayout = QtWidgets.QVBoxLayout()
-        self.watchListWidget.setLayout(watchListVLayout)
-
-        watchListLabel = QtWidgets.QLabel("Watch List")
-        watchListVLayout.addWidget(watchListLabel)
-
-        self.watchListTableView.setSortingEnabled(False)
-        self.watchListTableView.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
-        self.watchListTableView.verticalHeader().hide()
-        self.watchListTableView.setStyleSheet(f"background: {self.bgColorC};"
-                                              f"alternate-background-color: {self.bgColorD};")
-        self.watchListTableView.setAlternatingRowColors(True)
-        self.watchListTableView.setShowGrid(False)
-
-        # Right click header menu
-        hh = self.watchListTableView.horizontalHeader()
-        hh.setSectionsMovable(True)
-        hh.setStyleSheet(f"background: {self.bgColorB};"
-                         f"border-radius: 0px;")
-        hh.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        hh.customContextMenuRequested[QtCore.QPoint].connect(
-            lambda: self.headerRightMenuShow(QtCore.QPoint,
-                                             self.watchListTableView,
-                                             self.watchListColumnsVisible,
-                                             self.watchListTableModel))
-
-        # Right click menu
-        self.watchListTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self.watchListTableView.customContextMenuRequested[QtCore.QPoint].connect(self.watchListTableRightMenuShow)
-
-        watchListVLayout.addWidget(self.watchListTableView)
-
-        watchListButtonsHLayout = QtWidgets.QHBoxLayout()
-        watchListVLayout.addLayout(watchListButtonsHLayout)
-
-        addButton = QtWidgets.QPushButton('Add')
-        addButton.clicked.connect(self.watchListAdd)
-        addButton.setStyleSheet(f"background: {self.bgColorA};"
-                                f"border-radius: 5px;")
-        watchListButtonsHLayout.addWidget(addButton)
-
-        removeButton = QtWidgets.QPushButton('Remove')
-        removeButton.clicked.connect(self.watchListRemove)
-        removeButton.setStyleSheet(f"background: {self.bgColorA};"
-                                   f"border-radius: 5px;")
-        watchListButtonsHLayout.addWidget(removeButton)
-
-        moveToTopButton = QtWidgets.QPushButton('Move To Top')
-        moveToTopButton.clicked.connect(lambda: self.watchListMoveRow(self.MoveTo.TOP))
-        moveToTopButton.setStyleSheet(f"background: {self.bgColorA};"
-                                      f"border-radius: 5px;")
-        watchListButtonsHLayout.addWidget(moveToTopButton)
-
-        moveUpButton = QtWidgets.QPushButton('Move Up')
-        moveUpButton.clicked.connect(lambda: self.watchListMoveRow(self.MoveTo.UP))
-        moveUpButton.setStyleSheet(f"background: {self.bgColorA};"
-                                   f"border-radius: 5px;")
-        watchListButtonsHLayout.addWidget(moveUpButton)
-
-        moveDownButton = QtWidgets.QPushButton('Move Down')
-        moveDownButton.clicked.connect(lambda: self.watchListMoveRow(self.MoveTo.DOWN))
-        moveDownButton.setStyleSheet(f"background: {self.bgColorA};"
-                                     f"border-radius: 5px;")
-        watchListButtonsHLayout.addWidget(moveDownButton)
-
     def initUIMovieSection(self):
         self.movieSectionWidget = QtWidgets.QFrame()
         self.movieSectionWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
@@ -1380,15 +1298,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.pickRandomMovie()
 
     def refreshWatchList(self):
-        (self.watchListSmdbData,
-         self.watchListTableModel,
-         self.watchListTableProxyModel,
-         self.watchListColumnsVisible,
-         smdbData) = self.refreshTable(self.watchListSmdbFile,
-                                       self.watchListTableView,
-                                       self.watchListColumns,
-                                       self.watchListColumnWidths,
-                                       Columns.Rank.value)
+        """Delegate to WatchListWidget."""
+        result = self.watchListWidget.refreshWatchList()
+        # Update references
+        if result:
+            (self.watchListSmdbData,
+             self.watchListTableModel,
+             self.watchListTableProxyModel,
+             self.watchListColumnsVisible,
+             smdbData) = result
 
     def refreshHistoryList(self):
         """Delegate to HistoryWidget."""
@@ -3389,45 +3307,6 @@ class MainWindow(QtWidgets.QMainWindow):
             rightMenu.addAction(openImdbAction)
             rightMenu.exec_(QtGui.QCursor.pos())
 
-    def watchListTableRightMenuShow(self, QPos):
-        rightMenu = QtWidgets.QMenu(self.moviesTableView)
-
-        selectAllAction = QtWidgets.QAction("Select All", self)
-        selectAllAction.triggered.connect(lambda: self.tableSelectAll(self.watchListTableView))
-        rightMenu.addAction(selectAllAction)
-
-        playAction = QtWidgets.QAction("Play", self)
-        playAction.triggered.connect(lambda: self.playMovie(self.watchListTableView,
-                                                            self.watchListTableProxyModel))
-        rightMenu.addAction(playAction)
-
-        selectInMainListAction = QtWidgets.QAction("Select movie in main list", self)
-        selectInMainListAction.triggered.connect(self.watchListSelectMovieInMainList)
-        rightMenu.addAction(selectInMainListAction)
-
-        removeFromWatchListAction = QtWidgets.QAction("Remove From Watch List", self)
-        removeFromWatchListAction.triggered.connect(self.watchListRemove)
-        rightMenu.addAction(removeFromWatchListAction)
-
-        moveToTopWatchListAction = QtWidgets.QAction("Move To Top", self)
-        moveToTopWatchListAction.triggered.connect(lambda: self.watchListMoveRow(self.MoveTo.TOP))
-        rightMenu.addAction(moveToTopWatchListAction)
-
-        moveUpWatchListAction = QtWidgets.QAction("Move Up", self)
-        moveUpWatchListAction.triggered.connect(lambda: self.watchListMoveRow(self.MoveTo.UP))
-        rightMenu.addAction(moveUpWatchListAction)
-
-        moveDownWatchListAction = QtWidgets.QAction("Move Down", self)
-        moveDownWatchListAction.triggered.connect(lambda: self.watchListMoveRow(self.MoveTo.DOWN))
-        rightMenu.addAction(moveDownWatchListAction)
-
-        modelIndex = self.watchListTableView.selectionModel().selectedRows()[0]
-        self.clickedTable(modelIndex,
-                          self.watchListTableModel,
-                          self.watchListTableProxyModel)
-
-        rightMenu.exec_(QtGui.QCursor.pos())
-
     def openBackupSourceFolder(self):
         """Delegate to BackupWidget."""
         self.backupListWidget.openSourceFolder()
@@ -3900,37 +3779,11 @@ class MainWindow(QtWidgets.QMainWindow):
                            self.watchListTableModel,
                            titlesOnly=True)
 
-    def watchListSelectMovieInMainList(self):
-        """Select the current movie in the main movies list."""
-        selectedRows = self.watchListTableView.selectionModel().selectedRows()
-        if len(selectedRows) == 0:
-            return
-        
-        # Get the movie path from the watch list
-        proxyIndex = selectedRows[0]
-        sourceIndex = self.watchListTableProxyModel.mapToSource(proxyIndex)
-        moviePath = self.watchListTableModel.getPath(sourceIndex.row())
-        
-        # Find the movie in the main movies table
-        for row in range(self.moviesTableModel.rowCount()):
-            if self.moviesTableModel.getPath(row) == moviePath:
-                # Find the corresponding proxy row
-                sourceIndex = self.moviesTableModel.index(row, 0)
-                proxyIndex = self.moviesTableProxyModel.mapFromSource(sourceIndex)
-                
-                # Select the row in the main table
-                self.moviesTableView.selectRow(proxyIndex.row())
-                self.moviesTableView.scrollTo(proxyIndex)
-                
-                # Update the movie display
-                self.clickedTable(proxyIndex,
-                                self.moviesTableModel,
-                                self.moviesTableProxyModel)
-                break
-
     def historyListRemove(self):
         """Delegate to HistoryWidget."""
-        self.historyListWidget.listRemove()
+        self.historyListWidget.listRemove(self.historyListSmdbFile,
+                           self.historyListTableModel,
+                           titlesOnly=True)
 
     def backupListRemove(self):
         """Delegate to BackupWidget."""
