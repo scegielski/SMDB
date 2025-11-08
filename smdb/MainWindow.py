@@ -1077,11 +1077,6 @@ class MainWindow(QtWidgets.QMainWindow):
         sizes = [int(x) for x in self.settings.value('coverSummaryVSplitterSizes', [600, 200], type=list)]
         self.coverSummaryVSplitter.setSizes(sizes)
 
-
-    def initUIBackupList(self):
-        """Deprecated - functionality moved to BackupWidget."""
-        pass
-
     def initUICover(self):
         self.coverTab.setStyleSheet(f"background-color: {self.bgColorC};")
         movieVLayout = QtWidgets.QVBoxLayout()
