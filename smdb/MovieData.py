@@ -111,6 +111,9 @@ class MovieData:
 
             if not imdbId:
                 imdbId = self.resolveImdbId(title, year)
+            if not imdbId:
+                self.output(f"Could not resolve IMDb ID for \"{titleYear}\"")
+                return ""
 
             # Try TMDB first
             movie = self.getMovieTmdb(title, year, imdbId=imdbId)
