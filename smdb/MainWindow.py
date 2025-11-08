@@ -1568,11 +1568,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setTitleBar()
         self.refreshMoviesList()
 
-    def backupBrowseFolder(self):
-        """Delegate to BackupWidget."""
-        self.backupListWidget.browseFolder()
-        # Update reference
-        self.backupFolder = self.backupListWidget.folder
+
 
     def calculateFolderSize(self, sourceIndex, moviePath, movieFolderName):
         folderSize = '%05d Mb' % bToMb(getFolderSize(moviePath))
@@ -1796,18 +1792,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.moviesTableModel.changedLayout()
         self.progressBar.setValue(0)
-
-    def backupAnalyse(self):
-        """Delegate to BackupWidget."""
-        self.backupListWidget.analyse()
-        # Update references
-        self.backupAnalysed = self.backupListWidget.analysed
-
-    def backupRun(self, moveFiles=False):
-        """Delegate to BackupWidget."""
-        self.backupListWidget.run(moveFiles)
-        # Update references
-        self.backupAnalysed = self.backupListWidget.analysed
 
     def cancelButtonClicked(self):
         self.isCanceled = True
@@ -3307,24 +3291,6 @@ class MainWindow(QtWidgets.QMainWindow):
             rightMenu.addAction(openImdbAction)
             rightMenu.exec_(QtGui.QCursor.pos())
 
-    def openBackupSourceFolder(self):
-        """Delegate to BackupWidget."""
-        self.backupListWidget.openSourceFolder()
-
-    def openBackupDestinationFolder(self):
-        """Delegate to BackupWidget."""
-        self.backupListWidget.openDestinationFolder()
-
-    def backupListAddAllMoviesFrom(self, moviesFolder):
-        """Delegate to BackupWidget."""
-        self.backupListWidget.listAddAllMoviesFrom(moviesFolder)
-        # Update reference
-        self.backupAnalysed = self.backupListWidget.analysed
-
-    def backupListTableRightMenuShow(self, QPos):
-        """Delegate to BackupWidget."""
-        self.backupListWidget.listTableRightMenuShow(QPos)
-
     def conditionTitle(self, title, insensitive_the):
         title = title.lower()
         title = insensitive_the.sub('', title)
@@ -3643,19 +3609,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.historyListAdd(tableView, proxy)
 
     def watchListAdd(self):
-        self.watchListTableModel.aboutToChangeLayout()
-        for modelIndex in self.moviesTableView.selectionModel().selectedRows():
-            if not self.moviesTableView.isRowHidden(modelIndex.row()):
-                sourceIndex = self.moviesTableProxyModel.mapToSource(modelIndex)
-                sourceRow = sourceIndex.row()
-                moviePath = self.moviesTableModel.getPath(sourceRow)
-                self.watchListTableModel.addMovie(self.moviesSmdbData,
-                                                  moviePath)
-
-        self.watchListTableModel.changedLayout()
-        self.writeSmdbFile(self.watchListSmdbFile,
-                           self.watchListTableModel,
-                           titlesOnly=True)
+        """Delegate to WatchListWidget."""
+        self.watchListWidget.listAdd()
 
     def historyListAdd(self, table, proxy):
         """Delegate to HistoryWidget."""
@@ -3785,72 +3740,10 @@ class MainWindow(QtWidgets.QMainWindow):
                            self.historyListTableModel,
                            titlesOnly=True)
 
-    def backupListRemove(self):
-        """Delegate to BackupWidget."""
-        self.backupListWidget.listRemove()
-
-    def backupListRemoveNoDifference(self):
-        """Delegate to BackupWidget."""
-        self.backupListWidget.listRemoveNoDifference()
-
-    def backupListRemoveMissingInSource(self):
-        """Delegate to BackupWidget."""
-        self.backupListWidget.listRemoveMissingInSource()
-
     class MoveTo(Enum):
         DOWN = 0
         UP = 1
         TOP = 2
-
-    def backupListMoveRow(self, moveTo):
-        """Delegate to BackupWidget."""
-        self.backupListWidget.listMoveRow(moveTo)
-
-    def watchListMoveRow(self, moveTo):
-        selectedRows = self.watchListTableView.selectionModel().selectedRows()
-        if len(selectedRows) == 0:
-            return
-
-        minProxyRow = selectedRows[0].row()
-        maxProxyRow = selectedRows[-1].row()
-        minSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[0]).row()
-        maxSourceRow = self.watchListTableProxyModel.mapToSource(selectedRows[-1]).row()
-
-        if ((moveTo == self.MoveTo.UP or moveTo == self.MoveTo.TOP) and minSourceRow == 0) or \
-           (moveTo == self.MoveTo.DOWN and maxSourceRow >= (self.watchListTableModel.getDataSize() - 1)):
-            return
-
-        self.watchListTableView.selectionModel().clearSelection()
-
-        dstRow = 0
-        topRow = 0
-        bottomRow = 0
-        if moveTo == self.MoveTo.UP:
-            dstRow = minSourceRow - 1
-            topRow = minProxyRow - 1
-            bottomRow = maxProxyRow - 1
-        elif moveTo == self.MoveTo.DOWN:
-            dstRow = minSourceRow + 1
-            topRow = minProxyRow + 1
-            bottomRow = maxProxyRow + 1
-        elif moveTo == self.MoveTo.TOP:
-            dstRow = 0
-            topRow = 0
-            bottomRow = maxProxyRow - minProxyRow
-
-        self.watchListTableModel.moveRow(minSourceRow, maxSourceRow, dstRow)
-        topLeft = self.watchListTableProxyModel.index(topRow, 0)
-        lastColumn = self.moviesTableModel.getLastColumn()
-        bottomRight = self.watchListTableProxyModel.index(bottomRow, lastColumn)
-
-        selection = self.watchListTableView.selectionModel().selection()
-        selection.select(topLeft, bottomRight)
-        self.watchListTableView.selectionModel().select(selection,
-                                                        QtCore.QItemSelectionModel.ClearAndSelect)
-
-        self.writeSmdbFile(self.watchListSmdbFile,
-                           self.watchListTableModel,
-                           titlesOnly=True)
 
     def getSelectedRow(self):
         proxyIndex = self.moviesTableView.selectionModel().selectedRows()[0]
