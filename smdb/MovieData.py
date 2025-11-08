@@ -24,42 +24,6 @@ class MovieData:
     def output(self, *args, **kwargs):
         return self.parent.output(*args, **kwargs)
 
-    def writeMovieJson(self, movie, jsonFile):
-        d = {}
-        d['title'] = getMovieKey(movie, 'Title')
-        d['id'] = getMovieKey(movie, 'imdbID')
-        if d['id'] is None:
-            self.output(f"Movie: {d['title']} has no imdbId")
-        else:
-            d['id'] = d['id'].replace('tt', '')
-        d['kind'] = getMovieKey(movie, 'Type')
-        d['year'] = getMovieKey(movie, 'Year')
-        d['rating'] = getMovieKey(movie, 'imdbRating')
-        d['mpaa rating'] = getMovieKey(movie, 'Rated')
-        d['countries'] = getMovieKey(movie, 'Country')
-        if d['countries']: d['countries'] = d['countries'].split(',')
-        d['companies'] = getMovieKey(movie, 'Production')
-        if d['companies']: d['companies'] = d['companies'].split(',')
-        d['runtime'] = getMovieKey(movie, 'Runtime')
-        if d['runtime']: d['runtime'] = d['runtime'].split()[0]
-        d['box office'] = getMovieKey(movie, 'BoxOffice')
-        d['directors'] = getMovieKey(movie, 'Director')
-        if d['directors']: d['directors'] = d['directors'].split(',')
-        d['cast'] = getMovieKey(movie, 'Actors')
-        if d['cast']: d['cast'] = d['cast'].split(',')
-        d['genres'] = getMovieKey(movie, 'Genre')
-        if d['genres']: d['genres'] = d['genres'].split(',')
-        d['plot'] = getMovieKey(movie, 'Plot')
-        d['cover url'] = getMovieKey(movie, 'Poster')
-
-        # Write to JSON
-        try:
-            with open(jsonFile, "w", encoding="utf-8") as f:
-                import ujson
-                ujson.dump(d, f, indent=4)
-        except Exception as e:
-            self.output(f"Error writing JSON file '{jsonFile}': {e}")
-
     def writeMovieJsonOmdb(self, movieData, productionCompanies, similarMovies, jsonFile):
         d = {}
 
