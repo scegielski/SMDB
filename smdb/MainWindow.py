@@ -1299,7 +1299,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def refreshWatchList(self):
         """Delegate to WatchListWidget."""
-        result = self.watchListWidget.refreshWatchList()
+        result = self.watchListWidget.refresh()
         # Update references
         if result:
             (self.watchListSmdbData,
@@ -1310,7 +1310,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def refreshHistoryList(self):
         """Delegate to HistoryWidget."""
-        result = self.historyListWidget.refreshHistoryList()
+        result = self.historyListWidget.refresh()
         # Update references
         if result:
             (self.historyListSmdbData,
@@ -1321,7 +1321,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def refreshBackupList(self):
         """Delegate to BackupWidget."""
-        result = self.backupListWidget.refreshBackupList()
+        result = self.backupListWidget.refresh()
         # Update references
         if result:
             (self.backupListSmdbData,

@@ -1150,7 +1150,7 @@ class BackupWidget(QtWidgets.QFrame):
                                         self.parent.moviesTableProxyModel)
                 break
 
-    def refreshBackupList(self):
+    def refresh(self):
         """Refresh the backup list table - delegate to parent."""
         if hasattr(self.parent, 'refreshTable'):
             (self.listSmdbData,

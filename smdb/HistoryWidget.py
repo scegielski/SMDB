@@ -109,7 +109,7 @@ class HistoryWidget(QtWidgets.QFrame):
                                   f"border-radius: 5px;")
         historyListButtonsHLayout.addWidget(removeButton)
     
-    def refreshHistoryList(self):
+    def refresh(self):
         """Refresh the history list table."""
         (self.listSmdbData,
          self.listTableModel,

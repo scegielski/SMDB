@@ -136,7 +136,7 @@ class WatchListWidget(QtWidgets.QFrame):
                                      f"border-radius: 5px;")
         watchListButtonsHLayout.addWidget(moveDownButton)
     
-    def refreshWatchList(self):
+    def refresh(self):
         """Refresh the watch list table."""
         (self.listSmdbData,
          self.listTableModel,
