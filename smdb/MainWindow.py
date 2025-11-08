@@ -3721,25 +3721,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
             self.moviesSmdbData['user tags'][userTag]['movies'].append(titleYear)
 
-    def watchListRemove(self):
-        selectedRows = self.watchListTableView.selectionModel().selectedRows()
-        if len(selectedRows) == 0:
-            return
-
-        minRow = selectedRows[0].row()
-        maxRow = selectedRows[-1].row()
-        self.watchListTableModel.removeMovies(minRow, maxRow)
-        self.watchListTableView.selectionModel().clearSelection()
-        self.writeSmdbFile(self.watchListSmdbFile,
-                           self.watchListTableModel,
-                           titlesOnly=True)
-
-    def historyListRemove(self):
-        """Delegate to HistoryWidget."""
-        self.historyListWidget.listRemove(self.historyListSmdbFile,
-                           self.historyListTableModel,
-                           titlesOnly=True)
-
     class MoveTo(Enum):
         DOWN = 0
         UP = 1
