@@ -121,7 +121,7 @@ class MovieData:
         except Exception as e:
             self.output(f"Problem downloading cover from TMDB: {movieCoverUrl} - {e}")
 
-    def resolve_imdb_id(self, title, year=None):
+    def resolveImdbId(self, title, year=None):
         """
         Resolve an IMDb ID for a movie using title and optional year via OMDb first,
         then TMDb as a fallback. Always returns an ID with 'tt' prefix like 'tt1234567' or None.
@@ -207,7 +207,7 @@ class MovieData:
             titleYear = f"{title} ({year})"
 
             if not imdbId:
-                imdbId = self.resolve_imdb_id(title, year)
+                imdbId = self.resolveImdbId(title, year)
 
             # Try TMDB first
             movie = self.getMovieTmdb(title, year, imdbId=imdbId)
