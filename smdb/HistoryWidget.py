@@ -140,6 +140,10 @@ class HistoryWidget(QtWidgets.QFrame):
                                                                    self.listTableProxyModel))
         rightMenu.addAction(playAction)
         
+        selectInMainListAction = QtWidgets.QAction("Select movie in main list", self)
+        selectInMainListAction.triggered.connect(self.selectMovieInMainList)
+        rightMenu.addAction(selectInMainListAction)
+        
         removeFromHistoryListAction = QtWidgets.QAction("Remove From History List", self)
         removeFromHistoryListAction.triggered.connect(self.listRemove)
         rightMenu.addAction(removeFromHistoryListAction)
@@ -187,3 +191,31 @@ class HistoryWidget(QtWidgets.QFrame):
         self.parent.writeSmdbFile(self.listSmdbFile,
                                  self.listTableModel,
                                  titlesOnly=True)
+    
+    def selectMovieInMainList(self):
+        """Select the current movie in the main movies list."""
+        selectedRows = self.listTableView.selectionModel().selectedRows()
+        if len(selectedRows) == 0:
+            return
+        
+        # Get the movie path from the history list
+        proxyIndex = selectedRows[0]
+        sourceIndex = self.listTableProxyModel.mapToSource(proxyIndex)
+        moviePath = self.listTableModel.getPath(sourceIndex.row())
+        
+        # Find the movie in the main movies table
+        for row in range(self.parent.moviesTableModel.rowCount()):
+            if self.parent.moviesTableModel.getPath(row) == moviePath:
+                # Find the corresponding proxy row
+                sourceIndex = self.parent.moviesTableModel.index(row, 0)
+                proxyIndex = self.parent.moviesTableProxyModel.mapFromSource(sourceIndex)
+                
+                # Select the row in the main table
+                self.parent.moviesTableView.selectRow(proxyIndex.row())
+                self.parent.moviesTableView.scrollTo(proxyIndex)
+                
+                # Update the movie display
+                self.parent.clickedTable(proxyIndex,
+                                        self.parent.moviesTableModel,
+                                        self.parent.moviesTableProxyModel)
+                break
