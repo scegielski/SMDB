@@ -53,6 +53,7 @@ from .FilterWidget import FilterWidget
 from .MovieInfoListView import MovieInfoListView
 from .MovieTableView import MovieTableView
 from .BackupWidget import BackupWidget
+from .HistoryWidget import HistoryWidget
 
 
 def _default_collections_folder():
@@ -391,36 +392,18 @@ class MainWindow(QtWidgets.QMainWindow):
             self.backupListWidget.hide()
 
         # History List
-        self.maxHistory = 50
-        self.historyListWidget = QtWidgets.QFrame()
-        self.historyListTableView = MovieTableView()
-
-        self.historyListDefaultColumns = [Columns.Rank.value,
-                                          Columns.Year.value,
-                                          Columns.Title.value,
-                                          Columns.Rating.value,
-                                          Columns.DateWatched.value]
-
-        try:
-            self.historyListColumns = self.settings.value('historyListTableColumns',
-                                                         self.historyListDefaultColumns,
-                                                         type=list)
-            self.historyListColumns = [int(m) for m in self.historyListColumns]
-        except TypeError:
-            self.historyListColumns = self.historyListDefaultColumns
-
-        try:
-            self.historyListColumnWidths = self.settings.value('historyListTableColumnWidths',
-                                                              defaultColumnWidths,
-                                                              type=list)
-            self.historyListColumnWidths = [int(m) for m in self.historyListColumnWidths]
-        except TypeError:
-            self.historyListColumnWidths = defaultColumnWidths
-
-        self.historyListTableView.wheelSpun.connect(self.changeFontSize)
-        self.historyListColumnsVisible = []
-        self.historyListHeaderActions = []
-        self.initUIHistoryList()
+        historyListSmdbFile = os.path.join(self.moviesFolder, "smdb_data_history_list.json")
+        self.historyListWidget = HistoryWidget(
+            parent=self,
+            settings=self.settings,
+            bgColorA=self.bgColorA,
+            bgColorB=self.bgColorB,
+            bgColorC=self.bgColorC,
+            bgColorD=self.bgColorD,
+            moviesSmdbData=self.moviesSmdbData,
+            historyListSmdbFile=historyListSmdbFile,
+            outputCallback=self.output
+        )
         self.moviesWatchListBackupVSplitter.addWidget(self.historyListWidget)
         if not self.showHistoryList:
             self.historyListWidget.hide()
@@ -525,10 +508,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.watchListTableProxyModel = None
         self.refreshWatchList()
 
-        self.historyListSmdbFile = os.path.join(self.moviesFolder, "smdb_data_history_list.json")
-        self.historyListSmdbData = None
-        self.historyListTableModel = None
-        self.historyListTableProxyModel = None
+        # Refresh history list data
         self.refreshHistoryList()
 
         # backupListSmdbFile already initialized before BackupWidget creation
@@ -636,10 +616,10 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.backupListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
 
-        if len(self.historyListColumnsVisible) > 0 and self.historyListColumnsVisible[Columns.Cover.value]:
-            self.historyListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
+        if len(self.historyListWidget.listColumnsVisible) > 0 and self.historyListWidget.listColumnsVisible[Columns.Cover.value]:
+            self.historyListWidget.listTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
         else:
-            self.historyListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+            self.historyListWidget.listTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
 
         self.primaryFilterWidget.filterTable.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
         self.secondaryFilterWidget.filterTable.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
@@ -677,7 +657,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.saveTableColumns('moviesTable', self.moviesTableView, self.moviesTableColumnsVisible)
         self.saveTableColumns('watchListTable', self.watchListTableView, self.watchListColumnsVisible)
-        self.saveTableColumns('historyListTable', self.historyListTableView, self.historyListColumnsVisible)
+        self.saveTableColumns('historyListTable', self.historyListWidget.listTableView, self.historyListWidget.listColumnsVisible)
         self.saveTableColumns('backupListTable', self.backupListTableView, self.backupListColumnsVisible)
 
         self.settings.setValue('primaryFilterColumn0Width', self.primaryFilterWidget.filterTable.columnWidth(0))
@@ -1092,53 +1072,6 @@ class MainWindow(QtWidgets.QMainWindow):
                                      f"border-radius: 5px;")
         watchListButtonsHLayout.addWidget(moveDownButton)
 
-    def initUIHistoryList(self):
-        self.historyListWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
-        self.historyListWidget.setLineWidth(5)
-        self.historyListWidget.setStyleSheet(f"background: {self.bgColorB};"
-                                             f"border-radius: 10px;")
-
-        historyListVLayout = QtWidgets.QVBoxLayout()
-        self.historyListWidget.setLayout(historyListVLayout)
-
-        historyListLabel = QtWidgets.QLabel("History List")
-        historyListVLayout.addWidget(historyListLabel)
-
-        self.historyListTableView.setSortingEnabled(True)
-        self.historyListTableView.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
-        self.historyListTableView.verticalHeader().hide()
-        self.historyListTableView.setStyleSheet(f"background: {self.bgColorC};"
-                                                f"alternate-background-color: {self.bgColorD};")
-        self.historyListTableView.setAlternatingRowColors(True)
-        self.historyListTableView.setShowGrid(False)
-
-        # Right click header menu
-        hh = self.historyListTableView.horizontalHeader()
-        hh.setSectionsMovable(True)
-        hh.setStyleSheet(f"background: {self.bgColorB};"
-                         f"border-radius: 0px;")
-        hh.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        hh.customContextMenuRequested[QtCore.QPoint].connect(
-            lambda: self.headerRightMenuShow(QtCore.QPoint,
-                                             self.historyListTableView,
-                                             self.historyListColumnsVisible,
-                                             self.historyListTableModel))
-
-        # Right click menu
-        self.historyListTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self.historyListTableView.customContextMenuRequested[QtCore.QPoint].connect(self.historyListTableRightMenuShow)
-
-        historyListVLayout.addWidget(self.historyListTableView)
-
-        historyListButtonsHLayout = QtWidgets.QHBoxLayout()
-        historyListVLayout.addLayout(historyListButtonsHLayout)
-
-        removeButton = QtWidgets.QPushButton('Remove')
-        removeButton.clicked.connect(self.historyListRemove)
-        removeButton.setStyleSheet(f"background: {self.bgColorA};"
-                                   f"border-radius: 5px;")
-        historyListButtonsHLayout.addWidget(removeButton)
-
     def initUIMovieSection(self):
         self.movieSectionWidget = QtWidgets.QFrame()
         self.movieSectionWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
@@ -1458,16 +1391,15 @@ class MainWindow(QtWidgets.QMainWindow):
                                        Columns.Rank.value)
 
     def refreshHistoryList(self):
-        (self.historyListSmdbData,
-         self.historyListTableModel,
-         self.historyListTableProxyModel,
-         self.historyListColumnsVisible,
-         smdbData) = self.refreshTable(self.historyListSmdbFile,
-                                       self.historyListTableView,
-                                       self.historyListColumns,
-                                       self.historyListColumnWidths,
-                                       Columns.Rank.value,
-                                       sortAscending=False)
+        """Delegate to HistoryWidget."""
+        result = self.historyListWidget.refreshHistoryList()
+        # Update references
+        if result:
+            (self.historyListSmdbData,
+             self.historyListTableModel,
+             self.historyListTableProxyModel,
+             self.historyListColumnsVisible,
+             smdbData) = result
 
     def refreshBackupList(self):
         """Delegate to BackupWidget."""
@@ -1533,8 +1465,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.watchListColumns = self.watchListDefaultColumns
         self.watchListColumnWidths = defaultColumnWidths
         self.refreshWatchList()
-        self.historyListColumns = self.historyListDefaultColumns
-        self.historyListColumnWidths = defaultColumnWidths
+        self.historyListWidget.listColumns = self.historyListWidget.listDefaultColumns
+        self.historyListWidget.listColumnWidths = defaultColumnWidths
         self.refreshHistoryList()
         self.backupListColumns = self.backupListDefaultColumns
         self.backupListColumnWidths = defaultColumnWidths
@@ -3492,30 +3424,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         rightMenu.exec_(QtGui.QCursor.pos())
 
-    def historyListTableRightMenuShow(self, QPos):
-        rightMenu = QtWidgets.QMenu(self.moviesTableView)
-
-        selectAllAction = QtWidgets.QAction("Select All", self)
-        selectAllAction.triggered.connect(lambda: self.tableSelectAll(self.historyListTableView))
-        rightMenu.addAction(selectAllAction)
-
-        playAction = QtWidgets.QAction("Play", self)
-        playAction.triggered.connect(lambda: self.playMovie(self.historyListTableView,
-                                                            self.historyListTableProxyModel))
-        rightMenu.addAction(playAction)
-
-        removeFromHistoryListAction = QtWidgets.QAction("Remove From History List", self)
-        removeFromHistoryListAction.triggered.connect(self.historyListRemove)
-        rightMenu.addAction(removeFromHistoryListAction)
-
-        if len(self.historyListTableView.selectionModel().selectedRows()) > 0:
-            modelIndex = self.historyListTableView.selectionModel().selectedRows()[0]
-            self.clickedTable(modelIndex,
-                              self.historyListTableModel,
-                              self.historyListTableProxyModel)
-
-        rightMenu.exec_(QtGui.QCursor.pos())
-
     def openBackupSourceFolder(self):
         """Delegate to BackupWidget."""
         self.backupListWidget.openSourceFolder()
@@ -3848,7 +3756,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if moviePath in self.moviesSmdbData['titles']:
             self.moviesSmdbData['titles'][moviePath]['date watched'] = dateWatched
 
-        if tableView != self.historyListTableView:
+        if tableView != self.historyListWidget.listTableView:
             self.historyListAdd(tableView, proxy)
 
     def watchListAdd(self):
@@ -3867,24 +3775,8 @@ class MainWindow(QtWidgets.QMainWindow):
                            titlesOnly=True)
 
     def historyListAdd(self, table, proxy):
-        self.historyListTableModel.aboutToChangeLayout()
-        modelIndex = table.selectionModel().selectedRows()[0]
-        if not table.isRowHidden(modelIndex.row()):
-            sourceIndex = proxy.mapToSource(modelIndex)
-            sourceRow = sourceIndex.row()
-            moviePath = proxy.sourceModel().getPath(sourceRow)
-            self.historyListTableModel.addMovie(self.moviesSmdbData,
-                                                moviePath)
-        rowCount = self.historyListTableModel.rowCount()
-        if rowCount > self.maxHistory:
-            self.historyListTableModel.removeMovies(0, 0)
-
-        self.historyListTableModel.renumberRanks()
-
-        self.historyListTableModel.changedLayout()
-        self.writeSmdbFile(self.historyListSmdbFile,
-                           self.historyListTableModel,
-                           titlesOnly=True)
+        """Delegate to HistoryWidget."""
+        self.historyListWidget.listAdd(table, proxy)
 
     def backupListAdd(self):
         """Delegate to BackupWidget."""
@@ -4005,17 +3897,8 @@ class MainWindow(QtWidgets.QMainWindow):
                            titlesOnly=True)
 
     def historyListRemove(self):
-        selectedRows = self.historyListTableView.selectionModel().selectedRows()
-        if len(selectedRows) == 0:
-            return
-
-        minRow = selectedRows[0].row()
-        maxRow = selectedRows[-1].row()
-        self.historyListTableModel.removeMovies(minRow, maxRow)
-        self.historyListTableView.selectionModel().clearSelection()
-        self.writeSmdbFile(self.historyListSmdbFile,
-                           self.historyListTableModel,
-                           titlesOnly=True)
+        """Delegate to HistoryWidget."""
+        self.historyListWidget.listRemove()
 
     def backupListRemove(self):
         """Delegate to BackupWidget."""
