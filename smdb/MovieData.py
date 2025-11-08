@@ -16,6 +16,10 @@ class MovieData:
 
     def __init__(self, parent):
         self.parent = parent
+        
+        # API keys for external services
+        self.tmdbApiKey = "acaa3a2b3d6ebbb8749bfa43bd3d8af7"
+        self.omdbApiKey = "fe5db83f"
 
     def output(self, *args, **kwargs):
         return self.parent.output(*args, **kwargs)
@@ -108,20 +112,20 @@ class MovieData:
 
         size = "original"
         f = requests.get("https://api.themoviedb.org/3/find/{}".format(imdbId),
-                         params={"api_key": self.parent.tmdbApiKey, "external_source": "imdb_id"}).json()
+                         params={"api_key": self.tmdbApiKey, "external_source": "imdb_id"}).json()
         movies = f.get("movie_results") or []
         if not movies:
             return
 
         tmdb_id = movies[0]["id"]
         imgs = requests.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}/images",
-                            params={"api_key": self.parent.tmdbApiKey}).json()
+                            params={"api_key": self.tmdbApiKey}).json()
         posters = imgs.get("posters") or []
         if not posters:
             return
 
         cfg = requests.get("https://api.themoviedb.org/3/configuration",
-                           params={"api_key": self.parent.tmdbApiKey}).json()
+                           params={"api_key": self.tmdbApiKey}).json()
         base = cfg["images"]["secure_base_url"]
         movieCoverUrl = f"{base}{size}{posters[0]['file_path']}"
         try:
@@ -140,7 +144,7 @@ class MovieData:
         # Step 1: Find the TMDb ID using the IMDb ID
         find_url = f"https://api.themoviedb.org/3/find/{imdbId}"
         f = requests.get(find_url, params={
-            "api_key": self.parent.tmdbApiKey,
+            "api_key": self.tmdbApiKey,
             "external_source": "imdb_id"
         }).json()
 
@@ -152,7 +156,7 @@ class MovieData:
 
         # Step 2: Query movie details for production companies
         details_url = f"https://api.themoviedb.org/3/movie/{tmdb_id}"
-        d = requests.get(details_url, params={"api_key": self.parent.tmdbApiKey}).json()
+        d = requests.get(details_url, params={"api_key": self.tmdbApiKey}).json()
         companies = d.get("production_companies", [])
 
         if not companies:
@@ -241,7 +245,7 @@ class MovieData:
         """
         # 1) Try OMDb
         try:
-            data = self.getMovieOmdb(title, year, api_key=self.parent.omdbApiKey)
+            data = self.getMovieOmdb(title, year, api_key=self.omdbApiKey)
             if data and data.get('imdbID'):
                 imdb_id = data.get('imdbID')
                 if imdb_id and not imdb_id.startswith('tt'):
@@ -252,7 +256,7 @@ class MovieData:
 
         # 2) Fallback to TMDb: search by title/year, then get external_ids
         try:
-            params = {"api_key": self.parent.tmdbApiKey, "query": title}
+            params = {"api_key": self.tmdbApiKey, "query": title}
             if year:
                 params["year"] = int(year)
             search = requests.get("https://api.themoviedb.org/3/search/movie", params=params).json()
@@ -278,7 +282,7 @@ class MovieData:
             if not tmdb_id:
                 return None
             ext = requests.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}/external_ids",
-                               params={"api_key": self.parent.tmdbApiKey}).json()
+                               params={"api_key": self.tmdbApiKey}).json()
             imdb_id = ext.get("imdb_id")
             if imdb_id and not imdb_id.startswith('tt'):
                 imdb_id = f"tt{imdb_id}"
@@ -316,7 +320,7 @@ class MovieData:
             if not imdbId:
                 imdbId = self.resolve_imdb_id(title, year)
 
-            movie = self.getMovieOmdb(title, year, api_key=self.parent.omdbApiKey, imdbId=imdbId)
+            movie = self.getMovieOmdb(title, year, api_key=self.omdbApiKey, imdbId=imdbId)
 
             if not movie: return ""
 

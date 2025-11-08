@@ -122,8 +122,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Define API keys here and use throughout the class
         self.openSubtitlesApiKey = "9iBc6gQ0mlsC9hdapJs6IR2JfmT6F3f1"
-        self.tmdbApiKey = "acaa3a2b3d6ebbb8749bfa43bd3d8af7"
-        self.omdbApiKey = "fe5db83f"
 
         # Movie data helper (downloads, JSON writes, cover downloads)
         self.movieData = MovieData(self)
