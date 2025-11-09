@@ -88,7 +88,6 @@ class MovieData:
         
         return True
 
-
     def downloadMovieData(self, proxyIndex, force=False, imdbId=None, doJson=True, doCover=True):
         # Ensure API keys are available before proceeding
         if not self._ensureApiKeys():
