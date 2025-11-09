@@ -1821,6 +1821,10 @@ class MainWindow(QtWidgets.QMainWindow):
                     f'Freed approximately {sizeGB:.2f} GB of space.\n'
                     f'Removed {len(rowsToDelete)} row(s) from the list.'
                 )
+                
+                # Rerun findDuplicates to check for any remaining duplicates
+                self.output("Re-running duplicate detection...")
+                self.findDuplicates()
             else:
                 self.output("User cancelled deletion of exact duplicates")
         else:
