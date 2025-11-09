@@ -220,7 +220,7 @@ class MovieData:
                 self.getMovieFileInfo(moviePath, movie)
                 
                 # Write JSON with size and movie info
-                self.writeJson(movie, None, None, jsonFile)
+                self.writeJson(movie, jsonFile)
 
             if doCover:
                 if 'PosterFullSize' in movie:
@@ -454,7 +454,7 @@ class MovieData:
             self.output(f"TMDB details request error for TMDB ID {tmdb_id}: {e}")
             return None
 
-    def writeJson(self, movieData, productionCompanies, similarMovies, jsonFile):
+    def writeJson(self, movieData, jsonFile):
         d = {}
 
         d['title'] = movieData.get('Title')
@@ -472,8 +472,8 @@ class MovieData:
             country_str = movieData.get('Country', '')
             d['countries'] = [c.strip() for c in country_str.split(',') if c.strip()]
         
-        # Use production companies from TMDB data if available, otherwise use passed parameter
-        d['companies'] = movieData.get('ProductionCompanies') or productionCompanies or []
+        # Use production companies from TMDB data
+        d['companies'] = movieData.get('ProductionCompanies') or []
         
         runtime = (movieData.get('Runtime') or '')
         d['runtime'] = runtime.split()[0] if runtime else None
@@ -509,8 +509,8 @@ class MovieData:
         d['cover url'] = movieData.get('Poster')
         d['full-size cover url'] = movieData.get('PosterFullSize') or movieData.get('Poster')
         
-        # Use TMDB similar movies if available, otherwise use passed parameter
-        d['similar movies'] = movieData.get('SimilarMoviesTmdb') or similarMovies or []
+        # Use TMDB similar movies
+        d['similar movies'] = movieData.get('SimilarMoviesTmdb') or []
         
         # Add additional TMDB data if available
         if movieData.get('Writers'):
