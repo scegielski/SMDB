@@ -28,7 +28,7 @@ class MovieData:
         # Reusable session for connection pooling
         self._session = requests.Session()
 
-    def calculateFolderSize(self, moviePath):
+    def _calculateFolderSize(self, moviePath):
         """Calculate the total size of a movie folder in MB.
         
         Args:
@@ -45,7 +45,7 @@ class MovieData:
                     total_size += os.path.getsize(fp)
         return '%05d Mb' % (total_size / (2**20))
     
-    def getMovieFileInfo(self, moviePath, movie):
+    def _getMovieFileInfo(self, moviePath, movie):
         """Extract video file metadata and folder size, adding them to the movie dict.
         
         Args:
@@ -53,7 +53,7 @@ class MovieData:
             movie: Movie dictionary to update with size and file info
         """
         # Calculate folder size
-        folderSize = self.calculateFolderSize(moviePath)
+        folderSize = self._calculateFolderSize(moviePath)
         
         # Extract video file metadata
         width, height, channels = 0, 0, 0
@@ -114,14 +114,14 @@ class MovieData:
         base_url = config.get("images", {}).get("secure_base_url", "https://image.tmdb.org/t/p/")
         return f"{base_url}w500{poster_path}", f"{base_url}original{poster_path}"
 
-    def resolveImdbId(self, title, year=None):
+    def _resolveImdbId(self, title, year=None):
         """
         Resolve an IMDb ID for a movie using title and optional year via OMDb first,
         then TMDb as a fallback. Always returns an ID with 'tt' prefix like 'tt1234567' or None.
         """
         # 1) Try OMDb
         try:
-            data = self.getMovieOmdb(title, year, api_key=self.omdbApiKey)
+            data = self._getMovieOmdb(title, year, api_key=self.omdbApiKey)
             if data and data.get('imdbID'):
                 imdb_id = data.get('imdbID')
                 if imdb_id:
@@ -200,27 +200,27 @@ class MovieData:
             titleYear = f"{title} ({year})"
 
             if not imdbId:
-                imdbId = self.resolveImdbId(title, year)
+                imdbId = self._resolveImdbId(title, year)
             if not imdbId:
                 self.output(f"Could not resolve IMDb ID for \"{titleYear}\"")
                 return ""
 
             # Try TMDB first
-            movie = self.getMovieTmdb(title, year, imdbId=imdbId)
+            movie = self._getMovieTmdb(title, year, imdbId=imdbId)
             
             # Fall back to OMDb if TMDB fails
             if not movie:
                 self.output(f"TMDB lookup failed, falling back to OMDb for \"{titleYear}\"")
-                movie = self.getMovieOmdb(title, year, api_key=self.omdbApiKey, imdbId=imdbId)
+                movie = self._getMovieOmdb(title, year, api_key=self.omdbApiKey, imdbId=imdbId)
 
             if not movie: return ""
 
             if doJson:
                 # Get movie file info and add to movie dict
-                self.getMovieFileInfo(moviePath, movie)
+                self._getMovieFileInfo(moviePath, movie)
                 
                 # Write JSON with size and movie info
-                self.writeJson(movie, jsonFile)
+                self._writeJson(movie, jsonFile)
 
             if doCover:
                 if 'PosterFullSize' in movie:
@@ -235,7 +235,6 @@ class MovieData:
                 except Exception as e:
                     self.output("No TMDB ID available for fallback cover download")
 
-
             parent.moviesTableModel.setMovieDataWithJson(sourceRow,
                                                        jsonFile,
                                                        moviePath,
@@ -243,7 +242,7 @@ class MovieData:
 
         return coverFile
 
-    def getMovieOmdb(self, title, year=None, api_key="YOUR_API_KEY", imdbId=None):
+    def _getMovieOmdb(self, title, year=None, api_key="YOUR_API_KEY", imdbId=None):
         params = dict()
         params['apikey'] = api_key
         if imdbId:
@@ -265,7 +264,7 @@ class MovieData:
 
         return data
 
-    def getMovieTmdb(self, title, year=None, imdbId=None):
+    def _getMovieTmdb(self, title, year=None, imdbId=None):
         """
         Fetch comprehensive movie data from TMDB.
         Returns a dictionary with OMDb-compatible keys (Title, imdbID, Year, etc.)
@@ -454,7 +453,7 @@ class MovieData:
             self.output(f"TMDB details request error for TMDB ID {tmdb_id}: {e}")
             return None
 
-    def writeJson(self, movieData, jsonFile):
+    def _writeJson(self, movieData, jsonFile):
         d = {}
 
         d['title'] = movieData.get('Title')
