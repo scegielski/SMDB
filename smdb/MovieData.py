@@ -84,7 +84,7 @@ class MovieData:
     def _output(self, *args, **kwargs):
         return self.parent.output(*args, **kwargs)
     
-    def _resolveImdbId(self, title, year=None):
+    def _resolveImdbId(self, title, year):
         """
         Resolve an IMDb ID for a movie using title and optional year via OMDb first,
         then TMDb as a fallback. Always returns an ID with 'tt' prefix like 'tt1234567' or None.
@@ -212,7 +212,7 @@ class MovieData:
 
         return coverFile
 
-    def _getMovieOmdb(self, title, year=None, api_key="YOUR_API_KEY", imdbId=None):
+    def _getMovieOmdb(self, title, year, api_key, imdbId):
         params = dict()
         params['apikey'] = api_key
         if imdbId:
@@ -264,7 +264,7 @@ class MovieData:
         base_url = config.get("images", {}).get("secure_base_url", "https://image.tmdb.org/t/p/")
         return f"{base_url}w500{poster_path}", f"{base_url}original{poster_path}"
 
-    def _getMovieTmdb(self, title, year=None, imdbId=None):
+    def _getMovieTmdb(self, title, year, imdbId):
         """
         Fetch comprehensive movie data from TMDB.
         Returns a dictionary with OMDb-compatible keys (Title, imdbID, Year, etc.)
