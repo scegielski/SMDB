@@ -1765,6 +1765,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.moviesTableView.sortByColumn(Columns.Title.value, QtCore.Qt.AscendingOrder)
         self.moviesTableView.sortByColumn(Columns.Duplicate.value, QtCore.Qt.DescendingOrder)
         
+        # Scroll to the top of the table
+        self.moviesTableView.scrollToTop()
+        
         self.progressBar.setValue(0)
         
         # Count known duplicates for later reporting
