@@ -1561,97 +1561,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 
-    def getMovieFileData(self, moviePath):
-        if not os.path.exists(moviePath):
-            return 0, 0, 0
-
-        validExtentions = ['.mkv', '.mpg', '.mp4', '.avi', '.flv', '.wmv', '.m4v', '.divx', '.ogm']
-
-        movieFiles = []
-        for file in os.listdir(moviePath):
-            extension = os.path.splitext(file)[1].lower()
-            if extension in validExtentions:
-                movieFiles.append(file)
-        if (len(movieFiles) > 0):
-            movieFile = os.path.join(moviePath, movieFiles[0])
-            info = MediaInfo.parse(movieFile)
-            width = 0
-            height = 0
-            channels = 0
-            for track in info.tracks:
-                if track.track_type == 'Video':
-                    width = track.width
-                    height = track.height
-                elif track.track_type == 'Audio':
-                    channels = track.channel_s
-            return width, height, channels
-        else:
-            self.output("No movie files in %s" % moviePath)
-        return 0, 0, 0
-
-    def getMovieFileInfo(self, sourceIndex, moviePath, movieFolderName):
-        moviePath = self.findMovie(moviePath, movieFolderName)
-        if not moviePath:
-            return
-        width, height, numChannels = self.getMovieFileData(moviePath)
-
-        jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
-        if not os.path.exists(jsonFile):
-            return
-
-        data = {}
-        with open(jsonFile) as f:
-            try:
-                data = ujson.load(f)
-            except UnicodeDecodeError:
-                self.output("Error reading %s" % jsonFile)
-
-        data["width"] = width
-        data["height"] = height
-        data["channels"] = numChannels
-
-        self.moviesTableModel.setMovieData(sourceIndex.row(),
-                                           data,
-                                           moviePath,
-                                           movieFolderName)
-
-        try:
-            with open(jsonFile, "w") as f:
-                ujson.dump(data, f, indent=4)
-        except:
-            self.output("Error writing json file: %s" % jsonFile)
-        pass
-
-    def getMovieFilesInfo(self):
-        numSelectedItems = len(self.moviesTableView.selectionModel().selectedRows())
-        self.progressBar.setMaximum(numSelectedItems)
-        progress = 0
-        self.isCanceled = False
-        self.moviesTableModel.aboutToChangeLayout()
-        for proxyIndex in self.moviesTableView.selectionModel().selectedRows():
-            QtCore.QCoreApplication.processEvents()
-            if self.isCanceled:
-                self.statusBar().showMessage('Cancelled')
-                self.isCanceled = False
-                self.progressBar.setValue(0)
-                self.moviesTableModel.changedLayout()
-                return
-
-            progress += 1
-            self.progressBar.setValue(progress)
-
-            sourceIndex = self.moviesTableProxyModel.mapToSource(proxyIndex)
-            movieFolderName = self.moviesTableModel.getFolderName(sourceIndex.row())
-            moviePath = self.moviesTableModel.getPath(sourceIndex.row())
-            moviePath = self.findMovie(moviePath, movieFolderName)
-            if not moviePath or not os.path.exists(moviePath):
-                continue
-
-            self.getMovieFileInfo(sourceIndex, moviePath, movieFolderName)
-
-        self.moviesTableModel.changedLayout()
-        self.progressBar.setValue(0)
-
     def findMovieInMovie(self):
         numItems = self.moviesTableModel.rowCount()
         self.progressBar.setMaximum(numItems)
@@ -2934,10 +2843,6 @@ class MainWindow(QtWidgets.QMainWindow):
         moviesTableRightMenu.addAction(addToBackupListAction)
 
         moviesTableRightMenu.addSeparator()
-
-        getMovieFilesInfoAction = QtWidgets.QAction("Get Movie Files Info", self)
-        getMovieFilesInfoAction.triggered.connect(self.getMovieFilesInfo)
-        moviesTableRightMenu.addAction(getMovieFilesInfoAction)
 
         findDuplicatesAction = QtWidgets.QAction("Find Duplicates", self)
         findDuplicatesAction.triggered.connect(self.findDuplicates)
