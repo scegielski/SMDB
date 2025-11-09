@@ -233,10 +233,10 @@ class MovieData:
     
     def _resolveImdbId(self, title, year):
         """
-        Resolve an IMDb ID for a movie using title and optional year via TMDb.
-        Always returns an ID with 'tt' prefix like 'tt1234567' or None.
+        Resolve an IMDb ID for a movie using title and optional year via TMDb,
+        with OMDb as fallback. Always returns an ID with 'tt' prefix like 'tt1234567' or None.
         """
-        # Use TMDb: search by title/year, then get external_ids
+        # Try TMDb first: search by title/year, then get external_ids
         try:
             params = {"api_key": self.tmdbApiKey, "query": title}
             if year:
@@ -248,25 +248,32 @@ class MovieData:
                 params.pop("year", None)
                 search = self._session.get("https://api.themoviedb.org/3/search/movie", params=params, timeout=10).json()
                 results = search.get("results") or []
-            if not results:
-                return None
+            
+            if results:
+                # choose the best match (prefer exact year)
+                best = results[0]
+                if year:
+                    for r in results:
+                        date = (r.get("release_date") or "")[:4]
+                        if date and date.isdigit() and int(date) == int(year):
+                            best = r
+                            break
 
-            # choose the best match (prefer exact year)
-            best = results[0]
-            if year:
-                for r in results:
-                    date = (r.get("release_date") or "")[:4]
-                    if date and date.isdigit() and int(date) == int(year):
-                        best = r
-                        break
-
-            tmdb_id = best.get("id")
-            if not tmdb_id:
-                return None
-            ext = self._session.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}/external_ids",
-                               params={"api_key": self.tmdbApiKey}, timeout=10).json()
-            imdb_id = ext.get("imdb_id")
-            return self._normalizeImdbId(imdb_id)
+                tmdb_id = best.get("id")
+                if tmdb_id:
+                    ext = self._session.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}/external_ids",
+                                       params={"api_key": self.tmdbApiKey}, timeout=10).json()
+                    imdb_id = ext.get("imdb_id")
+                    if imdb_id:
+                        return self._normalizeImdbId(imdb_id)
+        except Exception:
+            pass
+        
+        # Fallback to OMDb
+        try:
+            data = self._getMovieOmdb(title, year, imdbId=None)
+            if data and data.get('imdbID'):
+                return self._normalizeImdbId(data.get('imdbID'))
         except Exception:
             pass
         
