@@ -28,6 +28,76 @@ class MovieData:
         # Reusable session for connection pooling
         self._session = requests.Session()
 
+    def downloadMovieData(self, proxyIndex, force=False, imdbId=None, doJson=True, doCover=True):
+        parent = self.parent
+        sourceIndex = parent.moviesTableProxyModel.mapToSource(proxyIndex)
+        sourceRow = sourceIndex.row()
+        movieFolderName = parent.moviesTableModel.getFolderName(sourceRow)
+        moviePath = parent.moviesTableModel.getPath(sourceRow)
+        moviePath = parent.findMovie(moviePath, movieFolderName)
+        if not moviePath:
+            return
+        jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
+        coverFile = os.path.join(moviePath, '%s.jpg' % movieFolderName)
+        if not os.path.exists(coverFile):
+            coverFilePng = os.path.join(moviePath, '%s.png' % movieFolderName)
+            if os.path.exists(coverFilePng):
+                coverFile = coverFilePng
+
+        if force is True or not os.path.exists(jsonFile) or not os.path.exists(coverFile):
+
+            m = re.match(r'(.*)\((.*)\)', movieFolderName)
+            title = m.group(1)
+            title = ' '.join(splitCamelCase(title))
+            try:
+                year = int(m.group(2))
+            except Exception:
+                year = None
+            titleYear = f"{title} ({year})"
+
+            if not imdbId:
+                imdbId = self._resolveImdbId(title, year)
+            if not imdbId:
+                self._output(f"Could not resolve IMDb ID for \"{titleYear}\"")
+                return ""
+
+            # Try TMDB first
+            movie = self._getMovieTmdb(title, year, imdbId=imdbId)
+            
+            # Fall back to OMDb if TMDB fails
+            if not movie:
+                self._output(f"TMDB lookup failed, falling back to OMDb for \"{titleYear}\"")
+                movie = self._getMovieOmdb(title, year, api_key=self.omdbApiKey, imdbId=imdbId)
+
+            if not movie: return ""
+
+            if doJson:
+                # Get movie file info and add to movie dict
+                self._getMovieFileInfo(moviePath, movie)
+                
+                # Write JSON with size and movie info
+                self._writeJson(movie, jsonFile)
+
+            if doCover:
+                if 'PosterFullSize' in movie:
+                    movieCoverUrl = movie['PosterFullSize']
+                elif 'Poster' in movie:
+                    movieCoverUrl = movie['Poster']
+                else:
+                    self._output("Error: No cover image available")
+
+                try:
+                    urllib.request.urlretrieve(movieCoverUrl, coverFile)
+                except Exception as e:
+                    self._output("No TMDB ID available for fallback cover download")
+
+            parent.moviesTableModel.setMovieDataWithJson(sourceRow,
+                                                       jsonFile,
+                                                       moviePath,
+                                                       movieFolderName)
+
+        return coverFile
+
     def _calculateFolderSize(self, moviePath):
         """Calculate the total size of a movie folder in MB.
         
@@ -141,76 +211,6 @@ class MovieData:
             pass
         
         return None
-
-    def downloadMovieData(self, proxyIndex, force=False, imdbId=None, doJson=True, doCover=True):
-        parent = self.parent
-        sourceIndex = parent.moviesTableProxyModel.mapToSource(proxyIndex)
-        sourceRow = sourceIndex.row()
-        movieFolderName = parent.moviesTableModel.getFolderName(sourceRow)
-        moviePath = parent.moviesTableModel.getPath(sourceRow)
-        moviePath = parent.findMovie(moviePath, movieFolderName)
-        if not moviePath:
-            return
-        jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
-        coverFile = os.path.join(moviePath, '%s.jpg' % movieFolderName)
-        if not os.path.exists(coverFile):
-            coverFilePng = os.path.join(moviePath, '%s.png' % movieFolderName)
-            if os.path.exists(coverFilePng):
-                coverFile = coverFilePng
-
-        if force is True or not os.path.exists(jsonFile) or not os.path.exists(coverFile):
-
-            m = re.match(r'(.*)\((.*)\)', movieFolderName)
-            title = m.group(1)
-            title = ' '.join(splitCamelCase(title))
-            try:
-                year = int(m.group(2))
-            except Exception:
-                year = None
-            titleYear = f"{title} ({year})"
-
-            if not imdbId:
-                imdbId = self._resolveImdbId(title, year)
-            if not imdbId:
-                self._output(f"Could not resolve IMDb ID for \"{titleYear}\"")
-                return ""
-
-            # Try TMDB first
-            movie = self._getMovieTmdb(title, year, imdbId=imdbId)
-            
-            # Fall back to OMDb if TMDB fails
-            if not movie:
-                self._output(f"TMDB lookup failed, falling back to OMDb for \"{titleYear}\"")
-                movie = self._getMovieOmdb(title, year, api_key=self.omdbApiKey, imdbId=imdbId)
-
-            if not movie: return ""
-
-            if doJson:
-                # Get movie file info and add to movie dict
-                self._getMovieFileInfo(moviePath, movie)
-                
-                # Write JSON with size and movie info
-                self._writeJson(movie, jsonFile)
-
-            if doCover:
-                if 'PosterFullSize' in movie:
-                    movieCoverUrl = movie['PosterFullSize']
-                elif 'Poster' in movie:
-                    movieCoverUrl = movie['Poster']
-                else:
-                    self._output("Error: No cover image available")
-
-                try:
-                    urllib.request.urlretrieve(movieCoverUrl, coverFile)
-                except Exception as e:
-                    self._output("No TMDB ID available for fallback cover download")
-
-            parent.moviesTableModel.setMovieDataWithJson(sourceRow,
-                                                       jsonFile,
-                                                       moviePath,
-                                                       movieFolderName)
-
-        return coverFile
 
     def _getMovieOmdb(self, title, year, api_key, imdbId):
         params = dict()
@@ -538,4 +538,3 @@ class MovieData:
                 ujson.dump(d, f, indent=4)
         except Exception as e:
             self._output(f"Error writing json file: {e}")
-
