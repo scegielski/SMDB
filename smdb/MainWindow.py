@@ -1892,7 +1892,6 @@ class MainWindow(QtWidgets.QMainWindow):
             for duplicate in validInstances[1:]:
                 # Skip if this duplicate is marked as a known duplicate
                 if duplicate['knownDuplicate']:
-                    self.output(f"Skipping known duplicate: {duplicate['path']}")
                     continue
                     
                 sizeDiff = abs(original['size'] - duplicate['size'])
@@ -2004,6 +2003,8 @@ class MainWindow(QtWidgets.QMainWindow):
         
         if remainingDuplicates > 0:
             self.output(f"{remainingDuplicates} duplicate title(s) remaining that need attention")
+        else:
+            self.output("No remaining duplicates found")
 
     def cancelButtonClicked(self):
         self.isCanceled = True
