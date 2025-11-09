@@ -1810,17 +1810,25 @@ class MainWindow(QtWidgets.QMainWindow):
             if len(validInstances) < 2:
                 continue
             
+            # Remove duplicate paths (same movie appearing multiple times due to indexing)
+            seenPaths = set()
+            uniqueInstances = []
+            for inst in validInstances:
+                if inst['path'] not in seenPaths:
+                    seenPaths.add(inst['path'])
+                    uniqueInstances.append(inst)
+            
+            validInstances = uniqueInstances
+            
+            if len(validInstances) < 2:
+                continue
+            
             # Sort by priority (primary folder first, then additional folders in order)
             validInstances.sort(key=lambda x: x['priority'])
             
             # Keep the first instance (highest priority) as the original
             original = validInstances[0]
             for duplicate in validInstances[1:]:
-                # SAFETY CHECK: Skip if duplicate path is the same as original (shouldn't happen!)
-                if duplicate['path'] == original['path']:
-                    self.output(f"ERROR: Duplicate has same path as original, skipping: {duplicate['path']}")
-                    continue
-                
                 # Skip if this duplicate is marked as a known duplicate
                 if duplicate['knownDuplicate']:
                     self.output(f"Skipping known duplicate: {duplicate['path']}")
