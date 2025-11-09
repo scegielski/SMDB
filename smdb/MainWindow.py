@@ -3530,6 +3530,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.progressBar.setMaximum(numSelectedItems)
         progress = 0
         self.isCanceled = False
+        import time
+        start_time = time.time()
+        
         for proxyIndex in self.moviesTableView.selectionModel().selectedRows():
             QtCore.QCoreApplication.processEvents()
             if self.isCanceled:
@@ -3541,14 +3544,28 @@ class MainWindow(QtWidgets.QMainWindow):
             progress += 1
             self.progressBar.setValue(progress)
 
-            sourceRow = self.getSourceRow(proxyIndex)
-            title = self.moviesTableModel.getTitle(sourceRow)
-            message = "Downloading data (%d/%d): %s" % (progress + 1,
-                                                        numSelectedItems,
-                                                        title)
+            # Calculate ETA
+            if progress > 0:
+                elapsed_time = time.time() - start_time
+                avg_time_per_item = elapsed_time / progress
+                remaining_items = numSelectedItems - progress
+                eta_seconds = avg_time_per_item * remaining_items
+                
+                if eta_seconds < 60:
+                    eta_str = f"{int(eta_seconds)}s"
+                else:
+                    eta_minutes = int(eta_seconds / 60)
+                    eta_secs = int(eta_seconds % 60)
+                    eta_str = f"{eta_minutes}m {eta_secs}s"
+                
+                message = "Downloading data (%d/%d) - ETA: %s" % (progress, numSelectedItems, eta_str)
+            else:
+                message = "Downloading data (%d/%d)" % (progress, numSelectedItems)
+            
             self.statusBar().showMessage(message)
             QtCore.QCoreApplication.processEvents()
 
+            sourceRow = self.getSourceRow(proxyIndex)
             movieFolderName = self.moviesTableModel.getFolderName(sourceRow)
             moviePath = self.moviesTableModel.getPath(sourceRow)
             moviePath = self.findMovie(moviePath, movieFolderName)
