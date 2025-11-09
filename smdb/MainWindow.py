@@ -1811,6 +1811,11 @@ class MainWindow(QtWidgets.QMainWindow):
             # Keep the first instance (highest priority) as the original
             original = validInstances[0]
             for duplicate in validInstances[1:]:
+                # SAFETY CHECK: Skip if duplicate path is the same as original (shouldn't happen!)
+                if duplicate['path'] == original['path']:
+                    self.output(f"ERROR: Duplicate has same path as original, skipping: {duplicate['path']}")
+                    continue
+                
                 # Skip if this duplicate is marked as a known duplicate
                 if duplicate['knownDuplicate']:
                     self.output(f"Skipping known duplicate: {duplicate['path']}")
@@ -1903,12 +1908,9 @@ class MainWindow(QtWidgets.QMainWindow):
                     'Deletion Complete',
                     f'Successfully deleted {len(foldersToDelete)} exact duplicate folder(s).\n'
                     f'Freed approximately {sizeGB:.2f} GB of space.\n'
-                    f'Removed {len(rowsToDelete)} row(s) from the list.'
+                    f'Removed {len(rowsToDelete)} row(s) from the list.\n\n'
+                    f'Run "Find Duplicates" again to check for more duplicates.'
                 )
-                
-                # Rerun findDuplicates to check for any remaining duplicates
-                self.output("Re-running duplicate detection...")
-                self.findDuplicates()
             else:
                 self.output("User cancelled deletion of exact duplicates")
         else:
