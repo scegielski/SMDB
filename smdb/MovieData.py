@@ -199,7 +199,6 @@ class MovieData:
                 # Write JSON with size and movie info
                 self.writeJson(movie, None, None, jsonFile)
 
-            coverFile = ""
             if doCover:
                 if 'PosterFullSize' in movie:
                     movieCoverUrl = movie['PosterFullSize']
