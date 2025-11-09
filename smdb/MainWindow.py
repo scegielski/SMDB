@@ -1761,9 +1761,15 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.moviesTableModel.changedLayout()
         
-        # Sort by Title first, then by Duplicate status
+        # Hide non-duplicates from the list
+        for row in range(self.moviesTableModel.rowCount()):
+            modelIndex = self.moviesTableModel.index(row, Columns.Duplicate.value)
+            duplicateValue = self.moviesTableModel.data(modelIndex, QtCore.Qt.DisplayRole)
+            if duplicateValue != 'Yes':
+                self.moviesTableView.hideRow(row)
+        
+        # Sort by Title after hiding non-duplicates
         self.moviesTableView.sortByColumn(Columns.Title.value, QtCore.Qt.AscendingOrder)
-        self.moviesTableView.sortByColumn(Columns.Duplicate.value, QtCore.Qt.DescendingOrder)
         
         # Scroll to the top of the table
         self.moviesTableView.scrollToTop()
