@@ -700,9 +700,7 @@ class MainWindow(QtWidgets.QMainWindow):
         fileMenu.addAction(rescanNewAction)
 
         rebuildSmdbFileAction = QtWidgets.QAction("Rebuild SMDB file", self)
-        rebuildSmdbFileAction.triggered.connect(lambda: self.writeSmdbFile(self.moviesSmdbFile,
-                                                                           self.moviesTableModel,
-                                                                           titlesOnly=False))
+        rebuildSmdbFileAction.triggered.connect(self.rebuildSmdbFileAndReload)
 
         setCollectionsFolderAction = QtWidgets.QAction("Set collections folder", self)
         setCollectionsFolderAction.triggered.connect(self.setCollectionsFolder)
@@ -2719,6 +2717,14 @@ class MainWindow(QtWidgets.QMainWindow):
     def summaryShow(self, jsonData):
         infoText = self.getSummary(jsonData)
         self.summary.setText(infoText)
+
+    def rebuildSmdbFileAndReload(self):
+        """Rebuild SMDB file and reload the movie list"""
+        self.writeSmdbFile(self.moviesSmdbFile, self.moviesTableModel, titlesOnly=False)
+        self.statusBar().showMessage('Reloading movies...')
+        QtCore.QCoreApplication.processEvents()
+        self.refreshMoviesList()
+        self.statusBar().showMessage('Rebuild complete')
 
     def writeSmdbFile(self, fileName, model, titlesOnly=False):
         import time
