@@ -1375,14 +1375,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.moviesTableColumns = self.moviesTableDefaultColumns
         self.moviesTableColumnWidths = defaultColumnWidths
         self.refreshMoviesList()
-        self.watchListColumns = self.watchListDefaultColumns
-        self.watchListColumnWidths = defaultColumnWidths
+        self.watchListWidget.listColumns = self.watchListWidget.listDefaultColumns
+        self.watchListWidget.listColumnWidths = defaultColumnWidths
         self.refreshWatchList()
         self.historyListWidget.listColumns = self.historyListWidget.listDefaultColumns
         self.historyListWidget.listColumnWidths = defaultColumnWidths
         self.refreshHistoryList()
-        self.backupListColumns = self.backupListDefaultColumns
-        self.backupListColumnWidths = defaultColumnWidths
+        self.backupListWidget.listColumns = self.backupListWidget.listDefaultColumns
+        self.backupListWidget.listColumnWidths = defaultColumnWidths
         self.refreshBackupList()
         self.setFontSize(self.defaultFontSize)
         self.primaryFilterWidget.filterTable.setColumnWidth(0, self.primaryFilterColumn0WidthDefault)
