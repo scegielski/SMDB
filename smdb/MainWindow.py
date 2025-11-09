@@ -1727,6 +1727,11 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.moviesTableModel.setDuplicate(modelIndex, 'Yes')
 
         self.moviesTableModel.changedLayout()
+        
+        # Sort by Title first, then by Duplicate status
+        self.moviesTableView.sortByColumn(Columns.Title.value, QtCore.Qt.AscendingOrder)
+        self.moviesTableView.sortByColumn(Columns.Duplicate.value, QtCore.Qt.DescendingOrder)
+        
         self.progressBar.setValue(0)
         
         # Now check for exact duplicates (same or very similar file sizes)
