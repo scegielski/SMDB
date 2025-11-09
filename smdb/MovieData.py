@@ -234,7 +234,7 @@ class MovieData:
 
         return data
 
-    def _get_tmdb_config(self):
+    def _getTmdbConfig(self):
         """Get TMDB configuration with caching to avoid redundant API calls."""
         if self._tmdb_config_cache is None:
             try:
@@ -255,12 +255,12 @@ class MovieData:
                 }
         return self._tmdb_config_cache
     
-    def _build_poster_urls(self, poster_path):
+    def _buildPosterUrls(self, poster_path):
         """Build poster URLs from TMDB poster path."""
         if not poster_path:
             return None, None
         
-        config = self._get_tmdb_config()
+        config = self._getTmdbConfig()
         base_url = config.get("images", {}).get("secure_base_url", "https://image.tmdb.org/t/p/")
         return f"{base_url}w500{poster_path}", f"{base_url}original{poster_path}"
 
@@ -426,7 +426,7 @@ class MovieData:
             posters = raw_data.get('images', {}).get('posters', [])
             poster_path = posters[0]['file_path'] if posters else raw_data.get('poster_path')
             if poster_path:
-                poster_url, poster_full = self._build_poster_urls(poster_path)
+                poster_url, poster_full = self._buildPosterUrls(poster_path)
                 movie_data['Poster'] = poster_url
                 movie_data['PosterFullSize'] = poster_full
             
