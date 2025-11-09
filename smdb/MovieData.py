@@ -84,36 +84,6 @@ class MovieData:
     def output(self, *args, **kwargs):
         return self.parent.output(*args, **kwargs)
     
-    def _get_tmdb_config(self):
-        """Get TMDB configuration with caching to avoid redundant API calls."""
-        if self._tmdb_config_cache is None:
-            try:
-                response = self._session.get(
-                    "https://api.themoviedb.org/3/configuration",
-                    params={"api_key": self.tmdbApiKey},
-                    timeout=10
-                )
-                if response.status_code == 200:
-                    self._tmdb_config_cache = response.json()
-            except Exception as e:
-                self.output(f"Failed to fetch TMDB configuration: {e}")
-                # Fallback to default values
-                self._tmdb_config_cache = {
-                    "images": {
-                        "secure_base_url": "https://image.tmdb.org/t/p/"
-                    }
-                }
-        return self._tmdb_config_cache
-    
-    def _build_poster_urls(self, poster_path):
-        """Build poster URLs from TMDB poster path."""
-        if not poster_path:
-            return None, None
-        
-        config = self._get_tmdb_config()
-        base_url = config.get("images", {}).get("secure_base_url", "https://image.tmdb.org/t/p/")
-        return f"{base_url}w500{poster_path}", f"{base_url}original{poster_path}"
-
     def _resolveImdbId(self, title, year=None):
         """
         Resolve an IMDb ID for a movie using title and optional year via OMDb first,
@@ -263,6 +233,36 @@ class MovieData:
             return None
 
         return data
+
+    def _get_tmdb_config(self):
+        """Get TMDB configuration with caching to avoid redundant API calls."""
+        if self._tmdb_config_cache is None:
+            try:
+                response = self._session.get(
+                    "https://api.themoviedb.org/3/configuration",
+                    params={"api_key": self.tmdbApiKey},
+                    timeout=10
+                )
+                if response.status_code == 200:
+                    self._tmdb_config_cache = response.json()
+            except Exception as e:
+                self.output(f"Failed to fetch TMDB configuration: {e}")
+                # Fallback to default values
+                self._tmdb_config_cache = {
+                    "images": {
+                        "secure_base_url": "https://image.tmdb.org/t/p/"
+                    }
+                }
+        return self._tmdb_config_cache
+    
+    def _build_poster_urls(self, poster_path):
+        """Build poster URLs from TMDB poster path."""
+        if not poster_path:
+            return None, None
+        
+        config = self._get_tmdb_config()
+        base_url = config.get("images", {}).get("secure_base_url", "https://image.tmdb.org/t/p/")
+        return f"{base_url}w500{poster_path}", f"{base_url}original{poster_path}"
 
     def _getMovieTmdb(self, title, year=None, imdbId=None):
         """
