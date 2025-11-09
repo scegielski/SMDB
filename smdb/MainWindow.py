@@ -1666,7 +1666,47 @@ class MainWindow(QtWidgets.QMainWindow):
         exactDuplicateFolders = []
         sizeTolerance = 5 * 1024 * 1024  # 5 MB tolerance
         
+        # Build ordered list of movie folders for priority determination
+        orderedMovieFolders = []
+        if self.moviesFolder and self.moviesFolder != "No movies folder set.  Use the \"File->Set movies folder\" menu to set it.":
+            orderedMovieFolders.append(self.moviesFolder)
+        if self.additionalMoviesFolders:
+            orderedMovieFolders.extend(self.additionalMoviesFolders)
+        
+        def getFolderPriority(path):
+            """Return priority index based on folder hierarchy (lower is better)"""
+            if not path:
+                return 999  # Invalid paths get lowest priority
+            # Normalize paths for comparison (convert backslashes to forward slashes, handle case)
+            normalized_path = os.path.normpath(path).replace('\\', '/').lower()
+            
+            # Find the best (longest) matching folder to avoid E:/Movies matching E:/Movies2
+            best_match_idx = 999
+            best_match_len = 0
+            
+            for idx, folder in enumerate(orderedMovieFolders):
+                normalized_folder = os.path.normpath(folder).replace('\\', '/').lower()
+                # Check if path starts with this folder, ensuring proper boundary
+                # (either exact match or followed by a path separator)
+                if (normalized_path == normalized_folder or 
+                    normalized_path.startswith(normalized_folder + '/')):
+                    # Use the longest matching folder (most specific)
+                    if len(normalized_folder) > best_match_len:
+                        best_match_idx = idx
+                        best_match_len = len(normalized_folder)
+            
+            if best_match_idx != 999:
+                return best_match_idx
+            else:
+                return 999  # Not in any known folder
+        
+        self.output(f"Primary movies folder: {self.moviesFolder}")
+        if self.additionalMoviesFolders:
+            for idx, folder in enumerate(self.additionalMoviesFolders):
+                self.output(f"Additional movies folder {idx+1}: {folder}")
+        
         self.output("Checking for exact duplicates (same file size)...")
+        duplicateMessages = []
         for titleYear, instances in titleYearInstances.items():
             if len(instances) < 2:
                 continue  # Skip if not a duplicate
@@ -1675,8 +1715,10 @@ class MainWindow(QtWidgets.QMainWindow):
             for instance in instances:
                 if instance['path'] and os.path.exists(instance['path']):
                     instance['size'] = getFolderSize(instance['path'])
+                    instance['priority'] = getFolderPriority(instance['path'])
                 else:
                     instance['size'] = None
+                    instance['priority'] = 999
             
             # Filter out instances with no valid path/size
             validInstances = [inst for inst in instances if inst['size'] is not None]
@@ -1684,43 +1726,76 @@ class MainWindow(QtWidgets.QMainWindow):
             if len(validInstances) < 2:
                 continue
             
-            # Keep the first instance as the original, check if others are exact duplicates
+            # Sort by priority (primary folder first, then additional folders in order)
+            validInstances.sort(key=lambda x: x['priority'])
+            
+            # Keep the first instance (highest priority) as the original
             original = validInstances[0]
             for duplicate in validInstances[1:]:
                 sizeDiff = abs(original['size'] - duplicate['size'])
                 if sizeDiff <= sizeTolerance:
-                    # This is an exact duplicate
+                    # This is an exact duplicate - format as one line
+                    duplicateMsg = (f"Keep: {original['path']} | Delete: {duplicate['path']} | "
+                                  f"Diff: {sizeDiff / (1024*1024):.2f} MB")
+                    duplicateMessages.append(duplicateMsg)
+                    
                     exactDuplicateFolders.append({
                         'path': duplicate['path'],
+                        'row': duplicate['row'],
                         'title': titleYear[0],
                         'year': titleYear[1],
                         'size': duplicate['size'],
                         'originalSize': original['size'],
                         'sizeDiff': sizeDiff
                     })
-                    self.output(f"Exact duplicate found: {duplicate['folderName']} "
-                              f"(size diff: {sizeDiff / (1024*1024):.2f} MB)")
         
         # Prompt user to delete exact duplicates if any were found
         if len(exactDuplicateFolders) > 0:
             totalSize = sum(dup['size'] for dup in exactDuplicateFolders)
             sizeGB = totalSize / (1024 * 1024 * 1024)
             
-            message = (f"Found {len(exactDuplicateFolders)} exact duplicate(s) "
-                      f"(same or very similar file size).\n\n"
-                      f"Total size to be freed: {sizeGB:.2f} GB\n\n"
-                      f"Delete these duplicate folders and keep the originals?")
+            # Create a custom dialog with scrollable list
+            dialog = QtWidgets.QDialog(self)
+            dialog.setWindowTitle('Delete Exact Duplicates')
+            dialog.resize(900, 500)
             
-            ret = QtWidgets.QMessageBox.question(
-                self,
-                'Delete Exact Duplicates',
-                message,
-                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
-                QtWidgets.QMessageBox.No
+            layout = QtWidgets.QVBoxLayout()
+            
+            # Header label
+            headerLabel = QtWidgets.QLabel(
+                f"Found {len(exactDuplicateFolders)} exact duplicate(s) "
+                f"(same or very similar file size).\n"
+                f"Total size to be freed: {sizeGB:.2f} GB\n"
             )
+            layout.addWidget(headerLabel)
             
-            if ret == QtWidgets.QMessageBox.Yes:
+            # Scrollable text area with the list
+            textEdit = QtWidgets.QPlainTextEdit()
+            textEdit.setReadOnly(True)
+            textEdit.setPlainText('\n'.join(duplicateMessages))
+            textEdit.setStyleSheet("background-color: black; color: white;")
+            layout.addWidget(textEdit)
+            
+            # Question label
+            questionLabel = QtWidgets.QLabel("Delete these duplicate folders and keep the originals?")
+            layout.addWidget(questionLabel)
+            
+            # Buttons
+            buttonBox = QtWidgets.QDialogButtonBox(
+                QtWidgets.QDialogButtonBox.Yes | QtWidgets.QDialogButtonBox.No
+            )
+            buttonBox.accepted.connect(dialog.accept)
+            buttonBox.rejected.connect(dialog.reject)
+            layout.addWidget(buttonBox)
+            
+            dialog.setLayout(layout)
+            ret = dialog.exec_()
+            
+            if ret == QtWidgets.QDialog.Accepted:
                 foldersToDelete = [dup['path'] for dup in exactDuplicateFolders]
+                rowsToDelete = [dup['row'] for dup in exactDuplicateFolders]
+                
+                # Delete folders first
                 for folder in foldersToDelete:
                     self.output(f'Deleting exact duplicate folder: {folder}')
                     try:
@@ -1731,12 +1806,20 @@ class MainWindow(QtWidgets.QMainWindow):
                     except Exception as e:
                         self.output(f'Error deleting {folder}: {str(e)}')
                 
-                self.output(f"Deleted {len(foldersToDelete)} exact duplicate folder(s)")
+                # Remove rows from model (delete from highest to lowest to avoid index shifting)
+                self.moviesTableModel.aboutToChangeLayout()
+                rowsToDelete.sort(reverse=True)
+                for row in rowsToDelete:
+                    self.moviesTableModel.removeMovie(row)
+                self.moviesTableModel.changedLayout()
+                
+                self.output(f"Deleted {len(foldersToDelete)} exact duplicate folder(s) and removed their rows from the list")
                 QtWidgets.QMessageBox.information(
                     self,
                     'Deletion Complete',
                     f'Successfully deleted {len(foldersToDelete)} exact duplicate folder(s).\n'
-                    f'Freed approximately {sizeGB:.2f} GB of space.'
+                    f'Freed approximately {sizeGB:.2f} GB of space.\n'
+                    f'Removed {len(rowsToDelete)} row(s) from the list.'
                 )
             else:
                 self.output("User cancelled deletion of exact duplicates")
