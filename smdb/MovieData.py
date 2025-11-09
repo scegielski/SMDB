@@ -45,15 +45,17 @@ class MovieData:
                     total_size += os.path.getsize(fp)
         return '%05d Mb' % (total_size / (2**20))
     
-    def getMovieFileInfo(self, moviePath):
-        """Extract video file metadata (width, height, audio channels).
+    def getMovieFileInfo(self, moviePath, movie):
+        """Extract video file metadata and folder size, adding them to the movie dict.
         
         Args:
             moviePath: Path to the movie folder
-            
-        Returns:
-            Tuple of (width, height, channels)
+            movie: Movie dictionary to update with size and file info
         """
+        # Calculate folder size
+        folderSize = self.calculateFolderSize(moviePath)
+        
+        # Extract video file metadata
         width, height, channels = 0, 0, 0
         validExtentions = ['.mkv', '.mpg', '.mp4', '.avi', '.flv', '.wmv', '.m4v', '.divx', '.ogm']
         movieFiles = []
@@ -73,7 +75,11 @@ class MovieData:
                 elif track.track_type == 'Audio':
                     channels = track.channel_s
         
-        return width, height, channels
+        # Add size and movie info to movie dict
+        movie['size'] = folderSize
+        movie['width'] = width
+        movie['height'] = height
+        movie['channels'] = channels
 
     def output(self, *args, **kwargs):
         return self.parent.output(*args, **kwargs)
@@ -210,15 +216,8 @@ class MovieData:
             if not movie: return ""
 
             if doJson:
-                # Calculate folder size and get movie file info
-                folderSize = self.calculateFolderSize(moviePath)
-                width, height, channels = self.getMovieFileInfo(moviePath)
-                
-                # Add size and movie info to movie dict
-                movie['size'] = folderSize
-                movie['width'] = width
-                movie['height'] = height
-                movie['channels'] = channels
+                # Get movie file info and add to movie dict
+                self.getMovieFileInfo(moviePath, movie)
                 
                 # Write JSON with size and movie info
                 self.writeJson(movie, None, None, jsonFile)
