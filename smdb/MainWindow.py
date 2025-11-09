@@ -2727,7 +2727,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage('Rebuild complete')
 
     def writeSmdbFile(self, fileName, model, titlesOnly=False):
-        import time
         titles = {}
         directors = {}
         actors = {}
@@ -2776,11 +2775,10 @@ class MainWindow(QtWidgets.QMainWindow):
         reMoneyValue = re.compile(r'(\d+(?:,\d+)*(?:\.\d+)?)')
         reCurrency = re.compile(r'^([A-Z][A-Z][A-Z])(.*)')
 
-        # Simple timing buckets for profiling the loop
-        loop_start_time = time.perf_counter()
-        timing = collections.defaultdict(float)
         # Throttle UI updates to reduce overhead while keeping responsiveness
+        import time
         ui_update_interval = 0.1  # seconds
+        loop_start_time = time.perf_counter()
         ui_last_update = loop_start_time
 
         for row in range(count):
@@ -2803,11 +2801,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 pct = (progress / count * 100.0) if count else 0.0
                 ips = (progress / elapsed) if elapsed > 0 else 0.0
                 message = "Processing (%d/%d, %4.1f%%, %4.1f it/s): ETA %s" % (progress, count, pct, ips, eta_str)
-                t0 = time.perf_counter()
                 self.progressBar.setValue(progress)
                 self.statusBar().showMessage(message)
                 QtCore.QCoreApplication.processEvents()
-                timing['ui'] += time.perf_counter() - t0
                 ui_last_update = now
 
                 if self.isCanceled:
@@ -2820,33 +2816,25 @@ class MainWindow(QtWidgets.QMainWindow):
             rank = model.getRank(row)
             moviePath = model.getPath(row)
             folderName = model.getFolderName(row)
-            t0 = time.perf_counter()
             moviePath = self.findMovie(moviePath, folderName)
-            timing['find_movie'] += time.perf_counter() - t0
             if not moviePath or not os.path.exists(moviePath):
                 self.output(f"path does not exist: {moviePath}")
                 continue
 
-            t0 = time.perf_counter()
             dateModified = datetime.datetime.fromtimestamp(pathlib.Path(moviePath).stat().st_mtime)
             dateModified = f"{dateModified.year}/{str(dateModified.month).zfill(2)}/{str(dateModified.day).zfill(2)}"
-            timing['fs_stat'] += time.perf_counter() - t0
             jsonFile = os.path.join(moviePath, '%s.json' % folderName)
             if not os.path.exists(jsonFile):
                 continue
 
-            t0 = time.perf_counter()
             with open(jsonFile, encoding="utf-8") as f:
                 try:
                     jsonData = ujson.load(f)
                 except UnicodeDecodeError:
                     self.output("Error reading %s" % jsonFile)
                     continue
-            timing['json_load'] += time.perf_counter() - t0
 
             if 'title' in jsonData and 'year' in jsonData:
-                t_fields_accum = 0.0
-                t0f = time.perf_counter()
                 jsonTitle = jsonData.get('title')
 
                 jsonWidth = jsonData.get('width') or 0
@@ -2868,10 +2856,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 
                 # Use integer year in tuple to match stored format
                 titleYearTuple = (jsonTitle, jsonYearInt)
-                t_fields_accum += time.perf_counter() - t0f
 
                 # Indexing block
-                t0i = time.perf_counter()
                 if not titlesOnly and jsonYearInt:
                     add_to_index(years, jsonYearInt, titleYearTuple)
 
@@ -2932,10 +2918,8 @@ class MainWindow(QtWidgets.QMainWindow):
                     jsonMpaaRating = jsonData.get('mpaa rating')
                     if not titlesOnly:
                         add_to_index(mpaaRatings, jsonMpaaRating, titleYearTuple)
-                timing['indexing'] += time.perf_counter() - t0i
 
                 # Box office formatting and other fields
-                t0f = time.perf_counter()
                 jsonBoxOffice = None
                 if jsonData.get('box office'):
                     jsonBoxOffice = jsonData.get('box office')
@@ -2975,11 +2959,8 @@ class MainWindow(QtWidgets.QMainWindow):
                         subtitlesExist = "unknown"
                 except Exception:
                     subtitlesExist = "unknown"
-                t_fields_accum += time.perf_counter() - t0f
-                timing['fields_compute'] += t_fields_accum
 
                 # Build title entry
-                t0t = time.perf_counter()
                 titles[moviePath] = {
                     'folder': folderName,
                     'id': jsonId,
@@ -3007,7 +2988,6 @@ class MainWindow(QtWidgets.QMainWindow):
                     'similar movies': jsonSimilarMovies,
                     'known duplicate': knownDuplicate
                 }
-                timing['title_entry'] += time.perf_counter() - t0t
 
         self.progressBar.setValue(0)
 
@@ -3063,17 +3043,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.statusBar().showMessage('Done')
         QtCore.QCoreApplication.processEvents()
-
-        # Emit profiling summary
-        loop_total = time.perf_counter() - loop_start_time
-        if count:
-            try:
-                breakdown = sorted(timing.items(), key=lambda kv: kv[1], reverse=True)
-                self.output("writeSmdbFile profiling (items=%d, total=%.3fs):" % (count, loop_total))
-                for k, v in breakdown:
-                    self.output("  %-14s %8.3fs  (%6.2f ms/item)" % (k + ':', v, (v / count) * 1000.0))
-            except Exception:
-                pass
 
         return data
 
