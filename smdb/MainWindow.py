@@ -3016,30 +3016,34 @@ class MainWindow(QtWidgets.QMainWindow):
             data['mpaa ratings'] = collections.OrderedDict(sorted(mpaaRatings.items()))
             data['ratings'] = collections.OrderedDict(sorted(ratings.items()))
 
-        self.statusBar().showMessage('Writing %s' % fileName)
-        QtCore.QCoreApplication.processEvents()
-
-        # Write JSON (human-readable, backward-compatible)
-        with open(fileName, "w") as f:
-            ujson.dump(data, f, indent=4)
-
-        # Also write fast binary format (.mpk) for quicker IO on next runs
+        # Try to write fast binary format (.mpk) if msgpack is available
+        # Otherwise fall back to JSON (human-readable, backward-compatible)
         try:
+            import msgpack  # optional dependency
+        except Exception:
+            msgpack = None
+        
+        if msgpack:
             try:
-                import msgpack  # optional dependency
-            except Exception:
-                msgpack = None
-            if msgpack:
                 base, ext = os.path.splitext(fileName)
                 mpk_path = f"{base}.mpk" if ext.lower() != ".mpk" else fileName
+                self.statusBar().showMessage('Writing %s' % mpk_path)
+                QtCore.QCoreApplication.processEvents()
                 with open(mpk_path, "wb") as bf:
                     msgpack.pack(data, bf, use_bin_type=True)
-        except Exception as e:
-            # Non-fatal; log and continue
-            try:
-                self.output(f"Warning: failed to write MessagePack SMDB: {e}")
-            except Exception:
-                pass
+            except Exception as e:
+                # Fall back to JSON if msgpack write fails
+                self.output(f"Warning: failed to write MessagePack SMDB: {e}, falling back to JSON")
+                self.statusBar().showMessage('Writing %s' % fileName)
+                QtCore.QCoreApplication.processEvents()
+                with open(fileName, "w") as f:
+                    ujson.dump(data, f, indent=4)
+        else:
+            # Write JSON when msgpack is not available
+            self.statusBar().showMessage('Writing %s' % fileName)
+            QtCore.QCoreApplication.processEvents()
+            with open(fileName, "w") as f:
+                ujson.dump(data, f, indent=4)
 
         self.statusBar().showMessage('Done')
         QtCore.QCoreApplication.processEvents()
