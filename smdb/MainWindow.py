@@ -2822,8 +2822,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.output(f"path does not exist: {moviePath}")
                 continue
 
-            dateModified = datetime.datetime.fromtimestamp(pathlib.Path(moviePath).stat().st_mtime)
-            dateModified = f"{dateModified.year}/{str(dateModified.month).zfill(2)}/{str(dateModified.day).zfill(2)}"
             jsonFile = os.path.join(moviePath, '%s.json' % folderName)
             if not os.path.exists(jsonFile):
                 continue
@@ -2834,6 +2832,15 @@ class MainWindow(QtWidgets.QMainWindow):
                 except UnicodeDecodeError:
                     self.output("Error reading %s" % jsonFile)
                     continue
+
+            # Use 'date' from JSON if available, otherwise fall back to file modification time
+            if 'date' in jsonData:
+                # Date from JSON is already in YYYY-MM-DD format, convert to YYYY/MM/DD
+                jsonDate = jsonData.get('date')
+                dateModified = jsonDate.replace('-', '/')
+            else:
+                dateModified = datetime.datetime.fromtimestamp(pathlib.Path(moviePath).stat().st_mtime)
+                dateModified = f"{dateModified.year}/{str(dateModified.month).zfill(2)}/{str(dateModified.day).zfill(2)}"
 
             if 'title' in jsonData and 'year' in jsonData:
                 jsonTitle = jsonData.get('title')

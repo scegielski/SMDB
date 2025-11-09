@@ -4,6 +4,7 @@ import re
 import requests
 import urllib.request
 import ujson
+from datetime import datetime
 from pymediainfo import MediaInfo
 from .utilities import *
 
@@ -547,6 +548,7 @@ class MovieData:
         d['year'] = movieData.get('Year')
         d['rating'] = movieData.get('ImdbRating') or movieData.get('imdbRating')
         d['mpaa rating'] = movieData.get('Rated')
+        d['date'] = datetime.now().strftime('%Y/%m/%d')
         
         # Handle both list format (TMDB) and comma-separated string (OMDb)
         countries = movieData.get('Countries')
