@@ -1702,18 +1702,35 @@ class MainWindow(QtWidgets.QMainWindow):
             # Find the actual movie path
             moviePath = self.findMovie(moviePath, folderName)
             
+            # Check if this is a known duplicate
+            isKnownDuplicate = False
+            if moviePath and os.path.exists(moviePath):
+                jsonFile = os.path.join(moviePath, f"{folderName}.json")
+                if os.path.exists(jsonFile):
+                    try:
+                        with open(jsonFile, 'r', encoding='utf-8') as f:
+                            jsonData = ujson.load(f)
+                            isKnownDuplicate = jsonData.get('known duplicate', False)
+                    except Exception:
+                        pass
+            
             titleYear = (title.lower(), year)
             
             # Store instance information
             titleYearInstances[titleYear].append({
                 'row': row,
                 'path': moviePath,
-                'folderName': folderName
+                'folderName': folderName,
+                'knownDuplicate': isKnownDuplicate
             })
             
+            # Only mark as duplicate if not a known duplicate
             if titleYear in titleYearSet:
-                self.moviesTableModel.setDuplicate(modelIndex, 'Yes')
-                duplicates.add(titleYear)
+                if not isKnownDuplicate:
+                    self.moviesTableModel.setDuplicate(modelIndex, 'Yes')
+                    duplicates.add(titleYear)
+                else:
+                    self.moviesTableModel.setDuplicate(modelIndex, 'No')
             else:
                 self.moviesTableModel.setDuplicate(modelIndex, 'No')
             titleYearSet.add(titleYear)
@@ -1722,8 +1739,24 @@ class MainWindow(QtWidgets.QMainWindow):
             modelIndex = self.moviesTableModel.index(row, 0)
             title = self.moviesTableModel.getTitle(modelIndex.row())
             year = self.moviesTableModel.getYear(modelIndex.row())
+            folderName = self.moviesTableModel.getFolderName(modelIndex.row())
+            moviePath = self.moviesTableModel.getPath(modelIndex.row())
+            
+            # Find the actual movie path and check known duplicate status
+            moviePath = self.findMovie(moviePath, folderName)
+            isKnownDuplicate = False
+            if moviePath and os.path.exists(moviePath):
+                jsonFile = os.path.join(moviePath, f"{folderName}.json")
+                if os.path.exists(jsonFile):
+                    try:
+                        with open(jsonFile, 'r', encoding='utf-8') as f:
+                            jsonData = ujson.load(f)
+                            isKnownDuplicate = jsonData.get('known duplicate', False)
+                    except Exception:
+                        pass
+            
             titleYear = (title.lower(), year)
-            if titleYear in duplicates:
+            if titleYear in duplicates and not isKnownDuplicate:
                 self.moviesTableModel.setDuplicate(modelIndex, 'Yes')
 
         self.moviesTableModel.changedLayout()
@@ -1733,6 +1766,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.moviesTableView.sortByColumn(Columns.Duplicate.value, QtCore.Qt.DescendingOrder)
         
         self.progressBar.setValue(0)
+        
+        # Count known duplicates for later reporting
+        knownDuplicateCount = sum(1 for instances in titleYearInstances.values() 
+                                  for inst in instances if inst.get('knownDuplicate', False))
         
         # Now check for exact duplicates (same or very similar file sizes)
         exactDuplicateFolders = []
@@ -1928,6 +1965,21 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.output("User cancelled deletion of exact duplicates")
         else:
             self.output("No exact duplicates found")
+        
+        # Count remaining duplicates that need attention (non-exact duplicates)
+        remainingDuplicates = len(duplicates)
+        if knownDuplicateCount > 0:
+            # Subtract known duplicates from total
+            remainingDuplicates = sum(1 for titleYear in duplicates 
+                                     if not any(inst.get('knownDuplicate', False) 
+                                               for inst in titleYearInstances.get(titleYear, [])))
+        
+        # Report summary
+        if knownDuplicateCount > 0:
+            self.output(f"Skipped {knownDuplicateCount} known duplicate(s)")
+        
+        if remainingDuplicates > 0:
+            self.output(f"{remainingDuplicates} duplicate title(s) remaining that need attention")
 
     def cancelButtonClicked(self):
         self.isCanceled = True
