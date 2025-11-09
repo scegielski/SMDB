@@ -639,6 +639,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings.setValue('showBackupList', self.showBackupList)
         self.settings.setValue('showLog', self.showLog)
         self.settings.setValue('fontSize', self.fontSize)
+        
+        # Save API keys if they have been set
+        if self.movieData.tmdbApiKey:
+            self.settings.setValue('tmdbApiKey', self.movieData.tmdbApiKey)
+        if self.movieData.omdbApiKey:
+            self.settings.setValue('omdbApiKey', self.movieData.omdbApiKey)
 
         self.saveTableColumns('moviesTable', self.moviesTableView, self.moviesTableColumnsVisible)
         self.saveTableColumns('watchListTable', self.watchListWidget.listTableView, self.watchListWidget.listColumnsVisible)

@@ -18,9 +18,9 @@ class MovieData:
     def __init__(self, parent):
         self.parent = parent
         
-        # API keys for external services
-        self.tmdbApiKey = "acaa3a2b3d6ebbb8749bfa43bd3d8af7"
-        self.omdbApiKey = "fe5db83f"
+        # API keys for external services (will be loaded from settings or prompted)
+        self.tmdbApiKey = None
+        self.omdbApiKey = None
         
         # Cache for TMDB configuration (image base URLs)
         self._tmdb_config_cache = None
@@ -28,7 +28,72 @@ class MovieData:
         # Reusable session for connection pooling
         self._session = requests.Session()
 
+    def _ensureApiKeys(self):
+        """
+        Ensure API keys are available. Load from settings or prompt the user.
+        Returns True if keys are available, False if user canceled.
+        """
+        from PyQt5.QtWidgets import QInputDialog, QMessageBox
+        
+        settings = self.parent.settings
+        
+        # Try to load from settings if not already set
+        if self.tmdbApiKey is None:
+            self.tmdbApiKey = settings.value('tmdbApiKey', '', type=str)
+            if not self.tmdbApiKey:
+                self.tmdbApiKey = None
+        
+        if self.omdbApiKey is None:
+            self.omdbApiKey = settings.value('omdbApiKey', '', type=str)
+            if not self.omdbApiKey:
+                self.omdbApiKey = None
+        
+        # Prompt for TMDB API key if missing
+        if not self.tmdbApiKey:
+            key, ok = QInputDialog.getText(
+                self.parent,
+                "TMDB API Key Required",
+                "Please enter your TMDB API key:\n(Get one free at https://www.themoviedb.org/settings/api)",
+                text=""
+            )
+            if ok and key:
+                self.tmdbApiKey = key
+                settings.setValue('tmdbApiKey', key)
+            else:
+                QMessageBox.warning(
+                    self.parent,
+                    "API Key Required",
+                    "TMDB API key is required to download movie data."
+                )
+                return False
+        
+        # Prompt for OMDb API key if missing
+        if not self.omdbApiKey:
+            key, ok = QInputDialog.getText(
+                self.parent,
+                "OMDb API Key Required",
+                "Please enter your OMDb API key:\n(Get one free at http://www.omdbapi.com/apikey.aspx)",
+                text=""
+            )
+            if ok and key:
+                self.omdbApiKey = key
+                settings.setValue('omdbApiKey', key)
+            else:
+                QMessageBox.warning(
+                    self.parent,
+                    "API Key Required",
+                    "OMDb API key is required for fallback movie data lookups."
+                )
+                return False
+        
+        return True
+
+
     def downloadMovieData(self, proxyIndex, force=False, imdbId=None, doJson=True, doCover=True):
+        # Ensure API keys are available before proceeding
+        if not self._ensureApiKeys():
+            return None
+        
         parent = self.parent
         sourceIndex = parent.moviesTableProxyModel.mapToSource(proxyIndex)
         sourceRow = sourceIndex.row()
