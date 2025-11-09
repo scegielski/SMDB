@@ -126,12 +126,12 @@ class MovieData:
                 return ""
 
             # Try TMDB first
-            movie = self._getMovieTmdb(title, year, imdbId=imdbId)
+            movie = self._getMovieTmdb(title, year, imdbId)
             
             # Fall back to OMDb if TMDB fails
             if not movie:
                 self._output(f"TMDB lookup failed, falling back to OMDb for \"{titleYear}\"")
-                movie = self._getMovieOmdb(title, year, api_key=self.omdbApiKey, imdbId=imdbId)
+                movie = self._getMovieOmdb(title, year, imdbId)
 
             if not movie: return ""
 
@@ -272,9 +272,9 @@ class MovieData:
         
         return None
 
-    def _getMovieOmdb(self, title, year, api_key, imdbId):
+    def _getMovieOmdb(self, title, year, imdbId):
         params = dict()
-        params['apikey'] = api_key
+        params['apikey'] = self.omdbApiKey
         if imdbId:
             params['i'] = imdbId
         else:
