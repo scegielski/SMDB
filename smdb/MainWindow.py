@@ -1611,6 +1611,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.moviesTableModel.aboutToChangeLayout()
         titleYearSet = set()
         duplicates = set()
+        # Track all instances of each title/year with their row, path, and size
+        titleYearInstances = collections.defaultdict(list)
+        
         for row in range(numItems):
             QtCore.QCoreApplication.processEvents()
             if self.isCanceled:
@@ -1626,7 +1629,21 @@ class MainWindow(QtWidgets.QMainWindow):
             modelIndex = self.moviesTableModel.index(row, 0)
             title = self.moviesTableModel.getTitle(modelIndex.row())
             year = self.moviesTableModel.getYear(modelIndex.row())
+            folderName = self.moviesTableModel.getFolderName(modelIndex.row())
+            moviePath = self.moviesTableModel.getPath(modelIndex.row())
+            
+            # Find the actual movie path
+            moviePath = self.findMovie(moviePath, folderName)
+            
             titleYear = (title.lower(), year)
+            
+            # Store instance information
+            titleYearInstances[titleYear].append({
+                'row': row,
+                'path': moviePath,
+                'folderName': folderName
+            })
+            
             if titleYear in titleYearSet:
                 self.moviesTableModel.setDuplicate(modelIndex, 'Yes')
                 duplicates.add(titleYear)
@@ -1644,6 +1661,87 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.moviesTableModel.changedLayout()
         self.progressBar.setValue(0)
+        
+        # Now check for exact duplicates (same or very similar file sizes)
+        exactDuplicateFolders = []
+        sizeTolerance = 5 * 1024 * 1024  # 5 MB tolerance
+        
+        self.output("Checking for exact duplicates (same file size)...")
+        for titleYear, instances in titleYearInstances.items():
+            if len(instances) < 2:
+                continue  # Skip if not a duplicate
+            
+            # Calculate sizes for all instances
+            for instance in instances:
+                if instance['path'] and os.path.exists(instance['path']):
+                    instance['size'] = getFolderSize(instance['path'])
+                else:
+                    instance['size'] = None
+            
+            # Filter out instances with no valid path/size
+            validInstances = [inst for inst in instances if inst['size'] is not None]
+            
+            if len(validInstances) < 2:
+                continue
+            
+            # Keep the first instance as the original, check if others are exact duplicates
+            original = validInstances[0]
+            for duplicate in validInstances[1:]:
+                sizeDiff = abs(original['size'] - duplicate['size'])
+                if sizeDiff <= sizeTolerance:
+                    # This is an exact duplicate
+                    exactDuplicateFolders.append({
+                        'path': duplicate['path'],
+                        'title': titleYear[0],
+                        'year': titleYear[1],
+                        'size': duplicate['size'],
+                        'originalSize': original['size'],
+                        'sizeDiff': sizeDiff
+                    })
+                    self.output(f"Exact duplicate found: {duplicate['folderName']} "
+                              f"(size diff: {sizeDiff / (1024*1024):.2f} MB)")
+        
+        # Prompt user to delete exact duplicates if any were found
+        if len(exactDuplicateFolders) > 0:
+            totalSize = sum(dup['size'] for dup in exactDuplicateFolders)
+            sizeGB = totalSize / (1024 * 1024 * 1024)
+            
+            message = (f"Found {len(exactDuplicateFolders)} exact duplicate(s) "
+                      f"(same or very similar file size).\n\n"
+                      f"Total size to be freed: {sizeGB:.2f} GB\n\n"
+                      f"Delete these duplicate folders and keep the originals?")
+            
+            ret = QtWidgets.QMessageBox.question(
+                self,
+                'Delete Exact Duplicates',
+                message,
+                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+                QtWidgets.QMessageBox.No
+            )
+            
+            if ret == QtWidgets.QMessageBox.Yes:
+                foldersToDelete = [dup['path'] for dup in exactDuplicateFolders]
+                for folder in foldersToDelete:
+                    self.output(f'Deleting exact duplicate folder: {folder}')
+                    try:
+                        shutil.rmtree(folder,
+                                    ignore_errors=False,
+                                    onerror=handleRemoveReadonly)
+                        self.output(f'Successfully deleted: {folder}')
+                    except Exception as e:
+                        self.output(f'Error deleting {folder}: {str(e)}')
+                
+                self.output(f"Deleted {len(foldersToDelete)} exact duplicate folder(s)")
+                QtWidgets.QMessageBox.information(
+                    self,
+                    'Deletion Complete',
+                    f'Successfully deleted {len(foldersToDelete)} exact duplicate folder(s).\n'
+                    f'Freed approximately {sizeGB:.2f} GB of space.'
+                )
+            else:
+                self.output("User cancelled deletion of exact duplicates")
+        else:
+            self.output("No exact duplicates found")
 
     def cancelButtonClicked(self):
         self.isCanceled = True
