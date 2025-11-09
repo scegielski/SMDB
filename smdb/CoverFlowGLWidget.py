@@ -6,6 +6,10 @@ from OpenGL.GLU import *
 import numpy as np
 import threading
 
+# Anisotropic filtering extension constants
+GL_TEXTURE_MAX_ANISOTROPY_EXT = 0x84FE
+GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT = 0x84FF
+
 class CoverFlowGLWidget(QOpenGLWidget):
     import threading
     from PyQt5.QtCore import QMutex, QMutexLocker
@@ -106,7 +110,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         super().__init__(parent)
         # Enable sample buffers for anti-aliasing
         fmt = self.format()
-        fmt.setSamples(8)
+        fmt.setSamples(4)  # Increased from 8 to 16 for better anti-aliasing
         self.setFormat(fmt)
         self.cover_image = None
         self.texture_id = None
@@ -126,6 +130,11 @@ class CoverFlowGLWidget(QOpenGLWidget):
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_TEXTURE_2D)
         glEnable(GL_MULTISAMPLE)
+        glEnable(GL_LINE_SMOOTH)  # Smooth lines
+        glEnable(GL_POLYGON_SMOOTH)  # Smooth polygon edges
+        glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)
+        glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST)
+        glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST)  # Best perspective correction
         glClearColor(0.0, 0.0, 0.0, 1.0)  # Pure black background
         self.texture_id = None
 
@@ -288,9 +297,22 @@ class CoverFlowGLWidget(QOpenGLWidget):
         data = np.array(ptr, dtype=np.uint8).reshape((height, width, 4))
         texture_id = glGenTextures(1)
         glBindTexture(GL_TEXTURE_2D, texture_id)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+        
+        # Use mipmaps with trilinear filtering for best quality
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+        
+        # Enable anisotropic filtering if available for even better quality
+        try:
+            max_anisotropy = glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT)
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, max_anisotropy)
+        except:
+            pass  # Extension not available
+        
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data)
+        glGenerateMipmap(GL_TEXTURE_2D)  # Generate mipmaps
         return texture_id
 
     def mousePressEvent(self, event):
