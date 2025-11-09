@@ -143,17 +143,35 @@ class MovieData:
                 self._writeJson(movie, jsonFile)
 
             if doCover:
-                if 'PosterFullSize' in movie:
-                    movieCoverUrl = movie['PosterFullSize']
-                elif 'Poster' in movie:
-                    movieCoverUrl = movie['Poster']
-                else:
-                    self._output("Error: No cover image available")
-
-                try:
-                    urllib.request.urlretrieve(movieCoverUrl, coverFile)
-                except Exception as e:
-                    self._output("No TMDB ID available for fallback cover download")
+                movieCoverUrl = None
+                coverDownloaded = False
+                
+                # Try OMDB first for cover
+                omdb_data = self._getMovieOmdb(title, year, imdbId)
+                if omdb_data and omdb_data.get('Poster') and omdb_data['Poster'] != 'N/A':
+                    movieCoverUrl = omdb_data['Poster']
+                    try:
+                        urllib.request.urlretrieve(movieCoverUrl, coverFile)
+                        coverDownloaded = True
+                        self._output(f"Downloaded cover from OMDb for \"{titleYear}\"")
+                    except Exception as e:
+                        self._output(f"OMDb cover download failed: {e}")
+                
+                # Fallback to TMDB if OMDB failed
+                if not coverDownloaded:
+                    if 'PosterFullSize' in movie:
+                        movieCoverUrl = movie['PosterFullSize']
+                    elif 'Poster' in movie:
+                        movieCoverUrl = movie['Poster']
+                    
+                    if movieCoverUrl:
+                        try:
+                            urllib.request.urlretrieve(movieCoverUrl, coverFile)
+                            self._output(f"Downloaded cover from TMDB for \"{titleYear}\"")
+                        except Exception as e:
+                            self._output(f"TMDB cover download failed: {e}")
+                    else:
+                        self._output("Error: No cover image available")
 
             parent.moviesTableModel.setMovieDataWithJson(sourceRow,
                                                        jsonFile,
