@@ -81,7 +81,7 @@ class MovieData:
         movie['height'] = height
         movie['channels'] = channels
 
-    def output(self, *args, **kwargs):
+    def _output(self, *args, **kwargs):
         return self.parent.output(*args, **kwargs)
     
     def _resolveImdbId(self, title, year=None):
@@ -172,7 +172,7 @@ class MovieData:
             if not imdbId:
                 imdbId = self._resolveImdbId(title, year)
             if not imdbId:
-                self.output(f"Could not resolve IMDb ID for \"{titleYear}\"")
+                self._output(f"Could not resolve IMDb ID for \"{titleYear}\"")
                 return ""
 
             # Try TMDB first
@@ -180,7 +180,7 @@ class MovieData:
             
             # Fall back to OMDb if TMDB fails
             if not movie:
-                self.output(f"TMDB lookup failed, falling back to OMDb for \"{titleYear}\"")
+                self._output(f"TMDB lookup failed, falling back to OMDb for \"{titleYear}\"")
                 movie = self._getMovieOmdb(title, year, api_key=self.omdbApiKey, imdbId=imdbId)
 
             if not movie: return ""
@@ -198,12 +198,12 @@ class MovieData:
                 elif 'Poster' in movie:
                     movieCoverUrl = movie['Poster']
                 else:
-                    self.output("Error: No cover image available")
+                    self._output("Error: No cover image available")
 
                 try:
                     urllib.request.urlretrieve(movieCoverUrl, coverFile)
                 except Exception as e:
-                    self.output("No TMDB ID available for fallback cover download")
+                    self._output("No TMDB ID available for fallback cover download")
 
             parent.moviesTableModel.setMovieDataWithJson(sourceRow,
                                                        jsonFile,
@@ -224,12 +224,12 @@ class MovieData:
 
         response = requests.get("http://www.omdbapi.com/", params=params)
         if response.status_code != 200:
-            self.output(f"OMDb request failed for \"{title}\"({year}): {response.status_code}")
+            self._output(f"OMDb request failed for \"{title}\"({year}): {response.status_code}")
             return None
 
         data = response.json()
         if data.get('Response') == 'False':
-            self.output(f"OMDb error for \"{title}\"({year}): {data.get('Error')}")
+            self._output(f"OMDb error for \"{title}\"({year}): {data.get('Error')}")
             return None
 
         return data
@@ -246,7 +246,7 @@ class MovieData:
                 if response.status_code == 200:
                     self._tmdb_config_cache = response.json()
             except Exception as e:
-                self.output(f"Failed to fetch TMDB configuration: {e}")
+                self._output(f"Failed to fetch TMDB configuration: {e}")
                 # Fallback to default values
                 self._tmdb_config_cache = {
                     "images": {
@@ -295,9 +295,9 @@ class MovieData:
                     if movies:
                         tmdb_id = movies[0].get("id")
                 else:
-                    self.output(f"TMDB find request failed for IMDb ID {imdbId}: {response.status_code}")
+                    self._output(f"TMDB find request failed for IMDb ID {imdbId}: {response.status_code}")
             except Exception as e:
-                self.output(f"TMDB find request error for IMDb ID {imdbId}: {e}")
+                self._output(f"TMDB find request error for IMDb ID {imdbId}: {e}")
         
         if not tmdb_id:
             # Search by title and year
@@ -312,7 +312,7 @@ class MovieData:
                     timeout=10
                 )
                 if response.status_code != 200:
-                    self.output(f"TMDB search request failed for \"{title}\"({year}): {response.status_code}")
+                    self._output(f"TMDB search request failed for \"{title}\"({year}): {response.status_code}")
                     return None
                 
                 results = response.json().get("results", [])
@@ -329,7 +329,7 @@ class MovieData:
                         results = response.json().get("results", [])
                 
                 if not results:
-                    self.output(f"No TMDB results found for \"{title}\"({year})")
+                    self._output(f"No TMDB results found for \"{title}\"({year})")
                     return None
                 
                 # Choose the best match (prefer exact year)
@@ -343,7 +343,7 @@ class MovieData:
                 
                 tmdb_id = best.get("id")
             except Exception as e:
-                self.output(f"TMDB search request error for \"{title}\"({year}): {e}")
+                self._output(f"TMDB search request error for \"{title}\"({year}): {e}")
                 return None
         
         if not tmdb_id:
@@ -361,7 +361,7 @@ class MovieData:
             )
             
             if response.status_code != 200:
-                self.output(f"TMDB details request failed for TMDB ID {tmdb_id}: {response.status_code}")
+                self._output(f"TMDB details request failed for TMDB ID {tmdb_id}: {response.status_code}")
                 return None
             
             raw_data = response.json()
@@ -450,7 +450,7 @@ class MovieData:
             return movie_data
             
         except Exception as e:
-            self.output(f"TMDB details request error for TMDB ID {tmdb_id}: {e}")
+            self._output(f"TMDB details request error for TMDB ID {tmdb_id}: {e}")
             return None
 
     def _writeJson(self, movieData, jsonFile):
@@ -537,5 +537,5 @@ class MovieData:
             with open(jsonFile, "w", encoding="utf-8") as f:
                 ujson.dump(d, f, indent=4)
         except Exception as e:
-            self.output(f"Error writing json file: {e}")
+            self._output(f"Error writing json file: {e}")
 
