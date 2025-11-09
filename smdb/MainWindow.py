@@ -1602,6 +1602,73 @@ class MainWindow(QtWidgets.QMainWindow):
         self.moviesTableModel.changedLayout()
         self.progressBar.setValue(0)
 
+    def markAsKnownDuplicate(self):
+        """Mark selected movie(s) as known duplicates"""
+        selectedRows = self.moviesTableView.selectionModel().selectedRows()
+        if not selectedRows:
+            return
+        
+        for proxyIndex in selectedRows:
+            sourceIndex = self.moviesTableProxyModel.mapToSource(proxyIndex)
+            sourceRow = sourceIndex.row()
+            moviePath = self.moviesTableModel.getPath(sourceRow)
+            folderName = self.moviesTableModel.getFolderName(sourceRow)
+            
+            moviePath = self.findMovie(moviePath, folderName)
+            if not moviePath:
+                continue
+            
+            jsonFile = os.path.join(moviePath, f'{folderName}.json')
+            if os.path.exists(jsonFile):
+                try:
+                    with open(jsonFile, 'r', encoding='utf-8') as f:
+                        jsonData = ujson.load(f)
+                    
+                    jsonData['known duplicate'] = True
+                    
+                    with open(jsonFile, 'w', encoding='utf-8') as f:
+                        ujson.dump(jsonData, f, indent=4)
+                    
+                    self.output(f"Marked as known duplicate: {folderName}")
+                except Exception as e:
+                    self.output(f"Error marking {folderName} as known duplicate: {str(e)}")
+        
+        self.output(f"Marked {len(selectedRows)} movie(s) as known duplicate(s)")
+    
+    def unmarkAsKnownDuplicate(self):
+        """Unmark selected movie(s) as known duplicates"""
+        selectedRows = self.moviesTableView.selectionModel().selectedRows()
+        if not selectedRows:
+            return
+        
+        for proxyIndex in selectedRows:
+            sourceIndex = self.moviesTableProxyModel.mapToSource(proxyIndex)
+            sourceRow = sourceIndex.row()
+            moviePath = self.moviesTableModel.getPath(sourceRow)
+            folderName = self.moviesTableModel.getFolderName(sourceRow)
+            
+            moviePath = self.findMovie(moviePath, folderName)
+            if not moviePath:
+                continue
+            
+            jsonFile = os.path.join(moviePath, f'{folderName}.json')
+            if os.path.exists(jsonFile):
+                try:
+                    with open(jsonFile, 'r', encoding='utf-8') as f:
+                        jsonData = ujson.load(f)
+                    
+                    if 'known duplicate' in jsonData:
+                        del jsonData['known duplicate']
+                    
+                    with open(jsonFile, 'w', encoding='utf-8') as f:
+                        ujson.dump(jsonData, f, indent=4)
+                    
+                    self.output(f"Unmarked as known duplicate: {folderName}")
+                except Exception as e:
+                    self.output(f"Error unmarking {folderName} as known duplicate: {str(e)}")
+        
+        self.output(f"Unmarked {len(selectedRows)} movie(s) as known duplicate(s)")
+
     def findDuplicates(self):
         numItems = self.moviesTableModel.rowCount()
         self.progressBar.setMaximum(numItems)
@@ -1711,14 +1778,26 @@ class MainWindow(QtWidgets.QMainWindow):
             if len(instances) < 2:
                 continue  # Skip if not a duplicate
             
-            # Calculate sizes for all instances
+            # Calculate sizes for all instances and check if they're known duplicates
             for instance in instances:
                 if instance['path'] and os.path.exists(instance['path']):
                     instance['size'] = getFolderSize(instance['path'])
                     instance['priority'] = getFolderPriority(instance['path'])
+                    
+                    # Check if this is a known duplicate
+                    jsonFile = os.path.join(instance['path'], f"{instance['folderName']}.json")
+                    instance['knownDuplicate'] = False
+                    if os.path.exists(jsonFile):
+                        try:
+                            with open(jsonFile, 'r', encoding='utf-8') as f:
+                                jsonData = ujson.load(f)
+                                instance['knownDuplicate'] = jsonData.get('known duplicate', False)
+                        except Exception:
+                            pass
                 else:
                     instance['size'] = None
                     instance['priority'] = 999
+                    instance['knownDuplicate'] = False
             
             # Filter out instances with no valid path/size
             validInstances = [inst for inst in instances if inst['size'] is not None]
@@ -1732,6 +1811,11 @@ class MainWindow(QtWidgets.QMainWindow):
             # Keep the first instance (highest priority) as the original
             original = validInstances[0]
             for duplicate in validInstances[1:]:
+                # Skip if this duplicate is marked as a known duplicate
+                if duplicate['knownDuplicate']:
+                    self.output(f"Skipping known duplicate: {duplicate['path']}")
+                    continue
+                    
                 sizeDiff = abs(original['size'] - duplicate['size'])
                 if sizeDiff <= sizeTolerance:
                     # This is an exact duplicate - format as one line
@@ -2781,6 +2865,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 if not isinstance(jsonSimilarMovies, list):
                     jsonSimilarMovies = [jsonSimilarMovies] if jsonSimilarMovies else []
 
+                # Known duplicate status
+                knownDuplicate = jsonData.get('known duplicate', False)
+
                 # Subtitles exist status comes from current model value if present
                 try:
                     if len(model._data[row]) > Columns.SubtitlesExist.value:
@@ -2818,7 +2905,8 @@ class MainWindow(QtWidgets.QMainWindow):
                     'date': dateModified,
                     'subtitles exist': subtitlesExist,
                     'date watched': dateWatched,
-                    'similar movies': jsonSimilarMovies
+                    'similar movies': jsonSimilarMovies,
+                    'known duplicate': knownDuplicate
                 }
                 timing['title_entry'] += time.perf_counter() - t0t
 
@@ -3038,6 +3126,14 @@ class MainWindow(QtWidgets.QMainWindow):
         findDuplicatesAction = QtWidgets.QAction("Find Duplicates", self)
         findDuplicatesAction.triggered.connect(self.findDuplicates)
         moviesTableRightMenu.addAction(findDuplicatesAction)
+
+        markKnownDuplicateAction = QtWidgets.QAction("Mark as Known Duplicate", self)
+        markKnownDuplicateAction.triggered.connect(self.markAsKnownDuplicate)
+        moviesTableRightMenu.addAction(markKnownDuplicateAction)
+
+        unmarkKnownDuplicateAction = QtWidgets.QAction("Unmark as Known Duplicate", self)
+        unmarkKnownDuplicateAction.triggered.connect(self.unmarkAsKnownDuplicate)
+        moviesTableRightMenu.addAction(unmarkKnownDuplicateAction)
 
         findMovieInMovieAction = QtWidgets.QAction("Find Movie in Movie", self)
         findMovieInMovieAction.triggered.connect(self.findMovieInMovie)
