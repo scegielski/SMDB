@@ -1561,59 +1561,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 
-    def calculateFolderSize(self, sourceIndex, moviePath, movieFolderName):
-        folderSize = '%05d Mb' % bToMb(getFolderSize(moviePath))
-
-        jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
-        if not os.path.exists(jsonFile):
-            return
-
-        data = {}
-        with open(jsonFile) as f:
-            try:
-                data = ujson.load(f)
-            except UnicodeDecodeError:
-                self.output("Error reading %s" % jsonFile)
-
-        data["size"] = folderSize
-        try:
-            with open(jsonFile, "w") as f:
-                ujson.dump(data, f, indent=4)
-        except:
-            self.output("Error writing json file: %s" % jsonFile)
-
-        self.moviesTableModel.setSize(sourceIndex, folderSize)
-
-    def calculateFolderSizes(self):
-        numSelectedItems = len(self.moviesTableView.selectionModel().selectedRows())
-        self.progressBar.setMaximum(numSelectedItems)
-        progress = 0
-        self.isCanceled = False
-        self.moviesTableModel.aboutToChangeLayout()
-        for proxyIndex in self.moviesTableView.selectionModel().selectedRows():
-            QtCore.QCoreApplication.processEvents()
-            if self.isCanceled:
-                self.statusBar().showMessage('Cancelled')
-                self.isCanceled = False
-                self.progressBar.setValue(0)
-                self.moviesTableModel.changedLayout()
-                return
-
-            progress += 1
-            self.progressBar.setValue(progress)
-
-            sourceIndex = self.moviesTableProxyModel.mapToSource(proxyIndex)
-            movieFolderName = self.moviesTableModel.getFolderName(sourceIndex.row())
-            moviePath = self.moviesTableModel.getPath(sourceIndex.row())
-            moviePath = self.findMovie(moviePath, movieFolderName)
-            if not moviePath or not os.path.exists(moviePath):
-                continue
-
-            self.calculateFolderSize(sourceIndex, moviePath, movieFolderName)
-
-        self.moviesTableModel.changedLayout()
-        self.progressBar.setValue(0)
-
     def getMovieFileData(self, moviePath):
         if not os.path.exists(moviePath):
             return 0, 0, 0
@@ -2987,10 +2934,6 @@ class MainWindow(QtWidgets.QMainWindow):
         moviesTableRightMenu.addAction(addToBackupListAction)
 
         moviesTableRightMenu.addSeparator()
-
-        calculateSizesAction = QtWidgets.QAction("Calculate Folder Sizes", self)
-        calculateSizesAction.triggered.connect(self.calculateFolderSizes)
-        moviesTableRightMenu.addAction(calculateSizesAction)
 
         getMovieFilesInfoAction = QtWidgets.QAction("Get Movie Files Info", self)
         getMovieFilesInfoAction.triggered.connect(self.getMovieFilesInfo)
