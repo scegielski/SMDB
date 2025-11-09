@@ -1670,6 +1670,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.output(f"Unmarked {len(selectedRows)} movie(s) as known duplicate(s)")
 
     def findDuplicates(self):
+        import time
+        startTime = time.time()
+        
         numItems = self.moviesTableModel.rowCount()
         self.progressBar.setMaximum(numItems)
         progress = 0
@@ -1682,16 +1685,25 @@ class MainWindow(QtWidgets.QMainWindow):
         titleYearInstances = collections.defaultdict(list)
         
         for row in range(numItems):
-            QtCore.QCoreApplication.processEvents()
+            if row % 10 == 0:  # Reduce processEvents calls
+                QtCore.QCoreApplication.processEvents()
             if self.isCanceled:
                 self.statusBar().showMessage('Cancelled')
                 self.isCanceled = False
                 self.progressBar.setValue(0)
-                self.movieTableModel.changedLayout()
+                self.moviesTableModel.changedLayout()
                 return
 
             progress += 1
-            self.progressBar.setValue(progress)
+            
+            # Update progress bar and status less frequently
+            if progress % 50 == 0 or progress == numItems:
+                self.progressBar.setValue(progress)
+                elapsedTime = time.time() - startTime
+                itemsPerSecond = progress / elapsedTime if elapsedTime > 0 else 0
+                remainingItems = numItems - progress
+                eta = remainingItems / itemsPerSecond if itemsPerSecond > 0 else 0
+                self.statusBar().showMessage(f'Finding duplicates: {progress}/{numItems} - ETA: {int(eta)}s')
 
             modelIndex = self.moviesTableModel.index(row, 0)
             title = self.moviesTableModel.getTitle(modelIndex.row())
@@ -1762,6 +1774,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.moviesTableModel.changedLayout()
         
         # Hide non-duplicates from the list
+        self.statusBar().showMessage('Hiding non-duplicates...')
+        QtCore.QCoreApplication.processEvents()
         for row in range(self.moviesTableModel.rowCount()):
             modelIndex = self.moviesTableModel.index(row, Columns.Duplicate.value)
             duplicateValue = self.moviesTableModel.data(modelIndex, QtCore.Qt.DisplayRole)
@@ -1769,11 +1783,14 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.moviesTableView.hideRow(row)
         
         # Sort by Title after hiding non-duplicates
+        self.statusBar().showMessage('Sorting duplicates by title...')
+        QtCore.QCoreApplication.processEvents()
         self.moviesTableView.sortByColumn(Columns.Title.value, QtCore.Qt.AscendingOrder)
         
         # Scroll to the top of the table
         self.moviesTableView.scrollToTop()
         
+        self.statusBar().showMessage('Duplicate search complete')
         self.progressBar.setValue(0)
         
         # Count known duplicates for later reporting
