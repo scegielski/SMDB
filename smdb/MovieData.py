@@ -28,6 +28,53 @@ class MovieData:
         # Reusable session for connection pooling
         self._session = requests.Session()
 
+    def calculateFolderSize(self, moviePath):
+        """Calculate the total size of a movie folder in MB.
+        
+        Args:
+            moviePath: Path to the movie folder
+            
+        Returns:
+            Formatted size string like '01234 Mb'
+        """
+        total_size = 0
+        for dirpath, dirnames, filenames in os.walk(moviePath):
+            for f in filenames:
+                fp = os.path.join(dirpath, f)
+                if not os.path.islink(fp):
+                    total_size += os.path.getsize(fp)
+        return '%05d Mb' % (total_size / (2**20))
+    
+    def getMovieFileInfo(self, moviePath):
+        """Extract video file metadata (width, height, audio channels).
+        
+        Args:
+            moviePath: Path to the movie folder
+            
+        Returns:
+            Tuple of (width, height, channels)
+        """
+        width, height, channels = 0, 0, 0
+        validExtentions = ['.mkv', '.mpg', '.mp4', '.avi', '.flv', '.wmv', '.m4v', '.divx', '.ogm']
+        movieFiles = []
+        
+        for file in os.listdir(moviePath):
+            extension = os.path.splitext(file)[1].lower()
+            if extension in validExtentions:
+                movieFiles.append(file)
+        
+        if len(movieFiles) > 0:
+            movieFile = os.path.join(moviePath, movieFiles[0])
+            info = MediaInfo.parse(movieFile)
+            for track in info.tracks:
+                if track.track_type == 'Video':
+                    width = track.width
+                    height = track.height
+                elif track.track_type == 'Audio':
+                    channels = track.channel_s
+        
+        return width, height, channels
+
     def output(self, *args, **kwargs):
         return self.parent.output(*args, **kwargs)
     
@@ -163,32 +210,9 @@ class MovieData:
             if not movie: return ""
 
             if doJson:
-                # Calculate folder size
-                total_size = 0
-                for dirpath, dirnames, filenames in os.walk(moviePath):
-                    for f in filenames:
-                        fp = os.path.join(dirpath, f)
-                        if not os.path.islink(fp):
-                            total_size += os.path.getsize(fp)
-                folderSize = '%05d Mb' % (total_size / (2**20))
-                
-                # Get movie file info
-                width, height, channels = 0, 0, 0
-                validExtentions = ['.mkv', '.mpg', '.mp4', '.avi', '.flv', '.wmv', '.m4v', '.divx', '.ogm']
-                movieFiles = []
-                for file in os.listdir(moviePath):
-                    extension = os.path.splitext(file)[1].lower()
-                    if extension in validExtentions:
-                        movieFiles.append(file)
-                if len(movieFiles) > 0:
-                    movieFile = os.path.join(moviePath, movieFiles[0])
-                    info = MediaInfo.parse(movieFile)
-                    for track in info.tracks:
-                        if track.track_type == 'Video':
-                            width = track.width
-                            height = track.height
-                        elif track.track_type == 'Audio':
-                            channels = track.channel_s
+                # Calculate folder size and get movie file info
+                folderSize = self.calculateFolderSize(moviePath)
+                width, height, channels = self.getMovieFileInfo(moviePath)
                 
                 # Add size and movie info to movie dict
                 movie['size'] = folderSize
