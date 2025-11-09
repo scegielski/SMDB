@@ -218,35 +218,35 @@ class MovieData:
     def _output(self, *args, **kwargs):
         return self.parent.output(*args, **kwargs)
     
+    def _normalizeImdbId(self, imdb_id):
+        """Ensure IMDb ID has the 'tt' prefix.
+        
+        Args:
+            imdb_id: IMDb ID with or without 'tt' prefix
+            
+        Returns:
+            IMDb ID with 'tt' prefix, or None if input is None/empty
+        """
+        if not imdb_id:
+            return None
+        return imdb_id if imdb_id.startswith('tt') else f"tt{imdb_id}"
+    
     def _resolveImdbId(self, title, year):
         """
-        Resolve an IMDb ID for a movie using title and optional year via OMDb first,
-        then TMDb as a fallback. Always returns an ID with 'tt' prefix like 'tt1234567' or None.
+        Resolve an IMDb ID for a movie using title and optional year via TMDb.
+        Always returns an ID with 'tt' prefix like 'tt1234567' or None.
         """
-        # 1) Try OMDb
-        try:
-            data = self._getMovieOmdb(title, year, api_key=self.omdbApiKey)
-            if data and data.get('imdbID'):
-                imdb_id = data.get('imdbID')
-                if imdb_id:
-                    # Ensure tt prefix
-                    if not imdb_id.startswith('tt'):
-                        imdb_id = f"tt{imdb_id}"
-                    return imdb_id
-        except Exception:
-            pass
-
-        # 2) Fallback to TMDb: search by title/year, then get external_ids
+        # Use TMDb: search by title/year, then get external_ids
         try:
             params = {"api_key": self.tmdbApiKey, "query": title}
             if year:
                 params["year"] = int(year)
-            search = requests.get("https://api.themoviedb.org/3/search/movie", params=params).json()
+            search = self._session.get("https://api.themoviedb.org/3/search/movie", params=params, timeout=10).json()
             results = search.get("results") or []
             if not results and year:
                 # retry without year constraint
                 params.pop("year", None)
-                search = requests.get("https://api.themoviedb.org/3/search/movie", params=params).json()
+                search = self._session.get("https://api.themoviedb.org/3/search/movie", params=params, timeout=10).json()
                 results = search.get("results") or []
             if not results:
                 return None
@@ -263,14 +263,10 @@ class MovieData:
             tmdb_id = best.get("id")
             if not tmdb_id:
                 return None
-            ext = requests.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}/external_ids",
-                               params={"api_key": self.tmdbApiKey}).json()
+            ext = self._session.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}/external_ids",
+                               params={"api_key": self.tmdbApiKey}, timeout=10).json()
             imdb_id = ext.get("imdb_id")
-            if imdb_id:
-                # Ensure tt prefix
-                if not imdb_id.startswith('tt'):
-                    imdb_id = f"tt{imdb_id}"
-                return imdb_id
+            return self._normalizeImdbId(imdb_id)
         except Exception:
             pass
         
@@ -286,7 +282,7 @@ class MovieData:
 
         if year: params['y'] = str(year)
 
-        response = requests.get("http://www.omdbapi.com/", params=params)
+        response = self._session.get("http://www.omdbapi.com/", params=params, timeout=10)
         if response.status_code != 200:
             self._output(f"OMDb request failed for \"{title}\"({year}): {response.status_code}")
             return None
@@ -566,9 +562,6 @@ class MovieData:
             d['genres'] = [g.strip() for g in genre_str.split(',') if g.strip()]
         
         d['plot'] = movieData.get('Plot')
-        d['plot outline'] = movieData.get('Plot')
-        d['synopsis'] = movieData.get('Plot')
-        d['summary'] = movieData.get('Plot')
         d['cover url'] = movieData.get('Poster')
         d['full-size cover url'] = movieData.get('PosterFullSize') or movieData.get('Poster')
         
