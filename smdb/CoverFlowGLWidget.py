@@ -136,6 +136,19 @@ class CoverFlowGLWidget(QOpenGLWidget):
         glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST)
         glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST)  # Best perspective correction
         glClearColor(0.0, 0.0, 0.0, 1.0)  # Pure black background
+        
+        # Enable lighting for 3D depth perception
+        glEnable(GL_LIGHTING)
+        glEnable(GL_LIGHT0)
+        glEnable(GL_COLOR_MATERIAL)
+        glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE)
+        
+        # Set up light position and properties
+        glLightfv(GL_LIGHT0, GL_POSITION, [0.0, 0.0, 1.0, 0.0])  # Directional light from front
+        glLightfv(GL_LIGHT0, GL_AMBIENT, [0.3, 0.3, 0.3, 1.0])
+        glLightfv(GL_LIGHT0, GL_DIFFUSE, [0.8, 0.8, 0.8, 1.0])
+        glLightfv(GL_LIGHT0, GL_SPECULAR, [0.5, 0.5, 0.5, 1.0])
+        
         self.texture_id = None
 
     def resizeGL(self, w, h):
@@ -145,6 +158,83 @@ class CoverFlowGLWidget(QOpenGLWidget):
         # Use a moderate FOV and set near/far for a good fit
         gluPerspective(30.0, w / h if h != 0 else 1, 0.1, 10.0)
         glMatrixMode(GL_MODELVIEW)
+
+    def drawVHSBox(self, width, height, texture_id):
+        """Draw a 3D VHS box with the cover texture on front, and solid sides"""
+        # VHS depth is approximately 1 inch (25mm) relative to typical 7.5" height
+        # Using a depth ratio of about 0.13 (1/7.5)
+        depth = height * 0.13
+        
+        half_w = width / 2
+        half_h = height / 2
+        half_d = depth / 2
+        
+        # Front face (with texture)
+        if texture_id:
+            glBindTexture(GL_TEXTURE_2D, texture_id)
+            glEnable(GL_TEXTURE_2D)
+            glColor3f(1.0, 1.0, 1.0)  # White to show texture properly
+            glBegin(GL_QUADS)
+            glNormal3f(0.0, 0.0, 1.0)  # Normal pointing forward
+            glTexCoord2f(0.0, 1.0); glVertex3f(-half_w, -half_h, half_d)
+            glTexCoord2f(1.0, 1.0); glVertex3f(half_w, -half_h, half_d)
+            glTexCoord2f(1.0, 0.0); glVertex3f(half_w, half_h, half_d)
+            glTexCoord2f(0.0, 0.0); glVertex3f(-half_w, half_h, half_d)
+            glEnd()
+            glDisable(GL_TEXTURE_2D)
+        
+        # Back face (dark gray)
+        glColor3f(0.2, 0.2, 0.2)
+        glBegin(GL_QUADS)
+        glNormal3f(0.0, 0.0, -1.0)  # Normal pointing backward
+        glVertex3f(-half_w, -half_h, -half_d)
+        glVertex3f(-half_w, half_h, -half_d)
+        glVertex3f(half_w, half_h, -half_d)
+        glVertex3f(half_w, -half_h, -half_d)
+        glEnd()
+        
+        # Top face
+        glColor3f(0.15, 0.15, 0.15)
+        glBegin(GL_QUADS)
+        glNormal3f(0.0, 1.0, 0.0)  # Normal pointing up
+        glVertex3f(-half_w, half_h, -half_d)
+        glVertex3f(-half_w, half_h, half_d)
+        glVertex3f(half_w, half_h, half_d)
+        glVertex3f(half_w, half_h, -half_d)
+        glEnd()
+        
+        # Bottom face
+        glColor3f(0.15, 0.15, 0.15)
+        glBegin(GL_QUADS)
+        glNormal3f(0.0, -1.0, 0.0)  # Normal pointing down
+        glVertex3f(-half_w, -half_h, -half_d)
+        glVertex3f(half_w, -half_h, -half_d)
+        glVertex3f(half_w, -half_h, half_d)
+        glVertex3f(-half_w, -half_h, half_d)
+        glEnd()
+        
+        # Left face
+        glColor3f(0.25, 0.25, 0.25)
+        glBegin(GL_QUADS)
+        glNormal3f(-1.0, 0.0, 0.0)  # Normal pointing left
+        glVertex3f(-half_w, -half_h, -half_d)
+        glVertex3f(-half_w, -half_h, half_d)
+        glVertex3f(-half_w, half_h, half_d)
+        glVertex3f(-half_w, half_h, -half_d)
+        glEnd()
+        
+        # Right face
+        glColor3f(0.25, 0.25, 0.25)
+        glBegin(GL_QUADS)
+        glNormal3f(1.0, 0.0, 0.0)  # Normal pointing right
+        glVertex3f(half_w, -half_h, -half_d)
+        glVertex3f(half_w, half_h, -half_d)
+        glVertex3f(half_w, half_h, half_d)
+        glVertex3f(half_w, -half_h, half_d)
+        glEnd()
+        
+        # Reset color
+        glColor3f(1.0, 1.0, 1.0)
 
     def paintGL(self):
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -203,17 +293,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 prev_quad_h = prev_quad_w / prev_aspect
             
             if prev_texture_id:
-                glBindTexture(GL_TEXTURE_2D, prev_texture_id)
-                glBegin(GL_QUADS)
-                glTexCoord2f(0.0, 1.0)
-                glVertex3f(-prev_quad_w/2, -prev_quad_h/2, 0.0)
-                glTexCoord2f(1.0, 1.0)
-                glVertex3f(prev_quad_w/2, -prev_quad_h/2, 0.0)
-                glTexCoord2f(1.0, 0.0)
-                glVertex3f(prev_quad_w/2, prev_quad_h/2, 0.0)
-                glTexCoord2f(0.0, 0.0)
-                glVertex3f(-prev_quad_w/2, prev_quad_h/2, 0.0)
-                glEnd()
+                self.drawVHSBox(prev_quad_w, prev_quad_h, prev_texture_id)
             glPopMatrix()
             
             # Draw current cover with its own quad dimensions
@@ -240,17 +320,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             if self.cover_image and not self.cover_image.isNull():
                 if curr_texture_id is None:
                     curr_texture_id = self.createTextureFromQImage(self.cover_image)
-                glBindTexture(GL_TEXTURE_2D, curr_texture_id)
-                glBegin(GL_QUADS)
-                glTexCoord2f(0.0, 1.0)
-                glVertex3f(-curr_quad_w/2, -curr_quad_h/2, 0.0)
-                glTexCoord2f(1.0, 1.0)
-                glVertex3f(curr_quad_w/2, -curr_quad_h/2, 0.0)
-                glTexCoord2f(1.0, 0.0)
-                glVertex3f(curr_quad_w/2, curr_quad_h/2, 0.0)
-                glTexCoord2f(0.0, 0.0)
-                glVertex3f(-curr_quad_w/2, curr_quad_h/2, 0.0)
-                glEnd()
+                self.drawVHSBox(curr_quad_w, curr_quad_h, curr_texture_id)
             glPopMatrix()
         else:
             # Normal render (single cover) with its own quad dimensions
@@ -276,17 +346,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             if self.cover_image and not self.cover_image.isNull():
                 if curr_texture_id is None:
                     curr_texture_id = self.createTextureFromQImage(self.cover_image)
-                glBindTexture(GL_TEXTURE_2D, curr_texture_id)
-                glBegin(GL_QUADS)
-                glTexCoord2f(0.0, 1.0)
-                glVertex3f(-curr_quad_w/2, -curr_quad_h/2, 0.0)
-                glTexCoord2f(1.0, 1.0)
-                glVertex3f(curr_quad_w/2, -curr_quad_h/2, 0.0)
-                glTexCoord2f(1.0, 0.0)
-                glVertex3f(curr_quad_w/2, curr_quad_h/2, 0.0)
-                glTexCoord2f(0.0, 0.0)
-                glVertex3f(-curr_quad_w/2, curr_quad_h/2, 0.0)
-                glEnd()
+                self.drawVHSBox(curr_quad_w, curr_quad_h, curr_texture_id)
 
     def createTextureFromQImage(self, qimage):
         qimage = qimage.convertToFormat(QImage.Format_RGBA8888)
