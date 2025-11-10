@@ -2098,6 +2098,11 @@ class MainWindow(QtWidgets.QMainWindow):
     def clickedTable(self, modelIndex, model, proxyModel):
         sourceIndex = proxyModel.mapToSource(modelIndex)
         sourceRow = sourceIndex.row()
+        
+        # Store for CoverFlowGLWidget
+        self.currentModel = model
+        self.currentSourceRow = sourceRow
+        
         title = model.getTitle(sourceRow)
 
         moviePath = model.getPath(sourceRow)
@@ -2121,6 +2126,9 @@ class MainWindow(QtWidgets.QMainWindow):
         # Update Cover Flow tab with selected movie cover
         if hasattr(self, 'coverFlowWidget') and coverFile and os.path.exists(coverFile):
             self.coverFlowWidget.set_cover_image(coverFile)
+            # Also set the model and current index for multi-cover view
+            if hasattr(self, 'currentModel') and hasattr(self, 'currentSourceRow'):
+                self.coverFlowWidget.setModelAndIndex(self.currentModel, self.currentSourceRow)
 
         jsonData = None
         if os.path.exists(jsonFile):

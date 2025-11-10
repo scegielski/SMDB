@@ -454,6 +454,28 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
 
     def getCoverExists(self, row):
         return self._data[row][Columns.CoverExists.value]
+    
+    def getCoverPath(self, row):
+        """Get the full path to the cover image file for a given row"""
+        if row < 0 or row >= len(self._data):
+            return None
+        
+        moviePath = self.getPath(row)
+        folderName = self.getFolderName(row)
+        
+        if not moviePath or not folderName:
+            return None
+        
+        # Try .jpg first, then .png
+        coverFile = os.path.join(moviePath, f'{folderName}.jpg')
+        if os.path.exists(coverFile):
+            return coverFile
+        
+        coverFilePng = os.path.join(moviePath, f'{folderName}.png')
+        if os.path.exists(coverFilePng):
+            return coverFilePng
+        
+        return None
 
     def getRank(self, row):
         return self._data[row][Columns.Rank.value]
