@@ -105,7 +105,46 @@ class MainWindow(QtWidgets.QMainWindow):
         next_row = current_row + direction
         next_row = max(0, min(model.rowCount() - 1, next_row))
         if next_row != current_row:
+            # Get source index for the new row
+            modelIndex = model.index(next_row, 0)
+            if proxy:
+                sourceIndex = proxy.mapToSource(modelIndex)
+                sourceRow = sourceIndex.row()
+                sourceModel = self.moviesTableModel
+            else:
+                sourceRow = next_row
+                sourceModel = model
+            
+            # Update cover flow widget immediately to start animation
+            if hasattr(self, 'coverFlowWidget') and hasattr(self, 'currentModel'):
+                self.coverFlowWidget.setModelAndIndex(sourceModel, sourceRow)
+            
+            # Block selection change handling and store pending info
+            self._block_selection_change = True
+            self._pending_selection_row = next_row
+            self._pending_model_index = modelIndex
+            self._pending_source_model = sourceModel
+            self._pending_proxy_model = model if proxy else None
+            
+            # Update the selection (but tableSelectionChanged will be blocked)
             view.selectRow(next_row)
+    
+    def onCoverFlowAnimationComplete(self, index):
+        """Called when the cover flow scroll animation completes"""
+        # Unblock selection changes
+        self._block_selection_change = False
+        # Trigger the delayed selection handling
+        if hasattr(self, '_pending_model_index'):
+            # Manually trigger what would have happened in tableSelectionChanged
+            self.clickedTable(self._pending_model_index, 
+                            self._pending_source_model, 
+                            self._pending_proxy_model)
+            
+            # Clean up pending attributes
+            delattr(self, '_pending_selection_row')
+            delattr(self, '_pending_model_index')
+            delattr(self, '_pending_source_model')
+            delattr(self, '_pending_proxy_model')
 
     def __init__(self):
         super(MainWindow, self).__init__()
@@ -287,6 +326,7 @@ class MainWindow(QtWidgets.QMainWindow):
         from .CoverFlowGLWidget import CoverFlowGLWidget
         self.coverFlowWidget = CoverFlowGLWidget()
         self.coverFlowWidget.wheelMovieChange.connect(self.coverFlowWheelNavigate)
+        self.coverFlowWidget.scrollAnimationComplete.connect(self.onCoverFlowAnimationComplete)
         self.moviesTabWidget.addTab(self.coverFlowWidget, "Cover Flow")
         self.moviesTableDefaultColumns = [Columns.Year.value,
                                           Columns.Title.value,
@@ -2079,6 +2119,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.openGlWidget.emitCover(row, coverFile, direction)
 
     def tableSelectionChanged(self, table, model, proxyModel):
+        # Block selection changes if cover flow is animating
+        if hasattr(self, '_block_selection_change') and self._block_selection_change:
+            return
+            
         if self.modifySelectionHistory:
             selectedRows = [r.row() for r in self.moviesTableView.selectionModel().selectedRows()]
             if len(selectedRows) != 0:
@@ -2124,11 +2168,17 @@ class MainWindow(QtWidgets.QMainWindow):
         self.showCoverFile(coverFile)
 
         # Update Cover Flow tab with selected movie cover
-        if hasattr(self, 'coverFlowWidget') and coverFile and os.path.exists(coverFile):
-            self.coverFlowWidget.set_cover_image(coverFile)
-            # Also set the model and current index for multi-cover view
+        if hasattr(self, 'coverFlowWidget'):
+            # Set the model and current index - this will trigger animation if needed
             if hasattr(self, 'currentModel') and hasattr(self, 'currentSourceRow'):
                 self.coverFlowWidget.setModelAndIndex(self.currentModel, self.currentSourceRow)
+                # Only update the cover image if not animating
+                if not getattr(self.coverFlowWidget, '_scrolling', False):
+                    if coverFile and os.path.exists(coverFile):
+                        self.coverFlowWidget.set_cover_image(coverFile)
+                else:
+                    # Store for later update when animation completes
+                    self.coverFlowWidget._pending_cover_image = coverFile
 
         jsonData = None
         if os.path.exists(jsonFile):

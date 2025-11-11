@@ -21,8 +21,6 @@ class CoverFlowGLWidget(QOpenGLWidget):
         if hasattr(self, '_model') and self._model == model and hasattr(self, '_current_index'):
             # Store the old index for animation
             old_index = self._current_index
-            # Just update the index, keep existing cache
-            self._current_index = current_index
             
             # Always animate the transition when index changes (even when zoomed in)
             if old_index != current_index:
@@ -40,6 +38,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 self._scroll_to = current_index
                 self._scroll_progress = 0.0
                 self._scrolling = True
+                # Don't update _current_index yet - wait for animation to complete
+                # This keeps the rendering centered on the correct index during animation
                 if hasattr(self, '_scroll_timer') and self._scroll_timer:
                     try:
                         self.killTimer(self._scroll_timer)
@@ -49,6 +49,9 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 from PyQt5.QtCore import QElapsedTimer
                 self._scroll_elapsed = QElapsedTimer()
                 self._scroll_elapsed.start()
+            else:
+                # Index hasn't changed, just update
+                self._current_index = current_index
             
             # Start async cache for new surrounding covers
             self._start_async_cache()
@@ -127,8 +130,18 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 self._scroll_progress = 1.0
                 self._scrolling = False
                 self.killTimer(self._scroll_timer)
+                # Now update the current index at the end of the animation
+                self._current_index = self._scroll_to
+                # Apply pending cover image if one was stored
+                if hasattr(self, '_pending_cover_image') and self._pending_cover_image:
+                    self.set_cover_image(self._pending_cover_image)
+                    self._pending_cover_image = None
+                # Emit signal to notify that animation is complete
+                self.scrollAnimationComplete.emit(self._current_index)
             self.update()
     wheelMovieChange = pyqtSignal(int)  # +1 for next, -1 for previous
+    scrollAnimationComplete = pyqtSignal(int)  # Emitted when scroll animation completes with the new index
+    
     def wheelEvent(self, event):
         # Zoom in/out if Ctrl is held, otherwise animate cover change
         delta = event.angleDelta().y()
