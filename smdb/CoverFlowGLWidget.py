@@ -148,6 +148,41 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 # Emit signal to notify that animation is complete
                 self.scrollAnimationComplete.emit(self._current_index)
             self.update()
+        elif getattr(self, 'is_momentum_scrolling', False) and hasattr(self, '_momentum_timer') and event.timerId() == self._momentum_timer:
+            # Physics-based momentum scrolling after mouse release
+            friction = 0.92  # Deceleration factor (lower = faster stop)
+            
+            # Apply velocity to offset
+            self.drag_offset += self.drag_velocity * 16  # 16ms frame time
+            
+            # Apply friction
+            self.drag_velocity *= friction
+            
+            # Stop if velocity is very low and snap to nearest cover
+            if abs(self.drag_velocity) < 0.0001:
+                self.is_momentum_scrolling = False
+                try:
+                    self.killTimer(self._momentum_timer)
+                except:
+                    pass
+                self._momentum_timer = None
+                
+                # Snap to nearest cover
+                nearest_index = round(self.drag_offset)
+                snap_target = self._current_index - nearest_index
+                
+                # Clamp to valid range
+                if hasattr(self, '_model'):
+                    snap_target = max(0, min(self._model.rowCount() - 1, snap_target))
+                    
+                    # Start scroll animation to snap position
+                    if snap_target != self._current_index:
+                        self.setModelAndIndex(self._model, snap_target)
+                
+                # Reset drag offset
+                self.drag_offset = 0.0
+            
+            self.update()
     wheelMovieChange = pyqtSignal(int)  # +1 for next, -1 for previous
     scrollAnimationComplete = pyqtSignal(int)  # Emitted when scroll animation completes with the new index
     
@@ -188,6 +223,14 @@ class CoverFlowGLWidget(QOpenGLWidget):
         self.last_mouse_x = None
         self.aspect_ratio = 1.0
         self.zoom_level = 0.0  # Camera translation for zoom
+        
+        # Drag scrolling state
+        self.drag_start_x = None
+        self.drag_offset = 0.0  # Current drag offset in cover units
+        self.drag_velocity = 0.0  # Velocity for momentum
+        self.is_momentum_scrolling = False
+        self.last_drag_time = None
+        self.drag_history = []  # Track recent drag movements for velocity calculation
 
     def set_cover_image(self, image_path):
         self.cover_image = QImage(image_path)
@@ -444,6 +487,10 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     index_delta = self._scroll_to - self._scroll_from
                     scroll_offset = index_delta * smooth_progress
                 
+                # Add drag offset (user is dragging with mouse)
+                if hasattr(self, 'drag_offset'):
+                    scroll_offset += self.drag_offset
+                
                 # Expand the range during scrolling to show covers moving in/out
                 extra_range = 0
                 if getattr(self, '_scrolling', False):
@@ -543,15 +590,92 @@ class CoverFlowGLWidget(QOpenGLWidget):
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
+            from PyQt5.QtCore import QTime
+            self.drag_start_x = event.x()
             self.last_mouse_x = event.x()
+            self.drag_offset = 0.0
+            self.is_momentum_scrolling = False
+            self.drag_velocity = 0.0
+            self.last_drag_time = QTime.currentTime()
+            self.drag_history = []
+            
+            # Stop any ongoing scroll animation
+            if hasattr(self, '_scrolling') and self._scrolling:
+                self._scrolling = False
+                if hasattr(self, '_scroll_timer') and self._scroll_timer:
+                    try:
+                        self.killTimer(self._scroll_timer)
+                    except:
+                        pass
+                    self._scroll_timer = None
 
     def mouseMoveEvent(self, event):
         if self.last_mouse_x is not None:
+            from PyQt5.QtCore import QTime
+            import math
+            current_time = QTime.currentTime()
             dx = event.x() - self.last_mouse_x
-            self.y_rotation += dx * 0.5
+            
+            # Convert pixel movement to cover offset
+            # We need to calculate how much of the world space one pixel represents
+            # at the current zoom level and projection settings
+            
+            # Camera distance from origin
+            z = 3.0 + self.zoom_level
+            
+            # FOV is 30 degrees, convert to radians
+            fov_rad = math.radians(30.0)
+            
+            # Calculate the width of the view frustum at distance z
+            # Using tan(fov/2) * distance * 2
+            view_height = 2.0 * z * math.tan(fov_rad / 2.0)
+            aspect = self.width() / self.height() if self.height() != 0 else 1.0
+            view_width = view_height * aspect
+            
+            # Pixels per world unit
+            pixels_per_unit = self.width() / view_width
+            
+            # Cover spacing is 0.85 world units
+            spacing = 0.85
+            pixels_per_cover = pixels_per_unit * spacing
+            
+            # Convert mouse movement to cover offset
+            # Negative to match intuitive drag direction (drag right = scroll left)
+            cover_delta = -dx / pixels_per_cover
+            
+            self.drag_offset += cover_delta
+            
+            # Track movement history for velocity calculation
+            elapsed = self.last_drag_time.msecsTo(current_time)
+            if elapsed > 0:
+                self.drag_history.append((cover_delta, elapsed))
+                # Keep only recent history (last 100ms)
+                total_time = 0
+                for i in range(len(self.drag_history) - 1, -1, -1):
+                    total_time += self.drag_history[i][1]
+                    if total_time > 100:
+                        self.drag_history = self.drag_history[i:]
+                        break
+            
             self.last_mouse_x = event.x()
+            self.last_drag_time = current_time
             self.update()
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.LeftButton:
             self.last_mouse_x = None
+            
+            # Calculate velocity from recent drag history
+            if len(self.drag_history) > 0:
+                total_delta = sum(d[0] for d in self.drag_history)
+                total_time = sum(d[1] for d in self.drag_history)
+                if total_time > 0:
+                    # Velocity in covers per millisecond
+                    self.drag_velocity = total_delta / total_time
+                    # Apply momentum if velocity is significant
+                    if abs(self.drag_velocity) > 0.001:
+                        self.is_momentum_scrolling = True
+                        if not hasattr(self, '_momentum_timer') or not self._momentum_timer:
+                            self._momentum_timer = self.startTimer(16)  # 60 FPS
+            
+            self.drag_history = []
