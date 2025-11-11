@@ -158,7 +158,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # Apply friction
             self.drag_velocity *= friction
             
-            # Stop if velocity is very low and snap to nearest cover
+            # Stop if velocity is very low - just stop, don't snap
             if abs(self.drag_velocity) < 0.0001:
                 self.is_momentum_scrolling = False
                 try:
@@ -166,21 +166,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 except:
                     pass
                 self._momentum_timer = None
-                
-                # Snap to nearest cover
-                nearest_index = round(self.drag_offset)
-                snap_target = self._current_index - nearest_index
-                
-                # Clamp to valid range
-                if hasattr(self, '_model'):
-                    snap_target = max(0, min(self._model.rowCount() - 1, snap_target))
-                    
-                    # Start scroll animation to snap position
-                    if snap_target != self._current_index:
-                        self.setModelAndIndex(self._model, snap_target)
-                
-                # Reset drag offset
-                self.drag_offset = 0.0
+                # Keep the drag_offset where it stopped
+                # Don't reset it or trigger any animations
             
             self.update()
     wheelMovieChange = pyqtSignal(int)  # +1 for next, -1 for previous
@@ -593,7 +580,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             from PyQt5.QtCore import QTime
             self.drag_start_x = event.x()
             self.last_mouse_x = event.x()
-            self.drag_offset = 0.0
+            # Don't reset drag_offset - continue from where we left off
             self.is_momentum_scrolling = False
             self.drag_velocity = 0.0
             self.last_drag_time = QTime.currentTime()
@@ -608,6 +595,14 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     except:
                         pass
                     self._scroll_timer = None
+            
+            # Stop any ongoing momentum
+            if hasattr(self, '_momentum_timer') and self._momentum_timer:
+                try:
+                    self.killTimer(self._momentum_timer)
+                except:
+                    pass
+                self._momentum_timer = None
 
     def mouseMoveEvent(self, event):
         if self.last_mouse_x is not None:
