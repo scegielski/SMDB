@@ -27,11 +27,12 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 # Stop any existing animation timers
                 if hasattr(self, '_animating') and self._animating:
                     self._animating = False
-                    if hasattr(self, '_anim_timer'):
+                    if hasattr(self, '_anim_timer') and self._anim_timer:
                         try:
                             self.killTimer(self._anim_timer)
                         except:
                             pass
+                        self._anim_timer = None
                 
                 # Start smooth scroll animation
                 self._scroll_from = old_index
@@ -117,7 +118,11 @@ class CoverFlowGLWidget(QOpenGLWidget):
             if self._anim_progress >= 1.0:
                 self._anim_progress = 1.0
                 self._animating = False
-                self.killTimer(self._anim_timer)
+                try:
+                    self.killTimer(self._anim_timer)
+                except:
+                    pass
+                self._anim_timer = None
                 self._prev_cover_image = None
                 self._prev_texture_id = None
             self.update()
@@ -129,7 +134,11 @@ class CoverFlowGLWidget(QOpenGLWidget):
             if self._scroll_progress >= 1.0:
                 self._scroll_progress = 1.0
                 self._scrolling = False
-                self.killTimer(self._scroll_timer)
+                try:
+                    self.killTimer(self._scroll_timer)
+                except:
+                    pass
+                self._scroll_timer = None
                 # Now update the current index at the end of the animation
                 self._current_index = self._scroll_to
                 # Apply pending cover image if one was stored
