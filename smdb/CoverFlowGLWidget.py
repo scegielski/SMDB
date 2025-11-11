@@ -440,7 +440,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 if getattr(self, '_scrolling', False):
                     extra_range = abs(self._scroll_to - self._scroll_from)
                 
-                # Draw covers from bottom to top (farthest to nearest for proper depth)
+                # Draw covers from left to right (farthest to nearest for proper depth)
                 covers_drawn = 0
                 for offset in range(-num_surrounding - extra_range, num_surrounding + extra_range + 1):
                     idx = self._current_index + offset
@@ -481,16 +481,16 @@ class CoverFlowGLWidget(QOpenGLWidget):
                         quad_w = max_quad_w * 0.8
                         quad_h = quad_w / aspect
                     
-                    # Position the cover vertically
+                    # Position the cover horizontally (changed from vertical)
                     # Apply scroll offset during animation
                     effective_offset = offset - scroll_offset
-                    y_offset = effective_offset * vertical_spacing
+                    x_offset = effective_offset * vertical_spacing  # Using same spacing value, but horizontally
                     
                     # Slight opacity/brightness change for non-current covers
                     alpha = 1.0 if offset == 0 else 0.7
                     
                     glPushMatrix()
-                    glTranslatef(0.0, -y_offset, -z)
+                    glTranslatef(x_offset, 0.0, -z)  # Changed from (0.0, -y_offset, -z)
                     glRotatef(self.y_rotation, 0.0, 1.0, 0.0)
                     
                     # Apply opacity for non-current covers
