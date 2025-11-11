@@ -154,17 +154,17 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 self.zoom_level -= zoom_step
             elif delta < 0:
                 self.zoom_level += zoom_step
-            # Clamp zoom_level between -2.0 and 2.0
-            self.zoom_level = max(-2.0, min(2.0, self.zoom_level))
+            # Clamp zoom_level between -2.0 and 4.0 (increased max for more surrounding covers)
+            self.zoom_level = max(-2.0, min(4.0, self.zoom_level))
             self.update()
             event.accept()  # Prevent propagation to parent (no text size change)
         else:
             if delta > 0:
-                self.animate_cover_transition(-1)
-                self.wheelMovieChange.emit(-1)
-            elif delta < 0:
                 self.animate_cover_transition(1)
                 self.wheelMovieChange.emit(1)
+            elif delta < 0:
+                self.animate_cover_transition(-1)
+                self.wheelMovieChange.emit(-1)
             event.accept()
 
     def __init__(self, parent=None):
@@ -323,17 +323,17 @@ class CoverFlowGLWidget(QOpenGLWidget):
         # Determine how many surrounding covers to show based on zoom level
         # Always render at least 3 above and below for animation
         # At zoom_level <= 0.3: render 3 surrounding but only show current (others off-screen)
-        # As zoom increases (positive), show more surrounding covers (up to 5 above and below)
+        # As zoom increases (positive), show more surrounding covers (up to 7 above and below)
         min_surrounding = 3  # Always render at least 3 for smooth transitions
-        max_surrounding = 5  # Maximum when fully zoomed out
+        max_surrounding = 7  # Maximum when fully zoomed out
         
         if zoom_level <= 0.3:
             num_surrounding = min_surrounding
             # When zoomed in, we'll position others far off-screen
             show_surrounding = False
         else:
-            # Gradually increase from 3 to 5 as zoom goes from 0.3 to 2.0
-            num_surrounding = max(min_surrounding, int(min(max_surrounding, min_surrounding + (zoom_level - 0.3) / 0.34 * (max_surrounding - min_surrounding))))
+            # Gradually increase from 3 to 7 as zoom goes from 0.3 to 4.0
+            num_surrounding = max(min_surrounding, int(min(max_surrounding, min_surrounding + (zoom_level - 0.3) / 3.7 * (max_surrounding - min_surrounding))))
             show_surrounding = True
         
         # Animation: dual covers (only when not showing surrounding covers and not scrolling)
