@@ -211,7 +211,7 @@ class FilterWidget(QtWidgets.QFrame):
             if self.filterMinCountCheckbox.isChecked() and count < self.filterMinCountSpinBox.value():
                 continue
 
-            nameItem = QtWidgets.QTableWidgetItem(name)
+            nameItem = QtWidgets.QTableWidgetItem(str(name))
             self.filterTable.setItem(row, 0, nameItem)
             countItem = QtWidgets.QTableWidgetItem('%04d' % count)
             self.filterTable.setItem(row, 1, countItem)
