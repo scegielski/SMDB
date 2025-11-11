@@ -24,16 +24,27 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # Just update the index, keep existing cache
             self._current_index = current_index
             
-            # If in multi-cover mode, animate the transition
-            zoom_level = getattr(self, 'zoom_level', 0.0)
-            if zoom_level > 0.3 and old_index != current_index:
+            # Always animate the transition when index changes (even when zoomed in)
+            if old_index != current_index:
+                # Stop any existing animation timers
+                if hasattr(self, '_animating') and self._animating:
+                    self._animating = False
+                    if hasattr(self, '_anim_timer'):
+                        try:
+                            self.killTimer(self._anim_timer)
+                        except:
+                            pass
+                
                 # Start smooth scroll animation
                 self._scroll_from = old_index
                 self._scroll_to = current_index
                 self._scroll_progress = 0.0
                 self._scrolling = True
-                if hasattr(self, '_scroll_timer'):
-                    self.killTimer(self._scroll_timer)
+                if hasattr(self, '_scroll_timer') and self._scroll_timer:
+                    try:
+                        self.killTimer(self._scroll_timer)
+                    except:
+                        pass
                 self._scroll_timer = self.startTimer(16)  # ~60 FPS
                 from PyQt5.QtCore import QElapsedTimer
                 self._scroll_elapsed = QElapsedTimer()
@@ -95,7 +106,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         self.update()
 
     def timerEvent(self, event):
-        if getattr(self, '_animating', False):
+        if getattr(self, '_animating', False) and hasattr(self, '_anim_timer') and event.timerId() == self._anim_timer:
             # Use elapsed time for constant speed
             duration_ms = 740  # Animation duration in ms (slowed down by 0.5x)
             elapsed_ms = self._anim_elapsed.elapsed() if hasattr(self, '_anim_elapsed') else 0
@@ -107,9 +118,9 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 self._prev_cover_image = None
                 self._prev_texture_id = None
             self.update()
-        elif getattr(self, '_scrolling', False):
+        elif getattr(self, '_scrolling', False) and hasattr(self, '_scroll_timer') and event.timerId() == self._scroll_timer:
             # Smooth scroll animation for multi-cover mode
-            duration_ms = 400  # Faster scroll animation
+            duration_ms = 600  # Slower scroll animation for visibility
             elapsed_ms = self._scroll_elapsed.elapsed() if hasattr(self, '_scroll_elapsed') else 0
             self._scroll_progress = min(1.0, elapsed_ms / duration_ms)
             if self._scroll_progress >= 1.0:
@@ -297,15 +308,23 @@ class CoverFlowGLWidget(QOpenGLWidget):
         z += zoom_level
         
         # Determine how many surrounding covers to show based on zoom level
-        # At zoom_level <= 0.3: show just current (or animating pair)
+        # Always render at least 3 above and below for animation
+        # At zoom_level <= 0.3: render 3 surrounding but only show current (others off-screen)
         # As zoom increases (positive), show more surrounding covers (up to 5 above and below)
-        num_surrounding = 0
-        if zoom_level > 0.3:
-            # Gradually increase from 1 to 5 as zoom goes from 0.3 to 2.0
-            num_surrounding = max(1, int(min(5, (zoom_level - 0.3) / 0.34 * 5)))
+        min_surrounding = 3  # Always render at least 3 for smooth transitions
+        max_surrounding = 5  # Maximum when fully zoomed out
         
-        # Animation: dual covers (only when not showing surrounding covers)
-        if getattr(self, '_animating', False) and self._prev_cover_image is not None and num_surrounding == 0:
+        if zoom_level <= 0.3:
+            num_surrounding = min_surrounding
+            # When zoomed in, we'll position others far off-screen
+            show_surrounding = False
+        else:
+            # Gradually increase from 3 to 5 as zoom goes from 0.3 to 2.0
+            num_surrounding = max(min_surrounding, int(min(max_surrounding, min_surrounding + (zoom_level - 0.3) / 0.34 * (max_surrounding - min_surrounding))))
+            show_surrounding = True
+        
+        # Animation: dual covers (only when not showing surrounding covers and not scrolling)
+        if getattr(self, '_animating', False) and self._prev_cover_image is not None and not show_surrounding and not getattr(self, '_scrolling', False):
             progress = self._anim_progress
             smooth_progress = progress * progress * (3 - 2 * progress)
             direction = getattr(self, '_anim_direction', 1)
@@ -372,8 +391,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     curr_texture_id = self.createTextureFromQImage(self.cover_image)
                 self.drawVHSBox(curr_quad_w, curr_quad_h, curr_texture_id)
             glPopMatrix()
-        elif num_surrounding > 0:
-            # Show multiple covers (current + surrounding)
+        else:
+            # Multi-cover rendering (always active, even when zoomed in)
             # Always show at least the current cover even if we can't show surrounding ones
             has_index = hasattr(self, '_current_index')
             has_model = hasattr(self, '_model')
@@ -393,7 +412,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
                         quad_h = quad_w / aspect
                     self.drawVHSBox(quad_w, quad_h, self.texture_id)
             else:
-                vertical_spacing = 0.85  # Spacing between covers
+                vertical_spacing = 0.85  # Fixed spacing between covers
                 
                 # Calculate scroll offset for smooth animation
                 scroll_offset = 0.0
@@ -472,31 +491,6 @@ class CoverFlowGLWidget(QOpenGLWidget):
                         glColor4f(1.0, 1.0, 1.0, 1.0)
                     
                     glPopMatrix()
-        else:
-            # Normal render (single cover) with its own quad dimensions
-            glTranslatef(0.0, 0.0, -z)
-            glRotatef(self.y_rotation, 0.0, 1.0, 0.0)
-            curr_texture_id = self.texture_id
-            curr_quad_geom = None
-            if hasattr(self, '_current_index'):
-                _, curr_texture_id, curr_quad_geom = self.getCachedCover(self._current_index)
-            
-            # Calculate current cover's quad dimensions
-            if curr_quad_geom:
-                curr_aspect, w, h = curr_quad_geom
-            else:
-                curr_aspect = self.cover_image.width() / self.cover_image.height() if self.cover_image and not self.cover_image.isNull() and self.cover_image.height() != 0 else 1.0
-            
-            curr_quad_h = max_quad_h
-            curr_quad_w = curr_aspect * curr_quad_h
-            if curr_quad_w > max_quad_w:
-                curr_quad_w = max_quad_w
-                curr_quad_h = curr_quad_w / curr_aspect
-            
-            if self.cover_image and not self.cover_image.isNull():
-                if curr_texture_id is None:
-                    curr_texture_id = self.createTextureFromQImage(self.cover_image)
-                self.drawVHSBox(curr_quad_w, curr_quad_h, curr_texture_id)
 
     def createTextureFromQImage(self, qimage):
         qimage = qimage.convertToFormat(QImage.Format_RGBA8888)
