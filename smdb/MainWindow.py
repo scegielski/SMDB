@@ -2534,7 +2534,13 @@ class MainWindow(QtWidgets.QMainWindow):
         movieList = []
         for item in self.primaryFilterWidget.filterTable.selectedItems():
             name = self.primaryFilterWidget.filterTable.item(item.row(), 0).text()
-            movies = self.moviesSmdbData[filterByKey][name]['movies']
+            # Convert string back to appropriate type for dictionary lookup
+            lookup_key = name
+            if filterByKey == 'ratings':
+                lookup_key = float(name)
+            elif filterByKey == 'years':
+                lookup_key = int(name)
+            movies = self.moviesSmdbData[filterByKey][lookup_key]['movies']
             for movie in movies:
                 movieList.append(movie)
 
@@ -2550,7 +2556,13 @@ class MainWindow(QtWidgets.QMainWindow):
                 foundMovie = False
                 for item in self.secondaryFilterWidget.filterTable.selectedItems():
                     name = self.secondaryFilterWidget.filterTable.item(item.row(), 0).text()
-                    movies = self.moviesSmdbData[filter2ByKey][name]['movies']
+                    # Convert string back to appropriate type for dictionary lookup
+                    lookup_key = name
+                    if filter2ByKey == 'ratings':
+                        lookup_key = float(name)
+                    elif filter2ByKey == 'years':
+                        lookup_key = int(name)
+                    movies = self.moviesSmdbData[filter2ByKey][lookup_key]['movies']
                     if movie in movies:
                         foundMovie = True
                         break
