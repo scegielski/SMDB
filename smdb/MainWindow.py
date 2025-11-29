@@ -119,15 +119,24 @@ class MainWindow(QtWidgets.QMainWindow):
             if hasattr(self, 'coverFlowWidget') and hasattr(self, 'currentModel'):
                 self.coverFlowWidget.setModelAndIndex(sourceModel, sourceRow)
             
-            # Block selection change handling and store pending info
-            self._block_selection_change = True
-            self._pending_selection_row = next_row
-            self._pending_model_index = modelIndex
-            self._pending_source_model = sourceModel
-            self._pending_proxy_model = model if proxy else None
+            # Check if user is actively dragging
+            is_dragging = (hasattr(self.coverFlowWidget, 'last_mouse_x') and self.coverFlowWidget.last_mouse_x is not None) or \
+                         (hasattr(self.coverFlowWidget, 'is_momentum_scrolling') and self.coverFlowWidget.is_momentum_scrolling)
             
-            # Update the selection (but tableSelectionChanged will be blocked)
-            view.selectRow(next_row)
+            if is_dragging:
+                # During dragging, update views immediately without blocking
+                view.selectRow(next_row)
+                self.clickedTable(modelIndex, sourceModel, model if proxy else None)
+            else:
+                # Block selection change handling and store pending info
+                self._block_selection_change = True
+                self._pending_selection_row = next_row
+                self._pending_model_index = modelIndex
+                self._pending_source_model = sourceModel
+                self._pending_proxy_model = model if proxy else None
+                
+                # Update the selection (but tableSelectionChanged will be blocked)
+                view.selectRow(next_row)
     
     def onCoverFlowAnimationComplete(self, index):
         """Called when the cover flow scroll animation completes"""
@@ -140,11 +149,15 @@ class MainWindow(QtWidgets.QMainWindow):
                             self._pending_source_model, 
                             self._pending_proxy_model)
             
-            # Clean up pending attributes
-            delattr(self, '_pending_selection_row')
-            delattr(self, '_pending_model_index')
-            delattr(self, '_pending_source_model')
-            delattr(self, '_pending_proxy_model')
+            # Clean up pending attributes (only if they exist)
+            if hasattr(self, '_pending_selection_row'):
+                delattr(self, '_pending_selection_row')
+            if hasattr(self, '_pending_model_index'):
+                delattr(self, '_pending_model_index')
+            if hasattr(self, '_pending_source_model'):
+                delattr(self, '_pending_source_model')
+            if hasattr(self, '_pending_proxy_model'):
+                delattr(self, '_pending_proxy_model')
 
     def __init__(self):
         super(MainWindow, self).__init__()

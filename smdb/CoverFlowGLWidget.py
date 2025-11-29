@@ -31,6 +31,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             if old_index != current_index:
                 if is_dragging:
                     # User is dragging - just update index silently without animation
+                    # (Views will be updated directly in MainWindow.coverFlowWheelNavigate)
                     self._current_index = current_index
                 else:
                     # Stop any existing animation timers
