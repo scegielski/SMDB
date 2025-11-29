@@ -195,7 +195,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
     scrollAnimationComplete = pyqtSignal(int)  # Emitted when scroll animation completes with the new index
     
     def wheelEvent(self, event):
-        # Zoom in/out if Ctrl is held, otherwise animate cover change
+        # Zoom in/out if Ctrl is held, otherwise add momentum to drag system
         delta = event.angleDelta().y()
         if event.modifiers() & Qt.ControlModifier:
             # Zoom: adjust zoom_level, clamp to reasonable range
@@ -211,12 +211,24 @@ class CoverFlowGLWidget(QOpenGLWidget):
             self.update()
             event.accept()  # Prevent propagation to parent (no text size change)
         else:
+            # Add momentum to the drag system instead of triggering separate animation
+            # This unifies wheel scrolling with mouse dragging
+            # Each wheel click should move exactly one cover (threshold is 0.5)
+            # With friction of 0.92, we need to calculate the initial velocity to travel ~1.0 cover
+            velocity_impulse = 0.005  # Tuned to move approximately one cover per click
             if delta > 0:
-                self.animate_cover_transition(1)
-                self.wheelMovieChange.emit(1)
+                # Scroll up/previous
+                self.drag_velocity += velocity_impulse
             elif delta < 0:
-                self.animate_cover_transition(-1)
-                self.wheelMovieChange.emit(-1)
+                # Scroll down/next
+                self.drag_velocity -= velocity_impulse
+            
+            # Start momentum scrolling if not already active
+            if not self.is_momentum_scrolling:
+                self.is_momentum_scrolling = True
+                if not hasattr(self, '_momentum_timer') or not self._momentum_timer:
+                    self._momentum_timer = self.startTimer(16)  # 60 FPS
+            
             event.accept()
 
     def __init__(self, parent=None):
