@@ -233,13 +233,27 @@ class CoverFlowGLWidget(QOpenGLWidget):
             if hasattr(self, '_model') and hasattr(self, '_current_index'):
                 threshold = 0.5  # Half a cover width
                 if self.drag_offset >= threshold:
-                    # Momentum carried us to previous movie
-                    self.drag_offset -= 1.0
-                    self.wheelMovieChange.emit(1)  # Previous movie
+                    # Positive offset - moving to next movie (direction +1)
+                    if not self._is_at_boundary(1):
+                        # Momentum carried us to next movie
+                        self.drag_offset -= 1.0
+                        self.wheelMovieChange.emit(1)  # Next movie (direction +1)
+                    else:
+                        # At boundary - stop momentum
+                        self.drag_offset = 0.0
+                        self.drag_velocity = 0.0
+                        self.is_momentum_scrolling = False
                 elif self.drag_offset <= -threshold:
-                    # Momentum carried us to next movie
-                    self.drag_offset += 1.0
-                    self.wheelMovieChange.emit(-1)  # Next movie
+                    # Negative offset - moving to previous movie (direction -1)
+                    if not self._is_at_boundary(-1):
+                        # Momentum carried us to previous movie
+                        self.drag_offset += 1.0
+                        self.wheelMovieChange.emit(-1)  # Previous movie (direction -1)
+                    else:
+                        # At boundary - stop momentum
+                        self.drag_offset = 0.0
+                        self.drag_velocity = 0.0
+                        self.is_momentum_scrolling = False
             
             # Apply friction
             self.drag_velocity *= friction
@@ -287,6 +301,39 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 self._settling_timer = None
             
             self.update()
+    
+    def _is_at_boundary(self, direction):
+        """Check if we're at a boundary in the given direction.
+        direction: +1 for next, -1 for previous
+        Returns True if at boundary, False otherwise"""
+        if not hasattr(self, '_model') or not hasattr(self, '_current_index'):
+            return True
+        
+        if not hasattr(self, '_table_view') or not self._table_view:
+            # No filtering - simple boundary check
+            if direction > 0:
+                return self._current_index >= self._model.rowCount() - 1
+            else:
+                return self._current_index <= 0
+        
+        # With filtering - find all visible rows and check position
+        visible_rows = []
+        for idx in range(self._model.rowCount()):
+            if not self._table_view.isRowHidden(idx):
+                visible_rows.append(idx)
+        
+        if not visible_rows:
+            return True
+        
+        try:
+            current_pos = visible_rows.index(self._current_index)
+            if direction > 0:
+                return current_pos >= len(visible_rows) - 1
+            else:
+                return current_pos <= 0
+        except ValueError:
+            return True
+    
     wheelMovieChange = pyqtSignal(int)  # +1 for next, -1 for previous
     scrollAnimationComplete = pyqtSignal(int)  # Emitted when scroll animation completes with the new index
     
@@ -323,11 +370,13 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # With friction of 0.92, we need to calculate the initial velocity to travel ~1.0 cover
             velocity_impulse = 0.005  # Tuned to move approximately one cover per click
             if delta > 0:
-                # Scroll up/next
-                self.drag_velocity -= velocity_impulse
+                # Scroll up/next - only add velocity if not at boundary
+                if not self._is_at_boundary(1):
+                    self.drag_velocity -= velocity_impulse
             elif delta < 0:
-                # Scroll down/previous
-                self.drag_velocity += velocity_impulse
+                # Scroll down/previous - only add velocity if not at boundary
+                if not self._is_at_boundary(-1):
+                    self.drag_velocity += velocity_impulse
             
             # Start momentum scrolling if not already active
             if not self.is_momentum_scrolling:
@@ -855,20 +904,80 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # Negative to match intuitive drag direction (drag right = scroll left)
             cover_delta = -dx / pixels_per_cover
             
-            self.drag_offset += cover_delta
+            # Check boundary before applying delta
+            new_offset = self.drag_offset + cover_delta
+            
+            # Prevent dragging past boundaries
+            # Note: Due to the coordinate system and drag offset calculation:
+            # - Dragging RIGHT (mouse right) makes covers move right, showing what's on the LEFT (earlier movies)
+            # - This creates NEGATIVE offset, which would cycle to NEXT movie (emit -1)
+            # - At FIRST movie, we need to BLOCK NEGATIVE offset (can't show earlier movies)
+            # - Dragging LEFT (mouse left) makes covers move left, showing what's on the RIGHT (later movies)  
+            # - This creates POSITIVE offset, which would cycle to PREVIOUS movie (emit 1)
+            # - At LAST movie, we need to BLOCK POSITIVE offset (can't show later movies)
+            at_first = self._is_at_boundary(-1)
+            at_last = self._is_at_boundary(1)
+            
+            if at_first and at_last:
+                # Only one movie - no dragging at all
+                self.drag_offset = 0
+                cover_delta = 0
+            elif at_first:
+                # At first movie - can't show movies before it
+                # Block negative offset ONLY (don't let offset go below 0)
+                if new_offset < 0:
+                    # Clamp to 0, don't allow negative
+                    if self.drag_offset > 0:
+                        # Currently positive, allow movement toward 0
+                        self.drag_offset = max(0, new_offset)
+                    else:
+                        # Already at 0, block further negative movement
+                        self.drag_offset = 0
+                    cover_delta = 0
+                else:
+                    # Positive offset is fine (showing next movies)
+                    self.drag_offset += cover_delta
+            elif at_last:
+                # At last movie - can't show movies after it
+                # Block positive offset ONLY (don't let offset go above 0)
+                if new_offset > 0:
+                    # Clamp to 0, don't allow positive
+                    if self.drag_offset < 0:
+                        # Currently negative, allow movement toward 0
+                        self.drag_offset = min(0, new_offset)
+                    else:
+                        # Already at 0, block further positive movement
+                        self.drag_offset = 0
+                    cover_delta = 0
+                else:
+                    # Negative offset is fine (showing previous movies)
+                    self.drag_offset += cover_delta
+            else:
+                # Not at boundary - allow any direction
+                self.drag_offset += cover_delta
             
             # Check if we've dragged past the threshold to cycle to next/previous movie
             # Similar to mouse wheel behavior
             if hasattr(self, '_model') and hasattr(self, '_current_index'):
                 threshold = 0.5  # Half a cover width
                 if self.drag_offset >= threshold:
-                    # Dragged left - move to previous movie (cycle to end if at start)
-                    self.drag_offset -= 1.0
-                    self.wheelMovieChange.emit(1)  # Previous movie
+                    # Positive offset - moving to next movie (direction +1)
+                    if not self._is_at_boundary(1):
+                        # Dragged left - move to next movie
+                        self.drag_offset -= 1.0
+                        self.wheelMovieChange.emit(1)  # Next movie (direction +1)
+                    else:
+                        # At boundary - clamp offset
+                        self.drag_offset = min(self.drag_offset, threshold * 0.9)
                 elif self.drag_offset <= -threshold:
-                    # Dragged right - move to next movie (cycle to start if at end)
-                    self.drag_offset += 1.0
-                    self.wheelMovieChange.emit(-1)  # Next movie
+                    # Negative offset - moving to previous movie (direction -1)
+                    if not self._is_at_boundary(-1):
+                        # Dragged right - move to previous movie
+                        self.drag_offset += 1.0
+                        self.wheelMovieChange.emit(-1)  # Previous movie (direction -1)
+                    else:
+                        # At boundary - clamp offset
+                        self.drag_offset = max(self.drag_offset, -threshold * 0.9)
             
             # Track movement history for velocity calculation
             elapsed = self.last_drag_time.msecsTo(current_time)

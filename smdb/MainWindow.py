@@ -104,17 +104,15 @@ class MainWindow(QtWidgets.QMainWindow):
         
         current_row = selected[0].row()
         
-        # Find next/previous visible row
+        # Find next/previous visible row (clamp at boundaries, no wrapping)
         next_row = current_row
         search_direction = 1 if direction > 0 else -1
         found = False
         for step in range(1, model.rowCount()):
             candidate = current_row + (step * search_direction)
-            # Wrap around
-            if candidate >= model.rowCount():
-                candidate = candidate % model.rowCount()
-            elif candidate < 0:
-                candidate = model.rowCount() + candidate
+            # Clamp to boundaries instead of wrapping
+            if candidate >= model.rowCount() or candidate < 0:
+                break  # Reached the end, stop searching
             
             if not view.isRowHidden(candidate):
                 next_row = candidate
@@ -122,7 +120,13 @@ class MainWindow(QtWidgets.QMainWindow):
                 break
         
         if not found or next_row == current_row:
-            return  # No visible rows to navigate to
+            # At boundary - stop momentum and reset offset in cover flow widget
+            if hasattr(self, 'coverFlowWidget'):
+                self.coverFlowWidget.drag_offset = 0.0
+                self.coverFlowWidget.drag_velocity = 0.0
+                if hasattr(self.coverFlowWidget, 'is_momentum_scrolling'):
+                    self.coverFlowWidget.is_momentum_scrolling = False
+            return  # No visible rows to navigate to or at boundary
         
         if next_row != current_row:
             # Get source index for the new row
