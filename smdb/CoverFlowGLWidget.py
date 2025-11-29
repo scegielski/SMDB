@@ -344,7 +344,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # Zoom: adjust zoom_level, clamp to reasonable range
             if not hasattr(self, 'zoom_level'):
                 self.zoom_level = 0.0
-            zoom_step = 0.2
+            zoom_step = 0.5  # Increased from 0.2 for faster zooming
             if delta > 0:
                 self.zoom_level -= zoom_step
             elif delta < 0:
