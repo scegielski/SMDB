@@ -98,6 +98,14 @@ class CoverFlowGLWidget(QOpenGLWidget):
             self._cover_cache = {}
             self._cover_cache_mutex = self.QMutex()
             self._start_async_cache()
+            
+            # Start timer to show title on initial load
+            from PyQt5.QtCore import QElapsedTimer
+            self._title_show_elapsed = QElapsedTimer()
+            self._title_show_elapsed.start()
+            if not hasattr(self, '_title_show_timer') or not self._title_show_timer:
+                self._title_show_timer = self.startTimer(16)
+            self._title_visible = False
 
     def _start_async_cache(self):
         # Start a background thread to cache cover images (textures created on-demand in main thread)
@@ -312,8 +320,37 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 except:
                     pass
                 self._settling_timer = None
+                
+                # Start timer to show title after being centered
+                if not hasattr(self, '_title_show_timer') or not self._title_show_timer:
+                    from PyQt5.QtCore import QElapsedTimer
+                    self._title_show_elapsed = QElapsedTimer()
+                    self._title_show_elapsed.start()
+                    self._title_show_timer = self.startTimer(16)  # Check every frame
+                    self._title_visible = False
             
             self.update()
+        elif hasattr(self, '_title_show_timer') and self._title_show_timer and event.timerId() == self._title_show_timer:
+            # Show title after being settled for a moment
+            if hasattr(self, '_title_show_elapsed'):
+                elapsed = self._title_show_elapsed.elapsed()
+                # Show title after 500ms of being centered and idle
+                if elapsed >= 500 and not self._title_visible:
+                    self._title_visible = True
+                    self.update()
+            
+            # Stop timer if user starts interacting again
+            if (hasattr(self, 'last_mouse_x') and self.last_mouse_x is not None) or \
+               getattr(self, 'is_momentum_scrolling', False) or \
+               getattr(self, '_scrolling', False) or \
+               abs(self.drag_offset) > 0.01:
+                self._title_visible = False
+                try:
+                    self.killTimer(self._title_show_timer)
+                except:
+                    pass
+                self._title_show_timer = None
+                self.update()
     
     def _is_at_boundary(self, direction):
         """Check if we're at a boundary in the given direction.
@@ -483,11 +520,11 @@ class CoverFlowGLWidget(QOpenGLWidget):
         half_h = height / 2
         half_d = depth / 2
         
-        # Front face (with texture)
-        if texture_id:
+        # Front face (with texture or placeholder)
+        if texture_id and texture_id != 0:
             glBindTexture(GL_TEXTURE_2D, texture_id)
             glEnable(GL_TEXTURE_2D)
-            glColor3f(1.0, 1.0, 1.0)  # White to show texture properly
+            # Don't override color here - use whatever was set before (for dimming effect)
             glBegin(GL_QUADS)
             glNormal3f(0.0, 0.0, 1.0)  # Normal pointing forward
             glTexCoord2f(0.0, 1.0); glVertex3f(-half_w, -half_h, half_d)
@@ -496,6 +533,16 @@ class CoverFlowGLWidget(QOpenGLWidget):
             glTexCoord2f(0.0, 0.0); glVertex3f(-half_w, half_h, half_d)
             glEnd()
             glDisable(GL_TEXTURE_2D)
+        else:
+            # No texture - draw placeholder front face
+            glColor3f(0.3, 0.3, 0.3)
+            glBegin(GL_QUADS)
+            glNormal3f(0.0, 0.0, 1.0)
+            glVertex3f(-half_w, -half_h, half_d)
+            glVertex3f(half_w, -half_h, half_d)
+            glVertex3f(half_w, half_h, half_d)
+            glVertex3f(-half_w, half_h, half_d)
+            glEnd()
         
         # Back face (dark gray)
         glColor3f(0.2, 0.2, 0.2)
@@ -579,7 +626,11 @@ class CoverFlowGLWidget(QOpenGLWidget):
         if zoom_level <= 0.3:
             num_surrounding = min_surrounding
             # When zoomed in, we'll position others far off-screen
-            show_surrounding = False
+            # EXCEPT when dragging - then show surrounding covers
+            is_dragging = (hasattr(self, 'last_mouse_x') and self.last_mouse_x is not None) or \
+                         getattr(self, 'is_momentum_scrolling', False) or \
+                         abs(getattr(self, 'drag_offset', 0.0)) > 0.01
+            show_surrounding = is_dragging
         else:
             # Gradually increase from 3 to 12 as zoom increases
             num_surrounding = max(min_surrounding, int(min(max_surrounding, min_surrounding + (zoom_level - 0.3) / 19.7 * (max_surrounding - min_surrounding))))
@@ -771,7 +822,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
                         continue
                     
                     # Create texture on-demand if not cached (OpenGL operations must be on main thread)
-                    if texture_id is None:
+                    if texture_id is None and cover_img and not cover_img.isNull():
                         texture_id = self.createTextureFromQImage(cover_img)
                         # Update cache with texture_id
                         with self.QMutexLocker(self._cover_cache_mutex):
@@ -805,17 +856,87 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     glTranslatef(x_offset, 0.0, -z)  # Changed from (0.0, -y_offset, -z)
                     glRotatef(self.y_rotation, 0.0, 1.0, 0.0)
                     
-                    # Apply opacity for non-current covers
+                    # Set opacity for non-current covers
                     if offset_from_current != 0:
-                        glColor4f(alpha, alpha, alpha, 1.0)
+                        glColor4f(0.7, 0.7, 0.7, 1.0)
+                    else:
+                        glColor4f(1.0, 1.0, 1.0, 1.0)
                     
                     self.drawVHSBox(quad_w, quad_h, texture_id)
                     
-                    # Reset color
-                    if offset_from_current != 0:
-                        glColor4f(1.0, 1.0, 1.0, 1.0)
+                    # Reset color to white
+                    glColor4f(1.0, 1.0, 1.0, 1.0)
                     
                     glPopMatrix()
+        
+        # Draw title overlay if visible
+        if getattr(self, '_title_visible', False) and hasattr(self, '_model') and hasattr(self, '_current_index'):
+            self._draw_title_overlay()
+
+    def _draw_title_overlay(self):
+        """Draw title and year text overlay using QPainter for anti-aliased text"""
+        from PyQt5.QtGui import QPainter, QFont, QColor, QPen
+        from PyQt5.QtCore import Qt, QRect
+        
+        # Get title and year from model
+        try:
+            if hasattr(self, '_proxy_model') and self._proxy_model and self._proxy_model == self._model:
+                # Map proxy to source
+                proxy_index = self._model.index(self._current_index, 0)
+                source_index = self._model.mapToSource(proxy_index)
+                source_row = source_index.row()
+                source_model = self._model.sourceModel()
+                title = source_model.getTitle(source_row)
+                year = source_model.getYear(source_row)
+            else:
+                title = self._model.getTitle(self._current_index)
+                year = self._model.getYear(self._current_index)
+            
+            text = f'"{title}" ({year})'
+        except:
+            return
+        
+        # Save OpenGL state before using QPainter
+        glPushAttrib(GL_ALL_ATTRIB_BITS)
+        glMatrixMode(GL_PROJECTION)
+        glPushMatrix()
+        glMatrixMode(GL_MODELVIEW)
+        glPushMatrix()
+        
+        # Use QPainter for anti-aliased text
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.TextAntialiasing)
+        
+        # Set up font
+        font = QFont("Arial", 16, QFont.Bold)
+        painter.setFont(font)
+        
+        # Get text metrics
+        fm = painter.fontMetrics()
+        text_width = fm.width(text)
+        text_height = fm.height()
+        
+        # Position above center
+        x = (self.width() - text_width) // 2
+        y = (self.height() // 2) - 100  # Above the cover
+        
+        # Draw shadow first
+        painter.setPen(QPen(QColor(0, 0, 0, 180), 2))
+        painter.drawText(x + 2, y + 2, text)
+        
+        # Draw main text
+        painter.setPen(QPen(QColor(255, 255, 255, 255), 1))
+        painter.drawText(x, y, text)
+        
+        painter.end()
+        
+        # Restore OpenGL state
+        glMatrixMode(GL_PROJECTION)
+        glPopMatrix()
+        glMatrixMode(GL_MODELVIEW)
+        glPopMatrix()
+        glPopAttrib()
 
     def createTextureFromQImage(self, qimage):
         qimage = qimage.convertToFormat(QImage.Format_RGBA8888)
