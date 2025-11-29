@@ -180,7 +180,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # Apply friction
             self.drag_velocity *= friction
             
-            # Stop if velocity is very low - just stop, don't snap
+            # Stop if velocity is very low - then start settling to center
             if abs(self.drag_velocity) < 0.0001:
                 self.is_momentum_scrolling = False
                 try:
@@ -188,8 +188,39 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 except:
                     pass
                 self._momentum_timer = None
-                # Keep the drag_offset where it stopped
-                # Don't reset it or trigger any animations
+                
+                # Start settling animation to snap to nearest cover (offset 0)
+                if abs(self.drag_offset) > 0.01:  # Only settle if noticeably off-center
+                    self.is_settling = True
+                    self.settling_start_offset = self.drag_offset
+                    self.settling_progress = 0.0
+                    self._settling_timer = self.startTimer(16)  # 60 FPS
+                    from PyQt5.QtCore import QElapsedTimer
+                    self._settling_elapsed = QElapsedTimer()
+                    self._settling_elapsed.start()
+            
+            self.update()
+        elif getattr(self, 'is_settling', False) and hasattr(self, '_settling_timer') and event.timerId() == self._settling_timer:
+            # Smooth settling animation to snap to center (offset 0)
+            duration_ms = 200  # Quick settling animation
+            elapsed_ms = self._settling_elapsed.elapsed() if hasattr(self, '_settling_elapsed') else 0
+            self.settling_progress = min(1.0, elapsed_ms / duration_ms)
+            
+            # Ease out cubic for smooth deceleration
+            progress = self.settling_progress
+            eased_progress = 1 - pow(1 - progress, 3)
+            
+            # Interpolate from settling_start_offset to 0
+            self.drag_offset = self.settling_start_offset * (1 - eased_progress)
+            
+            if self.settling_progress >= 1.0:
+                self.drag_offset = 0.0
+                self.is_settling = False
+                try:
+                    self.killTimer(self._settling_timer)
+                except:
+                    pass
+                self._settling_timer = None
             
             self.update()
     wheelMovieChange = pyqtSignal(int)  # +1 for next, -1 for previous
@@ -212,6 +243,16 @@ class CoverFlowGLWidget(QOpenGLWidget):
             self.update()
             event.accept()  # Prevent propagation to parent (no text size change)
         else:
+            # Stop any ongoing settling animation
+            if hasattr(self, 'is_settling') and self.is_settling:
+                self.is_settling = False
+                if hasattr(self, '_settling_timer') and self._settling_timer:
+                    try:
+                        self.killTimer(self._settling_timer)
+                    except:
+                        pass
+                    self._settling_timer = None
+            
             # Add momentum to the drag system instead of triggering separate animation
             # This unifies wheel scrolling with mouse dragging
             # Each wheel click should move exactly one cover (threshold is 0.5)
@@ -637,6 +678,16 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 except:
                     pass
                 self._momentum_timer = None
+            
+            # Stop any ongoing settling animation
+            if hasattr(self, 'is_settling') and self.is_settling:
+                self.is_settling = False
+                if hasattr(self, '_settling_timer') and self._settling_timer:
+                    try:
+                        self.killTimer(self._settling_timer)
+                    except:
+                        pass
+                    self._settling_timer = None
 
     def mouseMoveEvent(self, event):
         if self.last_mouse_x is not None:
@@ -708,6 +759,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             self.last_mouse_x = None
             
             # Calculate velocity from recent drag history
+            has_momentum = False
             if len(self.drag_history) > 0:
                 total_delta = sum(d[0] for d in self.drag_history)
                 total_time = sum(d[1] for d in self.drag_history)
@@ -717,7 +769,18 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     # Apply momentum if velocity is significant
                     if abs(self.drag_velocity) > 0.001:
                         self.is_momentum_scrolling = True
+                        has_momentum = True
                         if not hasattr(self, '_momentum_timer') or not self._momentum_timer:
                             self._momentum_timer = self.startTimer(16)  # 60 FPS
+            
+            # If no momentum, start settling immediately to snap to center
+            if not has_momentum and abs(self.drag_offset) > 0.01:
+                self.is_settling = True
+                self.settling_start_offset = self.drag_offset
+                self.settling_progress = 0.0
+                self._settling_timer = self.startTimer(16)  # 60 FPS
+                from PyQt5.QtCore import QElapsedTimer
+                self._settling_elapsed = QElapsedTimer()
+                self._settling_elapsed.start()
             
             self.drag_history = []
