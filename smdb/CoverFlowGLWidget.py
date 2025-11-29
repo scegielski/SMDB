@@ -22,34 +22,43 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # Store the old index for animation
             old_index = self._current_index
             
+            # Check if user is actively dragging
+            is_dragging = (hasattr(self, 'last_mouse_x') and self.last_mouse_x is not None) or \
+                         (hasattr(self, 'is_momentum_scrolling') and self.is_momentum_scrolling)
+            
             # Always animate the transition when index changes (even when zoomed in)
+            # BUT skip animation if user is actively dragging
             if old_index != current_index:
-                # Stop any existing animation timers
-                if hasattr(self, '_animating') and self._animating:
-                    self._animating = False
-                    if hasattr(self, '_anim_timer') and self._anim_timer:
+                if is_dragging:
+                    # User is dragging - just update index silently without animation
+                    self._current_index = current_index
+                else:
+                    # Stop any existing animation timers
+                    if hasattr(self, '_animating') and self._animating:
+                        self._animating = False
+                        if hasattr(self, '_anim_timer') and self._anim_timer:
+                            try:
+                                self.killTimer(self._anim_timer)
+                            except:
+                                pass
+                            self._anim_timer = None
+                    
+                    # Start smooth scroll animation
+                    self._scroll_from = old_index
+                    self._scroll_to = current_index
+                    self._scroll_progress = 0.0
+                    self._scrolling = True
+                    # Don't update _current_index yet - wait for animation to complete
+                    # This keeps the rendering centered on the correct index during animation
+                    if hasattr(self, '_scroll_timer') and self._scroll_timer:
                         try:
-                            self.killTimer(self._anim_timer)
+                            self.killTimer(self._scroll_timer)
                         except:
                             pass
-                        self._anim_timer = None
-                
-                # Start smooth scroll animation
-                self._scroll_from = old_index
-                self._scroll_to = current_index
-                self._scroll_progress = 0.0
-                self._scrolling = True
-                # Don't update _current_index yet - wait for animation to complete
-                # This keeps the rendering centered on the correct index during animation
-                if hasattr(self, '_scroll_timer') and self._scroll_timer:
-                    try:
-                        self.killTimer(self._scroll_timer)
-                    except:
-                        pass
-                self._scroll_timer = self.startTimer(16)  # ~60 FPS
-                from PyQt5.QtCore import QElapsedTimer
-                self._scroll_elapsed = QElapsedTimer()
-                self._scroll_elapsed.start()
+                    self._scroll_timer = self.startTimer(16)  # ~60 FPS
+                    from PyQt5.QtCore import QElapsedTimer
+                    self._scroll_elapsed = QElapsedTimer()
+                    self._scroll_elapsed.start()
             else:
                 # Index hasn't changed, just update
                 self._current_index = current_index
@@ -154,6 +163,18 @@ class CoverFlowGLWidget(QOpenGLWidget):
             
             # Apply velocity to offset
             self.drag_offset += self.drag_velocity * 16  # 16ms frame time
+            
+            # Check if momentum scrolling crosses the threshold to cycle movies
+            if hasattr(self, '_model') and hasattr(self, '_current_index'):
+                threshold = 0.5  # Half a cover width
+                if self.drag_offset >= threshold:
+                    # Momentum carried us to previous movie
+                    self.drag_offset -= 1.0
+                    self.wheelMovieChange.emit(1)  # Previous movie
+                elif self.drag_offset <= -threshold:
+                    # Momentum carried us to next movie
+                    self.drag_offset += 1.0
+                    self.wheelMovieChange.emit(-1)  # Next movie
             
             # Apply friction
             self.drag_velocity *= friction
@@ -639,6 +660,19 @@ class CoverFlowGLWidget(QOpenGLWidget):
             cover_delta = -dx / pixels_per_cover
             
             self.drag_offset += cover_delta
+            
+            # Check if we've dragged past the threshold to cycle to next/previous movie
+            # Similar to mouse wheel behavior
+            if hasattr(self, '_model') and hasattr(self, '_current_index'):
+                threshold = 0.5  # Half a cover width
+                if self.drag_offset >= threshold:
+                    # Dragged left - move to previous movie (cycle to end if at start)
+                    self.drag_offset -= 1.0
+                    self.wheelMovieChange.emit(1)  # Previous movie
+                elif self.drag_offset <= -threshold:
+                    # Dragged right - move to next movie (cycle to start if at end)
+                    self.drag_offset += 1.0
+                    self.wheelMovieChange.emit(-1)  # Next movie
             
             # Track movement history for velocity calculation
             elapsed = self.last_drag_time.msecsTo(current_time)
