@@ -152,7 +152,10 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 # Now update the current index at the end of the animation
                 self._current_index = self._scroll_to
                 # Apply pending cover image if one was stored
-                if hasattr(self, '_pending_cover_image') and self._pending_cover_image:
+                if hasattr(self, '_pending_cover_qimage') and self._pending_cover_qimage:
+                    self.set_cover_image_from_qimage(self._pending_cover_qimage)
+                    self._pending_cover_qimage = None
+                elif hasattr(self, '_pending_cover_image') and self._pending_cover_image:
                     self.set_cover_image(self._pending_cover_image)
                     self._pending_cover_image = None
                 # Emit signal to notify that animation is complete
@@ -296,6 +299,14 @@ class CoverFlowGLWidget(QOpenGLWidget):
 
     def set_cover_image(self, image_path):
         self.cover_image = QImage(image_path)
+        self.texture_id = None  # Force recreation of texture for new image
+        if not self.cover_image.isNull():
+            self.aspect_ratio = self.cover_image.width() / self.cover_image.height()
+        self.update()
+    
+    def set_cover_image_from_qimage(self, qimage):
+        """Set cover image from an already-loaded QImage to avoid duplicate file loading"""
+        self.cover_image = qimage
         self.texture_id = None  # Force recreation of texture for new image
         if not self.cover_image.isNull():
             self.aspect_ratio = self.cover_image.width() / self.cover_image.height()

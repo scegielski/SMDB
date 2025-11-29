@@ -2178,7 +2178,13 @@ class MainWindow(QtWidgets.QMainWindow):
                 coverFile = coverFilePng
 
         self.titleLabel.setText('"%s" (%s)' % (title, year))
-        self.showCoverFile(coverFile)
+        
+        # Load cover image once and share it
+        coverImage = None
+        if coverFile and os.path.exists(coverFile):
+            coverImage = QtGui.QImage(coverFile)
+        
+        self.showCoverFile(coverFile, coverImage)
 
         # Update Cover Flow tab with selected movie cover
         if hasattr(self, 'coverFlowWidget'):
@@ -2187,11 +2193,11 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.coverFlowWidget.setModelAndIndex(self.currentModel, self.currentSourceRow)
                 # Only update the cover image if not animating
                 if not getattr(self.coverFlowWidget, '_scrolling', False):
-                    if coverFile and os.path.exists(coverFile):
-                        self.coverFlowWidget.set_cover_image(coverFile)
+                    if coverImage and not coverImage.isNull():
+                        self.coverFlowWidget.set_cover_image_from_qimage(coverImage)
                 else:
                     # Store for later update when animation completes
-                    self.coverFlowWidget._pending_cover_image = coverFile
+                    self.coverFlowWidget._pending_cover_qimage = coverImage
 
         jsonData = None
         if os.path.exists(jsonFile):
@@ -2632,10 +2638,15 @@ class MainWindow(QtWidgets.QMainWindow):
     def resizeEvent(self, a0: QtGui.QResizeEvent) -> None:
         self.resizeCoverFile()
 
-    def showCoverFile(self, coverFile):
+    def showCoverFile(self, coverFile, coverImage=None):
         if coverFile and os.path.exists(coverFile):
-            pm = QtGui.QPixmap(coverFile)
-            if not pm.isNull():
+            # Use provided QImage if available, otherwise load it
+            if coverImage is None:
+                coverImage = QtGui.QImage(coverFile)
+            
+            if not coverImage.isNull():
+                # Convert QImage to QPixmap for display
+                pm = QtGui.QPixmap.fromImage(coverImage)
                 sz = self.movieCover.size()
                 self.movieCover.setPixmap(pm.scaled(sz.width(), sz.height(),
                                                     QtCore.Qt.KeepAspectRatio,
