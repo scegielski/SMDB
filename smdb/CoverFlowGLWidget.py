@@ -897,7 +897,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
 
     def _draw_title_overlay(self):
         """Draw title and year text overlay using QPainter for anti-aliased text"""
-        from PyQt5.QtGui import QPainter, QFont, QColor, QPen
+        from PyQt5.QtGui import QPainter, QFont, QColor, QPen, QPainterPath, QBrush
         from PyQt5.QtCore import Qt, QRect
         
         # Get title and year from model
@@ -929,6 +929,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         painter.setRenderHint(QPainter.TextAntialiasing)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform)
+        painter.setRenderHint(QPainter.HighQualityAntialiasing)
         
         # Calculate fade-in/fade-out opacity based on time since becoming visible
         fade_in_duration_ms = 300  # Fade in over 300ms
@@ -979,12 +981,12 @@ class CoverFlowGLWidget(QOpenGLWidget):
         x = (self.width() - text_width) // 2
         y = 25 + text_height  # Closer to top with less padding
         
-        # Draw shadow first
-        painter.setPen(QPen(QColor(0, 0, 0, int(alpha * 0.7)), 2))
+        # Draw shadow with drawText (much better anti-aliasing than paths)
+        painter.setPen(QColor(0, 0, 0, int(alpha * 0.7)))
         painter.drawText(x + 2, y + 2, text)
         
         # Draw main text
-        painter.setPen(QPen(QColor(255, 255, 255, alpha), 1))
+        painter.setPen(QColor(255, 255, 255, alpha))
         painter.drawText(x, y, text)
         
         painter.end()
