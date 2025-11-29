@@ -323,11 +323,11 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # With friction of 0.92, we need to calculate the initial velocity to travel ~1.0 cover
             velocity_impulse = 0.005  # Tuned to move approximately one cover per click
             if delta > 0:
-                # Scroll up/previous
-                self.drag_velocity += velocity_impulse
-            elif delta < 0:
-                # Scroll down/next
+                # Scroll up/next
                 self.drag_velocity -= velocity_impulse
+            elif delta < 0:
+                # Scroll down/previous
+                self.drag_velocity += velocity_impulse
             
             # Start momentum scrolling if not already active
             if not self.is_momentum_scrolling:
