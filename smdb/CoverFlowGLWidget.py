@@ -111,10 +111,23 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 indices_to_cache = []
                 
                 if hasattr(self, '_table_view') and self._table_view:
-                    # Filtering is active - collect ALL visible rows
+                    # Filtering is active - collect visible rows around current position
+                    # First, build list of all visible rows
+                    all_visible = []
                     for idx in range(model_row_count):
                         if not self._table_view.isRowHidden(idx):
-                            indices_to_cache.append(idx)
+                            all_visible.append(idx)
+                    
+                    # Find current position in visible list
+                    try:
+                        current_pos = all_visible.index(self._current_index)
+                        # Cache only within CACHE_RADIUS of current position in visible list
+                        start_pos = max(0, current_pos - self.CACHE_RADIUS)
+                        end_pos = min(len(all_visible), current_pos + self.CACHE_RADIUS + 1)
+                        indices_to_cache = all_visible[start_pos:end_pos]
+                    except (ValueError, AttributeError):
+                        # Current index not in visible list or error - cache first CACHE_RADIUS items
+                        indices_to_cache = all_visible[:min(len(all_visible), self.CACHE_RADIUS * 2)]
                 else:
                     # No filtering - use radius around current index
                     for offset in range(-self.CACHE_RADIUS, self.CACHE_RADIUS + 1):
