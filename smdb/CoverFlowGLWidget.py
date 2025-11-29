@@ -241,8 +241,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 self.zoom_level -= zoom_step
             elif delta < 0:
                 self.zoom_level += zoom_step
-            # Clamp zoom_level between -2.0 and 4.0 (increased max for more surrounding covers)
-            self.zoom_level = max(-2.0, min(4.0, self.zoom_level))
+            # Clamp zoom_level between -2.0 and 30.0 (increased max for more surrounding covers)
+            self.zoom_level = max(-2.0, min(30.0, self.zoom_level))
             self.update()
             event.accept()  # Prevent propagation to parent (no text size change)
         else:
@@ -346,7 +346,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
         # Use a moderate FOV and set near/far for a good fit
-        gluPerspective(30.0, w / h if h != 0 else 1, 0.1, 10.0)
+        # Increased far plane to 500.0 to accommodate max zoom level of 20.0
+        gluPerspective(30.0, w / h if h != 0 else 1, 0.1, 500.0)
         glMatrixMode(GL_MODELVIEW)
 
     def drawVHSBox(self, width, height, texture_id):
@@ -448,17 +449,17 @@ class CoverFlowGLWidget(QOpenGLWidget):
         # Determine how many surrounding covers to show based on zoom level
         # Always render at least 3 above and below for animation
         # At zoom_level <= 0.3: render 3 surrounding but only show current (others off-screen)
-        # As zoom increases (positive), show more surrounding covers (up to 7 above and below)
+        # As zoom increases (positive), show more surrounding covers (up to 12 on each side = 25 total)
         min_surrounding = 3  # Always render at least 3 for smooth transitions
-        max_surrounding = 7  # Maximum when fully zoomed out
+        max_surrounding = 12  # Maximum when fully zoomed out (12 left + 1 center + 12 right = 25 total)
         
         if zoom_level <= 0.3:
             num_surrounding = min_surrounding
             # When zoomed in, we'll position others far off-screen
             show_surrounding = False
         else:
-            # Gradually increase from 3 to 7 as zoom goes from 0.3 to 4.0
-            num_surrounding = max(min_surrounding, int(min(max_surrounding, min_surrounding + (zoom_level - 0.3) / 3.7 * (max_surrounding - min_surrounding))))
+            # Gradually increase from 3 to 12 as zoom increases
+            num_surrounding = max(min_surrounding, int(min(max_surrounding, min_surrounding + (zoom_level - 0.3) / 19.7 * (max_surrounding - min_surrounding))))
             show_surrounding = True
         
         # Animation: dual covers (only when not showing surrounding covers and not scrolling)
@@ -550,7 +551,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
                         quad_h = quad_w / aspect
                     self.drawVHSBox(quad_w, quad_h, self.texture_id)
             else:
-                vertical_spacing = 0.85  # Fixed spacing between covers
+                vertical_spacing = 0.65  # Fixed spacing between covers (reduced from 0.85 for tighter packing)
                 
                 # Calculate scroll offset for smooth animation
                 scroll_offset = 0.0
@@ -726,8 +727,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # Pixels per world unit
             pixels_per_unit = self.width() / view_width
             
-            # Cover spacing is 0.85 world units
-            spacing = 0.85
+            # Cover spacing is 0.65 world units (matches vertical_spacing in paintGL)
+            spacing = 0.65
             pixels_per_cover = pixels_per_unit * spacing
             
             # Convert mouse movement to cover offset
