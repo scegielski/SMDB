@@ -88,6 +88,15 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 # Index hasn't changed, just update
                 self._current_index = current_index
             
+            # Restart title timer for the new index (if not dragging)
+            if not is_dragging and old_index != current_index:
+                from PyQt5.QtCore import QElapsedTimer
+                self._title_show_elapsed = QElapsedTimer()
+                self._title_show_elapsed.start()
+                if not hasattr(self, '_title_show_timer') or not self._title_show_timer:
+                    self._title_show_timer = self.startTimer(16)
+                self._title_visible = False
+            
             # Start async cache for new surrounding covers
             self._start_async_cache()
             self.update()
@@ -242,6 +251,14 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     self._pending_cover_image = None
                 # Emit signal to notify that animation is complete
                 self.scrollAnimationComplete.emit(self._current_index)
+                
+                # Start timer to show title after scroll animation completes
+                if not hasattr(self, '_title_show_timer') or not self._title_show_timer:
+                    from PyQt5.QtCore import QElapsedTimer
+                    self._title_show_elapsed = QElapsedTimer()
+                    self._title_show_elapsed.start()
+                    self._title_show_timer = self.startTimer(16)
+                    self._title_visible = False
             self.update()
         elif getattr(self, 'is_momentum_scrolling', False) and hasattr(self, '_momentum_timer') and event.timerId() == self._momentum_timer:
             # Physics-based momentum scrolling after mouse release
@@ -297,6 +314,14 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     from PyQt5.QtCore import QElapsedTimer
                     self._settling_elapsed = QElapsedTimer()
                     self._settling_elapsed.start()
+                else:
+                    # Already centered - start title timer immediately
+                    from PyQt5.QtCore import QElapsedTimer
+                    self._title_show_elapsed = QElapsedTimer()
+                    self._title_show_elapsed.start()
+                    if not hasattr(self, '_title_show_timer') or not self._title_show_timer:
+                        self._title_show_timer = self.startTimer(16)
+                    self._title_visible = False
             
             self.update()
         elif getattr(self, 'is_settling', False) and hasattr(self, '_settling_timer') and event.timerId() == self._settling_timer:
