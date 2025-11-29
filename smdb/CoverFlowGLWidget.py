@@ -364,18 +364,15 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     self._title_visible = True
                     self.update()
             
-            # Stop timer if user starts interacting again
+            # Stop timer if user starts interacting again - trigger fade out
             if (hasattr(self, 'last_mouse_x') and self.last_mouse_x is not None) or \
                getattr(self, 'is_momentum_scrolling', False) or \
                getattr(self, '_scrolling', False) or \
                abs(self.drag_offset) > 0.01:
-                self._title_visible = False
-                try:
-                    self.killTimer(self._title_show_timer)
-                except:
-                    pass
-                self._title_show_timer = None
-                self.update()
+                # Start fade out by setting the fade out start time
+                if not hasattr(self, '_title_fade_out_start'):
+                    self._title_fade_out_start = self._title_show_elapsed.elapsed() if hasattr(self, '_title_show_elapsed') else 0
+                    self.update()
     
     def _is_at_boundary(self, direction):
         """Check if we're at a boundary in the given direction.
@@ -933,8 +930,44 @@ class CoverFlowGLWidget(QOpenGLWidget):
         painter.setRenderHint(QPainter.Antialiasing)
         painter.setRenderHint(QPainter.TextAntialiasing)
         
+        # Calculate fade-in/fade-out opacity based on time since becoming visible
+        fade_in_duration_ms = 300  # Fade in over 300ms
+        fade_out_duration_ms = 200  # Fade out quickly when scrolling
+        
+        if hasattr(self, '_title_show_elapsed'):
+            elapsed = self._title_show_elapsed.elapsed()
+            # Start fading in after the 500ms delay
+            fade_in_progress = min(1.0, max(0.0, (elapsed - 500) / fade_in_duration_ms))
+            # Ease in for smooth fade in
+            fade_in_alpha = fade_in_progress * fade_in_progress
+            
+            # Check if fade out was triggered by user interaction
+            if hasattr(self, '_title_fade_out_start'):
+                fade_out_progress = min(1.0, (elapsed - self._title_fade_out_start) / fade_out_duration_ms)
+                # Ease out for smooth fade out
+                fade_out_alpha = 1.0 - (fade_out_progress * fade_out_progress)
+                
+                # Stop the timer once fully faded out
+                if fade_out_progress >= 1.0:
+                    self._title_visible = False
+                    if hasattr(self, '_title_show_timer') and self._title_show_timer:
+                        try:
+                            self.killTimer(self._title_show_timer)
+                        except:
+                            pass
+                        self._title_show_timer = None
+                    if hasattr(self, '_title_fade_out_start'):
+                        delattr(self, '_title_fade_out_start')
+            else:
+                fade_out_alpha = 1.0
+            
+            # Combine both alphas
+            alpha = int(255 * fade_in_alpha * fade_out_alpha)
+        else:
+            alpha = 255
+        
         # Set up font
-        font = QFont("Arial", 16, QFont.Bold)
+        font = QFont("Arial", 20, QFont.Bold)  # Larger font
         painter.setFont(font)
         
         # Get text metrics
@@ -942,19 +975,23 @@ class CoverFlowGLWidget(QOpenGLWidget):
         text_width = fm.width(text)
         text_height = fm.height()
         
-        # Position above center
+        # Position at top of viewport with minimal padding
         x = (self.width() - text_width) // 2
-        y = (self.height() // 2) - 100  # Above the cover
+        y = 25 + text_height  # Closer to top with less padding
         
         # Draw shadow first
-        painter.setPen(QPen(QColor(0, 0, 0, 180), 2))
+        painter.setPen(QPen(QColor(0, 0, 0, int(alpha * 0.7)), 2))
         painter.drawText(x + 2, y + 2, text)
         
         # Draw main text
-        painter.setPen(QPen(QColor(255, 255, 255, 255), 1))
+        painter.setPen(QPen(QColor(255, 255, 255, alpha), 1))
         painter.drawText(x, y, text)
         
         painter.end()
+        
+        # Trigger update during fade-in
+        if alpha < 255:
+            self.update()
         
         # Restore OpenGL state
         glMatrixMode(GL_PROJECTION)
