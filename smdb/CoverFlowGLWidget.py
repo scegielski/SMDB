@@ -16,9 +16,33 @@ class CoverFlowGLWidget(QOpenGLWidget):
 
     CACHE_RADIUS = 25
 
-    def setModelAndIndex(self, model, current_index):
+    def setModelAndIndex(self, model, current_index, proxy_model=None, table_view=None):
+        # Detect if proxy model changed (filter was applied or removed)
+        proxy_changed = not hasattr(self, '_proxy_model') or self._proxy_model != proxy_model
+        
+        # Store proxy model and table view if provided (for filtering support)
+        old_proxy = getattr(self, '_proxy_model', None)
+        self._proxy_model = proxy_model
+        self._table_view = table_view
+        
+        # If proxy changed, clear cache since indices are no longer valid
+        if proxy_changed and hasattr(self, '_cover_cache'):
+            self._cover_cache = {}
+            # Also clear the current cover image to force reload
+            self.cover_image = QtGui.QImage()
+            self.texture_id = None
+        
+        # Check if current_index is hidden (filtered out)
+        if table_view and table_view.isRowHidden(current_index):
+            # Current index is filtered out - don't render it
+            # The MainWindow should have already selected the first visible row
+            # Just update our internal state and return
+            self._current_index = -1  # Invalid index to prevent rendering
+            self.update()
+            return
+        
         # Check if we're just updating the index (same model)
-        if hasattr(self, '_model') and self._model == model and hasattr(self, '_current_index'):
+        if hasattr(self, '_model') and self._model == model and hasattr(self, '_current_index') and not proxy_changed:
             # Store the old index for animation
             old_index = self._current_index
             
@@ -78,25 +102,62 @@ class CoverFlowGLWidget(QOpenGLWidget):
     def _start_async_cache(self):
         # Start a background thread to cache cover images (textures created on-demand in main thread)
         def cache_worker():
-            for offset in range(-self.CACHE_RADIUS, self.CACHE_RADIUS + 1):
-                idx = self._current_index + offset
-                if idx < 0 or idx >= self._model.rowCount():
-                    continue
-                with self.QMutexLocker(self._cover_cache_mutex):
-                    if idx in self._cover_cache:
-                        continue
-                cover_path = self._model.getCoverPath(idx)
-                if cover_path:
-                    image = QImage(cover_path)
-                    quad_geom = None
-                    if not image.isNull():
-                        # Precompute quad geometry (width, height, aspect)
-                        # Texture will be created on-demand in the main thread
-                        aspect = image.width() / image.height() if image.height() != 0 else 1.0
-                        quad_geom = (aspect, image.width(), image.height())
+            try:
+                # When using proxy model, rowCount() returns all rows (including hidden)
+                # We need to skip hidden rows
+                model_row_count = self._model.rowCount() if self._model else 0
+                
+                # Determine which indices to cache
+                indices_to_cache = []
+                
+                if hasattr(self, '_table_view') and self._table_view:
+                    # Filtering is active - collect ALL visible rows
+                    for idx in range(model_row_count):
+                        if not self._table_view.isRowHidden(idx):
+                            indices_to_cache.append(idx)
+                else:
+                    # No filtering - use radius around current index
+                    for offset in range(-self.CACHE_RADIUS, self.CACHE_RADIUS + 1):
+                        idx = self._current_index + offset
+                        if idx >= 0 and idx < model_row_count:
+                            indices_to_cache.append(idx)
+                
+                for idx in indices_to_cache:
+                    
                     with self.QMutexLocker(self._cover_cache_mutex):
-                        # Cache: (image, texture_id, quad_geom) - texture_id created later
-                        self._cover_cache[idx] = (image, None, quad_geom)
+                        if idx in self._cover_cache:
+                            continue
+                    
+                    # Get cover path - if using proxy model, map to source
+                    try:
+                        if hasattr(self, '_proxy_model') and self._proxy_model and self._proxy_model == self._model:
+                            # _model IS the proxy model, need to map to source
+                            proxy_index = self._model.index(idx, 0)
+                            source_index = self._model.mapToSource(proxy_index)
+                            source_row = source_index.row()
+                            # Get cover path from source model
+                            source_model = self._model.sourceModel()
+                            cover_path = source_model.getCoverPath(source_row)
+                        else:
+                            # No proxy or model is already source model
+                            cover_path = self._model.getCoverPath(idx)
+                    except Exception as e:
+                        # Handle case where proxy model changed during caching
+                        continue
+                    
+                    if cover_path:
+                        image = QImage(cover_path)
+                        quad_geom = None
+                        if not image.isNull():
+                            # Precompute quad geometry (width, height, aspect)
+                            # Texture will be created on-demand in the main thread
+                            aspect = image.width() / image.height() if image.height() != 0 else 1.0
+                            quad_geom = (aspect, image.width(), image.height())
+                        with self.QMutexLocker(self._cover_cache_mutex):
+                            self._cover_cache[idx] = (image, None, quad_geom)
+            except Exception as e:
+                # Silently handle errors (e.g., model changed during caching)
+                pass
         threading.Thread(target=cache_worker, daemon=True).start()
 
     def getCachedCover(self, idx):
@@ -572,17 +633,76 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 
                 # Draw covers from left to right (farthest to nearest for proper depth)
                 covers_drawn = 0
-                for offset in range(-num_surrounding - extra_range, num_surrounding + extra_range + 1):
-                    idx = self._current_index + offset
-                    if idx < 0 or idx >= self._model.rowCount():
-                        continue
+                
+                # Build list of visible row indices
+                all_visible_rows = []
+                if hasattr(self, '_table_view') and self._table_view:
+                    # Find ALL visible rows in the entire dataset
+                    for idx in range(self._model.rowCount()):
+                        if not self._table_view.isRowHidden(idx):
+                            all_visible_rows.append(idx)
+                    
+                    # Find current index position in visible rows
+                    try:
+                        current_pos = all_visible_rows.index(self._current_index)
+                    except ValueError:
+                        # Current index is hidden - this shouldn't happen if setModelAndIndex worked correctly
+                        # but handle it gracefully by rendering nothing
+                        current_pos = -1
+                        visible_rows = []
+                        return  # Don't render anything until selection is updated
+                    
+                    # Select surrounding visible rows based on position in the visible list
+                    if current_pos >= 0 and all_visible_rows:
+                        start_pos = max(0, current_pos - num_surrounding - extra_range)
+                        end_pos = min(len(all_visible_rows), current_pos + num_surrounding + extra_range + 1)
+                        visible_rows = all_visible_rows[start_pos:end_pos]
+                    else:
+                        visible_rows = []
+                else:
+                    # No filtering, use sequential indices
+                    visible_rows = []
+                    for offset in range(-num_surrounding - extra_range, num_surrounding + extra_range + 1):
+                        idx = self._current_index + offset
+                        if idx >= 0 and idx < self._model.rowCount():
+                            visible_rows.append(idx)
+                
+                # Now render visible rows
+                current_row_pos = visible_rows.index(self._current_index) if self._current_index in visible_rows else 0
+                for i, idx in enumerate(visible_rows):
+                    offset_from_current = i - current_row_pos
                     
                     # Get cached cover data
                     cover_img, texture_id, quad_geom = self.getCachedCover(idx)
                     
-                    # For current cover (offset == 0), always try to load if not cached
-                    if cover_img is None and offset == 0:
+                    # For current cover (offset_from_current == 0), always try to load if not cached
+                    if cover_img is None and offset_from_current == 0:
                         cover_img = self.cover_image
+                    
+                    # If not cached, try to load it on-demand (with proxy mapping if needed)
+                    if cover_img is None:
+                        try:
+                            # Map proxy index to source index if using proxy model
+                            if hasattr(self, '_proxy_model') and self._proxy_model and self._proxy_model == self._model:
+                                # _model IS the proxy model, need to map to source
+                                proxy_index = self._model.index(idx, 0)
+                                source_index = self._model.mapToSource(proxy_index)
+                                source_row = source_index.row()
+                                # Get cover path from source model
+                                source_model = self._model.sourceModel()
+                                cover_path = source_model.getCoverPath(source_row)
+                            else:
+                                # No proxy or model is already source
+                                cover_path = self._model.getCoverPath(idx)
+                            
+                            if cover_path:
+                                cover_img = QImage(cover_path)
+                                if not cover_img.isNull():
+                                    aspect = cover_img.width() / cover_img.height() if cover_img.height() != 0 else 1.0
+                                    quad_geom = (aspect, cover_img.width(), cover_img.height())
+                        except Exception as e:
+                            # Handle case where proxy model changed during rendering
+                            continue
                     
                     # Skip if no image available
                     if cover_img is None or cover_img.isNull():
@@ -613,24 +733,24 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     
                     # Position the cover horizontally (changed from vertical)
                     # Apply scroll offset during animation
-                    effective_offset = offset - scroll_offset
+                    effective_offset = offset_from_current - scroll_offset
                     x_offset = effective_offset * vertical_spacing  # Using same spacing value, but horizontally
                     
                     # Slight opacity/brightness change for non-current covers
-                    alpha = 1.0 if offset == 0 else 0.7
+                    alpha = 1.0 if offset_from_current == 0 else 0.7
                     
                     glPushMatrix()
                     glTranslatef(x_offset, 0.0, -z)  # Changed from (0.0, -y_offset, -z)
                     glRotatef(self.y_rotation, 0.0, 1.0, 0.0)
                     
                     # Apply opacity for non-current covers
-                    if offset != 0:
+                    if offset_from_current != 0:
                         glColor4f(alpha, alpha, alpha, 1.0)
                     
                     self.drawVHSBox(quad_w, quad_h, texture_id)
                     
                     # Reset color
-                    if offset != 0:
+                    if offset_from_current != 0:
                         glColor4f(1.0, 1.0, 1.0, 1.0)
                     
                     glPopMatrix()

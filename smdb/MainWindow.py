@@ -95,15 +95,35 @@ class MainWindow(QtWidgets.QMainWindow):
         sel_model = view.selectionModel()
         selected = sel_model.selectedRows()
         if not selected:
-            # If nothing selected, select first or last
-            if direction > 0:
-                view.selectRow(0)
-            else:
-                view.selectRow(model.rowCount() - 1)
+            # If nothing selected, select first visible row
+            for row in range(model.rowCount()):
+                if not view.isRowHidden(row):
+                    view.selectRow(row)
+                    return
             return
+        
         current_row = selected[0].row()
-        next_row = current_row + direction
-        next_row = max(0, min(model.rowCount() - 1, next_row))
+        
+        # Find next/previous visible row
+        next_row = current_row
+        search_direction = 1 if direction > 0 else -1
+        found = False
+        for step in range(1, model.rowCount()):
+            candidate = current_row + (step * search_direction)
+            # Wrap around
+            if candidate >= model.rowCount():
+                candidate = candidate % model.rowCount()
+            elif candidate < 0:
+                candidate = model.rowCount() + candidate
+            
+            if not view.isRowHidden(candidate):
+                next_row = candidate
+                found = True
+                break
+        
+        if not found or next_row == current_row:
+            return  # No visible rows to navigate to
+        
         if next_row != current_row:
             # Get source index for the new row
             modelIndex = model.index(next_row, 0)
@@ -116,8 +136,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 sourceModel = model
             
             # Update cover flow widget immediately to start animation
-            if hasattr(self, 'coverFlowWidget') and hasattr(self, 'currentModel'):
-                self.coverFlowWidget.setModelAndIndex(sourceModel, sourceRow)
+            # Pass proxy model and proxy row to respect filters
+            if hasattr(self, 'coverFlowWidget'):
+                self.coverFlowWidget.setModelAndIndex(model, next_row, proxy, view)
             
             # Check if user is actively dragging
             is_dragging = (hasattr(self.coverFlowWidget, 'last_mouse_x') and self.coverFlowWidget.last_mouse_x is not None) or \
@@ -2189,15 +2210,16 @@ class MainWindow(QtWidgets.QMainWindow):
         # Update Cover Flow tab with selected movie cover
         if hasattr(self, 'coverFlowWidget'):
             # Set the model and current index - this will trigger animation if needed
-            if hasattr(self, 'currentModel') and hasattr(self, 'currentSourceRow'):
-                self.coverFlowWidget.setModelAndIndex(self.currentModel, self.currentSourceRow)
-                # Only update the cover image if not animating
-                if not getattr(self.coverFlowWidget, '_scrolling', False):
-                    if coverImage and not coverImage.isNull():
-                        self.coverFlowWidget.set_cover_image_from_qimage(coverImage)
-                else:
-                    # Store for later update when animation completes
-                    self.coverFlowWidget._pending_cover_qimage = coverImage
+            # Use proxy model if available to respect filters
+            proxy_row = modelIndex.row()
+            self.coverFlowWidget.setModelAndIndex(proxyModel, proxy_row, proxyModel, self.moviesTableView)
+            # Only update the cover image if not animating
+            if not getattr(self.coverFlowWidget, '_scrolling', False):
+                if coverImage and not coverImage.isNull():
+                    self.coverFlowWidget.set_cover_image_from_qimage(coverImage)
+            else:
+                # Store for later update when animation completes
+                self.coverFlowWidget._pending_cover_qimage = coverImage
 
         jsonData = None
         if os.path.exists(jsonFile):
