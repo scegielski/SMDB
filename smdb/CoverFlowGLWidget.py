@@ -410,9 +410,29 @@ class CoverFlowGLWidget(QOpenGLWidget):
     scrollAnimationComplete = pyqtSignal(int)  # Emitted when scroll animation completes with the new index
     
     def wheelEvent(self, event):
-        # Zoom in/out if Ctrl is held, otherwise add momentum to drag system
+        # Adjust FOV if Ctrl+Shift, adjust camera_z if Ctrl, otherwise add momentum to drag system
         delta = event.angleDelta().y()
-        if event.modifiers() & Qt.ControlModifier:
+        if event.modifiers() & Qt.ControlModifier and event.modifiers() & Qt.ShiftModifier:
+            # Adjust FOV, clamp to reasonable range
+            if not hasattr(self, 'current_fov'):
+                self.current_fov = self.INITIAL_FOV
+            fov_step = 1.0
+            if delta > 0:
+                self.current_fov -= fov_step
+            elif delta < 0:
+                self.current_fov += fov_step
+            # Clamp FOV between 10.0 and 90.0 degrees
+            self.current_fov = max(10.0, min(90.0, self.current_fov))
+            # Update projection matrix with new FOV
+            w = self.width()
+            h = self.height()
+            glMatrixMode(GL_PROJECTION)
+            glLoadIdentity()
+            gluPerspective(self.current_fov, w / h if h != 0 else 1, 0.1, 500.0)
+            glMatrixMode(GL_MODELVIEW)
+            self.update()
+            event.accept()
+        elif event.modifiers() & Qt.ControlModifier:
             # Adjust camera_z, clamp to reasonable range
             if not hasattr(self, 'camera_z'):
                 self.camera_z = 0.0
@@ -531,9 +551,10 @@ class CoverFlowGLWidget(QOpenGLWidget):
         glViewport(0, 0, w, h)
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
-        # Use configurable FOV (defined in class constants)
-        # Increased far plane to 500.0 to accommodate max zoom level of 20.0
-        gluPerspective(self.INITIAL_FOV, w / h if h != 0 else 1, 0.1, 500.0)
+        # Use current FOV if adjusted, otherwise use initial FOV
+        fov = getattr(self, 'current_fov', self.INITIAL_FOV)
+        # Increased far plane to 500.0 to accommodate max camera_z of 30.0
+        gluPerspective(fov, w / h if h != 0 else 1, 0.1, 500.0)
         glMatrixMode(GL_MODELVIEW)
 
     def drawVHSBox(self, width, height, texture_id):
@@ -637,7 +658,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
         
         import math
         # Use a reference quad height for camera positioning
-        z = (max_quad_h / 2) / math.tan(math.radians(self.INITIAL_FOV / 2))
+        current_fov = getattr(self, 'current_fov', self.INITIAL_FOV)
+        z = (max_quad_h / 2) / math.tan(math.radians(current_fov / 2))
         camera_z = getattr(self, 'camera_z', 0.0)
         z += camera_z
         
@@ -1102,7 +1124,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
             z = 3.0 + self.camera_z
             
             # FOV, convert to radians
-            fov_rad = math.radians(self.INITIAL_FOV)
+            current_fov = getattr(self, 'current_fov', self.INITIAL_FOV)
+            fov_rad = math.radians(current_fov)
             
             # Calculate the width of the view frustum at distance z
             # Using tan(fov/2) * distance * 2
