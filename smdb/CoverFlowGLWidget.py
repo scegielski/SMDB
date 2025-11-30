@@ -981,6 +981,95 @@ class CoverFlowGLWidget(QOpenGLWidget):
         x = (self.width() - text_width) // 2
         y = 25 + text_height  # Closer to top with less padding
         
+        # Draw background box with rounded edges and fade
+        from PyQt5.QtGui import QRadialGradient
+        
+        # Define text bounding box with padding
+        padding = 15
+        fade_distance = 40
+        
+        # Core opaque box
+        core_left = x - padding
+        core_right = x + text_width + padding
+        core_top = y - text_height - padding
+        core_bottom = y + padding
+        
+        # Extended box for fade
+        fade_left = core_left - fade_distance
+        fade_right = core_right + fade_distance
+        fade_top = core_top - fade_distance
+        fade_bottom = core_bottom + fade_distance
+        
+        # Draw the fading edges using multiple rectangles with gradient
+        # Draw fading edges with linear gradients
+        from PyQt5.QtGui import QLinearGradient
+        
+        # Top fade
+        top_gradient = QLinearGradient(0, fade_top, 0, core_top)
+        top_gradient.setColorAt(0.0, QColor(0, 0, 0, 0))
+        top_gradient.setColorAt(1.0, QColor(0, 0, 0, int(alpha * 1.0)))
+        painter.fillRect(QRect(int(core_left), int(fade_top), 
+                              int(core_right - core_left), int(core_top - fade_top)), top_gradient)
+        
+        # Bottom fade
+        bottom_gradient = QLinearGradient(0, core_bottom, 0, fade_bottom)
+        bottom_gradient.setColorAt(0.0, QColor(0, 0, 0, int(alpha * 1.0)))
+        bottom_gradient.setColorAt(1.0, QColor(0, 0, 0, 0))
+        painter.fillRect(QRect(int(core_left), int(core_bottom), 
+                              int(core_right - core_left), int(fade_bottom - core_bottom)), bottom_gradient)
+        
+        # Left fade
+        left_gradient = QLinearGradient(fade_left, 0, core_left, 0)
+        left_gradient.setColorAt(0.0, QColor(0, 0, 0, 0))
+        left_gradient.setColorAt(1.0, QColor(0, 0, 0, int(alpha * 1.0)))
+        painter.fillRect(QRect(int(fade_left), int(core_top), 
+                              int(core_left - fade_left), int(core_bottom - core_top)), left_gradient)
+        
+        # Right fade
+        right_gradient = QLinearGradient(core_right, 0, fade_right, 0)
+        right_gradient.setColorAt(0.0, QColor(0, 0, 0, int(alpha * 1.0)))
+        right_gradient.setColorAt(1.0, QColor(0, 0, 0, 0))
+        painter.fillRect(QRect(int(core_right), int(core_top), 
+                              int(fade_right - core_right), int(core_bottom - core_top)), right_gradient)
+        
+        # Corner fades (radial gradients for smooth diagonal fading)
+        corner_radius = fade_distance
+        
+        # Top-left corner
+        tl_gradient = QRadialGradient(core_left, core_top, corner_radius)
+        tl_gradient.setColorAt(0.0, QColor(0, 0, 0, int(alpha * 1.0)))
+        tl_gradient.setColorAt(1.0, QColor(0, 0, 0, 0))
+        painter.fillRect(QRect(int(fade_left), int(fade_top), 
+                              int(core_left - fade_left), int(core_top - fade_top)), tl_gradient)
+        
+        # Top-right corner
+        tr_gradient = QRadialGradient(core_right, core_top, corner_radius)
+        tr_gradient.setColorAt(0.0, QColor(0, 0, 0, int(alpha * 1.0)))
+        tr_gradient.setColorAt(1.0, QColor(0, 0, 0, 0))
+        painter.fillRect(QRect(int(core_right), int(fade_top), 
+                              int(fade_right - core_right), int(core_top - fade_top)), tr_gradient)
+        
+        # Bottom-left corner
+        bl_gradient = QRadialGradient(core_left, core_bottom, corner_radius)
+        bl_gradient.setColorAt(0.0, QColor(0, 0, 0, int(alpha * 1.0)))
+        bl_gradient.setColorAt(1.0, QColor(0, 0, 0, 0))
+        painter.fillRect(QRect(int(fade_left), int(core_bottom), 
+                              int(core_left - fade_left), int(fade_bottom - core_bottom)), bl_gradient)
+        
+        # Bottom-right corner
+        br_gradient = QRadialGradient(core_right, core_bottom, corner_radius)
+        br_gradient.setColorAt(0.0, QColor(0, 0, 0, int(alpha * 1.0)))
+        br_gradient.setColorAt(1.0, QColor(0, 0, 0, 0))
+        painter.fillRect(QRect(int(core_right), int(core_bottom), 
+                              int(fade_right - core_right), int(fade_bottom - core_bottom)), br_gradient)
+        
+        # Draw the fully opaque center last to cover any artifacts from rounded corners
+        painter.setBrush(QBrush(QColor(0, 0, 0, int(alpha * 1.0))))
+        painter.setPen(Qt.NoPen)
+        core_rect = QRect(int(core_left), int(core_top), 
+                         int(core_right - core_left), int(core_bottom - core_top))
+        painter.drawRect(core_rect)
+        
         # Draw shadow with drawText (much better anti-aliasing than paths)
         painter.setPen(QColor(0, 0, 0, int(alpha * 0.7)))
         painter.drawText(x + 2, y + 2, text)
