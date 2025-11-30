@@ -641,9 +641,9 @@ class CoverFlowGLWidget(QOpenGLWidget):
         # Determine how many surrounding covers to show based on zoom level
         # Always render at least 3 above and below for animation
         # At zoom_level <= 0.3: render 3 surrounding but only show current (others off-screen)
-        # As zoom increases (positive), show more surrounding covers (up to 12 on each side = 25 total)
+        # As zoom increases (positive), show more surrounding covers (up to 20 on each side = 41 total)
         min_surrounding = 3  # Always render at least 3 for smooth transitions
-        max_surrounding = 12  # Maximum when fully zoomed out (12 left + 1 center + 12 right = 25 total)
+        max_surrounding = 20  # Maximum when fully zoomed out (20 left + 1 center + 20 right = 41 total)
         
         if zoom_level <= 0.3:
             num_surrounding = min_surrounding
@@ -654,7 +654,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
                          abs(getattr(self, 'drag_offset', 0.0)) > 0.01
             show_surrounding = is_dragging
         else:
-            # Gradually increase from 3 to 12 as zoom increases
+            # Gradually increase from 3 to 20 as zoom increases
             num_surrounding = max(min_surrounding, int(min(max_surrounding, min_surrounding + (zoom_level - 0.3) / 19.7 * (max_surrounding - min_surrounding))))
             show_surrounding = True
         
@@ -871,17 +871,39 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     effective_offset = offset_from_current - scroll_offset
                     x_offset = effective_offset * vertical_spacing  # Using same spacing value, but horizontally
                     
-                    # Parabolic curve: z moves back based on distance from center
-                    # Creates an arc shape when viewed from above
-                    z_curve = (effective_offset * effective_offset) * 0.3  # Parabola coefficient
+                    # Parabolic curve for first 2 covers on each side, then linear extrapolation
+                    parabola_range = 2.0
+                    parabola_coef = 0.3
+                    
+                    abs_offset = abs(effective_offset)
+                    if abs_offset <= parabola_range:
+                        # Parabolic region: z = coef * x^2
+                        z_curve = (effective_offset * effective_offset) * parabola_coef
+                        # Derivative for rotation: dz/dx = 2 * coef * x
+                        curve_angle = math.atan(2 * parabola_coef * effective_offset) * (180.0 / math.pi)
+                    else:
+                        # Linear extrapolation from the parabola endpoint
+                        # At x = ±parabola_range: z = parabola_coef * parabola_range^2
+                        # Slope at that point: dz/dx = 2 * parabola_coef * parabola_range
+                        z_at_boundary = parabola_coef * parabola_range * parabola_range
+                        slope_at_boundary = 2 * parabola_coef * parabola_range
+                        
+                        # Linear continuation: z = z_boundary + slope * (|x| - parabola_range)
+                        # Keep the sign of effective_offset for proper direction
+                        sign = 1 if effective_offset >= 0 else -1
+                        distance_beyond = abs_offset - parabola_range
+                        z_curve = z_at_boundary + slope_at_boundary * distance_beyond
+                        
+                        # Angle is constant in linear region (tangent at boundary)
+                        curve_angle = math.atan(slope_at_boundary * sign) * (180.0 / math.pi)
                     
                     # Fade covers based on distance from center
                     distance = abs(effective_offset)
                     alpha = max(0.3, 1.0 - (distance * 0.15))  # Fade based on distance
                     
                     glPushMatrix()
-                    glTranslatef(x_offset, 0.0, -z - z_curve)  # Move back in z based on parabola
-                    glRotatef(self.y_rotation, 0.0, 1.0, 0.0)
+                    glTranslatef(x_offset, 0.0, -z - z_curve)  # Move back in z based on curve
+                    glRotatef(self.y_rotation + curve_angle, 0.0, 1.0, 0.0)  # Align to curve
                     
                     # Set opacity and brightness for distance-based fading
                     glColor4f(alpha, alpha, alpha, 1.0)
