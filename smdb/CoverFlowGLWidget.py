@@ -866,23 +866,25 @@ class CoverFlowGLWidget(QOpenGLWidget):
                         quad_w = max_quad_w * 0.8
                         quad_h = quad_w / aspect
                     
-                    # Position the cover horizontally (changed from vertical)
+                    # Position the cover horizontally with parabolic arc into z-depth
                     # Apply scroll offset during animation
                     effective_offset = offset_from_current - scroll_offset
                     x_offset = effective_offset * vertical_spacing  # Using same spacing value, but horizontally
                     
-                    # Slight opacity/brightness change for non-current covers
-                    alpha = 1.0 if offset_from_current == 0 else 0.7
+                    # Parabolic curve: z moves back based on distance from center
+                    # Creates an arc shape when viewed from above
+                    z_curve = (effective_offset * effective_offset) * 0.3  # Parabola coefficient
+                    
+                    # Fade covers based on distance from center
+                    distance = abs(effective_offset)
+                    alpha = max(0.3, 1.0 - (distance * 0.15))  # Fade based on distance
                     
                     glPushMatrix()
-                    glTranslatef(x_offset, 0.0, -z)  # Changed from (0.0, -y_offset, -z)
+                    glTranslatef(x_offset, 0.0, -z - z_curve)  # Move back in z based on parabola
                     glRotatef(self.y_rotation, 0.0, 1.0, 0.0)
                     
-                    # Set opacity for non-current covers
-                    if offset_from_current != 0:
-                        glColor4f(0.7, 0.7, 0.7, 1.0)
-                    else:
-                        glColor4f(1.0, 1.0, 1.0, 1.0)
+                    # Set opacity and brightness for distance-based fading
+                    glColor4f(alpha, alpha, alpha, 1.0)
                     
                     self.drawVHSBox(quad_w, quad_h, texture_id)
                     
