@@ -638,25 +638,15 @@ class CoverFlowGLWidget(QOpenGLWidget):
         zoom_level = getattr(self, 'zoom_level', 0.0)
         z += zoom_level
         
-        # Determine how many surrounding covers to show based on zoom level
-        # Always render at least 3 above and below for animation
-        # At zoom_level <= 0.3: render 3 surrounding but only show current (others off-screen)
-        # As zoom increases (positive), show more surrounding covers (up to 20 on each side = 41 total)
-        min_surrounding = 3  # Always render at least 3 for smooth transitions
-        max_surrounding = 20  # Maximum when fully zoomed out (20 left + 1 center + 20 right = 41 total)
+        # Determine how many surrounding covers to show
+        # Always render 20 on each side regardless of zoom level
+        num_surrounding = 20  # 20 left + 1 center + 20 right = 41 total
         
-        if zoom_level <= 0.3:
-            num_surrounding = min_surrounding
-            # When zoomed in, we'll position others far off-screen
-            # EXCEPT when dragging - then show surrounding covers
-            is_dragging = (hasattr(self, 'last_mouse_x') and self.last_mouse_x is not None) or \
-                         getattr(self, 'is_momentum_scrolling', False) or \
-                         abs(getattr(self, 'drag_offset', 0.0)) > 0.01
-            show_surrounding = is_dragging
-        else:
-            # Gradually increase from 3 to 20 as zoom increases
-            num_surrounding = max(min_surrounding, int(min(max_surrounding, min_surrounding + (zoom_level - 0.3) / 19.7 * (max_surrounding - min_surrounding))))
-            show_surrounding = True
+        # Check if dragging for other logic
+        is_dragging = (hasattr(self, 'last_mouse_x') and self.last_mouse_x is not None) or \
+                     getattr(self, 'is_momentum_scrolling', False) or \
+                     abs(getattr(self, 'drag_offset', 0.0)) > 0.01
+        show_surrounding = True  # Always show surrounding covers
         
         # Animation: dual covers (only when not showing surrounding covers and not scrolling)
         if getattr(self, '_animating', False) and self._prev_cover_image is not None and not show_surrounding and not getattr(self, '_scrolling', False):
