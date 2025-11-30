@@ -413,16 +413,16 @@ class CoverFlowGLWidget(QOpenGLWidget):
         # Zoom in/out if Ctrl is held, otherwise add momentum to drag system
         delta = event.angleDelta().y()
         if event.modifiers() & Qt.ControlModifier:
-            # Zoom: adjust zoom_level, clamp to reasonable range
-            if not hasattr(self, 'zoom_level'):
-                self.zoom_level = 0.0
-            zoom_step = 0.5  # Increased from 0.2 for faster zooming
+            # Adjust camera_z, clamp to reasonable range
+            if not hasattr(self, 'camera_z'):
+                self.camera_z = 0.0
+            camera_step = 0.5  # Increased from 0.2 for faster camera movement
             if delta > 0:
-                self.zoom_level -= zoom_step
+                self.camera_z -= camera_step
             elif delta < 0:
-                self.zoom_level += zoom_step
-            # Clamp zoom_level between -2.0 and 30.0 (increased max for more surrounding covers)
-            self.zoom_level = max(-2.0, min(30.0, self.zoom_level))
+                self.camera_z += camera_step
+            # Clamp camera_z between -2.0 and 30.0
+            self.camera_z = max(-2.0, min(30.0, self.camera_z))
             self.update()
             event.accept()  # Prevent propagation to parent (no text size change)
         else:
@@ -458,6 +458,10 @@ class CoverFlowGLWidget(QOpenGLWidget):
             
             event.accept()
 
+    # Camera and viewport settings (configurable in one place)
+    INITIAL_FOV = 20.0  # Field of view in degrees (lower = less fisheye)
+    INITIAL_CAMERA_Z = 1.0  # Initial camera z-offset (higher = pulled back further)
+    
     def __init__(self, parent=None):
         super().__init__(parent)
         # Enable sample buffers for anti-aliasing
@@ -469,7 +473,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         self.y_rotation = 0.0
         self.last_mouse_x = None
         self.aspect_ratio = 1.0
-        self.zoom_level = 0.0  # Camera translation for zoom
+        self.camera_z = self.INITIAL_CAMERA_Z  # Camera z translation
         
         # Drag scrolling state
         self.drag_start_x = None
@@ -527,9 +531,9 @@ class CoverFlowGLWidget(QOpenGLWidget):
         glViewport(0, 0, w, h)
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
-        # Use a moderate FOV and set near/far for a good fit
+        # Use configurable FOV (defined in class constants)
         # Increased far plane to 500.0 to accommodate max zoom level of 20.0
-        gluPerspective(30.0, w / h if h != 0 else 1, 0.1, 500.0)
+        gluPerspective(self.INITIAL_FOV, w / h if h != 0 else 1, 0.1, 500.0)
         glMatrixMode(GL_MODELVIEW)
 
     def drawVHSBox(self, width, height, texture_id):
@@ -632,11 +636,10 @@ class CoverFlowGLWidget(QOpenGLWidget):
         max_quad_w = window_aspect
         
         import math
-        fov_y = 30.0
         # Use a reference quad height for camera positioning
-        z = (max_quad_h / 2) / math.tan(math.radians(fov_y / 2))
-        zoom_level = getattr(self, 'zoom_level', 0.0)
-        z += zoom_level
+        z = (max_quad_h / 2) / math.tan(math.radians(self.INITIAL_FOV / 2))
+        camera_z = getattr(self, 'camera_z', 0.0)
+        z += camera_z
         
         # Determine how many surrounding covers to show
         # Always render 20 on each side regardless of zoom level
@@ -1093,13 +1096,13 @@ class CoverFlowGLWidget(QOpenGLWidget):
             
             # Convert pixel movement to cover offset
             # We need to calculate how much of the world space one pixel represents
-            # at the current zoom level and projection settings
+            # at the current camera z and projection settings
             
             # Camera distance from origin
-            z = 3.0 + self.zoom_level
+            z = 3.0 + self.camera_z
             
-            # FOV is 30 degrees, convert to radians
-            fov_rad = math.radians(30.0)
+            # FOV, convert to radians
+            fov_rad = math.radians(self.INITIAL_FOV)
             
             # Calculate the width of the view frustum at distance z
             # Using tan(fov/2) * distance * 2
