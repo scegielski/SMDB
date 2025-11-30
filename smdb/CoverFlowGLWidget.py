@@ -897,7 +897,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
                         z_curve = (effective_offset * effective_offset) * parabola_coef
                         # Derivative for rotation: dz/dx = 2 * coef * x
                         curve_slope = 2 * parabola_coef * effective_offset
-                        curve_angle = math.atan(curve_slope) * (180.0 / math.pi)
+                        # Scale up the angle to better match visual alignment
+                        curve_angle = math.atan(curve_slope) * (180.0 / math.pi) * 1.1
                     else:
                         # Linear extrapolation from the parabola endpoint
                         # At x = ±parabola_range: z = parabola_coef * parabola_range^2
@@ -911,8 +912,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
                         distance_beyond = abs_offset - parabola_range
                         z_curve = z_at_boundary + slope_at_boundary * distance_beyond
                         
-                        # Angle is constant in linear region (tangent at boundary)
-                        curve_angle = math.atan(slope_at_boundary) * sign * (180.0 / math.pi)
+                        # Angle is constant in linear region (tangent at boundary) - scaled for visual alignment
+                        curve_angle = math.atan(slope_at_boundary) * (180.0 / math.pi) * sign * 1.1
                     
                     # Fade covers based on distance from center
                     distance = abs(effective_offset)
