@@ -410,19 +410,39 @@ class CoverFlowGLWidget(QOpenGLWidget):
     scrollAnimationComplete = pyqtSignal(int)  # Emitted when scroll animation completes with the new index
     
     def wheelEvent(self, event):
-        # Zoom in/out if Ctrl is held, otherwise add momentum to drag system
+        # Adjust FOV if Ctrl+Shift, adjust camera_z if Ctrl, otherwise add momentum to drag system
         delta = event.angleDelta().y()
-        if event.modifiers() & Qt.ControlModifier:
-            # Zoom: adjust zoom_level, clamp to reasonable range
-            if not hasattr(self, 'zoom_level'):
-                self.zoom_level = 0.0
-            zoom_step = 0.5  # Increased from 0.2 for faster zooming
+        if event.modifiers() & Qt.ControlModifier and event.modifiers() & Qt.ShiftModifier:
+            # Adjust FOV, clamp to reasonable range
+            if not hasattr(self, 'current_fov'):
+                self.current_fov = self.INITIAL_FOV
+            fov_step = 1.0
             if delta > 0:
-                self.zoom_level -= zoom_step
+                self.current_fov -= fov_step
             elif delta < 0:
-                self.zoom_level += zoom_step
-            # Clamp zoom_level between -2.0 and 30.0 (increased max for more surrounding covers)
-            self.zoom_level = max(-2.0, min(30.0, self.zoom_level))
+                self.current_fov += fov_step
+            # Clamp FOV between 10.0 and 90.0 degrees
+            self.current_fov = max(10.0, min(90.0, self.current_fov))
+            # Update projection matrix with new FOV
+            w = self.width()
+            h = self.height()
+            glMatrixMode(GL_PROJECTION)
+            glLoadIdentity()
+            gluPerspective(self.current_fov, w / h if h != 0 else 1, 0.1, 500.0)
+            glMatrixMode(GL_MODELVIEW)
+            self.update()
+            event.accept()
+        elif event.modifiers() & Qt.ControlModifier:
+            # Adjust camera_z, clamp to reasonable range
+            if not hasattr(self, 'camera_z'):
+                self.camera_z = 0.0
+            camera_step = 0.5  # Increased from 0.2 for faster camera movement
+            if delta > 0:
+                self.camera_z -= camera_step
+            elif delta < 0:
+                self.camera_z += camera_step
+            # Clamp camera_z between -2.0 and 30.0
+            self.camera_z = max(-2.0, min(30.0, self.camera_z))
             self.update()
             event.accept()  # Prevent propagation to parent (no text size change)
         else:
@@ -458,6 +478,10 @@ class CoverFlowGLWidget(QOpenGLWidget):
             
             event.accept()
 
+    # Camera and viewport settings (configurable in one place)
+    INITIAL_FOV = 20.0  # Field of view in degrees (lower = less fisheye)
+    INITIAL_CAMERA_Z = 1.0  # Initial camera z-offset (higher = pulled back further)
+    
     def __init__(self, parent=None):
         super().__init__(parent)
         # Enable sample buffers for anti-aliasing
@@ -469,7 +493,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         self.y_rotation = 0.0
         self.last_mouse_x = None
         self.aspect_ratio = 1.0
-        self.zoom_level = 0.0  # Camera translation for zoom
+        self.camera_z = self.INITIAL_CAMERA_Z  # Camera z translation
         
         # Drag scrolling state
         self.drag_start_x = None
@@ -527,9 +551,10 @@ class CoverFlowGLWidget(QOpenGLWidget):
         glViewport(0, 0, w, h)
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
-        # Use a moderate FOV and set near/far for a good fit
-        # Increased far plane to 500.0 to accommodate max zoom level of 20.0
-        gluPerspective(30.0, w / h if h != 0 else 1, 0.1, 500.0)
+        # Use current FOV if adjusted, otherwise use initial FOV
+        fov = getattr(self, 'current_fov', self.INITIAL_FOV)
+        # Increased far plane to 500.0 to accommodate max camera_z of 30.0
+        gluPerspective(fov, w / h if h != 0 else 1, 0.1, 500.0)
         glMatrixMode(GL_MODELVIEW)
 
     def drawVHSBox(self, width, height, texture_id):
@@ -632,31 +657,21 @@ class CoverFlowGLWidget(QOpenGLWidget):
         max_quad_w = window_aspect
         
         import math
-        fov_y = 30.0
         # Use a reference quad height for camera positioning
-        z = (max_quad_h / 2) / math.tan(math.radians(fov_y / 2))
-        zoom_level = getattr(self, 'zoom_level', 0.0)
-        z += zoom_level
+        current_fov = getattr(self, 'current_fov', self.INITIAL_FOV)
+        z = (max_quad_h / 2) / math.tan(math.radians(current_fov / 2))
+        camera_z = getattr(self, 'camera_z', 0.0)
+        z += camera_z
         
-        # Determine how many surrounding covers to show based on zoom level
-        # Always render at least 3 above and below for animation
-        # At zoom_level <= 0.3: render 3 surrounding but only show current (others off-screen)
-        # As zoom increases (positive), show more surrounding covers (up to 12 on each side = 25 total)
-        min_surrounding = 3  # Always render at least 3 for smooth transitions
-        max_surrounding = 12  # Maximum when fully zoomed out (12 left + 1 center + 12 right = 25 total)
+        # Determine how many surrounding covers to show
+        # Always render 20 on each side regardless of zoom level
+        num_surrounding = 20  # 20 left + 1 center + 20 right = 41 total
         
-        if zoom_level <= 0.3:
-            num_surrounding = min_surrounding
-            # When zoomed in, we'll position others far off-screen
-            # EXCEPT when dragging - then show surrounding covers
-            is_dragging = (hasattr(self, 'last_mouse_x') and self.last_mouse_x is not None) or \
-                         getattr(self, 'is_momentum_scrolling', False) or \
-                         abs(getattr(self, 'drag_offset', 0.0)) > 0.01
-            show_surrounding = is_dragging
-        else:
-            # Gradually increase from 3 to 12 as zoom increases
-            num_surrounding = max(min_surrounding, int(min(max_surrounding, min_surrounding + (zoom_level - 0.3) / 19.7 * (max_surrounding - min_surrounding))))
-            show_surrounding = True
+        # Check if dragging for other logic
+        is_dragging = (hasattr(self, 'last_mouse_x') and self.last_mouse_x is not None) or \
+                     getattr(self, 'is_momentum_scrolling', False) or \
+                     abs(getattr(self, 'drag_offset', 0.0)) > 0.01
+        show_surrounding = True  # Always show surrounding covers
         
         # Animation: dual covers (only when not showing surrounding covers and not scrolling)
         if getattr(self, '_animating', False) and self._prev_cover_image is not None and not show_surrounding and not getattr(self, '_scrolling', False):
@@ -866,23 +881,49 @@ class CoverFlowGLWidget(QOpenGLWidget):
                         quad_w = max_quad_w * 0.8
                         quad_h = quad_w / aspect
                     
-                    # Position the cover horizontally (changed from vertical)
+                    # Position the cover horizontally with parabolic arc into z-depth
                     # Apply scroll offset during animation
                     effective_offset = offset_from_current - scroll_offset
                     x_offset = effective_offset * vertical_spacing  # Using same spacing value, but horizontally
                     
-                    # Slight opacity/brightness change for non-current covers
-                    alpha = 1.0 if offset_from_current == 0 else 0.7
+                    # Parabolic curve for first 2 covers on each side, then linear extrapolation
+                    # Using smaller coefficient for wider, gentler curve
+                    parabola_range = 3.0
+                    parabola_coef = 0.3  # Reduced from 0.3 for gentler curve
+                    
+                    abs_offset = abs(effective_offset)
+                    if abs_offset <= parabola_range:
+                        # Parabolic region: z = coef * x^2
+                        z_curve = (effective_offset * effective_offset) * parabola_coef
+                        # Derivative for rotation: dz/dx = 2 * coef * x
+                        curve_slope = 2 * parabola_coef * effective_offset
+                        curve_angle = math.atan(curve_slope) * (180.0 / math.pi)
+                    else:
+                        # Linear extrapolation from the parabola endpoint
+                        # At x = ±parabola_range: z = parabola_coef * parabola_range^2
+                        # Slope at that point: dz/dx = 2 * parabola_coef * parabola_range
+                        z_at_boundary = parabola_coef * parabola_range * parabola_range
+                        slope_at_boundary = 2 * parabola_coef * parabola_range
+                        
+                        # Linear continuation: z = z_boundary + slope * (|x| - parabola_range)
+                        # Keep the sign of effective_offset for proper direction
+                        sign = 1 if effective_offset >= 0 else -1
+                        distance_beyond = abs_offset - parabola_range
+                        z_curve = z_at_boundary + slope_at_boundary * distance_beyond
+                        
+                        # Angle is constant in linear region (tangent at boundary)
+                        curve_angle = math.atan(slope_at_boundary) * sign * (180.0 / math.pi)
+                    
+                    # Fade covers based on distance from center
+                    distance = abs(effective_offset)
+                    alpha = max(0.3, 1.0 - (distance * 0.15))  # Fade based on distance
                     
                     glPushMatrix()
-                    glTranslatef(x_offset, 0.0, -z)  # Changed from (0.0, -y_offset, -z)
-                    glRotatef(self.y_rotation, 0.0, 1.0, 0.0)
+                    glTranslatef(x_offset, 0.0, -z - z_curve)  # Move back in z based on curve
+                    glRotatef(self.y_rotation + curve_angle, 0.0, 1.0, 0.0)  # Align to curve
                     
-                    # Set opacity for non-current covers
-                    if offset_from_current != 0:
-                        glColor4f(0.7, 0.7, 0.7, 1.0)
-                    else:
-                        glColor4f(1.0, 1.0, 1.0, 1.0)
+                    # Set opacity and brightness for distance-based fading
+                    glColor4f(alpha, alpha, alpha, 1.0)
                     
                     self.drawVHSBox(quad_w, quad_h, texture_id)
                     
@@ -1166,13 +1207,14 @@ class CoverFlowGLWidget(QOpenGLWidget):
             
             # Convert pixel movement to cover offset
             # We need to calculate how much of the world space one pixel represents
-            # at the current zoom level and projection settings
+            # at the current camera z and projection settings
             
             # Camera distance from origin
-            z = 3.0 + self.zoom_level
+            z = 3.0 + self.camera_z
             
-            # FOV is 30 degrees, convert to radians
-            fov_rad = math.radians(30.0)
+            # FOV, convert to radians
+            current_fov = getattr(self, 'current_fov', self.INITIAL_FOV)
+            fov_rad = math.radians(current_fov)
             
             # Calculate the width of the view frustum at distance z
             # Using tan(fov/2) * distance * 2
