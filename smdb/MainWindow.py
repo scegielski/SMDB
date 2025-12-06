@@ -371,6 +371,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.coverFlowWidget.wheelMovieChange.connect(self.coverFlowWheelNavigate)
         self.coverFlowWidget.scrollAnimationComplete.connect(self.onCoverFlowAnimationComplete)
         self.moviesTabWidget.addTab(self.coverFlowWidget, "Cover Flow")
+        
+        # Restore saved tab index (0=List, 1=Cover Flow)
+        savedTabIndex = self.settings.value('moviesTabIndex', 0, type=int)
+        self.moviesTabWidget.setCurrentIndex(savedTabIndex)
+        
         self.moviesTableDefaultColumns = [Columns.Year.value,
                                           Columns.Title.value,
                                           Columns.Rating.value,
@@ -704,6 +709,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
         self.settings.setValue('geometry', self.geometry())
+        self.settings.setValue('moviesTabIndex', self.moviesTabWidget.currentIndex())
         self.settings.setValue('mainHSplitterSizes', self.mainHSplitter.sizes())
         self.settings.setValue('mainContentLogSplitterSizes', self.mainContentLogSplitter.sizes())
         self.settings.setValue('coverInfoHSplitterSizes', self.coverInfoHSplitter.sizes())
