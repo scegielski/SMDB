@@ -54,6 +54,10 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # Always animate the transition when index changes (even when zoomed in)
             # BUT skip animation if user is actively dragging
             if old_index != current_index:
+                # Reset rotation for the old movie when leaving center
+                if old_index in self.movie_rotations:
+                    del self.movie_rotations[old_index]
+                
                 if is_dragging:
                     # User is dragging - just update index silently without animation
                     # (Views will be updated directly in MainWindow.coverFlowWheelNavigate)
@@ -483,6 +487,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         self.y_rotation = 0.0
         self.last_mouse_x = None
         self.rotation_drag_start_x = None  # For shift+drag rotation
+        self.movie_rotations = {}  # Store rotation per movie index
         self.aspect_ratio = 1.0
         self.camera_z = self.INITIAL_CAMERA_Z  # Camera z translation
         
@@ -1124,11 +1129,14 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     glPushMatrix()
                     glTranslatef(x_offset, 0.0, -z - z_curve)  # Move back in z based on curve
                     
+                    # Get stored rotation for this movie, default to 0
+                    movie_rotation = self.movie_rotations.get(idx, 0.0)
+                    
                     # Smoothly interpolate rotation based on distance from center
-                    # At center (offset 0): full y_rotation
+                    # At center (offset 0): full movie_rotation
                     # At offset ±1 or more: rotation goes to 0
                     rotation_factor = max(0.0, 1.0 - abs(effective_offset))
-                    current_rotation = self.y_rotation * rotation_factor
+                    current_rotation = movie_rotation * rotation_factor
                     
                     glRotatef(current_rotation + curve_angle, 0.0, 1.0, 0.0)
                     
@@ -1374,6 +1382,9 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # Check if Shift is held for rotation
             if event.modifiers() & Qt.ShiftModifier:
                 self.rotation_drag_start_x = event.x()
+                # Load current movie's rotation into y_rotation for editing
+                if hasattr(self, '_current_index'):
+                    self.y_rotation = self.movie_rotations.get(self._current_index, 0.0)
                 return
             
             from PyQt5.QtCore import QTime
@@ -1421,6 +1432,9 @@ class CoverFlowGLWidget(QOpenGLWidget):
             self.y_rotation += dx * 0.5
             # Keep rotation in 0-360 range
             self.y_rotation = self.y_rotation % 360
+            # Store rotation for current movie index
+            if hasattr(self, '_current_index'):
+                self.movie_rotations[self._current_index] = self.y_rotation
             self.rotation_drag_start_x = event.x()
             self.update()
             return
