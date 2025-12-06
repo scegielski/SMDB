@@ -281,7 +281,7 @@ class MovieData:
                         'list': 'search',
                         'srsearch': search_title,
                         'format': 'json',
-                        'srlimit': 3  # Get top 3 results
+                        'srlimit': 5  # Get top 5 results
                     }
                     
                     search_response = self._session.get(
@@ -304,11 +304,24 @@ class MovieData:
                     # Try each search result
                     for result in search_results:
                         page_title = result['title']
-                        
-                        # Skip if it doesn't look like a film article
                         page_lower = page_title.lower()
-                        if 'film' not in page_lower and year and str(year) not in page_title:
+                        
+                        # Skip obviously non-film articles
+                        skip_keywords = ['list of', 'category:', 'template:', 'festival', 'award', 'in film']
+                        if any(keyword in page_lower for keyword in skip_keywords):
                             continue
+                        
+                        # Prioritize pages with exact title match or film-related terms
+                        title_lower = title.lower()
+                        is_exact_match = page_lower == title_lower
+                        has_film_keyword = 'film' in page_lower or 'movie' in page_lower
+                        has_year = year and str(year) in page_title
+                        
+                        # Skip if it's not an exact match and doesn't have film indicators
+                        if not is_exact_match and not has_film_keyword and not has_year:
+                            # Check if this is actually a person's page
+                            if 'director' in page_lower or 'actor' in page_lower or 'actress' in page_lower:
+                                continue
                         
                         self._output(f"Trying Wikipedia page: '{page_title}'")
                         
@@ -339,9 +352,15 @@ class MovieData:
                         if not wikitext:
                             continue
                         
+                        # Check if this is actually a film article by looking for Infobox film
+                        if 'Infobox film' not in wikitext and '{{Infobox Film' not in wikitext:
+                            # If exact title match, still try it
+                            if not is_exact_match:
+                                continue
+                        
                         # Extract the Plot section (try multiple variations)
                         plot_match = re.search(
-                            r'==\s*(Plot|Synopsis)\s*==\s*\n(.*?)(?=\n==|$)',
+                            r'==\s*(Plot|Synopsis|Story)\s*==\s*\n(.*?)(?=\n==|$)',
                             wikitext,
                             re.DOTALL | re.IGNORECASE
                         )
