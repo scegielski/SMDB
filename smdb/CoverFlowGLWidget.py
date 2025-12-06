@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import QOpenGLWidget
-from PyQt5.QtCore import Qt, pyqtSignal, QRect
+from PyQt5.QtCore import Qt, pyqtSignal, QRect, QTime
 from PyQt5.QtGui import QImage, QPainter, QFont, QColor, QFontMetrics
 from OpenGL.GL import *
 from OpenGL.GLU import *
@@ -207,7 +207,44 @@ class CoverFlowGLWidget(QOpenGLWidget):
         self.update()
 
     def timerEvent(self, event):
-        if getattr(self, '_animating', False) and hasattr(self, '_anim_timer') and event.timerId() == self._anim_timer:
+        if self.rotation_animation_timer and event.timerId() == self.rotation_animation_timer:
+            # Animate rotations toward their targets
+            rotation_speed = 10.0  # Degrees per frame at 60fps
+            all_complete = True
+            
+            for idx in list(self.target_rotations.keys()):
+                target = self.target_rotations[idx]
+                current = self.movie_rotations.get(idx, 0.0)
+                
+                # Calculate shortest path to target
+                diff = target - current
+                if diff > 180:
+                    diff -= 360
+                elif diff < -180:
+                    diff += 360
+                
+                # Check if we're close enough to target
+                if abs(diff) < 0.5:
+                    self.movie_rotations[idx] = target
+                    del self.target_rotations[idx]
+                else:
+                    # Move toward target
+                    step = rotation_speed if abs(diff) > rotation_speed else abs(diff)
+                    if diff < 0:
+                        step = -step
+                    self.movie_rotations[idx] = current + step
+                    all_complete = False
+            
+            # Stop timer if all animations complete
+            if all_complete:
+                try:
+                    self.killTimer(self.rotation_animation_timer)
+                except:
+                    pass
+                self.rotation_animation_timer = None
+            
+            self.update()
+        elif getattr(self, '_animating', False) and hasattr(self, '_anim_timer') and event.timerId() == self._anim_timer:
             # Use elapsed time for constant speed
             duration_ms = 740  # Animation duration in ms (slowed down by 0.5x)
             elapsed_ms = self._anim_elapsed.elapsed() if hasattr(self, '_anim_elapsed') else 0
@@ -488,8 +525,9 @@ class CoverFlowGLWidget(QOpenGLWidget):
         self.texture_id = None
         self.y_rotation = 0.0
         self.last_mouse_x = None
-        self.rotation_drag_start_x = None  # For shift+drag rotation
-        self.movie_rotations = {}  # Store rotation per movie index
+        self.movie_rotations = {}  # Store current rotation per movie index
+        self.target_rotations = {}  # Store target rotation per movie index
+        self.rotation_animation_timer = None  # Timer for rotation animation
         self.aspect_ratio = 1.0
         self.camera_z = self.INITIAL_CAMERA_Z  # Camera z translation
         
@@ -1219,6 +1257,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     glTranslatef(x_offset, 0.0, -z - z_curve)  # Move back in z based on curve
                     
                     # Get stored rotation for this movie, default to 0
+                    # Use current rotation (which is being animated toward target)
                     movie_rotation = self.movie_rotations.get(idx, 0.0)
                     
                     # Normalize rotation to shortest path to 0
@@ -1480,16 +1519,21 @@ class CoverFlowGLWidget(QOpenGLWidget):
         return texture_id
 
     def mousePressEvent(self, event):
+        if event.button() == Qt.MiddleButton:
+            # Toggle rotation on middle mouse button
+            if hasattr(self, '_current_index'):
+                current_rotation = self.movie_rotations.get(self._current_index, 0.0)
+                if abs(current_rotation - 180) < 10:  # Already rotated to back
+                    self.target_rotations[self._current_index] = 0.0
+                else:  # Not rotated or partially rotated
+                    self.target_rotations[self._current_index] = 180.0
+                
+                # Start animation timer if not already running
+                if self.rotation_animation_timer is None:
+                    self.rotation_animation_timer = self.startTimer(16)  # ~60 fps
+            return
+        
         if event.button() == Qt.LeftButton:
-            # Check if Shift is held for rotation
-            if event.modifiers() & Qt.ShiftModifier:
-                self.rotation_drag_start_x = event.x()
-                # Load current movie's rotation into y_rotation for editing
-                if hasattr(self, '_current_index'):
-                    self.y_rotation = self.movie_rotations.get(self._current_index, 0.0)
-                return
-            
-            from PyQt5.QtCore import QTime
             self.drag_start_x = event.x()
             self.last_mouse_x = event.x()
             # Don't reset drag_offset - continue from where we left off
@@ -1527,20 +1571,6 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     self._settling_timer = None
 
     def mouseMoveEvent(self, event):
-        # Handle Shift+drag for rotation
-        if self.rotation_drag_start_x is not None:
-            dx = event.x() - self.rotation_drag_start_x
-            # Convert pixel movement to rotation angle (0.5 degrees per pixel)
-            self.y_rotation += dx * 0.5
-            # Keep rotation in 0-360 range
-            self.y_rotation = self.y_rotation % 360
-            # Store rotation for current movie index
-            if hasattr(self, '_current_index'):
-                self.movie_rotations[self._current_index] = self.y_rotation
-            self.rotation_drag_start_x = event.x()
-            self.update()
-            return
-        
         if self.last_mouse_x is not None:
             from PyQt5.QtCore import QTime
             import math
@@ -1668,11 +1698,6 @@ class CoverFlowGLWidget(QOpenGLWidget):
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.LeftButton:
-            # Clear rotation drag state
-            if self.rotation_drag_start_x is not None:
-                self.rotation_drag_start_x = None
-                return
-            
             self.last_mouse_x = None
             
             # Calculate velocity from recent drag history
