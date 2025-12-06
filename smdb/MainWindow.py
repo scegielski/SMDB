@@ -55,6 +55,7 @@ from .BackupWidget import BackupWidget
 from .HistoryWidget import HistoryWidget
 from .WatchListWidget import WatchListWidget
 from .MovieData import MovieData
+from .MovieFilterProxyModel import MovieFilterProxyModel
 
 
 def _default_collections_folder():
@@ -95,16 +96,14 @@ class MainWindow(QtWidgets.QMainWindow):
         sel_model = view.selectionModel()
         selected = sel_model.selectedRows()
         if not selected:
-            # If nothing selected, select first visible row
-            for row in range(model.rowCount()):
-                if not view.isRowHidden(row):
-                    view.selectRow(row)
-                    return
+            # If nothing selected, select first row in proxy model
+            if model.rowCount() > 0:
+                view.selectRow(0)
             return
         
         current_row = selected[0].row()
         
-        # Find next/previous visible row (clamp at boundaries, no wrapping)
+        # Find next/previous row in proxy model (clamp at boundaries, no wrapping)
         next_row = current_row
         search_direction = 1 if direction > 0 else -1
         found = False
@@ -114,10 +113,10 @@ class MainWindow(QtWidgets.QMainWindow):
             if candidate >= model.rowCount() or candidate < 0:
                 break  # Reached the end, stop searching
             
-            if not view.isRowHidden(candidate):
-                next_row = candidate
-                found = True
-                break
+            # Proxy model handles filtering, so all rows in the proxy are valid
+            next_row = candidate
+            found = True
+            break
         
         if not found or next_row == current_row:
             # At boundary - stop momentum and reset offset in cover flow widget
@@ -126,7 +125,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.coverFlowWidget.drag_velocity = 0.0
                 if hasattr(self.coverFlowWidget, 'is_momentum_scrolling'):
                     self.coverFlowWidget.is_momentum_scrolling = False
-            return  # No visible rows to navigate to or at boundary
+            return  # At boundary
         
         if next_row != current_row:
             # Get source index for the new row
@@ -1267,7 +1266,11 @@ class MainWindow(QtWidgets.QMainWindow):
         if proxyModelClass is not None:
             proxyModel = proxyModelClass()
         else:
-            proxyModel = QtCore.QSortFilterProxyModel()
+            # Use custom MovieFilterProxyModel for the main movies table
+            if tableView == self.moviesTableView:
+                proxyModel = MovieFilterProxyModel()
+            else:
+                proxyModel = QtCore.QSortFilterProxyModel()
         proxyModel.setSourceModel(model)
         tableView.setModel(proxyModel)
 
@@ -2108,14 +2111,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
         numRowsProxy = self.moviesTableProxyModel.rowCount()
         if self.randomizeCheckbox.isChecked():
-            visibleRows = list()
-            for row in range(numRowsProxy):
-                if not self.moviesTableView.isRowHidden(row):
-                    visibleRows.append(row)
+            # All rows in proxy model are visible
+            if numRowsProxy == 0:
+                return
             randomRow = currentRow
-            while randomRow == currentRow:
-                randomIndex = random.randint(0, len(visibleRows) - 1)
-                randomRow = visibleRows[randomIndex]
+            while randomRow == currentRow and numRowsProxy > 1:
+                randomRow = random.randint(0, numRowsProxy - 1)
             #self.moviesTableView.selectRow(randomRow)
             self.emitCover(randomRow, direction)
         else:
@@ -2124,19 +2125,11 @@ class MainWindow(QtWidgets.QMainWindow):
                     currentRow = 0
                 else:
                     currentRow += 1
-                while self.moviesTableView.isRowHidden(currentRow):
-                    currentRow += 1
-                    if currentRow == numRowsProxy:
-                        currentRow = 0
             else:
                 if currentRow == 0:
                     currentRow = numRowsProxy - 1
                 else:
                     currentRow = max(0, currentRow - 1)
-                while self.moviesTableView.isRowHidden(currentRow):
-                    currentRow = max(0, currentRow - 1)
-                    if currentRow == 0:
-                        currentRow = numRowsProxy - 1
 
             #self.moviesTableView.selectRow(currentRow)
             self.emitCover(currentRow, direction)
@@ -2264,23 +2257,17 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def pickRandomMovie(self):
         numRowsProxy = self.moviesTableProxyModel.rowCount()
-        visibleRows = list()
-        for row in range(numRowsProxy):
-            if not self.moviesTableView.isRowHidden(row):
-                visibleRows.append(row)
-        if len(visibleRows) == 0:
+        if numRowsProxy == 0:
             return
-        randomIndex = random.randint(0, len(visibleRows) - 1)
-        randomRow = visibleRows[randomIndex]
+        randomRow = random.randint(0, numRowsProxy - 1)
         self.moviesTableView.selectRow(randomRow)
-        #self.emitCover(randomRow, -1)
 
     def showAllMoviesTableView(self):
         self.moviesTableTitleFilterBox.clear()
         self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
         self.showMoviesTableSelectionStatus()
-        for row in range(self.moviesTableProxyModel.rowCount()):
-            self.moviesTableView.setRowHidden(row, False)
+        # Clear the movie list filter to show all movies
+        self.moviesTableProxyModel.clearMovieListFilter()
         self.moviesTableProxyModel.sort(0)
 
     def searchPlots(self):
@@ -2293,20 +2280,15 @@ class MainWindow(QtWidgets.QMainWindow):
         plotsRegex = re.compile(f'.*{searchText}.*', re.IGNORECASE)
 
         rowCount = self.moviesTableProxyModel.rowCount()
-        visibleRowCount = 0
-        for row in range(rowCount):
-            proxyRow = self.moviesTableProxyModel.index(row, 0).row()
-            if not self.moviesTableView.isRowHidden(proxyRow):
-                visibleRowCount += 1
-        self.progressBar.setMaximum(visibleRowCount)
+        self.progressBar.setMaximum(rowCount)
         progress = 0
 
+        # Build list of movies that match the plot search
+        matching_movies = []
+        
         for row in range(rowCount):
             proxyRow = self.moviesTableProxyModel.index(row, 0).row()
             sourceRow = self.getSourceRow2(proxyRow)
-
-            if self.moviesTableView.isRowHidden(proxyRow):
-                continue
 
             # Get Summary
             title = self.moviesTableModel.getTitle(sourceRow)
@@ -2328,14 +2310,24 @@ class MainWindow(QtWidgets.QMainWindow):
             summary = self.getPlot(jsonData)
 
             try:
-                if not plotsRegex.match(summary) and not plotsRegex.match(title):
-                    self.moviesTableView.hideRow(proxyRow)
+                if plotsRegex.match(summary) or plotsRegex.match(title):
+                    year = self.moviesTableModel.getYear(sourceRow)
+                    try:
+                        year_int = int(year) if year else 0
+                    except (ValueError, TypeError):
+                        year_int = 0
+                    matching_movies.append((title, year_int))
             except TypeError:
                 self.output(f"TypeError when searching plot for movie: {title}")
-                self.moviesTableView.hideRow(proxyRow)
 
             progress += 1
             self.progressBar.setValue(progress)
+        
+        # Apply the filter using the proxy model
+        self.moviesTableProxyModel.setMovieListFilter(matching_movies, mode='include')
+        self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
+        self.showMoviesTableSelectionStatus()
+        
         self.progressBar.setValue(0)
 
     def searchMoviesTableView(self):
@@ -2496,31 +2488,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 for movie in movies:
                     movieList.append(movie)
 
-        for row in range(self.moviesTableProxyModel.rowCount()):
-            self.moviesTableView.setRowHidden(row, True)
-
-        self.progressBar.setMaximum(len(movieList))
-
-        progress = 0
-        firstRow = -1
-        self.numVisibleMovies = 0
-        for row in range(self.moviesTableProxyModel.rowCount()):
-            proxyModelIndex = self.moviesTableProxyModel.index(row, 0)
-            sourceIndex = self.moviesTableProxyModel.mapToSource(proxyModelIndex)
-            sourceRow = sourceIndex.row()
-            title = self.moviesTableModel.getTitle(sourceRow)
-            year = self.moviesTableModel.getYear(sourceRow)
-
-            for (t, y) in movieList:
-                if t == title and y == year:
-                    self.numVisibleMovies += 1
-                    if firstRow == -1:
-                        firstRow = row
-                    self.moviesTableView.setRowHidden(row, False)
-            progress += 1
-            self.progressBar.setValue(progress)
-
-        self.progressBar.setValue(0)
+        # Apply the filter using the proxy model
+        self.moviesTableProxyModel.setMovieListFilter(movieList, mode='include')
+        self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
         self.showMoviesTableSelectionStatus()
 
     def selectMovieByTitleYear(self, title, year=None, resetFilters=True):
@@ -2549,16 +2519,13 @@ class MainWindow(QtWidgets.QMainWindow):
             match_proxy_index = proxy_index
             break
 
+        # If not found and resetFilters is True, clear filters and try again
         if match_row is None and resetFilters:
             self.showAllMoviesTableView()
             return self.selectMovieByTitleYear(title, year, resetFilters=False)
 
         if match_row is None:
             return False
-
-        if self.moviesTableView.isRowHidden(match_row) and resetFilters:
-            self.showAllMoviesTableView()
-            return self.selectMovieByTitleYear(title, year, resetFilters=False)
 
         if match_proxy_index is None or not match_proxy_index.isValid():
             match_proxy_index = self.moviesTableProxyModel.index(match_row, 0)
@@ -2615,32 +2582,16 @@ class MainWindow(QtWidgets.QMainWindow):
                     movieList2.append(movie)
             movieList = movieList2
 
-        for row in range(self.moviesTableProxyModel.rowCount()):
-            self.moviesTableView.setRowHidden(row, True)
-
-        self.progressBar.setMaximum(len(movieList))
-
-        progress = 0
-        firstRow = -1
-        self.numVisibleMovies = 0
-        for row in range(self.moviesTableProxyModel.rowCount()):
-            proxyModelIndex = self.moviesTableProxyModel.index(row, 0)
-            sourceIndex = self.moviesTableProxyModel.mapToSource(proxyModelIndex)
-            sourceRow = sourceIndex.row()
-            title = self.moviesTableModel.getTitle(sourceRow)
-            year = self.moviesTableModel.getYear(sourceRow)
-
-            for (t, y) in movieList:
-                if t == title and y == year:
-                    self.numVisibleMovies += 1
-                    if firstRow == -1:
-                        firstRow = row
-                    self.moviesTableView.setRowHidden(row, False)
-            progress += 1
-            self.progressBar.setValue(progress)
-
-        self.moviesTableView.selectRow(firstRow)
-        self.progressBar.setValue(0)
+        # Apply the filter using the proxy model
+        self.output(f"Applying filter with {len(movieList)} movies")
+        self.moviesTableProxyModel.setMovieListFilter(movieList, mode='include')
+        self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
+        self.output(f"After filter: {self.numVisibleMovies} visible movies")
+        
+        # Select first visible row if any
+        if self.moviesTableProxyModel.rowCount() > 0:
+            self.moviesTableView.selectRow(0)
+        
         self.showMoviesTableSelectionStatus()
 
         sortColumn = self.moviesTableProxyModel.sortColumn()
@@ -3215,30 +3166,27 @@ class MainWindow(QtWidgets.QMainWindow):
         collection_mod = [(r, self.conditionTitle(t, insensitive_the), int(y)) for r, t, y in collection]
         rowCount = range(self.moviesTableProxyModel.rowCount())
 
-        for row in rowCount:
-            self.moviesTableView.setRowHidden(row, True)
-
         self.progressBar.setMaximum(rowCount.stop)
         progress = 0
-        firstRow = -1
-        self.numVisibleMovies = 0
         foundMovies = set()
+        matching_movies = []
 
         for row in rowCount:
             proxyModelIndex = self.moviesTableProxyModel.index(row, 0)
             sourceIndex = self.moviesTableProxyModel.mapToSource(proxyModelIndex)
             sourceRow = sourceIndex.row()
             title = self.moviesTableModel.getTitle(sourceRow)
-            title = self.conditionTitle(title, insensitive_the)
+            title_conditioned = self.conditionTitle(title, insensitive_the)
             year = int(self.moviesTableModel.getYear(sourceRow))
 
             for item in collection_mod:
                 r, t, y = item
-                if t == title and abs(y - year) < 5:  # Allow a slight difference in year
-                    self.numVisibleMovies += 1
-                    if firstRow == -1:
-                        firstRow = row
-                    self.moviesTableView.setRowHidden(row, False)
+                if t == title_conditioned and abs(y - year) < 5:  # Allow a slight difference in year
+                    try:
+                        year_int = int(year) if year else 0
+                    except (ValueError, TypeError):
+                        year_int = 0
+                    matching_movies.append((title, year_int))
                     self.moviesTableModel.setRank(sourceIndex, r)
                     foundMovies.add((t, y))
                     break
@@ -3246,7 +3194,14 @@ class MainWindow(QtWidgets.QMainWindow):
             progress += 1
             self.progressBar.setValue(progress)
 
-        self.moviesTableView.selectRow(firstRow)
+        # Apply the filter using the proxy model
+        self.moviesTableProxyModel.setMovieListFilter(matching_movies, mode='include')
+        self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
+        
+        # Select first visible row if any
+        if self.moviesTableProxyModel.rowCount() > 0:
+            self.moviesTableView.selectRow(0)
+        
         self.progressBar.setValue(0)
         self.showMoviesTableSelectionStatus()
         self.moviesTableModel.aboutToChangeLayout()
@@ -3416,6 +3371,7 @@ class MainWindow(QtWidgets.QMainWindow):
         moviesTableRightMenu.exec_(QtGui.QCursor.pos())
 
     def tableSelectAll(self, table):
+        # Select all rows in the proxy model (which are already filtered)
         table.selectAll()
         pass
 
