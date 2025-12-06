@@ -1260,18 +1260,24 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     # Use current rotation (which is being animated toward target)
                     movie_rotation = self.movie_rotations.get(idx, 0.0)
                     
-                    # Normalize rotation to shortest path to 0
-                    # If rotation is > 180, it's shorter to go the other way
-                    if movie_rotation > 180:
-                        movie_rotation = movie_rotation - 360
-                    elif movie_rotation < -180:
-                        movie_rotation = movie_rotation + 360
-                    
                     # Smoothly interpolate rotation based on distance from center
                     # At center (offset 0): full movie_rotation
                     # At offset ±1 or more: rotation goes to 0
                     rotation_factor = max(0.0, 1.0 - abs(effective_offset))
-                    current_rotation = movie_rotation * rotation_factor
+                    
+                    # For rotations at 180°, choose rotation direction based on scroll direction
+                    if movie_rotation > 90:
+                        # Scrolling right (positive offset): rotate counter-clockwise (180 → -180 → 0)
+                        # Scrolling left (negative offset): rotate clockwise (180 → 0)
+                        if effective_offset > 0:
+                            # Exiting right side - go the short way via negative
+                            normalized_rotation = movie_rotation - 360
+                            current_rotation = normalized_rotation * rotation_factor
+                        else:
+                            # Exiting left side - go the long way via positive
+                            current_rotation = movie_rotation * rotation_factor
+                    else:
+                        current_rotation = movie_rotation * rotation_factor
                     
                     # Clear rotation from dictionary once it's fully faded out (offset >= 1.0)
                     if hasattr(self, '_rotations_to_clear') and idx in self._rotations_to_clear:
