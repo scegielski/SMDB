@@ -549,6 +549,16 @@ class CoverFlowGLWidget(QOpenGLWidget):
         plot = movie_data.get('plot', movie_data.get('Plot', ''))
         title = movie_data.get('title', movie_data.get('Title', ''))
         
+        # Convert lists to strings early
+        if isinstance(synopsis, list):
+            synopsis = ' '.join(str(s) for s in synopsis if s)
+        if isinstance(plot_outline, list):
+            plot_outline = ' '.join(str(p) for p in plot_outline if p)
+        if isinstance(summary, list):
+            summary = ' '.join(str(s) for s in summary if s)
+        if isinstance(plot, list):
+            plot = ' '.join(str(p) for p in plot if p)
+        
         # Debug: show available keys in first call
         if not hasattr(self, '_shown_json_keys'):
             self._shown_json_keys = True
@@ -565,6 +575,14 @@ class CoverFlowGLWidget(QOpenGLWidget):
         # Only fall back to synopsis/plot_outline if summary is empty or very short
         if summary and len(summary) > 50:
             text = summary
+            # If we have a synopsis, append it after the summary
+            # Check that synopsis is meaningful (not just a single character like "1")
+            if synopsis and len(synopsis) > 100:
+                text += "\n\nSynopsis:\n" + synopsis
+                print(f"  Added synopsis: {len(synopsis)} chars")
+            elif plot_outline and len(plot_outline) > 100:
+                text += "\n\nPlot:\n" + plot_outline
+                print(f"  Added plot outline: {len(plot_outline)} chars")
         else:
             text = synopsis or plot_outline or summary or plot
             
@@ -572,9 +590,9 @@ class CoverFlowGLWidget(QOpenGLWidget):
             print(f"  No text available for {title}")
             return None
         
-        # If text is a list, join it
+        # Convert to string if still a list (shouldn't happen but just in case)
         if isinstance(text, list):
-            text = ' '.join(text)
+            text = ' '.join(str(t) for t in text if t)
         
         print(f"  Using text (first 100 chars): {text[:100]}...")
         print(f"  Text type: {type(text)}, Length: {len(text)}")
