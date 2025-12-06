@@ -850,7 +850,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         glMatrixMode(GL_MODELVIEW)
 
     def drawVHSBox(self, width, height, texture_id, back_texture_id=None, image_aspect=None):
-        """Draw a 3D VHS box with the cover texture on front, text on back, and solid sides
+        """Draw a 3D VHS box with the cover texture on front, text on back, and solid sides with chamfered edges
         
         Args:
             width: Width of the box
@@ -863,11 +863,14 @@ class CoverFlowGLWidget(QOpenGLWidget):
         # Using a depth ratio of about 0.13 (1/7.5)
         depth = height * 0.13
         
+        # Chamfer size - small bevel on edges (about 2-3% of smallest dimension)
+        chamfer = min(width, height, depth) * 0.025
+        
         half_w = width / 2
         half_h = height / 2
         half_d = depth / 2
         
-        # Front face (with texture or placeholder)
+        # Front face (with texture or placeholder) - chamfered version
         if texture_id and texture_id != 0:
             glBindTexture(GL_TEXTURE_2D, texture_id)
             glEnable(GL_TEXTURE_2D)
@@ -904,88 +907,296 @@ class CoverFlowGLWidget(QOpenGLWidget):
             v_max = (1.0 + v_scale) / 2.0
             
             # Don't override color here - use whatever was set before (for dimming effect)
+            # Main front face (inset by chamfer)
             glBegin(GL_QUADS)
             glNormal3f(0.0, 0.0, 1.0)  # Normal pointing forward
-            glTexCoord2f(u_min, v_max); glVertex3f(-half_w, -half_h, half_d)
-            glTexCoord2f(u_max, v_max); glVertex3f(half_w, -half_h, half_d)
-            glTexCoord2f(u_max, v_min); glVertex3f(half_w, half_h, half_d)
-            glTexCoord2f(u_min, v_min); glVertex3f(-half_w, half_h, half_d)
+            glTexCoord2f(u_min, v_max); glVertex3f(-half_w + chamfer, -half_h + chamfer, half_d)
+            glTexCoord2f(u_max, v_max); glVertex3f(half_w - chamfer, -half_h + chamfer, half_d)
+            glTexCoord2f(u_max, v_min); glVertex3f(half_w - chamfer, half_h - chamfer, half_d)
+            glTexCoord2f(u_min, v_min); glVertex3f(-half_w + chamfer, half_h - chamfer, half_d)
             glEnd()
             glDisable(GL_TEXTURE_2D)
         else:
-            # No texture - draw placeholder front face
+            # No texture - draw placeholder front face (inset by chamfer)
             glColor3f(0.3, 0.3, 0.3)
             glBegin(GL_QUADS)
             glNormal3f(0.0, 0.0, 1.0)
-            glVertex3f(-half_w, -half_h, half_d)
-            glVertex3f(half_w, -half_h, half_d)
-            glVertex3f(half_w, half_h, half_d)
-            glVertex3f(-half_w, half_h, half_d)
+            glVertex3f(-half_w + chamfer, -half_h + chamfer, half_d)
+            glVertex3f(half_w - chamfer, -half_h + chamfer, half_d)
+            glVertex3f(half_w - chamfer, half_h - chamfer, half_d)
+            glVertex3f(-half_w + chamfer, half_h - chamfer, half_d)
             glEnd()
         
-        # Back face (with text texture if available, otherwise dark gray)
+        # Front face chamfer edges - batched for performance
+        glColor3f(0.35, 0.35, 0.35)
+        glBegin(GL_QUADS)
+        # Top edge chamfer
+        glNormal3f(0.0, 0.707, 0.707)
+        glVertex3f(-half_w + chamfer, half_h - chamfer, half_d)
+        glVertex3f(half_w - chamfer, half_h - chamfer, half_d)
+        glVertex3f(half_w - chamfer, half_h, half_d - chamfer)
+        glVertex3f(-half_w + chamfer, half_h, half_d - chamfer)
+        # Bottom edge chamfer
+        glNormal3f(0.0, -0.707, 0.707)
+        glVertex3f(-half_w + chamfer, -half_h, half_d - chamfer)
+        glVertex3f(half_w - chamfer, -half_h, half_d - chamfer)
+        glVertex3f(half_w - chamfer, -half_h + chamfer, half_d)
+        glVertex3f(-half_w + chamfer, -half_h + chamfer, half_d)
+        # Left edge chamfer
+        glNormal3f(-0.707, 0.0, 0.707)
+        glVertex3f(-half_w, -half_h + chamfer, half_d - chamfer)
+        glVertex3f(-half_w + chamfer, -half_h + chamfer, half_d)
+        glVertex3f(-half_w + chamfer, half_h - chamfer, half_d)
+        glVertex3f(-half_w, half_h - chamfer, half_d - chamfer)
+        # Right edge chamfer
+        glNormal3f(0.707, 0.0, 0.707)
+        glVertex3f(half_w - chamfer, -half_h + chamfer, half_d)
+        glVertex3f(half_w, -half_h + chamfer, half_d - chamfer)
+        glVertex3f(half_w, half_h - chamfer, half_d - chamfer)
+        glVertex3f(half_w - chamfer, half_h - chamfer, half_d)
+        glEnd()
+        
+        # Front face corner chamfers (4 corners) - batched triangles
+        glBegin(GL_TRIANGLES)
+        # Top-left corner
+        glNormal3f(-0.577, 0.577, 0.577)
+        glVertex3f(-half_w, half_h - chamfer, half_d - chamfer)
+        glVertex3f(-half_w + chamfer, half_h, half_d - chamfer)
+        glVertex3f(-half_w + chamfer, half_h - chamfer, half_d)
+        # Top-right corner
+        glNormal3f(0.577, 0.577, 0.577)
+        glVertex3f(half_w - chamfer, half_h, half_d - chamfer)
+        glVertex3f(half_w, half_h - chamfer, half_d - chamfer)
+        glVertex3f(half_w - chamfer, half_h - chamfer, half_d)
+        # Bottom-left corner
+        glNormal3f(-0.577, -0.577, 0.577)
+        glVertex3f(-half_w + chamfer, -half_h, half_d - chamfer)
+        glVertex3f(-half_w, -half_h + chamfer, half_d - chamfer)
+        glVertex3f(-half_w + chamfer, -half_h + chamfer, half_d)
+        # Bottom-right corner
+        glNormal3f(0.577, -0.577, 0.577)
+        glVertex3f(half_w, -half_h + chamfer, half_d - chamfer)
+        glVertex3f(half_w - chamfer, -half_h, half_d - chamfer)
+        glVertex3f(half_w - chamfer, -half_h + chamfer, half_d)
+        glEnd()
+        
+        # Back face (with text texture if available, otherwise dark gray) - chamfered version
         if back_texture_id and back_texture_id != 0:
             glBindTexture(GL_TEXTURE_2D, back_texture_id)
             glEnable(GL_TEXTURE_2D)
             glColor3f(1.0, 1.0, 1.0)  # Full brightness for text visibility
             glBegin(GL_QUADS)
             glNormal3f(0.0, 0.0, -1.0)  # Normal pointing backward
-            # Flip texture coordinates to read correctly from back
-            glTexCoord2f(1.0, 1.0); glVertex3f(-half_w, -half_h, -half_d)
-            glTexCoord2f(1.0, 0.0); glVertex3f(-half_w, half_h, -half_d)
-            glTexCoord2f(0.0, 0.0); glVertex3f(half_w, half_h, -half_d)
-            glTexCoord2f(0.0, 1.0); glVertex3f(half_w, -half_h, -half_d)
+            # Flip texture coordinates to read correctly from back (inset by chamfer)
+            glTexCoord2f(1.0, 1.0); glVertex3f(-half_w + chamfer, -half_h + chamfer, -half_d)
+            glTexCoord2f(1.0, 0.0); glVertex3f(-half_w + chamfer, half_h - chamfer, -half_d)
+            glTexCoord2f(0.0, 0.0); glVertex3f(half_w - chamfer, half_h - chamfer, -half_d)
+            glTexCoord2f(0.0, 1.0); glVertex3f(half_w - chamfer, -half_h + chamfer, -half_d)
             glEnd()
             glDisable(GL_TEXTURE_2D)
         else:
-            # No text texture - draw solid dark gray back
+            # No text texture - draw solid dark gray back (inset by chamfer)
             glColor3f(0.2, 0.2, 0.2)
             glBegin(GL_QUADS)
             glNormal3f(0.0, 0.0, -1.0)  # Normal pointing backward
-            glVertex3f(-half_w, -half_h, -half_d)
-            glVertex3f(-half_w, half_h, -half_d)
-            glVertex3f(half_w, half_h, -half_d)
-            glVertex3f(half_w, -half_h, -half_d)
+            glVertex3f(-half_w + chamfer, -half_h + chamfer, -half_d)
+            glVertex3f(-half_w + chamfer, half_h - chamfer, -half_d)
+            glVertex3f(half_w - chamfer, half_h - chamfer, -half_d)
+            glVertex3f(half_w - chamfer, -half_h + chamfer, -half_d)
             glEnd()
         
-        # Top face
+        # Back face chamfer edges - batched for performance
+        glColor3f(0.18, 0.18, 0.18)
+        glBegin(GL_QUADS)
+        # Top edge chamfer
+        glNormal3f(0.0, 0.707, -0.707)
+        glVertex3f(-half_w + chamfer, half_h, -half_d + chamfer)
+        glVertex3f(half_w - chamfer, half_h, -half_d + chamfer)
+        glVertex3f(half_w - chamfer, half_h - chamfer, -half_d)
+        glVertex3f(-half_w + chamfer, half_h - chamfer, -half_d)
+        # Bottom edge chamfer
+        glNormal3f(0.0, -0.707, -0.707)
+        glVertex3f(-half_w + chamfer, -half_h + chamfer, -half_d)
+        glVertex3f(half_w - chamfer, -half_h + chamfer, -half_d)
+        glVertex3f(half_w - chamfer, -half_h, -half_d + chamfer)
+        glVertex3f(-half_w + chamfer, -half_h, -half_d + chamfer)
+        # Left edge chamfer
+        glNormal3f(-0.707, 0.0, -0.707)
+        glVertex3f(-half_w + chamfer, -half_h + chamfer, -half_d)
+        glVertex3f(-half_w, -half_h + chamfer, -half_d + chamfer)
+        glVertex3f(-half_w, half_h - chamfer, -half_d + chamfer)
+        glVertex3f(-half_w + chamfer, half_h - chamfer, -half_d)
+        # Right edge chamfer
+        glNormal3f(0.707, 0.0, -0.707)
+        glVertex3f(half_w, -half_h + chamfer, -half_d + chamfer)
+        glVertex3f(half_w - chamfer, -half_h + chamfer, -half_d)
+        glVertex3f(half_w - chamfer, half_h - chamfer, -half_d)
+        glVertex3f(half_w, half_h - chamfer, -half_d + chamfer)
+        glEnd()
+        
+        # Back face corner chamfers (4 corners) - batched triangles
+        glBegin(GL_TRIANGLES)
+        # Top-left corner
+        glNormal3f(-0.577, 0.577, -0.577)
+        glVertex3f(-half_w + chamfer, half_h, -half_d + chamfer)
+        glVertex3f(-half_w, half_h - chamfer, -half_d + chamfer)
+        glVertex3f(-half_w + chamfer, half_h - chamfer, -half_d)
+        # Top-right corner
+        glNormal3f(0.577, 0.577, -0.577)
+        glVertex3f(half_w, half_h - chamfer, -half_d + chamfer)
+        glVertex3f(half_w - chamfer, half_h, -half_d + chamfer)
+        glVertex3f(half_w - chamfer, half_h - chamfer, -half_d)
+        # Bottom-left corner
+        glNormal3f(-0.577, -0.577, -0.577)
+        glVertex3f(-half_w, -half_h + chamfer, -half_d + chamfer)
+        glVertex3f(-half_w + chamfer, -half_h, -half_d + chamfer)
+        glVertex3f(-half_w + chamfer, -half_h + chamfer, -half_d)
+        # Bottom-right corner
+        glNormal3f(0.577, -0.577, -0.577)
+        glVertex3f(half_w - chamfer, -half_h, -half_d + chamfer)
+        glVertex3f(half_w, -half_h + chamfer, -half_d + chamfer)
+        glVertex3f(half_w - chamfer, -half_h + chamfer, -half_d)
+        glEnd()
+        
+        # Top face - chamfered (main surface inset from edges)
         glColor3f(0.15, 0.15, 0.15)
         glBegin(GL_QUADS)
         glNormal3f(0.0, 1.0, 0.0)  # Normal pointing up
-        glVertex3f(-half_w, half_h, -half_d)
-        glVertex3f(-half_w, half_h, half_d)
-        glVertex3f(half_w, half_h, half_d)
-        glVertex3f(half_w, half_h, -half_d)
+        glVertex3f(-half_w + chamfer, half_h, -half_d + chamfer)
+        glVertex3f(-half_w + chamfer, half_h, half_d - chamfer)
+        glVertex3f(half_w - chamfer, half_h, half_d - chamfer)
+        glVertex3f(half_w - chamfer, half_h, -half_d + chamfer)
         glEnd()
         
-        # Bottom face
+        # Top face edge chamfers - batched
+        glBegin(GL_QUADS)
+        # Front-top edge
+        glNormal3f(0.0, 0.707, 0.707)
+        glVertex3f(-half_w + chamfer, half_h - chamfer, half_d)
+        glVertex3f(half_w - chamfer, half_h - chamfer, half_d)
+        glVertex3f(half_w - chamfer, half_h, half_d - chamfer)
+        glVertex3f(-half_w + chamfer, half_h, half_d - chamfer)
+        # Back-top edge
+        glNormal3f(0.0, 0.707, -0.707)
+        glVertex3f(-half_w + chamfer, half_h, -half_d + chamfer)
+        glVertex3f(half_w - chamfer, half_h, -half_d + chamfer)
+        glVertex3f(half_w - chamfer, half_h - chamfer, -half_d)
+        glVertex3f(-half_w + chamfer, half_h - chamfer, -half_d)
+        # Left-top edge
+        glNormal3f(-0.707, 0.707, 0.0)
+        glVertex3f(-half_w, half_h - chamfer, -half_d + chamfer)
+        glVertex3f(-half_w + chamfer, half_h, -half_d + chamfer)
+        glVertex3f(-half_w + chamfer, half_h, half_d - chamfer)
+        glVertex3f(-half_w, half_h - chamfer, half_d - chamfer)
+        # Right-top edge
+        glNormal3f(0.707, 0.707, 0.0)
+        glVertex3f(half_w - chamfer, half_h, -half_d + chamfer)
+        glVertex3f(half_w, half_h - chamfer, -half_d + chamfer)
+        glVertex3f(half_w, half_h - chamfer, half_d - chamfer)
+        glVertex3f(half_w - chamfer, half_h, half_d - chamfer)
+        glEnd()
+        
+        # Top face corner chamfers - batched triangles
+        glBegin(GL_TRIANGLES)
+        # Front-left-top corner
+        glNormal3f(-0.577, 0.577, 0.577)
+        glVertex3f(-half_w, half_h - chamfer, half_d - chamfer)
+        glVertex3f(-half_w + chamfer, half_h, half_d - chamfer)
+        glVertex3f(-half_w + chamfer, half_h - chamfer, half_d)
+        # Front-right-top corner
+        glNormal3f(0.577, 0.577, 0.577)
+        glVertex3f(half_w - chamfer, half_h, half_d - chamfer)
+        glVertex3f(half_w, half_h - chamfer, half_d - chamfer)
+        glVertex3f(half_w - chamfer, half_h - chamfer, half_d)
+        # Back-left-top corner
+        glNormal3f(-0.577, 0.577, -0.577)
+        glVertex3f(-half_w + chamfer, half_h, -half_d + chamfer)
+        glVertex3f(-half_w, half_h - chamfer, -half_d + chamfer)
+        glVertex3f(-half_w + chamfer, half_h - chamfer, -half_d)
+        # Back-right-top corner
+        glNormal3f(0.577, 0.577, -0.577)
+        glVertex3f(half_w, half_h - chamfer, -half_d + chamfer)
+        glVertex3f(half_w - chamfer, half_h, -half_d + chamfer)
+        glVertex3f(half_w - chamfer, half_h - chamfer, -half_d)
+        glEnd()
+        
+        # Bottom face - chamfered (main surface inset from edges)
         glColor3f(0.15, 0.15, 0.15)
         glBegin(GL_QUADS)
         glNormal3f(0.0, -1.0, 0.0)  # Normal pointing down
-        glVertex3f(-half_w, -half_h, -half_d)
-        glVertex3f(half_w, -half_h, -half_d)
-        glVertex3f(half_w, -half_h, half_d)
-        glVertex3f(-half_w, -half_h, half_d)
+        glVertex3f(-half_w + chamfer, -half_h, -half_d + chamfer)
+        glVertex3f(half_w - chamfer, -half_h, -half_d + chamfer)
+        glVertex3f(half_w - chamfer, -half_h, half_d - chamfer)
+        glVertex3f(-half_w + chamfer, -half_h, half_d - chamfer)
         glEnd()
         
+        # Bottom face edge chamfers - batched
+        glBegin(GL_QUADS)
+        # Front-bottom edge
+        glNormal3f(0.0, -0.707, 0.707)
+        glVertex3f(-half_w + chamfer, -half_h, half_d - chamfer)
+        glVertex3f(half_w - chamfer, -half_h, half_d - chamfer)
+        glVertex3f(half_w - chamfer, -half_h + chamfer, half_d)
+        glVertex3f(-half_w + chamfer, -half_h + chamfer, half_d)
+        # Back-bottom edge
+        glNormal3f(0.0, -0.707, -0.707)
+        glVertex3f(-half_w + chamfer, -half_h + chamfer, -half_d)
+        glVertex3f(half_w - chamfer, -half_h + chamfer, -half_d)
+        glVertex3f(half_w - chamfer, -half_h, -half_d + chamfer)
+        glVertex3f(-half_w + chamfer, -half_h, -half_d + chamfer)
+        # Left-bottom edge
+        glNormal3f(-0.707, -0.707, 0.0)
+        glVertex3f(-half_w + chamfer, -half_h, -half_d + chamfer)
+        glVertex3f(-half_w + chamfer, -half_h, half_d - chamfer)
+        glVertex3f(-half_w, -half_h + chamfer, half_d - chamfer)
+        glVertex3f(-half_w, -half_h + chamfer, -half_d + chamfer)
+        # Right-bottom edge
+        glNormal3f(0.707, -0.707, 0.0)
+        glVertex3f(half_w, -half_h + chamfer, -half_d + chamfer)
+        glVertex3f(half_w, -half_h + chamfer, half_d - chamfer)
+        glVertex3f(half_w - chamfer, -half_h, half_d - chamfer)
+        glVertex3f(half_w - chamfer, -half_h, -half_d + chamfer)
+        glEnd()
+        
+        # Bottom face corner chamfers - batched triangles
+        glBegin(GL_TRIANGLES)
+        # Front-left-bottom corner
+        glNormal3f(-0.577, -0.577, 0.577)
+        glVertex3f(-half_w + chamfer, -half_h, half_d - chamfer)
+        glVertex3f(-half_w + chamfer, -half_h + chamfer, half_d)
+        glVertex3f(-half_w, -half_h + chamfer, half_d - chamfer)
+        # Front-right-bottom corner
+        glNormal3f(0.577, -0.577, 0.577)
+        glVertex3f(half_w, -half_h + chamfer, half_d - chamfer)
+        glVertex3f(half_w - chamfer, -half_h + chamfer, half_d)
+        glVertex3f(half_w - chamfer, -half_h, half_d - chamfer)
+        # Back-left-bottom corner
+        glNormal3f(-0.577, -0.577, -0.577)
+        glVertex3f(-half_w, -half_h + chamfer, -half_d + chamfer)
+        glVertex3f(-half_w + chamfer, -half_h + chamfer, -half_d)
+        glVertex3f(-half_w + chamfer, -half_h, -half_d + chamfer)
+        # Back-right-bottom corner
+        glNormal3f(0.577, -0.577, -0.577)
+        glVertex3f(half_w - chamfer, -half_h + chamfer, -half_d)
+        glVertex3f(half_w, -half_h + chamfer, -half_d + chamfer)
+        glVertex3f(half_w - chamfer, -half_h, -half_d + chamfer)
+        glEnd()
+        
+        # Left and right face chamfers - batched
+        glColor3f(0.25, 0.25, 0.25)
+        glBegin(GL_QUADS)
         # Left face
-        glColor3f(0.25, 0.25, 0.25)
-        glBegin(GL_QUADS)
-        glNormal3f(-1.0, 0.0, 0.0)  # Normal pointing left
-        glVertex3f(-half_w, -half_h, -half_d)
-        glVertex3f(-half_w, -half_h, half_d)
-        glVertex3f(-half_w, half_h, half_d)
-        glVertex3f(-half_w, half_h, -half_d)
-        glEnd()
-        
+        glNormal3f(-1.0, 0.0, 0.0)
+        glVertex3f(-half_w, -half_h + chamfer, -half_d + chamfer)
+        glVertex3f(-half_w, -half_h + chamfer, half_d - chamfer)
+        glVertex3f(-half_w, half_h - chamfer, half_d - chamfer)
+        glVertex3f(-half_w, half_h - chamfer, -half_d + chamfer)
         # Right face
-        glColor3f(0.25, 0.25, 0.25)
-        glBegin(GL_QUADS)
-        glNormal3f(1.0, 0.0, 0.0)  # Normal pointing right
-        glVertex3f(half_w, -half_h, -half_d)
-        glVertex3f(half_w, half_h, -half_d)
-        glVertex3f(half_w, half_h, half_d)
-        glVertex3f(half_w, -half_h, half_d)
+        glNormal3f(1.0, 0.0, 0.0)
+        glVertex3f(half_w, -half_h + chamfer, -half_d + chamfer)
+        glVertex3f(half_w, half_h - chamfer, -half_d + chamfer)
+        glVertex3f(half_w, half_h - chamfer, half_d - chamfer)
+        glVertex3f(half_w, -half_h + chamfer, half_d - chamfer)
         glEnd()
         
         # Reset color
