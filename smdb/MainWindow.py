@@ -2287,15 +2287,28 @@ class MainWindow(QtWidgets.QMainWindow):
         if len(searchText) == 0:
             return
 
-        # Convert shell-style wildcards to regex pattern
-        # * becomes .*, ? becomes ., etc.
-        import fnmatch
-        regex_pattern = fnmatch.translate(searchText)
-        # Compile with case-insensitive flag
-        try:
-            search_regex = re.compile(regex_pattern, re.IGNORECASE)
-        except re.error:
-            # If regex compilation fails, fall back to literal search
+        # Check if search text contains wildcards
+        has_wildcards = '*' in searchText or '?' in searchText or '[' in searchText
+        
+        if has_wildcards:
+            # Convert shell-style wildcards to regex pattern
+            import fnmatch
+            regex_pattern = fnmatch.translate(searchText)
+            # fnmatch.translate adds \Z at the end, which requires full match
+            # Remove the anchors to allow partial matching
+            regex_pattern = regex_pattern.replace(r'\Z', '')
+            if regex_pattern.startswith('(?:'):
+                # Remove the starting anchor group that fnmatch adds
+                regex_pattern = regex_pattern[4:]
+            # Compile with case-insensitive flag
+            try:
+                search_regex = re.compile(regex_pattern, re.IGNORECASE)
+            except re.error:
+                # If regex compilation fails, fall back to literal search
+                searchTextLower = searchText.lower()
+                search_regex = None
+        else:
+            # No wildcards - use simple substring search for better performance
             searchTextLower = searchText.lower()
             search_regex = None
 
