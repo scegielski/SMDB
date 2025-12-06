@@ -2330,24 +2330,76 @@ class MainWindow(QtWidgets.QMainWindow):
                     escaped = re.escape(token)
                     patterns.append(r'\b' + escaped + r'\b')
                 
-                # Join patterns with .* between them (match in order with anything between)
-                group_pattern = '.*'.join(patterns)
-                all_group_patterns.append(group_pattern)
+                # For AND logic, we need to check each pattern separately
+                # Store as tuple to handle differently than OR groups
+                all_group_patterns.append(('AND', patterns))
         
         # Combine all OR groups with | regex operator
-        if len(all_group_patterns) > 0:
-            if len(all_group_patterns) == 1:
-                regex_pattern = all_group_patterns[0]
-            else:
-                # Wrap each group in non-capturing group and join with |
-                regex_pattern = '|'.join([f'(?:{p})' for p in all_group_patterns])
-            
-            try:
-                search_regex = re.compile(regex_pattern, re.IGNORECASE)
-            except re.error:
-                search_regex = None
-        else:
+        # Handle AND groups separately based on whether we have multiple OR groups
+        if len(all_group_patterns) == 0:
             search_regex = None
+        elif len(all_group_patterns) == 1:
+            # Single group - could be AND or simple pattern
+            item = all_group_patterns[0]
+            if isinstance(item, tuple) and item[0] == 'AND':
+                # Single AND group - compile each pattern separately
+                _, patterns = item
+                search_regex = []
+                for pattern in patterns:
+                    try:
+                        search_regex.append(re.compile(pattern, re.IGNORECASE))
+                    except re.error:
+                        pass
+                if not search_regex:
+                    search_regex = None
+            else:
+                # Single simple pattern (wildcard)
+                try:
+                    search_regex = re.compile(item, re.IGNORECASE)
+                except re.error:
+                    search_regex = None
+        else:
+            # Multiple OR groups - need to combine with | operator
+            # For OR logic, we can't use list of regexes, need single regex with |
+            # Convert AND groups to match-all patterns using lookaheads would freeze
+            # So we need to check AND groups separately
+            
+            # Check if all groups are AND groups
+            all_and = all(isinstance(p, tuple) and p[0] == 'AND' for p in all_group_patterns)
+            
+            if all_and:
+                # All OR groups contain AND logic - need special handling
+                # Store as list of lists for OR of ANDs
+                search_regex = []
+                for item in all_group_patterns:
+                    _, patterns = item
+                    group_regexes = []
+                    for pattern in patterns:
+                        try:
+                            group_regexes.append(re.compile(pattern, re.IGNORECASE))
+                        except re.error:
+                            pass
+                    if group_regexes:
+                        search_regex.append(group_regexes)
+                if not search_regex:
+                    search_regex = None
+            else:
+                # Mix of AND and simple patterns - convert to single regex with |
+                or_patterns = []
+                for item in all_group_patterns:
+                    if isinstance(item, tuple) and item[0] == 'AND':
+                        _, patterns = item
+                        # Join with .* for sequential matching
+                        or_patterns.append('.*'.join(patterns))
+                    else:
+                        or_patterns.append(item)
+                
+                # Wrap each group in non-capturing group and join with |
+                regex_pattern = '|'.join([f'(?:{p})' for p in or_patterns])
+                try:
+                    search_regex = re.compile(regex_pattern, re.IGNORECASE)
+                except re.error:
+                    search_regex = None
 
         # Get row count from SOURCE model (not proxy) to search all movies
         rowCount = self.moviesTableModel.rowCount()
@@ -2387,48 +2439,6 @@ class MainWindow(QtWidgets.QMainWindow):
             # Get movie data
             title = self.moviesTableModel.getTitle(sourceRow)
             
-            # Quick title check before loading plot
-            title_matches = False
-            if search_regex:
-                title_matches = search_regex.search(title) is not None
-            else:
-                title_matches = searchTextLower in title.lower()
-            
-            if title_matches:
-                year = self.moviesTableModel.getYear(sourceRow)
-                try:
-                    year_int = int(year) if year else 0
-                except (ValueError, TypeError):
-                    year_int = 0
-                matching_movies.append((title, year_int))
-                
-                # Update display with new matches periodically
-                if len(matching_movies) % update_interval == 0:
-                    self.moviesTableProxyModel.setMovieListFilter(matching_movies, mode='include')
-                    self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
-                    QtCore.QCoreApplication.processEvents()
-                
-                if sourceRow % progress_update_interval == 0:
-                    self.progressBar.setValue(sourceRow)
-                    # Calculate and display ETA
-                    elapsed = time.time() - start_time
-                    if sourceRow > 0:
-                        avg_time_per_item = elapsed / sourceRow
-                        remaining_items = rowCount - sourceRow
-                        eta_seconds = avg_time_per_item * remaining_items
-                        
-                        if eta_seconds < 60:
-                            eta_str = f"{int(eta_seconds)}s"
-                        else:
-                            eta_minutes = int(eta_seconds // 60)
-                            eta_secs = int(eta_seconds % 60)
-                            eta_str = f"{eta_minutes}m {eta_secs}s"
-                        
-                        self.statusBar().showMessage(f'Plot search: {len(matching_movies)} matches | {sourceRow}/{rowCount} | ETA: {eta_str}')
-                    else:
-                        self.statusBar().showMessage(f'Plot search: {len(matching_movies)} matches | {sourceRow}/{rowCount}')
-                continue
-            
             # Get plot and synopsis from cached smdb data (much faster than loading JSON files)
             moviePath = self.moviesTableModel.getPath(sourceRow)
             plot = None
@@ -2441,12 +2451,24 @@ class MainWindow(QtWidgets.QMainWindow):
             
             # Search both plot and synopsis
             text_matches = False
-            # Combine plot and synopsis for searching
-            search_text = ' '.join(filter(None, [plot, synopsis]))
+            # Combine title, plot and synopsis for searching
+            search_text = ' '.join(filter(None, [title, plot, synopsis]))
             
             if search_text:
                 if search_regex:
-                    text_matches = search_regex.search(search_text) is not None
+                    if isinstance(search_regex, list):
+                        if len(search_regex) > 0 and isinstance(search_regex[0], list):
+                            # OR of ANDs - at least one AND group must have all patterns match
+                            text_matches = any(
+                                all(regex.search(search_text) for regex in and_group)
+                                for and_group in search_regex
+                            )
+                        else:
+                            # Single AND group - all patterns must match
+                            text_matches = all(regex.search(search_text) for regex in search_regex)
+                    else:
+                        # Single regex pattern (OR logic or simple pattern)
+                        text_matches = search_regex.search(search_text) is not None
                 else:
                     text_matches = searchTextLower in search_text.lower()
             
