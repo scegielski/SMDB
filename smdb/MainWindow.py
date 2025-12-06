@@ -191,6 +191,12 @@ class MainWindow(QtWidgets.QMainWindow):
         
         # Initialize log panel text widget reference (will be created later in UI setup)
         self.logTextWidget = None
+        
+        # Store current plot search regex for highlighting
+        self.plotSearchRegex = None
+        
+        # Store current plot search regex for highlighting
+        self.plotSearchRegex = None
 
         # Define API keys here and use throughout the class
         self.openSubtitlesApiKey = "9iBc6gQ0mlsC9hdapJs6IR2JfmT6F3f1"
@@ -2515,6 +2521,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.progressBar.setValue(0)
         self.statusBar().showMessage(f'Plot search completed: {len(matching_movies)} matches found')
         self.output(f"Plot search completed: {len(matching_movies)} movies found")
+        
+        # Store the search regex for highlighting in summary display
+        self.plotSearchRegex = search_regex
 
     def searchMoviesTableView(self):
         searchText = self.moviesTableTitleFilterBox.text()
@@ -2929,6 +2938,77 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.movieInfoListView.setCurrentRow(0)
 
+    def highlightSearchTerms(self, text, search_regex):
+        """Highlight search terms in text using HTML.
+        
+        Args:
+            text: The text to highlight terms in
+            search_regex: Either a compiled regex, or a list of regexes (AND), or list of lists (OR of ANDs)
+            
+        Returns:
+            Text with HTML highlighting applied
+        """
+        if not text or not search_regex:
+            return text
+        
+        # Collect all regex patterns to highlight
+        patterns_to_highlight = []
+        
+        if isinstance(search_regex, list):
+            if len(search_regex) > 0 and isinstance(search_regex[0], list):
+                # OR of ANDs - flatten all patterns
+                for and_group in search_regex:
+                    patterns_to_highlight.extend(and_group)
+            else:
+                # Single AND group
+                patterns_to_highlight = search_regex
+        else:
+            # Single regex pattern - could be OR pattern with | operator
+            # In this case, we want to highlight all matches from the combined pattern
+            patterns_to_highlight = [search_regex]
+        
+        # Find all matches with their positions
+        matches = []
+        for pattern in patterns_to_highlight:
+            for match in pattern.finditer(text):
+                # Don't add empty matches
+                if match.group():
+                    matches.append((match.start(), match.end(), match.group()))
+        
+        if not matches:
+            return text
+        
+        # Sort by position and merge overlapping matches
+        matches.sort()
+        merged_matches = []
+        for start, end, matched_text in matches:
+            if merged_matches and start < merged_matches[-1][1]:
+                # Overlapping - extend the previous match
+                prev_start, prev_end, prev_text = merged_matches[-1]
+                merged_matches[-1] = (prev_start, max(end, prev_end), text[prev_start:max(end, prev_end)])
+            else:
+                merged_matches.append((start, end, matched_text))
+        
+        # Build highlighted text from end to start to preserve positions
+        # Need to HTML-escape the text first, then apply highlights
+        import html
+        result_parts = []
+        last_pos = 0
+        
+        for start, end, matched_text in merged_matches:
+            # Add non-highlighted text (escaped)
+            if start > last_pos:
+                result_parts.append(html.escape(text[last_pos:start]))
+            # Add highlighted text (escaped)
+            result_parts.append(f'<span style="background-color: yellow; color: black;">{html.escape(matched_text)}</span>')
+            last_pos = end
+        
+        # Add remaining text
+        if last_pos < len(text):
+            result_parts.append(html.escape(text[last_pos:]))
+        
+        return ''.join(result_parts)
+
     def getPlot(self, jsonData):
         if not jsonData:
             return
@@ -2958,7 +3038,13 @@ class MainWindow(QtWidgets.QMainWindow):
                 plot = jsonData['plot']
             # Remove the author of the plot's name
             plot = plot.split('::')[0]
+            
+            # Highlight search terms if we have a plot search active
+            if self.plotSearchRegex:
+                plot = self.highlightSearchTerms(plot, self.plotSearchRegex)
+            
             infoText += '%s<br>' % plot
+            
         if 'synopsis' in jsonData and jsonData['synopsis']:
             infoText += '<br>Synopsis:<br>'
             if isinstance(jsonData['synopsis'], list):
@@ -2967,7 +3053,13 @@ class MainWindow(QtWidgets.QMainWindow):
                 synopsis = jsonData['synopsis']
             # Remove the author of the synopsis's name
             synopsis = synopsis.split('::')[0]
+            
+            # Highlight search terms if we have a plot search active
+            if self.plotSearchRegex:
+                synopsis = self.highlightSearchTerms(synopsis, self.plotSearchRegex)
+            
             infoText += '%s<br>' % synopsis
+            
         return infoText
 
     def summaryShow(self, jsonData):
