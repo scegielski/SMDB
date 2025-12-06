@@ -54,9 +54,11 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # Always animate the transition when index changes (even when zoomed in)
             # BUT skip animation if user is actively dragging
             if old_index != current_index:
-                # Reset rotation for the old movie when leaving center
-                if old_index in self.movie_rotations:
-                    del self.movie_rotations[old_index]
+                # Don't delete rotation immediately - let it fade out smoothly during scroll
+                # Mark it for cleanup instead
+                if not hasattr(self, '_rotations_to_clear'):
+                    self._rotations_to_clear = set()
+                self._rotations_to_clear.add(old_index)
                 
                 if is_dragging:
                     # User is dragging - just update index silently without animation
@@ -1137,6 +1139,12 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     # At offset ±1 or more: rotation goes to 0
                     rotation_factor = max(0.0, 1.0 - abs(effective_offset))
                     current_rotation = movie_rotation * rotation_factor
+                    
+                    # Clear rotation from dictionary once it's fully faded out (offset >= 1.0)
+                    if hasattr(self, '_rotations_to_clear') and idx in self._rotations_to_clear:
+                        if abs(effective_offset) >= 1.0 and idx in self.movie_rotations:
+                            del self.movie_rotations[idx]
+                            self._rotations_to_clear.discard(idx)
                     
                     glRotatef(current_rotation + curve_angle, 0.0, 1.0, 0.0)
                     
