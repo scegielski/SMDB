@@ -17,6 +17,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
     from PyQt5.QtCore import QMutex, QMutexLocker
 
     CACHE_RADIUS = 25
+    STANDARD_ASPECT_RATIO = 2.0 / 3.0  # Standard movie poster aspect ratio (width/height)
 
     def setModelAndIndex(self, model, current_index, proxy_model=None, table_view=None):
         # Detect if proxy model changed (filter was applied or removed)
@@ -848,7 +849,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         gluPerspective(fov, w / h if h != 0 else 1, 0.1, 500.0)
         glMatrixMode(GL_MODELVIEW)
 
-    def drawVHSBox(self, width, height, texture_id, back_texture_id=None):
+    def drawVHSBox(self, width, height, texture_id, back_texture_id=None, image_aspect=None):
         """Draw a 3D VHS box with the cover texture on front, text on back, and solid sides
         
         Args:
@@ -856,6 +857,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             height: Height of the box
             texture_id: OpenGL texture ID for the front cover
             back_texture_id: Optional OpenGL texture ID for back (plot/synopsis text)
+            image_aspect: Optional aspect ratio of the source image (width/height)
         """
         # VHS depth is approximately 1 inch (25mm) relative to typical 7.5" height
         # Using a depth ratio of about 0.13 (1/7.5)
@@ -869,13 +871,45 @@ class CoverFlowGLWidget(QOpenGLWidget):
         if texture_id and texture_id != 0:
             glBindTexture(GL_TEXTURE_2D, texture_id)
             glEnable(GL_TEXTURE_2D)
+            
+            # Set texture to border color (dark grey to match box sides) outside texture region
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER)
+            border_color = [0.2, 0.2, 0.2, 1.0]
+            glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, border_color)
+            
+            # Calculate UV coordinates to fit image within box while maintaining aspect ratio
+            # Box aspect ratio
+            box_aspect = width / height if height != 0 else 1.0
+            
+            # Default to box aspect if image aspect not provided
+            if image_aspect is None:
+                image_aspect = box_aspect
+            
+            # Calculate UV scaling to fit the largest dimension
+            u_scale = 1.0
+            v_scale = 1.0
+            
+            if image_aspect > box_aspect:
+                # Image is wider - scale V (height) to fit
+                v_scale = image_aspect / box_aspect
+            else:
+                # Image is taller - scale U (width) to fit
+                u_scale = box_aspect / image_aspect
+            
+            # Center the scaled UVs
+            u_min = (1.0 - u_scale) / 2.0
+            u_max = (1.0 + u_scale) / 2.0
+            v_min = (1.0 - v_scale) / 2.0
+            v_max = (1.0 + v_scale) / 2.0
+            
             # Don't override color here - use whatever was set before (for dimming effect)
             glBegin(GL_QUADS)
             glNormal3f(0.0, 0.0, 1.0)  # Normal pointing forward
-            glTexCoord2f(0.0, 1.0); glVertex3f(-half_w, -half_h, half_d)
-            glTexCoord2f(1.0, 1.0); glVertex3f(half_w, -half_h, half_d)
-            glTexCoord2f(1.0, 0.0); glVertex3f(half_w, half_h, half_d)
-            glTexCoord2f(0.0, 0.0); glVertex3f(-half_w, half_h, half_d)
+            glTexCoord2f(u_min, v_max); glVertex3f(-half_w, -half_h, half_d)
+            glTexCoord2f(u_max, v_max); glVertex3f(half_w, -half_h, half_d)
+            glTexCoord2f(u_max, v_min); glVertex3f(half_w, half_h, half_d)
+            glTexCoord2f(u_min, v_min); glVertex3f(-half_w, half_h, half_d)
             glEnd()
             glDisable(GL_TEXTURE_2D)
         else:
@@ -1017,20 +1051,22 @@ class CoverFlowGLWidget(QOpenGLWidget):
             if prev_texture_id is None and self._prev_cover_image and not self._prev_cover_image.isNull():
                 prev_texture_id = self.createTextureFromQImage(self._prev_cover_image)
             
-            # Calculate previous cover's quad dimensions
-            if prev_quad_geom:
-                prev_aspect, w, h = prev_quad_geom
-            else:
-                prev_aspect = self._prev_cover_image.width() / self._prev_cover_image.height() if self._prev_cover_image and not self._prev_cover_image.isNull() and self._prev_cover_image.height() != 0 else 1.0
-            
+            # Calculate previous cover's quad dimensions using standard aspect ratio
             prev_quad_h = max_quad_h
-            prev_quad_w = prev_aspect * prev_quad_h
+            prev_quad_w = self.STANDARD_ASPECT_RATIO * prev_quad_h
             if prev_quad_w > max_quad_w:
                 prev_quad_w = max_quad_w
-                prev_quad_h = prev_quad_w / prev_aspect
+                prev_quad_h = prev_quad_w / self.STANDARD_ASPECT_RATIO
+            
+            # Get image aspect ratio
+            prev_img_aspect = None
+            if prev_quad_geom:
+                prev_img_aspect, _, _ = prev_quad_geom
+            elif self._prev_cover_image and not self._prev_cover_image.isNull() and self._prev_cover_image.height() != 0:
+                prev_img_aspect = self._prev_cover_image.width() / self._prev_cover_image.height()
             
             if prev_texture_id:
-                self.drawVHSBox(prev_quad_w, prev_quad_h, prev_texture_id, prev_back_texture_id)
+                self.drawVHSBox(prev_quad_w, prev_quad_h, prev_texture_id, prev_back_texture_id, prev_img_aspect)
             glPopMatrix()
             
             # Draw current cover with its own quad dimensions
@@ -1043,17 +1079,19 @@ class CoverFlowGLWidget(QOpenGLWidget):
             if hasattr(self, '_current_index'):
                 _, curr_texture_id, curr_back_texture_id, curr_quad_geom = self.getCachedCover(self._current_index)
             
-            # Calculate current cover's quad dimensions
-            if curr_quad_geom:
-                curr_aspect, w, h = curr_quad_geom
-            else:
-                curr_aspect = self.cover_image.width() / self.cover_image.height() if self.cover_image and not self.cover_image.isNull() and self.cover_image.height() != 0 else 1.0
-            
+            # Calculate current cover's quad dimensions using standard aspect ratio
             curr_quad_h = max_quad_h
-            curr_quad_w = curr_aspect * curr_quad_h
+            curr_quad_w = self.STANDARD_ASPECT_RATIO * curr_quad_h
             if curr_quad_w > max_quad_w:
                 curr_quad_w = max_quad_w
-                curr_quad_h = curr_quad_w / curr_aspect
+                curr_quad_h = curr_quad_w / self.STANDARD_ASPECT_RATIO
+            
+            # Get image aspect ratio
+            curr_img_aspect = None
+            if curr_quad_geom:
+                curr_img_aspect, _, _ = curr_quad_geom
+            elif self.cover_image and not self.cover_image.isNull() and self.cover_image.height() != 0:
+                curr_img_aspect = self.cover_image.width() / self.cover_image.height()
             
             if self.cover_image and not self.cover_image.isNull():
                 if curr_texture_id is None:
@@ -1075,7 +1113,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
                             curr_back_texture_id = self.createTextTexture(movie_path, movie_folder)
                     except Exception:
                         pass
-                self.drawVHSBox(curr_quad_w, curr_quad_h, curr_texture_id, curr_back_texture_id)
+                self.drawVHSBox(curr_quad_w, curr_quad_h, curr_texture_id, curr_back_texture_id, curr_img_aspect)
             glPopMatrix()
         else:
             # Multi-cover rendering (always active, even when zoomed in)
@@ -1090,12 +1128,13 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 if self.cover_image and not self.cover_image.isNull():
                     if self.texture_id is None:
                         self.texture_id = self.createTextureFromQImage(self.cover_image)
-                    aspect = self.cover_image.width() / self.cover_image.height() if self.cover_image.height() != 0 else 1.0
                     quad_h = max_quad_h
-                    quad_w = aspect * quad_h
+                    quad_w = self.STANDARD_ASPECT_RATIO * quad_h
                     if quad_w > max_quad_w:
                         quad_w = max_quad_w
-                        quad_h = quad_w / aspect
+                        quad_h = quad_w / self.STANDARD_ASPECT_RATIO
+                    # Get image aspect ratio
+                    img_aspect = self.cover_image.width() / self.cover_image.height() if self.cover_image.height() != 0 else None
                     # Get back texture
                     back_tex = None
                     if hasattr(self, '_model') and hasattr(self, '_current_index'):
@@ -1106,7 +1145,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
                                 back_tex = self.createTextTexture(movie_path, movie_folder)
                         except Exception:
                             pass
-                    self.drawVHSBox(quad_w, quad_h, self.texture_id, back_tex)
+                    self.drawVHSBox(quad_w, quad_h, self.texture_id, back_tex, img_aspect)
             else:
                 vertical_spacing = 0.65  # Fixed spacing between covers (reduced from 0.85 for tighter packing)
                 
@@ -1236,19 +1275,19 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     
                     covers_drawn += 1
                     
-                    # Calculate quad dimensions
-                    if quad_geom:
-                        aspect, w, h = quad_geom
-                    elif cover_img and not cover_img.isNull():
-                        aspect = cover_img.width() / cover_img.height() if cover_img.height() != 0 else 1.0
-                    else:
-                        aspect = 1.0
-                    
+                    # Calculate quad dimensions using standard aspect ratio
                     quad_h = max_quad_h * 0.8  # Scale down a bit when showing multiple
-                    quad_w = aspect * quad_h
+                    quad_w = self.STANDARD_ASPECT_RATIO * quad_h
                     if quad_w > max_quad_w * 0.8:
                         quad_w = max_quad_w * 0.8
-                        quad_h = quad_w / aspect
+                        quad_h = quad_w / self.STANDARD_ASPECT_RATIO
+                    
+                    # Get image aspect ratio for proper texture fitting
+                    img_aspect = None
+                    if quad_geom:
+                        img_aspect, _, _ = quad_geom
+                    elif cover_img and not cover_img.isNull() and cover_img.height() != 0:
+                        img_aspect = cover_img.width() / cover_img.height()
                     
                     # Position the cover horizontally with parabolic arc into z-depth
                     # Apply scroll offset during animation
@@ -1325,7 +1364,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     # Set opacity and brightness for distance-based fading
                     glColor4f(alpha, alpha, alpha, 1.0)
                     
-                    self.drawVHSBox(quad_w, quad_h, texture_id, back_texture_id)
+                    self.drawVHSBox(quad_w, quad_h, texture_id, back_texture_id, img_aspect)
                     
                     # Reset color to white
                     glColor4f(1.0, 1.0, 1.0, 1.0)
