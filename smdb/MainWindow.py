@@ -2287,8 +2287,17 @@ class MainWindow(QtWidgets.QMainWindow):
         if len(searchText) == 0:
             return
 
-        # Use case-insensitive search directly instead of regex for better performance
-        searchTextLower = searchText.lower()
+        # Convert shell-style wildcards to regex pattern
+        # * becomes .*, ? becomes ., etc.
+        import fnmatch
+        regex_pattern = fnmatch.translate(searchText)
+        # Compile with case-insensitive flag
+        try:
+            search_regex = re.compile(regex_pattern, re.IGNORECASE)
+        except re.error:
+            # If regex compilation fails, fall back to literal search
+            searchTextLower = searchText.lower()
+            search_regex = None
 
         # Get row count from SOURCE model (not proxy) to search all movies
         rowCount = self.moviesTableModel.rowCount()
@@ -2328,8 +2337,14 @@ class MainWindow(QtWidgets.QMainWindow):
             # Get movie data
             title = self.moviesTableModel.getTitle(sourceRow)
             
-            # Quick title check before loading JSON
-            if searchTextLower in title.lower():
+            # Quick title check before loading plot
+            title_matches = False
+            if search_regex:
+                title_matches = search_regex.search(title) is not None
+            else:
+                title_matches = searchTextLower in title.lower()
+            
+            if title_matches:
                 year = self.moviesTableModel.getYear(sourceRow)
                 try:
                     year_int = int(year) if year else 0
@@ -2364,71 +2379,35 @@ class MainWindow(QtWidgets.QMainWindow):
                         self.statusBar().showMessage(f'Plot search: {len(matching_movies)} matches | {sourceRow}/{rowCount}')
                 continue
             
-            # Only load JSON if title doesn't match
+            # Get plot from cached smdb data (much faster than loading JSON files)
             moviePath = self.moviesTableModel.getPath(sourceRow)
-            folderName = self.moviesTableModel.getFolderName(sourceRow)
-            moviePath = self.findMovie(moviePath, folderName)
-            if not moviePath:
-                continue
-                
-            jsonFile = os.path.join(moviePath, '%s.json' % folderName)
+            plot = None
             
-            # Check file existence before trying to open
-            if not os.path.exists(jsonFile):
-                if sourceRow % progress_update_interval == 0:
-                    self.progressBar.setValue(sourceRow)
-                    # Calculate and display ETA
-                    elapsed = time.time() - start_time
-                    if sourceRow > 0:
-                        avg_time_per_item = elapsed / sourceRow
-                        remaining_items = rowCount - sourceRow
-                        eta_seconds = avg_time_per_item * remaining_items
-                        
-                        if eta_seconds < 60:
-                            eta_str = f"{int(eta_seconds)}s"
-                        else:
-                            eta_minutes = int(eta_seconds // 60)
-                            eta_secs = int(eta_seconds % 60)
-                            eta_str = f"{eta_minutes}m {eta_secs}s"
-                        
-                        self.statusBar().showMessage(f'Plot search: {len(matching_movies)} matches | {sourceRow}/{rowCount} | ETA: {eta_str}')
-                    else:
-                        self.statusBar().showMessage(f'Plot search: {len(matching_movies)} matches | {sourceRow}/{rowCount}')
-                continue
+            if self.moviesSmdbData and 'titles' in self.moviesSmdbData:
+                if moviePath in self.moviesSmdbData['titles']:
+                    plot = self.moviesSmdbData['titles'][moviePath].get('plot')
+            
+            # Search the plot if we have one
+            plot_matches = False
+            if plot:
+                if search_regex:
+                    plot_matches = search_regex.search(plot) is not None
+                else:
+                    plot_matches = searchTextLower in plot.lower()
+            
+            if plot_matches:
+                year = self.moviesTableModel.getYear(sourceRow)
+                try:
+                    year_int = int(year) if year else 0
+                except (ValueError, TypeError):
+                    year_int = 0
+                matching_movies.append((title, year_int))
                 
-            # Load and check plot
-            try:
-                with open(jsonFile, 'r', encoding='utf-8') as f:
-                    jsonData = ujson.load(f)
-                    
-                # Extract plot directly for faster processing
-                plot = None
-                if jsonData and 'plot' in jsonData and jsonData['plot']:
-                    if isinstance(jsonData['plot'], list):
-                        plot = jsonData['plot'][0]
-                    else:
-                        plot = jsonData['plot']
-                    # Remove the author of the plot's name
-                    plot = plot.split('::')[0]
-                
-                # Use simple substring search instead of regex
-                if plot and searchTextLower in plot.lower():
-                    year = self.moviesTableModel.getYear(sourceRow)
-                    try:
-                        year_int = int(year) if year else 0
-                    except (ValueError, TypeError):
-                        year_int = 0
-                    matching_movies.append((title, year_int))
-                    
-                    # Update display with new matches periodically
-                    if len(matching_movies) % update_interval == 0:
-                        self.moviesTableProxyModel.setMovieListFilter(matching_movies, mode='include')
-                        self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
-                        QtCore.QCoreApplication.processEvents()
-                    
-            except (UnicodeDecodeError, IOError, ValueError) as e:
-                # Silent error handling for better performance
-                pass
+                # Update display with new matches periodically
+                if len(matching_movies) % update_interval == 0:
+                    self.moviesTableProxyModel.setMovieListFilter(matching_movies, mode='include')
+                    self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
+                    QtCore.QCoreApplication.processEvents()
             
             # Update progress bar and status less frequently
             if sourceRow % progress_update_interval == 0:
@@ -3158,6 +3137,18 @@ class MainWindow(QtWidgets.QMainWindow):
                 # Known duplicate status
                 knownDuplicate = jsonData.get('known duplicate', False)
 
+                # Extract plot for caching in smdb file
+                jsonPlot = None
+                if jsonData.get('plot'):
+                    plot_data = jsonData.get('plot')
+                    if isinstance(plot_data, list):
+                        jsonPlot = plot_data[0] if plot_data else None
+                    else:
+                        jsonPlot = plot_data
+                    # Remove the author of the plot's name
+                    if jsonPlot:
+                        jsonPlot = jsonPlot.split('::')[0]
+
                 # Subtitles exist status comes from current model value if present
                 try:
                     if len(model._data[row]) > Columns.SubtitlesExist.value:
@@ -3193,13 +3184,18 @@ class MainWindow(QtWidgets.QMainWindow):
                     'subtitles exist': subtitlesExist,
                     'date watched': dateWatched,
                     'similar movies': jsonSimilarMovies,
-                    'known duplicate': knownDuplicate
+                    'known duplicate': knownDuplicate,
+                    'plot': jsonPlot
                 }
 
         self.progressBar.setValue(0)
 
         self.statusBar().showMessage('Sorting Data...')
         QtCore.QCoreApplication.processEvents()
+        
+        # Count how many movies have plots for logging
+        plot_count = sum(1 for t in titles.values() if t.get('plot'))
+        self.output(f"Collected {plot_count} plots out of {len(titles)} movies")
 
         # Normalize indexes (convert dict-as-set to lists) before serializing
         data = {'titles': collections.OrderedDict(sorted(titles.items()))}
@@ -3238,18 +3234,32 @@ class MainWindow(QtWidgets.QMainWindow):
                 QtCore.QCoreApplication.processEvents()
                 with open(mpk_path, "wb") as bf:
                     msgpack.pack(data, bf, use_bin_type=True)
+                
+                # Get file size for logging
+                mpk_size_mb = os.path.getsize(mpk_path) / (1024 * 1024)
+                self.output(f"Wrote {mpk_path} ({mpk_size_mb:.2f} MB)")
+                
+                # Also write JSON for human readability and backup
+                self.statusBar().showMessage('Writing %s' % fileName)
+                QtCore.QCoreApplication.processEvents()
+                with open(fileName, "w", encoding="utf-8") as f:
+                    ujson.dump(data, f, indent=4)
+                
+                json_size_mb = os.path.getsize(fileName) / (1024 * 1024)
+                self.output(f"Wrote {fileName} ({json_size_mb:.2f} MB)")
+                
             except Exception as e:
                 # Fall back to JSON if msgpack write fails
                 self.output(f"Warning: failed to write MessagePack SMDB: {e}, falling back to JSON")
                 self.statusBar().showMessage('Writing %s' % fileName)
                 QtCore.QCoreApplication.processEvents()
-                with open(fileName, "w") as f:
+                with open(fileName, "w", encoding="utf-8") as f:
                     ujson.dump(data, f, indent=4)
         else:
             # Write JSON when msgpack is not available
             self.statusBar().showMessage('Writing %s' % fileName)
             QtCore.QCoreApplication.processEvents()
-            with open(fileName, "w") as f:
+            with open(fileName, "w", encoding="utf-8") as f:
                 ujson.dump(data, f, indent=4)
 
         self.statusBar().showMessage('Done')
