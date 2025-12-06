@@ -207,7 +207,29 @@ class CoverFlowGLWidget(QOpenGLWidget):
         self.update()
 
     def timerEvent(self, event):
-        if self.camera_reset_timer and event.timerId() == self.camera_reset_timer:
+        if self.zoom_animation_timer and event.timerId() == self.zoom_animation_timer:
+            # Animate zoom smoothly toward target
+            zoom_speed = 0.08  # Units per frame at 60fps (reduced for smoother motion)
+            
+            diff = self.zoom_target - self.camera_z
+            
+            # Check if we're close enough to target
+            if abs(diff) < 0.01:
+                self.camera_z = self.zoom_target
+                try:
+                    self.killTimer(self.zoom_animation_timer)
+                except:
+                    pass
+                self.zoom_animation_timer = None
+            else:
+                # Move toward target at constant speed
+                step = zoom_speed if abs(diff) > zoom_speed else abs(diff)
+                if diff < 0:
+                    step = -step
+                self.camera_z += step
+            
+            self.update()
+        elif self.camera_reset_timer and event.timerId() == self.camera_reset_timer:
             # Animate camera back to origin
             duration_ms = 300  # 300ms animation
             elapsed_ms = self.camera_reset_elapsed.elapsed() if hasattr(self, 'camera_reset_elapsed') else 0
@@ -492,17 +514,34 @@ class CoverFlowGLWidget(QOpenGLWidget):
             self.update()
             event.accept()
         elif event.modifiers() & Qt.ControlModifier:
-            # Adjust camera_z, clamp to reasonable range
+            # Adjust camera_z with animation
             if not hasattr(self, 'camera_z'):
-                self.camera_z = 0.0
-            camera_step = 0.5  # Increased from 0.2 for faster camera movement
+                self.camera_z = self.INITIAL_CAMERA_Z
+            
+            camera_step = 0.5
+            new_target = self.zoom_target  # Start from current target
             if delta > 0:
-                self.camera_z -= camera_step
+                new_target -= camera_step
             elif delta < 0:
-                self.camera_z += camera_step
-            # Clamp camera_z between -2.0 and 30.0
-            self.camera_z = max(-2.0, min(30.0, self.camera_z))
-            self.update()
+                new_target += camera_step
+            
+            # Clamp target between -2.0 and 30.0
+            new_target = max(-2.0, min(30.0, new_target))
+            
+            # Update target (don't restart animation, just change destination)
+            if new_target != self.zoom_target:
+                # If no animation is running, set the start point
+                if self.zoom_animation_timer is None:
+                    self.zoom_start = self.camera_z
+                    self.zoom_progress = 0.0
+                    from PyQt5.QtCore import QElapsedTimer
+                    self.zoom_elapsed = QElapsedTimer()
+                    self.zoom_elapsed.start()
+                    self.zoom_animation_timer = self.startTimer(16)  # ~60 fps
+                # If animation is running, just update the target without resetting start/progress
+                # This allows smooth continuation
+                self.zoom_target = new_target
+            
             event.accept()  # Prevent propagation to parent (no text size change)
         else:
             # Toggle rotation on mouse wheel
@@ -560,6 +599,12 @@ class CoverFlowGLWidget(QOpenGLWidget):
         self.camera_reset_start_y = 0.0
         self.camera_reset_start_z = 0.0
         self.camera_reset_progress = 0.0
+        
+        # Zoom animation
+        self.zoom_animation_timer = None
+        self.zoom_start = self.INITIAL_CAMERA_Z
+        self.zoom_target = self.INITIAL_CAMERA_Z
+        self.zoom_progress = 0.0
 
     def set_cover_image(self, image_path):
         self.cover_image = QImage(image_path)
