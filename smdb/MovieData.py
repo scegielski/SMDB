@@ -28,6 +28,10 @@ class MovieData:
         
         # Reusable session for connection pooling
         self._session = requests.Session()
+        # Set User-Agent for Wikipedia API compliance
+        self._session.headers.update({
+            'User-Agent': 'SMDB/1.0 (Movie Database Application; Python/requests)'
+        })
 
     def _ensureApiKeys(self):
         """
@@ -249,6 +253,133 @@ class MovieData:
         if not imdb_id:
             return None
         return imdb_id if imdb_id.startswith('tt') else f"tt{imdb_id}"
+    
+    def _getWikipediaPlot(self, title, year):
+        """Fetch detailed plot from Wikipedia.
+        
+        Args:
+            title: Movie title
+            year: Movie year
+            
+        Returns:
+            Detailed plot text from Wikipedia, or None if not found
+        """
+        try:
+            # Try with year first for disambiguation
+            search_titles = [
+                f"{title} ({year} film)",
+                f"{title} (film)",
+                f"{title} {year}",
+                title
+            ] if year else [f"{title} (film)", title]
+            
+            for search_title in search_titles:
+                try:
+                    # Search for the page
+                    search_params = {
+                        'action': 'query',
+                        'list': 'search',
+                        'srsearch': search_title,
+                        'format': 'json',
+                        'srlimit': 3  # Get top 3 results
+                    }
+                    
+                    search_response = self._session.get(
+                        'https://en.wikipedia.org/w/api.php',
+                        params=search_params,
+                        timeout=10
+                    )
+                    
+                    if search_response.status_code != 200:
+                        self._output(f"Wikipedia search failed with status {search_response.status_code}")
+                        continue
+                    
+                    search_data = search_response.json()
+                    search_results = search_data.get('query', {}).get('search', [])
+                    
+                    if not search_results:
+                        self._output(f"No Wikipedia results for '{search_title}'")
+                        continue
+                    
+                    # Try each search result
+                    for result in search_results:
+                        page_title = result['title']
+                        
+                        # Skip if it doesn't look like a film article
+                        page_lower = page_title.lower()
+                        if 'film' not in page_lower and year and str(year) not in page_title:
+                            continue
+                        
+                        self._output(f"Trying Wikipedia page: '{page_title}'")
+                        
+                        # Get the page content
+                        parse_params = {
+                            'action': 'parse',
+                            'page': page_title,
+                            'prop': 'wikitext',
+                            'format': 'json'
+                        }
+                        
+                        parse_response = self._session.get(
+                            'https://en.wikipedia.org/w/api.php',
+                            params=parse_params,
+                            timeout=10
+                        )
+                        
+                        if parse_response.status_code != 200:
+                            continue
+                        
+                        parse_data = parse_response.json()
+                        
+                        if 'error' in parse_data:
+                            continue
+                        
+                        wikitext = parse_data.get('parse', {}).get('wikitext', {}).get('*', '')
+                        
+                        if not wikitext:
+                            continue
+                        
+                        # Extract the Plot section (try multiple variations)
+                        plot_match = re.search(
+                            r'==\s*(Plot|Synopsis)\s*==\s*\n(.*?)(?=\n==|$)',
+                            wikitext,
+                            re.DOTALL | re.IGNORECASE
+                        )
+                        
+                        if plot_match:
+                            plot_text = plot_match.group(2).strip()
+                            
+                            # Clean up wiki markup
+                            # Remove references like {{cite}} or <ref>...</ref>
+                            plot_text = re.sub(r'<ref[^>]*>.*?</ref>', '', plot_text, flags=re.DOTALL)
+                            plot_text = re.sub(r'<ref[^>]*/?>', '', plot_text)
+                            plot_text = re.sub(r'{{[^}]+}}', '', plot_text)
+                            
+                            # Remove wiki links but keep the display text
+                            plot_text = re.sub(r'\[\[(?:[^|\]]+\|)?([^\]]+)\]\]', r'\1', plot_text)
+                            
+                            # Remove bold/italic markup
+                            plot_text = re.sub(r"'{2,}", '', plot_text)
+                            
+                            # Remove HTML comments
+                            plot_text = re.sub(r'<!--.*?-->', '', plot_text, flags=re.DOTALL)
+                            
+                            # Clean up whitespace
+                            plot_text = re.sub(r'\n\n+', '\n\n', plot_text)
+                            plot_text = plot_text.strip()
+                            
+                            if plot_text and len(plot_text) > 100:  # Ensure we got meaningful content
+                                return plot_text
+                
+                except Exception as e:
+                    self._output(f"Error checking '{search_title}': {e}")
+                    continue
+            
+            return None
+            
+        except Exception as e:
+            self._output(f"Wikipedia plot fetch error for '{title}' ({year}): {e}")
+            return None
     
     def _resolveImdbId(self, title, year):
         """
@@ -533,6 +664,15 @@ class MovieData:
                 raw_data.get('recommendations', {}).get('results', [])
             )
             
+            # Fetch detailed plot from Wikipedia for synopsis
+            self._output(f"Fetching Wikipedia plot for '{movie_data['Title']}' ({movie_data['Year']})...")
+            wiki_plot = self._getWikipediaPlot(movie_data['Title'], movie_data['Year'])
+            if wiki_plot:
+                movie_data['Synopsis'] = wiki_plot
+                self._output(f"Successfully fetched Wikipedia plot ({len(wiki_plot)} characters)")
+            else:
+                self._output("No Wikipedia plot found")
+            
             return movie_data
             
         except Exception as e:
@@ -606,6 +746,10 @@ class MovieData:
             d['budget'] = movieData.get('Budget')
         if movieData.get('Revenue'):
             d['revenue'] = movieData.get('Revenue')
+        
+        # Add Wikipedia synopsis if available
+        if movieData.get('Synopsis'):
+            d['synopsis'] = movieData.get('Synopsis')
         
         # Add size and movie file info if present in movieData
         if movieData.get('size'):
