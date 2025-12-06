@@ -1134,6 +1134,13 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     # Get stored rotation for this movie, default to 0
                     movie_rotation = self.movie_rotations.get(idx, 0.0)
                     
+                    # Normalize rotation to shortest path to 0
+                    # If rotation is > 180, it's shorter to go the other way
+                    if movie_rotation > 180:
+                        movie_rotation = movie_rotation - 360
+                    elif movie_rotation < -180:
+                        movie_rotation = movie_rotation + 360
+                    
                     # Smoothly interpolate rotation based on distance from center
                     # At center (offset 0): full movie_rotation
                     # At offset ±1 or more: rotation goes to 0
