@@ -30,7 +30,7 @@ class MovieFilterProxyModel(QtCore.QSortFilterProxyModel):
                   'none' to show all movies
         """
         self.filter_movie_list = movie_list if movie_list else []
-        self.filter_mode = mode if movie_list else 'none'
+        self.filter_mode = mode  # Keep the mode even if list is empty
         self._filter_set_dirty = True
         self.invalidateFilter()
     
@@ -52,8 +52,12 @@ class MovieFilterProxyModel(QtCore.QSortFilterProxyModel):
             return False
         
         # If no movie list filter is active, accept all rows
-        if self.filter_mode == 'none' or not self.filter_movie_list:
+        if self.filter_mode == 'none':
             return True
+        
+        # If mode is 'include' and list is empty, show nothing
+        if self.filter_mode == 'include' and not self.filter_movie_list:
+            return False
         
         # Get the source model
         model = self.sourceModel()

@@ -2287,58 +2287,178 @@ class MainWindow(QtWidgets.QMainWindow):
         if len(searchText) == 0:
             return
 
-        plotsRegex = re.compile(f'.*{searchText}.*', re.IGNORECASE)
+        # Use case-insensitive search directly instead of regex for better performance
+        searchTextLower = searchText.lower()
 
-        rowCount = self.moviesTableProxyModel.rowCount()
+        # Get row count from SOURCE model (not proxy) to search all movies
+        rowCount = self.moviesTableModel.rowCount()
         self.progressBar.setMaximum(rowCount)
-        progress = 0
+        self.isCanceled = False
 
         # Build list of movies that match the plot search
         matching_movies = []
         
-        for row in range(rowCount):
-            proxyRow = self.moviesTableProxyModel.index(row, 0).row()
-            sourceRow = self.getSourceRow2(proxyRow)
+        # Clear the table immediately by showing empty results
+        self.moviesTableProxyModel.setMovieListFilter([], mode='include')
+        self.numVisibleMovies = 0
+        QtCore.QCoreApplication.processEvents()
+        
+        # Batch UI updates for better performance (update display every N matches)
+        update_interval = 5  # Update display every 5 matches
+        progress_update_interval = max(1, rowCount // 100)
+        
+        # Track timing for ETA
+        import time
+        start_time = time.time()
+        
+        # Search through all movies in the SOURCE model
+        for sourceRow in range(rowCount):
+            # Process events to allow UI updates and cancellation
+            if sourceRow % 10 == 0:  # Process events every 10 rows for responsiveness
+                QtCore.QCoreApplication.processEvents()
+            
+            # Check if operation was cancelled
+            if self.isCanceled:
+                self.statusBar().showMessage('Cancelled')
+                self.isCanceled = False
+                self.progressBar.setValue(0)
+                self.output("Plot search cancelled")
+                return
 
-            # Get Summary
+            # Get movie data
             title = self.moviesTableModel.getTitle(sourceRow)
-            self.output(f"Searching plot for {title}")
+            
+            # Quick title check before loading JSON
+            if searchTextLower in title.lower():
+                year = self.moviesTableModel.getYear(sourceRow)
+                try:
+                    year_int = int(year) if year else 0
+                except (ValueError, TypeError):
+                    year_int = 0
+                matching_movies.append((title, year_int))
+                
+                # Update display with new matches periodically
+                if len(matching_movies) % update_interval == 0:
+                    self.moviesTableProxyModel.setMovieListFilter(matching_movies, mode='include')
+                    self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
+                    QtCore.QCoreApplication.processEvents()
+                
+                if sourceRow % progress_update_interval == 0:
+                    self.progressBar.setValue(sourceRow)
+                    # Calculate and display ETA
+                    elapsed = time.time() - start_time
+                    if sourceRow > 0:
+                        avg_time_per_item = elapsed / sourceRow
+                        remaining_items = rowCount - sourceRow
+                        eta_seconds = avg_time_per_item * remaining_items
+                        
+                        if eta_seconds < 60:
+                            eta_str = f"{int(eta_seconds)}s"
+                        else:
+                            eta_minutes = int(eta_seconds // 60)
+                            eta_secs = int(eta_seconds % 60)
+                            eta_str = f"{eta_minutes}m {eta_secs}s"
+                        
+                        self.statusBar().showMessage(f'Plot search: {len(matching_movies)} matches | {sourceRow}/{rowCount} | ETA: {eta_str}')
+                    else:
+                        self.statusBar().showMessage(f'Plot search: {len(matching_movies)} matches | {sourceRow}/{rowCount}')
+                continue
+            
+            # Only load JSON if title doesn't match
             moviePath = self.moviesTableModel.getPath(sourceRow)
             folderName = self.moviesTableModel.getFolderName(sourceRow)
             moviePath = self.findMovie(moviePath, folderName)
             if not moviePath:
-                return
+                continue
+                
             jsonFile = os.path.join(moviePath, '%s.json' % folderName)
-            jsonData = None
-            if os.path.exists(jsonFile):
-                with open(jsonFile) as f:
-                    try:
-                        jsonData = ujson.load(f)
-                    except UnicodeDecodeError:
-                        self.output("Error reading %s" % jsonFile)
-
-            summary = self.getPlot(jsonData)
-
+            
+            # Check file existence before trying to open
+            if not os.path.exists(jsonFile):
+                if sourceRow % progress_update_interval == 0:
+                    self.progressBar.setValue(sourceRow)
+                    # Calculate and display ETA
+                    elapsed = time.time() - start_time
+                    if sourceRow > 0:
+                        avg_time_per_item = elapsed / sourceRow
+                        remaining_items = rowCount - sourceRow
+                        eta_seconds = avg_time_per_item * remaining_items
+                        
+                        if eta_seconds < 60:
+                            eta_str = f"{int(eta_seconds)}s"
+                        else:
+                            eta_minutes = int(eta_seconds // 60)
+                            eta_secs = int(eta_seconds % 60)
+                            eta_str = f"{eta_minutes}m {eta_secs}s"
+                        
+                        self.statusBar().showMessage(f'Plot search: {len(matching_movies)} matches | {sourceRow}/{rowCount} | ETA: {eta_str}')
+                    else:
+                        self.statusBar().showMessage(f'Plot search: {len(matching_movies)} matches | {sourceRow}/{rowCount}')
+                continue
+                
+            # Load and check plot
             try:
-                if plotsRegex.match(summary) or plotsRegex.match(title):
+                with open(jsonFile, 'r', encoding='utf-8') as f:
+                    jsonData = ujson.load(f)
+                    
+                # Extract plot directly for faster processing
+                plot = None
+                if jsonData and 'plot' in jsonData and jsonData['plot']:
+                    if isinstance(jsonData['plot'], list):
+                        plot = jsonData['plot'][0]
+                    else:
+                        plot = jsonData['plot']
+                    # Remove the author of the plot's name
+                    plot = plot.split('::')[0]
+                
+                # Use simple substring search instead of regex
+                if plot and searchTextLower in plot.lower():
                     year = self.moviesTableModel.getYear(sourceRow)
                     try:
                         year_int = int(year) if year else 0
                     except (ValueError, TypeError):
                         year_int = 0
                     matching_movies.append((title, year_int))
-            except TypeError:
-                self.output(f"TypeError when searching plot for movie: {title}")
-
-            progress += 1
-            self.progressBar.setValue(progress)
+                    
+                    # Update display with new matches periodically
+                    if len(matching_movies) % update_interval == 0:
+                        self.moviesTableProxyModel.setMovieListFilter(matching_movies, mode='include')
+                        self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
+                        QtCore.QCoreApplication.processEvents()
+                    
+            except (UnicodeDecodeError, IOError, ValueError) as e:
+                # Silent error handling for better performance
+                pass
+            
+            # Update progress bar and status less frequently
+            if sourceRow % progress_update_interval == 0:
+                self.progressBar.setValue(sourceRow)
+                # Calculate and display ETA
+                elapsed = time.time() - start_time
+                if sourceRow > 0:
+                    avg_time_per_item = elapsed / sourceRow
+                    remaining_items = rowCount - sourceRow
+                    eta_seconds = avg_time_per_item * remaining_items
+                    
+                    if eta_seconds < 60:
+                        eta_str = f"{int(eta_seconds)}s"
+                    else:
+                        eta_minutes = int(eta_seconds // 60)
+                        eta_secs = int(eta_seconds % 60)
+                        eta_str = f"{eta_minutes}m {eta_secs}s"
+                    
+                    self.statusBar().showMessage(f'Plot search: {len(matching_movies)} matches | {sourceRow}/{rowCount} | ETA: {eta_str}')
+                else:
+                    self.statusBar().showMessage(f'Plot search: {len(matching_movies)} matches | {sourceRow}/{rowCount}')
         
-        # Apply the filter using the proxy model
+        # Final update to show all matches
         self.moviesTableProxyModel.setMovieListFilter(matching_movies, mode='include')
         self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
         self.showMoviesTableSelectionStatus()
         
         self.progressBar.setValue(0)
+        self.statusBar().showMessage(f'Plot search completed: {len(matching_movies)} matches found')
+        self.output(f"Plot search completed: {len(matching_movies)} movies found")
 
     def searchMoviesTableView(self):
         searchText = self.moviesTableTitleFilterBox.text()
