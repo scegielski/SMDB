@@ -443,7 +443,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
     scrollAnimationComplete = pyqtSignal(int)  # Emitted when scroll animation completes with the new index
     
     def wheelEvent(self, event):
-        # Adjust FOV if Ctrl+Shift, adjust camera_z if Ctrl, otherwise add momentum to drag system
+        # Adjust FOV if Ctrl+Shift, adjust camera_z if Ctrl, otherwise toggle rotation
         delta = event.angleDelta().y()
         if event.modifiers() & Qt.ControlModifier and event.modifiers() & Qt.ShiftModifier:
             # Adjust FOV, clamp to reasonable range
@@ -479,35 +479,17 @@ class CoverFlowGLWidget(QOpenGLWidget):
             self.update()
             event.accept()  # Prevent propagation to parent (no text size change)
         else:
-            # Stop any ongoing settling animation
-            if hasattr(self, 'is_settling') and self.is_settling:
-                self.is_settling = False
-                if hasattr(self, '_settling_timer') and self._settling_timer:
-                    try:
-                        self.killTimer(self._settling_timer)
-                    except:
-                        pass
-                    self._settling_timer = None
-            
-            # Add momentum to the drag system instead of triggering separate animation
-            # This unifies wheel scrolling with mouse dragging
-            # Each wheel click should move exactly one cover (threshold is 0.5)
-            # With friction of 0.92, we need to calculate the initial velocity to travel ~1.0 cover
-            velocity_impulse = 0.005  # Tuned to move approximately one cover per click
-            if delta > 0:
-                # Scroll up/next - only add velocity if not at boundary
-                if not self._is_at_boundary(1):
-                    self.drag_velocity -= velocity_impulse
-            elif delta < 0:
-                # Scroll down/previous - only add velocity if not at boundary
-                if not self._is_at_boundary(-1):
-                    self.drag_velocity += velocity_impulse
-            
-            # Start momentum scrolling if not already active
-            if not self.is_momentum_scrolling:
-                self.is_momentum_scrolling = True
-                if not hasattr(self, '_momentum_timer') or not self._momentum_timer:
-                    self._momentum_timer = self.startTimer(16)  # 60 FPS
+            # Toggle rotation on mouse wheel
+            if hasattr(self, '_current_index'):
+                current_rotation = self.movie_rotations.get(self._current_index, 0.0)
+                if abs(current_rotation - 180) < 10:  # Already rotated to back
+                    self.target_rotations[self._current_index] = 0.0
+                else:  # Not rotated or partially rotated
+                    self.target_rotations[self._current_index] = 180.0
+                
+                # Start animation timer if not already running
+                if self.rotation_animation_timer is None:
+                    self.rotation_animation_timer = self.startTimer(16)  # ~60 fps
             
             event.accept()
 
@@ -530,14 +512,21 @@ class CoverFlowGLWidget(QOpenGLWidget):
         self.rotation_animation_timer = None  # Timer for rotation animation
         self.aspect_ratio = 1.0
         self.camera_z = self.INITIAL_CAMERA_Z  # Camera z translation
+        self.camera_pan_x = 0.0  # Camera horizontal pan offset
+        self.camera_pan_y = 0.0  # Camera vertical pan offset
         
-        # Drag scrolling state
+        # Drag scrolling state (left button)
         self.drag_start_x = None
         self.drag_offset = 0.0  # Current drag offset in cover units
         self.drag_velocity = 0.0  # Velocity for momentum
         self.is_momentum_scrolling = False
         self.last_drag_time = None
         self.drag_history = []  # Track recent drag movements for velocity calculation
+        
+        # Camera panning state (middle button)
+        self.is_panning = False
+        self.pan_start_x = None
+        self.pan_start_y = None
 
     def set_cover_image(self, image_path):
         self.cover_image = QImage(image_path)
@@ -929,6 +918,10 @@ class CoverFlowGLWidget(QOpenGLWidget):
     def paintGL(self):
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glLoadIdentity()
+        
+        # Apply camera panning
+        glTranslatef(self.camera_pan_x, self.camera_pan_y, 0.0)
+        
         widget_w = self.width()
         widget_h = self.height()
         if widget_h == 0:
@@ -1526,17 +1519,10 @@ class CoverFlowGLWidget(QOpenGLWidget):
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MiddleButton:
-            # Toggle rotation on middle mouse button
-            if hasattr(self, '_current_index'):
-                current_rotation = self.movie_rotations.get(self._current_index, 0.0)
-                if abs(current_rotation - 180) < 10:  # Already rotated to back
-                    self.target_rotations[self._current_index] = 0.0
-                else:  # Not rotated or partially rotated
-                    self.target_rotations[self._current_index] = 180.0
-                
-                # Start animation timer if not already running
-                if self.rotation_animation_timer is None:
-                    self.rotation_animation_timer = self.startTimer(16)  # ~60 fps
+            # Start camera panning
+            self.is_panning = True
+            self.pan_start_x = event.x()
+            self.pan_start_y = event.y()
             return
         
         if event.button() == Qt.LeftButton:
@@ -1577,6 +1563,34 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     self._settling_timer = None
 
     def mouseMoveEvent(self, event):
+        # Handle camera panning with middle button
+        if self.is_panning and self.pan_start_x is not None:
+            import math
+            dx = event.x() - self.pan_start_x
+            dy = event.y() - self.pan_start_y
+            
+            # Convert pixel movement to world space
+            z = 3.0 + self.camera_z
+            current_fov = getattr(self, 'current_fov', self.INITIAL_FOV)
+            fov_rad = math.radians(current_fov)
+            view_height = 2.0 * z * math.tan(fov_rad / 2.0)
+            aspect = self.width() / self.height() if self.height() != 0 else 1.0
+            view_width = view_height * aspect
+            
+            # Scale factor for converting pixels to world units
+            pixels_per_unit_x = self.width() / view_width
+            pixels_per_unit_y = self.height() / view_height
+            
+            # Update camera pan (invert Y for intuitive up/down)
+            self.camera_pan_x += dx / pixels_per_unit_x
+            self.camera_pan_y -= dy / pixels_per_unit_y
+            
+            self.pan_start_x = event.x()
+            self.pan_start_y = event.y()
+            self.update()
+            return
+        
+        # Handle movie scrolling with left button
         if self.last_mouse_x is not None:
             from PyQt5.QtCore import QTime
             import math
@@ -1703,6 +1717,12 @@ class CoverFlowGLWidget(QOpenGLWidget):
             self.update()
 
     def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MiddleButton:
+            self.is_panning = False
+            self.pan_start_x = None
+            self.pan_start_y = None
+            return
+        
         if event.button() == Qt.LeftButton:
             self.last_mouse_x = None
             
