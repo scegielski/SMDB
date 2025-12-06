@@ -1049,8 +1049,9 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     if texture_id is None and cover_img and not cover_img.isNull():
                         texture_id = self.createTextureFromQImage(cover_img)
                     
-                    # Create back texture on-demand if not cached (for plot/synopsis text)
-                    if back_texture_id is None:
+                    # Create back texture ONLY for current movie (offset_from_current == 0)
+                    # since only the current movie can be rotated to show its back
+                    if back_texture_id is None and offset_from_current == 0:
                         # Get movie path and folder name for this index
                         try:
                             if hasattr(self, '_proxy_model') and self._proxy_model and self._proxy_model == self._model:
