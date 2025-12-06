@@ -2291,38 +2291,45 @@ class MainWindow(QtWidgets.QMainWindow):
         searchTextLower = searchText.lower()
         search_regex = None
         
-        # Check if search text contains wildcards
-        has_wildcards = '*' in searchText or '?' in searchText or '[' in searchText
+        # Parse quoted phrases and regular words
+        import shlex
+        try:
+            # shlex.split handles quoted strings properly
+            tokens = shlex.split(searchText)
+        except ValueError:
+            # If shlex fails (mismatched quotes), fall back to simple split
+            tokens = searchText.split()
+        
+        # Check if we have multiple tokens or wildcards
+        has_wildcards = any('*' in t or '?' in t or '[' in t for t in tokens)
         
         if has_wildcards:
-            # Convert shell-style wildcards to regex pattern
+            # If any token has wildcards, treat the whole search as a wildcard pattern
             import fnmatch
             regex_pattern = fnmatch.translate(searchText)
-            # fnmatch.translate adds \Z at the end, which requires full match
-            # Remove the anchors to allow partial matching
             regex_pattern = regex_pattern.replace(r'\Z', '')
             if regex_pattern.startswith('(?:'):
-                # Remove the starting anchor group that fnmatch adds
                 regex_pattern = regex_pattern[4:]
-            # Compile with case-insensitive flag
             try:
                 search_regex = re.compile(regex_pattern, re.IGNORECASE)
             except re.error:
-                # If regex compilation fails, use literal search
                 search_regex = None
-        else:
-            # No wildcards - build simple word boundary regex
-            # Split search text into words
-            words = searchText.split()
-            if words and len(words) > 0:
-                # Escape special regex characters in each word, then add word boundaries
-                escaped_words = [r'\b' + re.escape(word) + r'\b' for word in words]
-                # Join words with .* to match them in order with anything between
-                regex_pattern = '.*'.join(escaped_words)
-                try:
-                    search_regex = re.compile(regex_pattern, re.IGNORECASE)
-                except re.error:
-                    search_regex = None
+        elif len(tokens) > 0:
+            # Build regex pattern from tokens
+            # Each token becomes a word-boundary-wrapped pattern
+            patterns = []
+            for token in tokens:
+                # Escape special regex characters and add word boundaries
+                escaped = re.escape(token)
+                patterns.append(r'\b' + escaped + r'\b')
+            
+            # Join patterns with .* between them (match in order with anything between)
+            regex_pattern = '.*'.join(patterns)
+            
+            try:
+                search_regex = re.compile(regex_pattern, re.IGNORECASE)
+            except re.error:
+                search_regex = None
 
         # Get row count from SOURCE model (not proxy) to search all movies
         rowCount = self.moviesTableModel.rowCount()
