@@ -516,7 +516,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             self.aspect_ratio = self.cover_image.width() / self.cover_image.height()
         self.update()
 
-    def createTextTexture(self, movie_path, movie_folder, width=512, height=768):
+    def createTextTexture(self, movie_path, movie_folder, width=1024, height=1536):
         """Create an OpenGL texture from movie plot/synopsis text.
         
         Args:
@@ -614,8 +614,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
         painter.setRenderHint(QPainter.TextAntialiasing)
         
         # Set up fonts
-        title_font = QFont("Arial", 16, QFont.Bold)
-        text_font = QFont("Arial", 11)
+        title_font = QFont("Arial", 32, QFont.Bold)
+        text_font = QFont("Arial", 22)
         
         # Draw title at top
         painter.setFont(title_font)
