@@ -1,10 +1,12 @@
 from PyQt5.QtWidgets import QOpenGLWidget
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QImage
+from PyQt5.QtCore import Qt, pyqtSignal, QRect
+from PyQt5.QtGui import QImage, QPainter, QFont, QColor, QFontMetrics
 from OpenGL.GL import *
 from OpenGL.GLU import *
 import numpy as np
 import threading
+import os
+import ujson
 
 # Anisotropic filtering extension constants
 GL_TEXTURE_MAX_ANISOTROPY_EXT = 0x84FE
@@ -162,19 +164,25 @@ class CoverFlowGLWidget(QOpenGLWidget):
                         quad_geom = None
                         if not image.isNull():
                             # Precompute quad geometry (width, height, aspect)
-                            # Texture will be created on-demand in the main thread
+                            # Textures will be created on-demand in the main thread
                             aspect = image.width() / image.height() if image.height() != 0 else 1.0
                             quad_geom = (aspect, image.width(), image.height())
                         with self.QMutexLocker(self._cover_cache_mutex):
-                            self._cover_cache[idx] = (image, None, quad_geom)
+                            # Store as (image, front_texture, back_texture, quad_geom)
+                            self._cover_cache[idx] = (image, None, None, quad_geom)
             except Exception as e:
                 # Silently handle errors (e.g., model changed during caching)
                 pass
         threading.Thread(target=cache_worker, daemon=True).start()
 
     def getCachedCover(self, idx):
+        """Get cached cover data including front and back textures.
+        
+        Returns:
+            Tuple of (image, front_texture_id, back_texture_id, quad_geom)
+        """
         with self.QMutexLocker(self._cover_cache_mutex):
-            return self._cover_cache.get(idx, (None, None, None))
+            return self._cover_cache.get(idx, (None, None, None, None))
 
 
     def _store_prev_cover(self):
@@ -474,6 +482,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         self.texture_id = None
         self.y_rotation = 0.0
         self.last_mouse_x = None
+        self.rotation_drag_start_x = None  # For shift+drag rotation
         self.aspect_ratio = 1.0
         self.camera_z = self.INITIAL_CAMERA_Z  # Camera z translation
         
@@ -499,6 +508,126 @@ class CoverFlowGLWidget(QOpenGLWidget):
         if not self.cover_image.isNull():
             self.aspect_ratio = self.cover_image.width() / self.cover_image.height()
         self.update()
+
+    def createTextTexture(self, movie_path, movie_folder, width=512, height=768):
+        """Create an OpenGL texture from movie plot/synopsis text.
+        
+        Args:
+            movie_path: Path to the movie folder
+            movie_folder: Movie folder name
+            width: Texture width in pixels
+            height: Texture height in pixels
+            
+        Returns:
+            OpenGL texture ID or None if no text available
+        """
+        # Check cache first
+        cache_key = (movie_path, movie_folder)
+        if not hasattr(self, '_text_texture_cache'):
+            self._text_texture_cache = {}
+        
+        if cache_key in self._text_texture_cache:
+            return self._text_texture_cache[cache_key]
+        
+        # Load JSON data
+        json_file = os.path.join(movie_path, f'{movie_folder}.json')
+        if not os.path.exists(json_file):
+            print(f"No JSON file found: {json_file}")
+            return None
+        
+        try:
+            with open(json_file, 'r', encoding='utf-8') as f:
+                movie_data = ujson.load(f)
+        except Exception as e:
+            print(f"Error loading JSON {json_file}: {e}")
+            return None
+        
+        # Get plot and synopsis (try multiple variations)
+        synopsis = movie_data.get('synopsis', movie_data.get('Synopsis', ''))
+        plot_outline = movie_data.get('plot outline', '')
+        summary = movie_data.get('summary', '')
+        plot = movie_data.get('plot', movie_data.get('Plot', ''))
+        title = movie_data.get('title', movie_data.get('Title', ''))
+        
+        # Debug: show available keys in first call
+        if not hasattr(self, '_shown_json_keys'):
+            self._shown_json_keys = True
+            print(f"Available JSON keys: {list(movie_data.keys())}")
+        
+        print(f"Creating text texture for: {title}")
+        print(f"  Has Synopsis: {len(synopsis) if synopsis else 0} chars")
+        print(f"  Has Plot outline: {len(plot_outline) if plot_outline else 0} chars")
+        print(f"  Has Summary: {len(summary) if summary else 0} chars")
+        print(f"  Has Plot: {len(plot) if plot else 0} chars")
+        
+        # Prefer summary (formatted) over other fields
+        # Summary usually contains formatted info like "Movie\n=====\nTitle: ...\nGenres: ..."
+        # Only fall back to synopsis/plot_outline if summary is empty or very short
+        if summary and len(summary) > 50:
+            text = summary
+        else:
+            text = synopsis or plot_outline or summary or plot
+            
+        if not text or (isinstance(text, list) and len(text) == 0):
+            print(f"  No text available for {title}")
+            return None
+        
+        # If text is a list, join it
+        if isinstance(text, list):
+            text = ' '.join(text)
+        
+        print(f"  Using text (first 100 chars): {text[:100]}...")
+        print(f"  Text type: {type(text)}, Length: {len(text)}")
+        
+        # Create QImage for rendering text
+        image = QImage(width, height, QImage.Format_RGBA8888)
+        image.fill(QColor(20, 20, 20, 255))  # Dark background
+        
+        # Set up painter
+        painter = QPainter(image)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.TextAntialiasing)
+        
+        # Set up fonts
+        title_font = QFont("Arial", 16, QFont.Bold)
+        text_font = QFont("Arial", 11)
+        
+        # Draw title at top
+        painter.setFont(title_font)
+        painter.setPen(QColor(220, 220, 220))
+        title_rect = QRect(20, 20, width - 40, 60)
+        painter.drawText(title_rect, Qt.AlignTop | Qt.TextWordWrap, title)
+        
+        # Calculate text area
+        fm = QFontMetrics(title_font)
+        title_height = fm.boundingRect(title_rect, Qt.AlignTop | Qt.TextWordWrap, title).height()
+        
+        # Draw plot/synopsis
+        painter.setFont(text_font)
+        painter.setPen(QColor(200, 200, 200))
+        text_rect = QRect(20, 20 + title_height + 20, width - 40, height - title_height - 60)
+        
+        # Use Qt.TextWordWrap to wrap text, but clip anything that doesn't fit
+        # Save the clip region to prevent overflow
+        painter.setClipRect(text_rect)
+        painter.drawText(text_rect, Qt.AlignTop | Qt.TextWordWrap, text)
+        
+        # MUST end painter before creating OpenGL texture
+        painter.end()
+        
+        # Make a copy to ensure QImage is fully detached from painter
+        image_copy = image.copy()
+        
+        # Convert QImage to OpenGL texture
+        texture_id = self.createTextureFromQImage(image_copy)
+        
+        print(f"  Created texture ID: {texture_id}")
+        
+        # Cache the texture
+        if texture_id:
+            self._text_texture_cache[cache_key] = texture_id
+        
+        return texture_id
 
     def initializeGL(self):
         glEnable(GL_DEPTH_TEST)
@@ -539,8 +668,15 @@ class CoverFlowGLWidget(QOpenGLWidget):
         gluPerspective(fov, w / h if h != 0 else 1, 0.1, 500.0)
         glMatrixMode(GL_MODELVIEW)
 
-    def drawVHSBox(self, width, height, texture_id):
-        """Draw a 3D VHS box with the cover texture on front, and solid sides"""
+    def drawVHSBox(self, width, height, texture_id, back_texture_id=None):
+        """Draw a 3D VHS box with the cover texture on front, text on back, and solid sides
+        
+        Args:
+            width: Width of the box
+            height: Height of the box
+            texture_id: OpenGL texture ID for the front cover
+            back_texture_id: Optional OpenGL texture ID for back (plot/synopsis text)
+        """
         # VHS depth is approximately 1 inch (25mm) relative to typical 7.5" height
         # Using a depth ratio of about 0.13 (1/7.5)
         depth = height * 0.13
@@ -573,15 +709,30 @@ class CoverFlowGLWidget(QOpenGLWidget):
             glVertex3f(-half_w, half_h, half_d)
             glEnd()
         
-        # Back face (dark gray)
-        glColor3f(0.2, 0.2, 0.2)
-        glBegin(GL_QUADS)
-        glNormal3f(0.0, 0.0, -1.0)  # Normal pointing backward
-        glVertex3f(-half_w, -half_h, -half_d)
-        glVertex3f(-half_w, half_h, -half_d)
-        glVertex3f(half_w, half_h, -half_d)
-        glVertex3f(half_w, -half_h, -half_d)
-        glEnd()
+        # Back face (with text texture if available, otherwise dark gray)
+        if back_texture_id and back_texture_id != 0:
+            glBindTexture(GL_TEXTURE_2D, back_texture_id)
+            glEnable(GL_TEXTURE_2D)
+            glColor3f(1.0, 1.0, 1.0)  # Full brightness for text visibility
+            glBegin(GL_QUADS)
+            glNormal3f(0.0, 0.0, -1.0)  # Normal pointing backward
+            # Flip texture coordinates to read correctly from back
+            glTexCoord2f(1.0, 1.0); glVertex3f(-half_w, -half_h, -half_d)
+            glTexCoord2f(1.0, 0.0); glVertex3f(-half_w, half_h, -half_d)
+            glTexCoord2f(0.0, 0.0); glVertex3f(half_w, half_h, -half_d)
+            glTexCoord2f(0.0, 1.0); glVertex3f(half_w, -half_h, -half_d)
+            glEnd()
+            glDisable(GL_TEXTURE_2D)
+        else:
+            # No text texture - draw solid dark gray back
+            glColor3f(0.2, 0.2, 0.2)
+            glBegin(GL_QUADS)
+            glNormal3f(0.0, 0.0, -1.0)  # Normal pointing backward
+            glVertex3f(-half_w, -half_h, -half_d)
+            glVertex3f(-half_w, half_h, -half_d)
+            glVertex3f(half_w, half_h, -half_d)
+            glVertex3f(half_w, -half_h, -half_d)
+            glEnd()
         
         # Top face
         glColor3f(0.15, 0.15, 0.15)
@@ -675,9 +826,10 @@ class CoverFlowGLWidget(QOpenGLWidget):
             glRotatef(self.y_rotation, 0.0, 1.0, 0.0)
             # Use cached texture and geometry if available
             prev_texture_id = self._prev_texture_id
+            prev_back_texture_id = None
             prev_quad_geom = None
             if hasattr(self, '_prev_cover_idx'):
-                _, prev_texture_id, prev_quad_geom = self.getCachedCover(self._prev_cover_idx)
+                _, prev_texture_id, prev_back_texture_id, prev_quad_geom = self.getCachedCover(self._prev_cover_idx)
             if prev_texture_id is None and self._prev_cover_image and not self._prev_cover_image.isNull():
                 prev_texture_id = self.createTextureFromQImage(self._prev_cover_image)
             
@@ -694,7 +846,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 prev_quad_h = prev_quad_w / prev_aspect
             
             if prev_texture_id:
-                self.drawVHSBox(prev_quad_w, prev_quad_h, prev_texture_id)
+                self.drawVHSBox(prev_quad_w, prev_quad_h, prev_texture_id, prev_back_texture_id)
             glPopMatrix()
             
             # Draw current cover with its own quad dimensions
@@ -702,9 +854,10 @@ class CoverFlowGLWidget(QOpenGLWidget):
             glTranslatef(0.0, curr_y_offset, -z)
             glRotatef(self.y_rotation, 0.0, 1.0, 0.0)
             curr_texture_id = self.texture_id
+            curr_back_texture_id = None
             curr_quad_geom = None
             if hasattr(self, '_current_index'):
-                _, curr_texture_id, curr_quad_geom = self.getCachedCover(self._current_index)
+                _, curr_texture_id, curr_back_texture_id, curr_quad_geom = self.getCachedCover(self._current_index)
             
             # Calculate current cover's quad dimensions
             if curr_quad_geom:
@@ -721,7 +874,24 @@ class CoverFlowGLWidget(QOpenGLWidget):
             if self.cover_image and not self.cover_image.isNull():
                 if curr_texture_id is None:
                     curr_texture_id = self.createTextureFromQImage(self.cover_image)
-                self.drawVHSBox(curr_quad_w, curr_quad_h, curr_texture_id)
+                # Get back texture for current cover
+                if curr_back_texture_id is None and hasattr(self, '_model'):
+                    try:
+                        if hasattr(self, '_proxy_model') and self._proxy_model and self._proxy_model == self._model:
+                            proxy_index = self._model.index(self._current_index, 0)
+                            source_index = self._model.mapToSource(proxy_index)
+                            source_row = source_index.row()
+                            source_model = self._model.sourceModel()
+                            movie_path = source_model.getPath(source_row)
+                            movie_folder = source_model.getFolderName(source_row)
+                        else:
+                            movie_path = self._model.getPath(self._current_index)
+                            movie_folder = self._model.getFolderName(self._current_index)
+                        if movie_path and movie_folder:
+                            curr_back_texture_id = self.createTextTexture(movie_path, movie_folder)
+                    except Exception:
+                        pass
+                self.drawVHSBox(curr_quad_w, curr_quad_h, curr_texture_id, curr_back_texture_id)
             glPopMatrix()
         else:
             # Multi-cover rendering (always active, even when zoomed in)
@@ -742,7 +912,17 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     if quad_w > max_quad_w:
                         quad_w = max_quad_w
                         quad_h = quad_w / aspect
-                    self.drawVHSBox(quad_w, quad_h, self.texture_id)
+                    # Get back texture
+                    back_tex = None
+                    if hasattr(self, '_model') and hasattr(self, '_current_index'):
+                        try:
+                            movie_path = self._model.getPath(self._current_index)
+                            movie_folder = self._model.getFolderName(self._current_index)
+                            if movie_path and movie_folder:
+                                back_tex = self.createTextTexture(movie_path, movie_folder)
+                        except Exception:
+                            pass
+                    self.drawVHSBox(quad_w, quad_h, self.texture_id, back_tex)
             else:
                 vertical_spacing = 0.65  # Fixed spacing between covers (reduced from 0.85 for tighter packing)
                 
@@ -805,7 +985,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     offset_from_current = i - current_row_pos
                     
                     # Get cached cover data
-                    cover_img, texture_id, quad_geom = self.getCachedCover(idx)
+                    cover_img, texture_id, back_texture_id, quad_geom = self.getCachedCover(idx)
                     
                     # For current cover (offset_from_current == 0), always try to load if not cached
                     if cover_img is None and offset_from_current == 0:
@@ -840,12 +1020,34 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     if cover_img is None or cover_img.isNull():
                         continue
                     
-                    # Create texture on-demand if not cached (OpenGL operations must be on main thread)
+                    # Create front texture on-demand if not cached (OpenGL operations must be on main thread)
                     if texture_id is None and cover_img and not cover_img.isNull():
                         texture_id = self.createTextureFromQImage(cover_img)
-                        # Update cache with texture_id
+                    
+                    # Create back texture on-demand if not cached (for plot/synopsis text)
+                    if back_texture_id is None:
+                        # Get movie path and folder name for this index
+                        try:
+                            if hasattr(self, '_proxy_model') and self._proxy_model and self._proxy_model == self._model:
+                                proxy_index = self._model.index(idx, 0)
+                                source_index = self._model.mapToSource(proxy_index)
+                                source_row = source_index.row()
+                                source_model = self._model.sourceModel()
+                                movie_path = source_model.getPath(source_row)
+                                movie_folder = source_model.getFolderName(source_row)
+                            else:
+                                movie_path = self._model.getPath(idx)
+                                movie_folder = self._model.getFolderName(idx)
+                            
+                            if movie_path and movie_folder:
+                                back_texture_id = self.createTextTexture(movie_path, movie_folder)
+                        except Exception:
+                            pass  # Back texture is optional
+                    
+                    # Update cache with both textures
+                    if texture_id is not None:
                         with self.QMutexLocker(self._cover_cache_mutex):
-                            self._cover_cache[idx] = (cover_img, texture_id, quad_geom)
+                            self._cover_cache[idx] = (cover_img, texture_id, back_texture_id, quad_geom)
                     
                     covers_drawn += 1
                     
@@ -908,7 +1110,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     # Set opacity and brightness for distance-based fading
                     glColor4f(alpha, alpha, alpha, 1.0)
                     
-                    self.drawVHSBox(quad_w, quad_h, texture_id)
+                    self.drawVHSBox(quad_w, quad_h, texture_id, back_texture_id)
                     
                     # Reset color to white
                     glColor4f(1.0, 1.0, 1.0, 1.0)
@@ -1144,6 +1346,11 @@ class CoverFlowGLWidget(QOpenGLWidget):
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
+            # Check if Shift is held for rotation
+            if event.modifiers() & Qt.ShiftModifier:
+                self.rotation_drag_start_x = event.x()
+                return
+            
             from PyQt5.QtCore import QTime
             self.drag_start_x = event.x()
             self.last_mouse_x = event.x()
@@ -1182,6 +1389,17 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     self._settling_timer = None
 
     def mouseMoveEvent(self, event):
+        # Handle Shift+drag for rotation
+        if self.rotation_drag_start_x is not None:
+            dx = event.x() - self.rotation_drag_start_x
+            # Convert pixel movement to rotation angle (0.5 degrees per pixel)
+            self.y_rotation += dx * 0.5
+            # Keep rotation in 0-360 range
+            self.y_rotation = self.y_rotation % 360
+            self.rotation_drag_start_x = event.x()
+            self.update()
+            return
+        
         if self.last_mouse_x is not None:
             from PyQt5.QtCore import QTime
             import math
@@ -1309,6 +1527,11 @@ class CoverFlowGLWidget(QOpenGLWidget):
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.LeftButton:
+            # Clear rotation drag state
+            if self.rotation_drag_start_x is not None:
+                self.rotation_drag_start_x = None
+                return
+            
             self.last_mouse_x = None
             
             # Calculate velocity from recent drag history
