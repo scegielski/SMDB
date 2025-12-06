@@ -2407,6 +2407,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 except re.error:
                     search_regex = None
 
+        # Store the search regex for highlighting in summary display (before search starts)
+        self.plotSearchRegex = search_regex
+
         # Get row count from SOURCE model (not proxy) to search all movies
         rowCount = self.moviesTableModel.rowCount()
         self.progressBar.setMaximum(rowCount)
@@ -2521,9 +2524,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.progressBar.setValue(0)
         self.statusBar().showMessage(f'Plot search completed: {len(matching_movies)} matches found')
         self.output(f"Plot search completed: {len(matching_movies)} movies found")
-        
-        # Store the search regex for highlighting in summary display
-        self.plotSearchRegex = search_regex
 
     def searchMoviesTableView(self):
         searchText = self.moviesTableTitleFilterBox.text()
