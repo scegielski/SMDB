@@ -581,7 +581,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 text += "\n\nSynopsis:\n" + synopsis
                 print(f"  Added synopsis: {len(synopsis)} chars")
             elif plot_outline and len(plot_outline) > 100:
-                text += "\n\nPlot:\n" + plot_outline
+                text += "\n\nSynopsis:\n" + plot_outline
                 print(f"  Added plot outline: {len(plot_outline)} chars")
         else:
             text = synopsis or plot_outline or summary or plot
