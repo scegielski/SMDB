@@ -95,15 +95,6 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 # Index hasn't changed, just update
                 self._current_index = current_index
             
-            # Restart title timer for the new index (if not dragging)
-            if not is_dragging and old_index != current_index:
-                from PyQt5.QtCore import QElapsedTimer
-                self._title_show_elapsed = QElapsedTimer()
-                self._title_show_elapsed.start()
-                if not hasattr(self, '_title_show_timer') or not self._title_show_timer:
-                    self._title_show_timer = self.startTimer(16)
-                self._title_visible = False
-            
             # Start async cache for new surrounding covers
             self._start_async_cache()
             self.update()
@@ -114,14 +105,6 @@ class CoverFlowGLWidget(QOpenGLWidget):
             self._cover_cache = {}
             self._cover_cache_mutex = self.QMutex()
             self._start_async_cache()
-            
-            # Start timer to show title on initial load
-            from PyQt5.QtCore import QElapsedTimer
-            self._title_show_elapsed = QElapsedTimer()
-            self._title_show_elapsed.start()
-            if not hasattr(self, '_title_show_timer') or not self._title_show_timer:
-                self._title_show_timer = self.startTimer(16)
-            self._title_visible = False
 
     def _start_async_cache(self):
         # Start a background thread to cache cover images (textures created on-demand in main thread)
@@ -395,14 +378,6 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     from PyQt5.QtCore import QElapsedTimer
                     self._settling_elapsed = QElapsedTimer()
                     self._settling_elapsed.start()
-                else:
-                    # Already centered - start title timer immediately
-                    from PyQt5.QtCore import QElapsedTimer
-                    self._title_show_elapsed = QElapsedTimer()
-                    self._title_show_elapsed.start()
-                    if not hasattr(self, '_title_show_timer') or not self._title_show_timer:
-                        self._title_show_timer = self.startTimer(16)
-                    self._title_visible = False
             
             self.update()
         elif getattr(self, 'is_settling', False) and hasattr(self, '_settling_timer') and event.timerId() == self._settling_timer:
@@ -426,34 +401,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 except:
                     pass
                 self._settling_timer = None
-                
-                # Start timer to show title after being centered
-                if not hasattr(self, '_title_show_timer') or not self._title_show_timer:
-                    from PyQt5.QtCore import QElapsedTimer
-                    self._title_show_elapsed = QElapsedTimer()
-                    self._title_show_elapsed.start()
-                    self._title_show_timer = self.startTimer(16)  # Check every frame
-                    self._title_visible = False
             
             self.update()
-        elif hasattr(self, '_title_show_timer') and self._title_show_timer and event.timerId() == self._title_show_timer:
-            # Show title after being settled for a moment
-            if hasattr(self, '_title_show_elapsed'):
-                elapsed = self._title_show_elapsed.elapsed()
-                # Show title after 500ms of being centered and idle
-                if elapsed >= 500 and not self._title_visible:
-                    self._title_visible = True
-                    self.update()
-            
-            # Stop timer if user starts interacting again - trigger fade out
-            if (hasattr(self, 'last_mouse_x') and self.last_mouse_x is not None) or \
-               getattr(self, 'is_momentum_scrolling', False) or \
-               getattr(self, '_scrolling', False) or \
-               abs(self.drag_offset) > 0.01:
-                # Start fade out by setting the fade out start time
-                if not hasattr(self, '_title_fade_out_start'):
-                    self._title_fade_out_start = self._title_show_elapsed.elapsed() if hasattr(self, '_title_show_elapsed') else 0
-                    self.update()
     
     def _is_at_boundary(self, direction):
         """Check if we're at a boundary in the given direction.
@@ -1382,206 +1331,6 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     glColor4f(1.0, 1.0, 1.0, 1.0)
                     
                     glPopMatrix()
-        
-        # Draw title overlay if visible
-        if getattr(self, '_title_visible', False) and hasattr(self, '_model') and hasattr(self, '_current_index'):
-            self._draw_title_overlay()
-
-    def _draw_title_overlay(self):
-        """Draw title and year text overlay using QPainter for anti-aliased text"""
-        from PyQt5.QtGui import QPainter, QFont, QColor, QPen, QPainterPath, QBrush
-        from PyQt5.QtCore import Qt, QRect
-        
-        # Get title and year from model
-        try:
-            if hasattr(self, '_proxy_model') and self._proxy_model and self._proxy_model == self._model:
-                # Map proxy to source
-                proxy_index = self._model.index(self._current_index, 0)
-                source_index = self._model.mapToSource(proxy_index)
-                source_row = source_index.row()
-                source_model = self._model.sourceModel()
-                title = source_model.getTitle(source_row)
-                year = source_model.getYear(source_row)
-            else:
-                title = self._model.getTitle(self._current_index)
-                year = self._model.getYear(self._current_index)
-            
-            text = f'"{title}" ({year})'
-        except:
-            return
-        
-        # Save OpenGL state before using QPainter
-        glPushAttrib(GL_ALL_ATTRIB_BITS)
-        glMatrixMode(GL_PROJECTION)
-        glPushMatrix()
-        glMatrixMode(GL_MODELVIEW)
-        glPushMatrix()
-        
-        # Use QPainter for anti-aliased text
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        painter.setRenderHint(QPainter.TextAntialiasing)
-        painter.setRenderHint(QPainter.SmoothPixmapTransform)
-        painter.setRenderHint(QPainter.HighQualityAntialiasing)
-        
-        # Calculate fade-in/fade-out opacity based on time since becoming visible
-        fade_in_duration_ms = 300  # Fade in over 300ms
-        fade_out_duration_ms = 200  # Fade out quickly when scrolling
-        
-        if hasattr(self, '_title_show_elapsed'):
-            elapsed = self._title_show_elapsed.elapsed()
-            # Start fading in after the 500ms delay
-            fade_in_progress = min(1.0, max(0.0, (elapsed - 500) / fade_in_duration_ms))
-            # Ease in for smooth fade in
-            fade_in_alpha = fade_in_progress * fade_in_progress
-            
-            # Check if fade out was triggered by user interaction
-            if hasattr(self, '_title_fade_out_start'):
-                fade_out_progress = min(1.0, (elapsed - self._title_fade_out_start) / fade_out_duration_ms)
-                # Ease out for smooth fade out
-                fade_out_alpha = 1.0 - (fade_out_progress * fade_out_progress)
-                
-                # Stop the timer once fully faded out
-                if fade_out_progress >= 1.0:
-                    self._title_visible = False
-                    if hasattr(self, '_title_show_timer') and self._title_show_timer:
-                        try:
-                            self.killTimer(self._title_show_timer)
-                        except:
-                            pass
-                        self._title_show_timer = None
-                    if hasattr(self, '_title_fade_out_start'):
-                        delattr(self, '_title_fade_out_start')
-            else:
-                fade_out_alpha = 1.0
-            
-            # Combine both alphas
-            alpha = int(255 * fade_in_alpha * fade_out_alpha)
-        else:
-            alpha = 255
-        
-        # Set up font
-        font = QFont("Arial", 20, QFont.Bold)  # Larger font
-        painter.setFont(font)
-        
-        # Get text metrics
-        fm = painter.fontMetrics()
-        text_width = fm.width(text)
-        text_height = fm.height()
-        
-        # Position at top of viewport with minimal padding
-        x = (self.width() - text_width) // 2
-        y = 25 + text_height  # Closer to top with less padding
-        
-        # Draw background box with rounded edges and fade
-        from PyQt5.QtGui import QRadialGradient
-        
-        # Define text bounding box with padding
-        padding = 15
-        fade_distance = 40
-        
-        # Core opaque box
-        core_left = x - padding
-        core_right = x + text_width + padding
-        core_top = y - text_height - padding
-        core_bottom = y + padding
-        
-        # Extended box for fade
-        fade_left = core_left - fade_distance
-        fade_right = core_right + fade_distance
-        fade_top = core_top - fade_distance
-        fade_bottom = core_bottom + fade_distance
-        
-        # Draw the fading edges using multiple rectangles with gradient
-        # Draw fading edges with linear gradients
-        from PyQt5.QtGui import QLinearGradient
-        
-        # Top fade
-        top_gradient = QLinearGradient(0, fade_top, 0, core_top)
-        top_gradient.setColorAt(0.0, QColor(0, 0, 0, 0))
-        top_gradient.setColorAt(1.0, QColor(0, 0, 0, int(alpha * 1.0)))
-        painter.fillRect(QRect(int(core_left), int(fade_top), 
-                              int(core_right - core_left), int(core_top - fade_top)), top_gradient)
-        
-        # Bottom fade
-        bottom_gradient = QLinearGradient(0, core_bottom, 0, fade_bottom)
-        bottom_gradient.setColorAt(0.0, QColor(0, 0, 0, int(alpha * 1.0)))
-        bottom_gradient.setColorAt(1.0, QColor(0, 0, 0, 0))
-        painter.fillRect(QRect(int(core_left), int(core_bottom), 
-                              int(core_right - core_left), int(fade_bottom - core_bottom)), bottom_gradient)
-        
-        # Left fade
-        left_gradient = QLinearGradient(fade_left, 0, core_left, 0)
-        left_gradient.setColorAt(0.0, QColor(0, 0, 0, 0))
-        left_gradient.setColorAt(1.0, QColor(0, 0, 0, int(alpha * 1.0)))
-        painter.fillRect(QRect(int(fade_left), int(core_top), 
-                              int(core_left - fade_left), int(core_bottom - core_top)), left_gradient)
-        
-        # Right fade
-        right_gradient = QLinearGradient(core_right, 0, fade_right, 0)
-        right_gradient.setColorAt(0.0, QColor(0, 0, 0, int(alpha * 1.0)))
-        right_gradient.setColorAt(1.0, QColor(0, 0, 0, 0))
-        painter.fillRect(QRect(int(core_right), int(core_top), 
-                              int(fade_right - core_right), int(core_bottom - core_top)), right_gradient)
-        
-        # Corner fades (radial gradients for smooth diagonal fading)
-        corner_radius = fade_distance
-        
-        # Top-left corner
-        tl_gradient = QRadialGradient(core_left, core_top, corner_radius)
-        tl_gradient.setColorAt(0.0, QColor(0, 0, 0, int(alpha * 1.0)))
-        tl_gradient.setColorAt(1.0, QColor(0, 0, 0, 0))
-        painter.fillRect(QRect(int(fade_left), int(fade_top), 
-                              int(core_left - fade_left), int(core_top - fade_top)), tl_gradient)
-        
-        # Top-right corner
-        tr_gradient = QRadialGradient(core_right, core_top, corner_radius)
-        tr_gradient.setColorAt(0.0, QColor(0, 0, 0, int(alpha * 1.0)))
-        tr_gradient.setColorAt(1.0, QColor(0, 0, 0, 0))
-        painter.fillRect(QRect(int(core_right), int(fade_top), 
-                              int(fade_right - core_right), int(core_top - fade_top)), tr_gradient)
-        
-        # Bottom-left corner
-        bl_gradient = QRadialGradient(core_left, core_bottom, corner_radius)
-        bl_gradient.setColorAt(0.0, QColor(0, 0, 0, int(alpha * 1.0)))
-        bl_gradient.setColorAt(1.0, QColor(0, 0, 0, 0))
-        painter.fillRect(QRect(int(fade_left), int(core_bottom), 
-                              int(core_left - fade_left), int(fade_bottom - core_bottom)), bl_gradient)
-        
-        # Bottom-right corner
-        br_gradient = QRadialGradient(core_right, core_bottom, corner_radius)
-        br_gradient.setColorAt(0.0, QColor(0, 0, 0, int(alpha * 1.0)))
-        br_gradient.setColorAt(1.0, QColor(0, 0, 0, 0))
-        painter.fillRect(QRect(int(core_right), int(core_bottom), 
-                              int(fade_right - core_right), int(fade_bottom - core_bottom)), br_gradient)
-        
-        # Draw the fully opaque center last to cover any artifacts from rounded corners
-        painter.setBrush(QBrush(QColor(0, 0, 0, int(alpha * 1.0))))
-        painter.setPen(Qt.NoPen)
-        core_rect = QRect(int(core_left), int(core_top), 
-                         int(core_right - core_left), int(core_bottom - core_top))
-        painter.drawRect(core_rect)
-        
-        # Draw shadow with drawText (much better anti-aliasing than paths)
-        painter.setPen(QColor(0, 0, 0, int(alpha * 0.7)))
-        painter.drawText(x + 2, y + 2, text)
-        
-        # Draw main text
-        painter.setPen(QColor(255, 255, 255, alpha))
-        painter.drawText(x, y, text)
-        
-        painter.end()
-        
-        # Trigger update during fade-in
-        if alpha < 255:
-            self.update()
-        
-        # Restore OpenGL state
-        glMatrixMode(GL_PROJECTION)
-        glPopMatrix()
-        glMatrixMode(GL_MODELVIEW)
-        glPopMatrix()
-        glPopAttrib()
 
     def createTextureFromQImage(self, qimage):
         qimage = qimage.convertToFormat(QImage.Format_RGBA8888)
