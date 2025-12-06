@@ -555,6 +555,13 @@ class CoverFlowGLWidget(QOpenGLWidget):
         summary = movie_data.get('summary', '')
         plot = movie_data.get('plot', movie_data.get('Plot', ''))
         title = movie_data.get('title', movie_data.get('Title', ''))
+        year = movie_data.get('year', '')
+        
+        # Format title with year
+        if year:
+            title_with_year = f"{title} ({year})"
+        else:
+            title_with_year = title
         
         # Convert lists to strings early
         if isinstance(synopsis, list):
@@ -585,10 +592,10 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # If we have a synopsis, append it after the summary
             # Check that synopsis is meaningful (not just a single character like "1")
             if synopsis and len(synopsis) > 100:
-                text += "\n\nSynopsis:\n" + synopsis
+                text += "\n\nSynopsis:\n\n" + synopsis
                 print(f"  Added synopsis: {len(synopsis)} chars")
             elif plot_outline and len(plot_outline) > 100:
-                text += "\n\nSynopsis:\n" + plot_outline
+                text += "\n\nSynopsis:\n\n" + plot_outline
                 print(f"  Added plot outline: {len(plot_outline)} chars")
         else:
             text = synopsis or plot_outline or summary or plot
@@ -604,6 +611,26 @@ class CoverFlowGLWidget(QOpenGLWidget):
         print(f"  Using text (first 100 chars): {text[:100]}...")
         print(f"  Text type: {type(text)}, Length: {len(text)}")
         
+        # Clean up summary text - remove redundant elements
+        # Remove "Movie" line
+        text = text.replace('Movie\n', '')
+        text = text.replace('Movie', '')
+        # Remove "=====" separator lines
+        text = text.replace('=====\n', '')
+        text = text.replace('=====', '')
+        # Remove Title line since we render it separately at the top
+        # Use regex for more flexible matching
+        import re
+        if title:
+            # Remove any "Title: ..." line regardless of what follows
+            text = re.sub(r'Title:\s*.*?\n', '', text, flags=re.IGNORECASE)
+            # Also try without the newline in case it's at the end
+            text = re.sub(r'Title:\s*.*?$', '', text, flags=re.IGNORECASE | re.MULTILINE)
+        # Clean up any double blank lines that may have been created
+        while '\n\n\n' in text:
+            text = text.replace('\n\n\n', '\n\n')
+        text = text.strip()
+        
         # Create QImage for rendering text
         image = QImage(width, height, QImage.Format_RGBA8888)
         image.fill(QColor(20, 20, 20, 255))  # Dark background
@@ -615,27 +642,86 @@ class CoverFlowGLWidget(QOpenGLWidget):
         
         # Set up fonts
         title_font = QFont("Arial", 32, QFont.Bold)
-        text_font = QFont("Arial", 22)
+        header_font = QFont("Arial", 26, QFont.Bold)
+        text_font = QFont("Arial", 18)
         
         # Draw title at top
         painter.setFont(title_font)
         painter.setPen(QColor(220, 220, 220))
-        title_rect = QRect(20, 20, width - 40, 60)
-        painter.drawText(title_rect, Qt.AlignTop | Qt.TextWordWrap, title)
+        title_rect = QRect(20, 20, width - 40, 80)
+        painter.drawText(title_rect, Qt.AlignTop | Qt.TextWordWrap, title_with_year)
         
         # Calculate text area
         fm = QFontMetrics(title_font)
         title_height = fm.boundingRect(title_rect, Qt.AlignTop | Qt.TextWordWrap, title).height()
         
-        # Draw plot/synopsis
-        painter.setFont(text_font)
-        painter.setPen(QColor(200, 200, 200))
-        text_rect = QRect(20, 20 + title_height + 20, width - 40, height - title_height - 60)
+        # Parse and draw text with different fonts for headers vs content
+        y_position = 20 + title_height + 30
+        text_rect_area = QRect(20, y_position, width - 40, height - y_position - 20)
         
-        # Use Qt.TextWordWrap to wrap text, but clip anything that doesn't fit
         # Save the clip region to prevent overflow
-        painter.setClipRect(text_rect)
-        painter.drawText(text_rect, Qt.AlignTop | Qt.TextWordWrap, text)
+        painter.setClipRect(text_rect_area)
+        
+        # Split text by lines and render with appropriate fonts
+        lines = text.split('\n')
+        current_y = y_position
+        line_spacing = 8
+        
+        for line in lines:
+            if current_y >= height - 20:  # Stop if we've reached the bottom
+                break
+            
+            # Skip empty lines at the start but keep them for spacing elsewhere
+            if not line.strip() and current_y == y_position:
+                continue
+            
+            # Check if line contains a header with content (e.g., "Director: John Smith")
+            # Split it into header and content
+            if ':' in line and not line.strip().startswith('====='):
+                parts = line.split(':', 1)
+                if len(parts) == 2 and len(parts[0].strip()) < 50:
+                    # This is a "Label: Content" line - render separately
+                    label = parts[0].strip() + ':'
+                    content = parts[1].strip()
+                    
+                    # Draw the label in header font
+                    painter.setFont(header_font)
+                    painter.setPen(QColor(240, 240, 240))
+                    fm = QFontMetrics(header_font)
+                    line_rect = QRect(20, current_y, width - 40, fm.height())
+                    painter.drawText(line_rect, Qt.AlignTop, label)
+                    current_y += fm.height() + 4
+                    
+                    # Draw the content in body font if not empty
+                    if content:
+                        painter.setFont(text_font)
+                        painter.setPen(QColor(200, 200, 200))
+                        fm = QFontMetrics(text_font)
+                        line_rect = QRect(20, current_y, width - 40, fm.height() * 3)
+                        bounding_rect = painter.boundingRect(line_rect, Qt.AlignTop | Qt.TextWordWrap, content)
+                        painter.drawText(line_rect, Qt.AlignTop | Qt.TextWordWrap, content)
+                        current_y += bounding_rect.height() + line_spacing
+                    continue
+                
+            # Check if this is a header line (special lines or very short lines ending with :)
+            is_header = (line.strip().endswith(':') and len(line.strip()) < 50)
+            
+            if is_header:
+                painter.setFont(header_font)
+                painter.setPen(QColor(240, 240, 240))
+                fm = QFontMetrics(header_font)
+            else:
+                painter.setFont(text_font)
+                painter.setPen(QColor(200, 200, 200))
+                fm = QFontMetrics(text_font)
+            
+            # Draw the line
+            line_rect = QRect(20, current_y, width - 40, fm.height() * 3)  # Allow for wrapping
+            bounding_rect = painter.boundingRect(line_rect, Qt.AlignTop | Qt.TextWordWrap, line)
+            painter.drawText(line_rect, Qt.AlignTop | Qt.TextWordWrap, line)
+            
+            # Move y position down by the actual height used
+            current_y += bounding_rect.height() + line_spacing
         
         # MUST end painter before creating OpenGL texture
         painter.end()
