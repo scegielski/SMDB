@@ -18,28 +18,27 @@ class CoverFlowGLWidget(QOpenGLWidget):
 
     def setModelAndIndex(self, model, current_index, proxy_model=None, table_view=None):
         # Detect if proxy model changed (filter was applied or removed)
-        proxy_changed = not hasattr(self, '_proxy_model') or self._proxy_model != proxy_model
+        # Force refresh if row count changed significantly (indicates filter change)
+        old_row_count = getattr(self, '_cached_row_count', -1)
+        new_row_count = proxy_model.rowCount() if proxy_model else (model.rowCount() if model else 0)
+        row_count_changed = old_row_count != new_row_count
+        
+        proxy_changed = not hasattr(self, '_proxy_model') or self._proxy_model != proxy_model or row_count_changed
         
         # Store proxy model and table view if provided (for filtering support)
         old_proxy = getattr(self, '_proxy_model', None)
         self._proxy_model = proxy_model
         self._table_view = table_view
+        self._cached_row_count = new_row_count
         
-        # If proxy changed, clear cache since indices are no longer valid
+        # If proxy changed or row count changed significantly, clear cache since indices are no longer valid
         if proxy_changed and hasattr(self, '_cover_cache'):
             self._cover_cache = {}
             # Also clear the current cover image to force reload
-            self.cover_image = QtGui.QImage()
+            if hasattr(self, 'cover_image'):
+                from PyQt5 import QtGui
+                self.cover_image = QtGui.QImage()
             self.texture_id = None
-        
-        # Check if current_index is hidden (filtered out)
-        if table_view and table_view.isRowHidden(current_index):
-            # Current index is filtered out - don't render it
-            # The MainWindow should have already selected the first visible row
-            # Just update our internal state and return
-            self._current_index = -1  # Invalid index to prevent rendering
-            self.update()
-            return
         
         # Check if we're just updating the index (same model)
         if hasattr(self, '_model') and self._model == model and hasattr(self, '_current_index') and not proxy_changed:
@@ -120,34 +119,17 @@ class CoverFlowGLWidget(QOpenGLWidget):
         # Start a background thread to cache cover images (textures created on-demand in main thread)
         def cache_worker():
             try:
-                # When using proxy model, rowCount() returns all rows (including hidden)
-                # We need to skip hidden rows
-                model_row_count = self._model.rowCount() if self._model else 0
+                # Get row count from proxy model (which already handles filtering)
+                if hasattr(self, '_proxy_model') and self._proxy_model:
+                    model_row_count = self._proxy_model.rowCount()
+                else:
+                    model_row_count = self._model.rowCount() if self._model else 0
                 
-                # Determine which indices to cache
+                # Determine which indices to cache (all rows in proxy are visible)
                 indices_to_cache = []
                 
-                if hasattr(self, '_table_view') and self._table_view:
-                    # Filtering is active - collect visible rows around current position
-                    # First, build list of all visible rows
-                    all_visible = []
-                    for idx in range(model_row_count):
-                        if not self._table_view.isRowHidden(idx):
-                            all_visible.append(idx)
-                    
-                    # Find current position in visible list
-                    try:
-                        current_pos = all_visible.index(self._current_index)
-                        # Cache only within CACHE_RADIUS of current position in visible list
-                        start_pos = max(0, current_pos - self.CACHE_RADIUS)
-                        end_pos = min(len(all_visible), current_pos + self.CACHE_RADIUS + 1)
-                        indices_to_cache = all_visible[start_pos:end_pos]
-                    except (ValueError, AttributeError):
-                        # Current index not in visible list or error - cache first CACHE_RADIUS items
-                        indices_to_cache = all_visible[:min(len(all_visible), self.CACHE_RADIUS * 2)]
-                else:
-                    # No filtering - use radius around current index
-                    for offset in range(-self.CACHE_RADIUS, self.CACHE_RADIUS + 1):
+                # Use radius around current index - proxy model handles filtering
+                for offset in range(-self.CACHE_RADIUS, self.CACHE_RADIUS + 1):
                         idx = self._current_index + offset
                         if idx >= 0 and idx < model_row_count:
                             indices_to_cache.append(idx)

@@ -2264,11 +2264,21 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def showAllMoviesTableView(self):
         self.moviesTableTitleFilterBox.clear()
-        self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
-        self.showMoviesTableSelectionStatus()
         # Clear the movie list filter to show all movies
         self.moviesTableProxyModel.clearMovieListFilter()
+        self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
+        self.showMoviesTableSelectionStatus()
         self.moviesTableProxyModel.sort(0)
+        
+        # Update to first row and trigger cover flow update
+        if self.moviesTableProxyModel.rowCount() > 0:
+            # Clear selection first to ensure selection change is triggered
+            self.moviesTableView.clearSelection()
+            # Select first row which will trigger tableSelectionChanged -> clickedTable
+            self.moviesTableView.selectRow(0)
+            # Also directly update cover flow to ensure it updates
+            modelIndex = self.moviesTableProxyModel.index(0, 0)
+            self.clickedTable(modelIndex, self.moviesTableModel, self.moviesTableProxyModel)
 
     def searchPlots(self):
         self.moviesTableTitleFilterBox.clear()
@@ -2583,10 +2593,8 @@ class MainWindow(QtWidgets.QMainWindow):
             movieList = movieList2
 
         # Apply the filter using the proxy model
-        self.output(f"Applying filter with {len(movieList)} movies")
         self.moviesTableProxyModel.setMovieListFilter(movieList, mode='include')
         self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
-        self.output(f"After filter: {self.numVisibleMovies} visible movies")
         
         # Select first visible row if any
         if self.moviesTableProxyModel.rowCount() > 0:

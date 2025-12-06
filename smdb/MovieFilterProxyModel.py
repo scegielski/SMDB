@@ -82,9 +82,6 @@ class MovieFilterProxyModel(QtCore.QSortFilterProxyModel):
                     if isinstance(item, (list, tuple)) and len(item) >= 2:
                         # Convert to tuple (title, year)
                         self._filter_set.add((item[0], item[1]))
-                    else:
-                        # Handle unexpected format
-                        pass
                 self._filter_set_dirty = False
             
             is_in_list = movie_tuple in self._filter_set
@@ -98,8 +95,5 @@ class MovieFilterProxyModel(QtCore.QSortFilterProxyModel):
                 return True
                 
         except Exception as e:
-            # If there's any error accessing the data, show the row
-            import traceback
-            print(f"DEBUG: Exception in filterAcceptsRow: {e}")
-            traceback.print_exc()
+            # If there's any error accessing the data, don't filter out the row
             return True
