@@ -2308,9 +2308,24 @@ class MainWindow(QtWidgets.QMainWindow):
                 searchTextLower = searchText.lower()
                 search_regex = None
         else:
-            # No wildcards - use simple substring search for better performance
-            searchTextLower = searchText.lower()
-            search_regex = None
+            # No wildcards - build word boundary regex for whole word matching
+            # Split search text into words and create pattern to match all words with word boundaries
+            words = searchText.split()
+            if words:
+                # Escape special regex characters in each word, then add word boundaries
+                escaped_words = [re.escape(word) for word in words]
+                # Create pattern that matches all words in any order with word boundaries
+                # Using lookahead assertions to ensure all words are present
+                word_patterns = [r'\b' + word + r'\b' for word in escaped_words]
+                regex_pattern = '(?=.*' + ')(?=.*'.join(word_patterns) + ')'
+                try:
+                    search_regex = re.compile(regex_pattern, re.IGNORECASE | re.DOTALL)
+                except re.error:
+                    searchTextLower = searchText.lower()
+                    search_regex = None
+            else:
+                searchTextLower = searchText.lower()
+                search_regex = None
 
         # Get row count from SOURCE model (not proxy) to search all movies
         rowCount = self.moviesTableModel.rowCount()
