@@ -405,8 +405,24 @@ class MainWindow(QtWidgets.QMainWindow):
         self.moviesTableColumnsVisible = []
         self.moviesListHeaderActions = []
         self.initUIMoviesTable()
-        # Add tabview instead of direct table widget
-        self.moviesWatchListBackupVSplitter.addWidget(self.moviesTabWidget)
+        
+        # Create container for tab widget and navigation controls
+        self.moviesTabContainer = QtWidgets.QFrame()
+        self.moviesTabContainer.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
+        self.moviesTabContainer.setLineWidth(5)
+        self.moviesTabContainer.setStyleSheet(f"background: {self.bgColorB};"
+                                              f"border-radius: 10px;")
+        moviesTabContainerLayout = QtWidgets.QVBoxLayout()
+        self.moviesTabContainer.setLayout(moviesTabContainerLayout)
+        
+        # Add tabview to container
+        moviesTabContainerLayout.addWidget(self.moviesTabWidget)
+        
+        # Add navigation controls below the tabs
+        self.initUINavigationControls(moviesTabContainerLayout)
+        
+        # Add container instead of direct tab widget
+        self.moviesWatchListBackupVSplitter.addWidget(self.moviesTabContainer)
         if not self.showMoviesTable:
             self.moviesTableWidget.hide()
 
@@ -954,45 +970,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
         menu.exec_(QtGui.QCursor.pos())
 
-    def initUIMoviesTable(self):
-        self.moviesTableWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
-        self.moviesTableWidget.setLineWidth(5)
-        self.moviesTableWidget.setStyleSheet(f"background: {self.bgColorB};"
-                                             f"border-radius: 10px;")
-
-        moviesTableViewVLayout = QtWidgets.QVBoxLayout()
-        self.moviesTableWidget.setLayout(moviesTableViewVLayout)
-
-        moviesLabel = QtWidgets.QLabel("Movies")
-        moviesTableViewVLayout.addWidget(moviesLabel)
-
-        self.moviesTableView.setSortingEnabled(True)
-        self.moviesTableView.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
-        self.moviesTableView.verticalHeader().hide()
-        self.moviesTableView.setStyleSheet(f"background: {self.bgColorC};"
-                                           f"alternate-background-color: {self.bgColorD};")
-        self.moviesTableView.setAlternatingRowColors(True)
-        self.moviesTableView.setShowGrid(False)
-
-        # Right click header menu
-        hh = self.moviesTableView.horizontalHeader()
-        hh.setStyleSheet(f"background: {self.bgColorB};"
-                         f"border-radius: 0px;")
-        hh.setSectionsMovable(True)
-        hh.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        hh.customContextMenuRequested[QtCore.QPoint].connect(
-            lambda: self.headerRightMenuShow(QtCore.QPoint,
-                                             self.moviesTableView,
-                                             self.moviesTableColumnsVisible,
-                                             self.moviesTableModel))
-
-        # Right click menu
-        self.moviesTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self.moviesTableView.customContextMenuRequested[QtCore.QPoint].connect(self.moviesTableRightMenuShow)
-        moviesTableViewVLayout.addWidget(self.moviesTableView)
-
+    def initUINavigationControls(self, parentLayout):
+        """Initialize navigation controls shared between List and Cover Flow tabs"""
         moviesTableSearchHLayout = QtWidgets.QHBoxLayout()
-        moviesTableViewVLayout.addLayout(moviesTableSearchHLayout)
+        parentLayout.addLayout(moviesTableSearchHLayout)
 
         buttonsVLayout = QtWidgets.QVBoxLayout()
         moviesTableSearchHLayout.addLayout(buttonsVLayout)
@@ -1078,6 +1059,43 @@ class MainWindow(QtWidgets.QMainWindow):
 
         moviesTableSearchHLayout.setStretch(0, 3)
         moviesTableSearchHLayout.setStretch(1, 10)
+
+    def initUIMoviesTable(self):
+        self.moviesTableWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
+        self.moviesTableWidget.setLineWidth(5)
+        self.moviesTableWidget.setStyleSheet(f"background: {self.bgColorB};"
+                                             f"border-radius: 10px;")
+
+        moviesTableViewVLayout = QtWidgets.QVBoxLayout()
+        self.moviesTableWidget.setLayout(moviesTableViewVLayout)
+
+        moviesLabel = QtWidgets.QLabel("Movies")
+        moviesTableViewVLayout.addWidget(moviesLabel)
+
+        self.moviesTableView.setSortingEnabled(True)
+        self.moviesTableView.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
+        self.moviesTableView.verticalHeader().hide()
+        self.moviesTableView.setStyleSheet(f"background: {self.bgColorC};"
+                                           f"alternate-background-color: {self.bgColorD};")
+        self.moviesTableView.setAlternatingRowColors(True)
+        self.moviesTableView.setShowGrid(False)
+
+        # Right click header menu
+        hh = self.moviesTableView.horizontalHeader()
+        hh.setStyleSheet(f"background: {self.bgColorB};"
+                         f"border-radius: 0px;")
+        hh.setSectionsMovable(True)
+        hh.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        hh.customContextMenuRequested[QtCore.QPoint].connect(
+            lambda: self.headerRightMenuShow(QtCore.QPoint,
+                                             self.moviesTableView,
+                                             self.moviesTableColumnsVisible,
+                                             self.moviesTableModel))
+
+        # Right click menu
+        self.moviesTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.moviesTableView.customContextMenuRequested[QtCore.QPoint].connect(self.moviesTableRightMenuShow)
+        moviesTableViewVLayout.addWidget(self.moviesTableView)
 
     def initUIMovieSection(self):
         self.movieSectionWidget = QtWidgets.QFrame()
