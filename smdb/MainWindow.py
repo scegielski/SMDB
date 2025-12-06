@@ -2293,43 +2293,61 @@ class MainWindow(QtWidgets.QMainWindow):
         
         # Parse quoted phrases and regular words
         import shlex
-        try:
-            # shlex.split handles quoted strings properly
-            tokens = shlex.split(searchText)
-        except ValueError:
-            # If shlex fails (mismatched quotes), fall back to simple split
-            tokens = searchText.split()
         
-        # Check if we have multiple tokens or wildcards
-        has_wildcards = any('*' in t or '?' in t or '[' in t for t in tokens)
+        # Split by | first to handle OR groups
+        or_groups = searchText.split('|')
+        all_group_patterns = []
         
-        if has_wildcards:
-            # If any token has wildcards, treat the whole search as a wildcard pattern
-            import fnmatch
-            regex_pattern = fnmatch.translate(searchText)
-            regex_pattern = regex_pattern.replace(r'\Z', '')
-            if regex_pattern.startswith('(?:'):
-                regex_pattern = regex_pattern[4:]
+        for group in or_groups:
+            group = group.strip()
+            if not group:
+                continue
+                
+            try:
+                # shlex.split handles quoted strings properly
+                tokens = shlex.split(group)
+            except ValueError:
+                # If shlex fails (mismatched quotes), fall back to simple split
+                tokens = group.split()
+            
+            # Check if we have wildcards in this group
+            has_wildcards = any('*' in t or '?' in t or '[' in t for t in tokens)
+            
+            if has_wildcards:
+                # If any token has wildcards, treat the whole group as a wildcard pattern
+                import fnmatch
+                regex_pattern = fnmatch.translate(group)
+                regex_pattern = regex_pattern.replace(r'\Z', '')
+                if regex_pattern.startswith('(?:'):
+                    regex_pattern = regex_pattern[4:]
+                all_group_patterns.append(regex_pattern)
+            elif len(tokens) > 0:
+                # Build regex pattern from tokens
+                # Each token becomes a word-boundary-wrapped pattern
+                patterns = []
+                for token in tokens:
+                    # Escape special regex characters and add word boundaries
+                    escaped = re.escape(token)
+                    patterns.append(r'\b' + escaped + r'\b')
+                
+                # Join patterns with .* between them (match in order with anything between)
+                group_pattern = '.*'.join(patterns)
+                all_group_patterns.append(group_pattern)
+        
+        # Combine all OR groups with | regex operator
+        if len(all_group_patterns) > 0:
+            if len(all_group_patterns) == 1:
+                regex_pattern = all_group_patterns[0]
+            else:
+                # Wrap each group in non-capturing group and join with |
+                regex_pattern = '|'.join([f'(?:{p})' for p in all_group_patterns])
+            
             try:
                 search_regex = re.compile(regex_pattern, re.IGNORECASE)
             except re.error:
                 search_regex = None
-        elif len(tokens) > 0:
-            # Build regex pattern from tokens
-            # Each token becomes a word-boundary-wrapped pattern
-            patterns = []
-            for token in tokens:
-                # Escape special regex characters and add word boundaries
-                escaped = re.escape(token)
-                patterns.append(r'\b' + escaped + r'\b')
-            
-            # Join patterns with .* between them (match in order with anything between)
-            regex_pattern = '.*'.join(patterns)
-            
-            try:
-                search_regex = re.compile(regex_pattern, re.IGNORECASE)
-            except re.error:
-                search_regex = None
+        else:
+            search_regex = None
 
         # Get row count from SOURCE model (not proxy) to search all movies
         rowCount = self.moviesTableModel.rowCount()
