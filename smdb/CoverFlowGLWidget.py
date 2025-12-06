@@ -1123,7 +1123,14 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     
                     glPushMatrix()
                     glTranslatef(x_offset, 0.0, -z - z_curve)  # Move back in z based on curve
-                    glRotatef(self.y_rotation + curve_angle, 0.0, 1.0, 0.0)  # Align to curve
+                    
+                    # Smoothly interpolate rotation based on distance from center
+                    # At center (offset 0): full y_rotation
+                    # At offset ±1 or more: rotation goes to 0
+                    rotation_factor = max(0.0, 1.0 - abs(effective_offset))
+                    current_rotation = self.y_rotation * rotation_factor
+                    
+                    glRotatef(current_rotation + curve_angle, 0.0, 1.0, 0.0)
                     
                     # Set opacity and brightness for distance-based fading
                     glColor4f(alpha, alpha, alpha, 1.0)
