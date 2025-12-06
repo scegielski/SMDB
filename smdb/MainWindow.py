@@ -2287,6 +2287,10 @@ class MainWindow(QtWidgets.QMainWindow):
         if len(searchText) == 0:
             return
 
+        # Initialize for fallback
+        searchTextLower = searchText.lower()
+        search_regex = None
+        
         # Check if search text contains wildcards
         has_wildcards = '*' in searchText or '?' in searchText or '[' in searchText
         
@@ -2304,28 +2308,21 @@ class MainWindow(QtWidgets.QMainWindow):
             try:
                 search_regex = re.compile(regex_pattern, re.IGNORECASE)
             except re.error:
-                # If regex compilation fails, fall back to literal search
-                searchTextLower = searchText.lower()
+                # If regex compilation fails, use literal search
                 search_regex = None
         else:
-            # No wildcards - build word boundary regex for whole word matching
-            # Split search text into words and create pattern to match all words with word boundaries
+            # No wildcards - build simple word boundary regex
+            # Split search text into words
             words = searchText.split()
-            if words:
+            if words and len(words) > 0:
                 # Escape special regex characters in each word, then add word boundaries
-                escaped_words = [re.escape(word) for word in words]
-                # Create pattern that matches all words in any order with word boundaries
-                # Using lookahead assertions to ensure all words are present
-                word_patterns = [r'\b' + word + r'\b' for word in escaped_words]
-                regex_pattern = '(?=.*' + ')(?=.*'.join(word_patterns) + ')'
+                escaped_words = [r'\b' + re.escape(word) + r'\b' for word in words]
+                # Join words with .* to match them in order with anything between
+                regex_pattern = '.*'.join(escaped_words)
                 try:
-                    search_regex = re.compile(regex_pattern, re.IGNORECASE | re.DOTALL)
+                    search_regex = re.compile(regex_pattern, re.IGNORECASE)
                 except re.error:
-                    searchTextLower = searchText.lower()
                     search_regex = None
-            else:
-                searchTextLower = searchText.lower()
-                search_regex = None
 
         # Get row count from SOURCE model (not proxy) to search all movies
         rowCount = self.moviesTableModel.rowCount()
@@ -2407,23 +2404,28 @@ class MainWindow(QtWidgets.QMainWindow):
                         self.statusBar().showMessage(f'Plot search: {len(matching_movies)} matches | {sourceRow}/{rowCount}')
                 continue
             
-            # Get plot from cached smdb data (much faster than loading JSON files)
+            # Get plot and synopsis from cached smdb data (much faster than loading JSON files)
             moviePath = self.moviesTableModel.getPath(sourceRow)
             plot = None
+            synopsis = None
             
             if self.moviesSmdbData and 'titles' in self.moviesSmdbData:
                 if moviePath in self.moviesSmdbData['titles']:
                     plot = self.moviesSmdbData['titles'][moviePath].get('plot')
+                    synopsis = self.moviesSmdbData['titles'][moviePath].get('synopsis')
             
-            # Search the plot if we have one
-            plot_matches = False
-            if plot:
+            # Search both plot and synopsis
+            text_matches = False
+            # Combine plot and synopsis for searching
+            search_text = ' '.join(filter(None, [plot, synopsis]))
+            
+            if search_text:
                 if search_regex:
-                    plot_matches = search_regex.search(plot) is not None
+                    text_matches = search_regex.search(search_text) is not None
                 else:
-                    plot_matches = searchTextLower in plot.lower()
+                    text_matches = searchTextLower in search_text.lower()
             
-            if plot_matches:
+            if text_matches:
                 year = self.moviesTableModel.getYear(sourceRow)
                 try:
                     year_int = int(year) if year else 0
@@ -3177,6 +3179,18 @@ class MainWindow(QtWidgets.QMainWindow):
                     if jsonPlot:
                         jsonPlot = jsonPlot.split('::')[0]
 
+                # Extract synopsis for caching in smdb file
+                jsonSynopsis = None
+                if jsonData.get('synopsis'):
+                    synopsis_data = jsonData.get('synopsis')
+                    if isinstance(synopsis_data, list):
+                        jsonSynopsis = synopsis_data[0] if synopsis_data else None
+                    else:
+                        jsonSynopsis = synopsis_data
+                    # Remove the author of the synopsis's name
+                    if jsonSynopsis:
+                        jsonSynopsis = jsonSynopsis.split('::')[0]
+
                 # Subtitles exist status comes from current model value if present
                 try:
                     if len(model._data[row]) > Columns.SubtitlesExist.value:
@@ -3213,7 +3227,8 @@ class MainWindow(QtWidgets.QMainWindow):
                     'date watched': dateWatched,
                     'similar movies': jsonSimilarMovies,
                     'known duplicate': knownDuplicate,
-                    'plot': jsonPlot
+                    'plot': jsonPlot,
+                    'synopsis': jsonSynopsis
                 }
 
         self.progressBar.setValue(0)
@@ -3221,9 +3236,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage('Sorting Data...')
         QtCore.QCoreApplication.processEvents()
         
-        # Count how many movies have plots for logging
+        # Count how many movies have plots and synopsis for logging
         plot_count = sum(1 for t in titles.values() if t.get('plot'))
-        self.output(f"Collected {plot_count} plots out of {len(titles)} movies")
+        synopsis_count = sum(1 for t in titles.values() if t.get('synopsis'))
+        self.output(f"Collected {plot_count} plots and {synopsis_count} synopses out of {len(titles)} movies")
 
         # Normalize indexes (convert dict-as-set to lists) before serializing
         data = {'titles': collections.OrderedDict(sorted(titles.items()))}
