@@ -3655,6 +3655,14 @@ class MainWindow(QtWidgets.QMainWindow):
                                                                            doCover=True))
         moviesTableRightMenu.addAction(downloadDataAction)
 
+        downloadSynopsisAction = QtWidgets.QAction("Download Synopsis", self)
+        downloadSynopsisAction.triggered.connect(lambda: self.downloadSynopsisMenu(force=False))
+        moviesTableRightMenu.addAction(downloadSynopsisAction)
+
+        forceDownloadSynopsisAction = QtWidgets.QAction("Force Download Synopsis", self)
+        forceDownloadSynopsisAction.triggered.connect(lambda: self.downloadSynopsisMenu(force=True))
+        moviesTableRightMenu.addAction(forceDownloadSynopsisAction)
+
         moviesTableRightMenu.addSeparator()
 
         # OpenSubtitles download actions
@@ -4337,6 +4345,138 @@ class MainWindow(QtWidgets.QMainWindow):
                               self.moviesTableProxyModel)
 
         self.progressBar.setValue(0)
+
+    def downloadSynopsisMenu(self, force=False):
+        """Download Wikipedia synopsis for selected movies.
+        
+        Args:
+            force: If True, download even if synopsis already exists
+        """
+        numSelectedItems = len(self.moviesTableView.selectionModel().selectedRows())
+        self.progressBar.setMaximum(numSelectedItems)
+        progress = 0
+        self.isCanceled = False
+        import time
+        start_time = time.time()
+        
+        downloaded_count = 0
+        skipped_count = 0
+        failed_count = 0
+        
+        for proxyIndex in self.moviesTableView.selectionModel().selectedRows():
+            QtCore.QCoreApplication.processEvents()
+            if self.isCanceled:
+                self.statusBar().showMessage('Cancelled')
+                self.isCanceled = False
+                self.progressBar.setValue(0)
+                return
+
+            progress += 1
+            self.progressBar.setValue(progress)
+
+            # Calculate ETA
+            if progress > 0:
+                elapsed_time = time.time() - start_time
+                avg_time_per_item = elapsed_time / progress
+                remaining_items = numSelectedItems - progress
+                eta_seconds = avg_time_per_item * remaining_items
+                
+                if eta_seconds < 60:
+                    eta_str = f"{int(eta_seconds)}s"
+                else:
+                    eta_minutes = int(eta_seconds / 60)
+                    eta_secs = int(eta_seconds % 60)
+                    eta_str = f"{eta_minutes}m {eta_secs}s"
+                
+                message = "Downloading synopsis (%d/%d) - ETA: %s" % (progress, numSelectedItems, eta_str)
+            else:
+                message = "Downloading synopsis (%d/%d)" % (progress, numSelectedItems)
+            
+            self.statusBar().showMessage(message)
+            QtCore.QCoreApplication.processEvents()
+
+            sourceRow = self.getSourceRow(proxyIndex)
+            movieFolderName = self.moviesTableModel.getFolderName(sourceRow)
+            moviePath = self.moviesTableModel.getPath(sourceRow)
+            moviePath = self.findMovie(moviePath, movieFolderName)
+            if not os.path.exists(moviePath):
+                failed_count += 1
+                continue
+
+            jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
+            
+            # Check if JSON file exists
+            if not os.path.exists(jsonFile):
+                self.output(f"No JSON file for {movieFolderName}, skipping...")
+                failed_count += 1
+                continue
+            
+            # Load existing JSON
+            try:
+                with open(jsonFile, 'r', encoding='utf-8') as f:
+                    jsonData = ujson.load(f)
+            except Exception as e:
+                self.output(f"Error reading JSON for {movieFolderName}: {e}")
+                failed_count += 1
+                continue
+            
+            # Get title and year from JSON
+            title = jsonData.get('title')
+            year = jsonData.get('year')
+            
+            if not title:
+                self.output(f"No title in JSON for {movieFolderName}, skipping...")
+                failed_count += 1
+                continue
+            
+            # Check if synopsis already exists
+            existing_synopsis = jsonData.get('synopsis')
+            existing_plot = jsonData.get('plot')
+            
+            # Download if: force mode, no synopsis exists, or synopsis is the same as plot
+            should_download = force or not existing_synopsis or (existing_synopsis == existing_plot)
+            
+            if not should_download:
+                self.output(f"Synopsis already exists for {movieFolderName}, skipping...")
+                skipped_count += 1
+                continue
+            
+            if existing_synopsis == existing_plot and existing_synopsis:
+                self.output(f"Synopsis is same as plot for {movieFolderName}, downloading new synopsis...")
+            
+            # Download synopsis from Wikipedia
+            self.output(f"Fetching Wikipedia synopsis for '{title}' ({year})...")
+            synopsis = self.movieData._getWikipediaPlot(title, year)
+            
+            if synopsis:
+                # Add synopsis to JSON data
+                jsonData['synopsis'] = synopsis
+                
+                # Write updated JSON
+                try:
+                    with open(jsonFile, 'w', encoding='utf-8') as f:
+                        ujson.dump(jsonData, f, indent=4)
+                    self.output(f"Successfully added synopsis ({len(synopsis)} characters)")
+                    downloaded_count += 1
+                except Exception as e:
+                    self.output(f"Error writing JSON for {movieFolderName}: {e}")
+                    failed_count += 1
+            else:
+                self.output(f"No Wikipedia synopsis found for '{title}' ({year})")
+                failed_count += 1
+            
+            # Update the view
+            self.moviesTableView.selectRow(proxyIndex.row())
+            self.clickedTable(proxyIndex,
+                              self.moviesTableModel,
+                              self.moviesTableProxyModel)
+        
+        self.progressBar.setValue(0)
+        
+        # Show summary
+        summary = f"Synopsis download complete: {downloaded_count} downloaded, {skipped_count} skipped, {failed_count} failed"
+        self.statusBar().showMessage(summary)
+        self.output(summary)
 
     def removeJsonFilesMenu(self):
         filesToDelete = []
