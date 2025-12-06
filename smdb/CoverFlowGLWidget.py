@@ -207,7 +207,33 @@ class CoverFlowGLWidget(QOpenGLWidget):
         self.update()
 
     def timerEvent(self, event):
-        if self.rotation_animation_timer and event.timerId() == self.rotation_animation_timer:
+        if self.camera_reset_timer and event.timerId() == self.camera_reset_timer:
+            # Animate camera back to origin
+            duration_ms = 300  # 300ms animation
+            elapsed_ms = self.camera_reset_elapsed.elapsed() if hasattr(self, 'camera_reset_elapsed') else 0
+            self.camera_reset_progress = min(1.0, elapsed_ms / duration_ms)
+            
+            # Ease out cubic for smooth deceleration
+            progress = self.camera_reset_progress
+            eased_progress = 1 - pow(1 - progress, 3)
+            
+            # Interpolate from start position to (0, 0) and camera_z to INITIAL_CAMERA_Z
+            self.camera_pan_x = self.camera_reset_start_x * (1 - eased_progress)
+            self.camera_pan_y = self.camera_reset_start_y * (1 - eased_progress)
+            self.camera_z = self.camera_reset_start_z * (1 - eased_progress) + self.INITIAL_CAMERA_Z * eased_progress
+            
+            if self.camera_reset_progress >= 1.0:
+                self.camera_pan_x = 0.0
+                self.camera_pan_y = 0.0
+                self.camera_z = self.INITIAL_CAMERA_Z
+                try:
+                    self.killTimer(self.camera_reset_timer)
+                except:
+                    pass
+                self.camera_reset_timer = None
+            
+            self.update()
+        elif self.rotation_animation_timer and event.timerId() == self.rotation_animation_timer:
             # Animate rotations toward their targets
             rotation_speed = 10.0  # Degrees per frame at 60fps
             all_complete = True
@@ -527,6 +553,13 @@ class CoverFlowGLWidget(QOpenGLWidget):
         self.is_panning = False
         self.pan_start_x = None
         self.pan_start_y = None
+        
+        # Camera reset animation
+        self.camera_reset_timer = None
+        self.camera_reset_start_x = 0.0
+        self.camera_reset_start_y = 0.0
+        self.camera_reset_start_z = 0.0
+        self.camera_reset_progress = 0.0
 
     def set_cover_image(self, image_path):
         self.cover_image = QImage(image_path)
@@ -534,6 +567,21 @@ class CoverFlowGLWidget(QOpenGLWidget):
         if not self.cover_image.isNull():
             self.aspect_ratio = self.cover_image.width() / self.cover_image.height()
         self.update()
+    
+    def mouseDoubleClickEvent(self, event):
+        if event.button() == Qt.MiddleButton:
+            # Start camera reset animation
+            self.camera_reset_start_x = self.camera_pan_x
+            self.camera_reset_start_y = self.camera_pan_y
+            self.camera_reset_start_z = self.camera_z
+            self.camera_reset_progress = 0.0
+            
+            if self.camera_reset_timer is None:
+                from PyQt5.QtCore import QElapsedTimer
+                self.camera_reset_elapsed = QElapsedTimer()
+                self.camera_reset_elapsed.start()
+                self.camera_reset_timer = self.startTimer(16)  # ~60 fps
+            event.accept()
     
     def set_cover_image_from_qimage(self, qimage):
         """Set cover image from an already-loaded QImage to avoid duplicate file loading"""
