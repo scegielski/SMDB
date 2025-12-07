@@ -126,11 +126,11 @@ class CoverFlowGLWidget(QOpenGLWidget):
     SPOTLIGHT_FORWARD = 8.0          # How far in front of center movie (units)
     SPOTLIGHT_CONE_ANGLE = 30.5      # Cone angle in degrees (smaller = tighter beam)
     SPOTLIGHT_EXPONENT = 3.0         # Falloff sharpness (higher = sharper, lower = softer)
-    SPOTLIGHT_DIFFUSE = (2.0, 2.0, 2.0)   # Light color intensity (RGB 0-1)
-    SPOTLIGHT_SPECULAR = (2.0, 2.0, 2.0)   # Specular highlight color (RGB 0-1)
+    SPOTLIGHT_DIFFUSE = (5.0, 5.0, 5.0)   # Light color intensity (RGB 0-1)
+    SPOTLIGHT_SPECULAR = (5.0, 5.0, 5.0)   # Specular highlight color (RGB 0-1)
     SPOTLIGHT_CONSTANT_ATTEN = 1.0    # Constant attenuation factor
-    SPOTLIGHT_LINEAR_ATTEN = 0.001    # Linear distance attenuation
-    SPOTLIGHT_QUADRATIC_ATTEN = 0.1  # Quadratic distance attenuation
+    SPOTLIGHT_LINEAR_ATTEN = 0.00001    # Linear distance attenuation
+    SPOTLIGHT_QUADRATIC_ATTEN = 0.001  # Quadratic distance attenuation
     
     # Material properties for VHS boxes
     MATERIAL_SHININESS = 50.0         # Plastic shininess (higher = glossier)
