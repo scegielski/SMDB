@@ -34,3 +34,9 @@ MATERIAL_AO = 1.0                # Ambient occlusion factor (0-1)
 
 # VHS box surface color (RGB 0-1) - used for all non-textured surfaces
 BOX_COLOR = (0.001, 0.001, 0.001)
+
+# Shadow configuration - Real shadow mapping from spotlight
+SHADOW_ENABLED = False           # Enable/disable shadows (work in progress)
+SHADOW_MAP_SIZE = 2048           # Shadow map resolution (higher = sharper shadows, more expensive)
+SHADOW_BIAS = 0.005              # Shadow bias to prevent shadow acne
+SHADOW_DARKNESS = 0.7            # How dark shadows are (0-1, higher = darker)

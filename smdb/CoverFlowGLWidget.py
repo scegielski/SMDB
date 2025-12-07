@@ -15,7 +15,7 @@ from .lighting_config import (
     SPOTLIGHT_CONE_ANGLE, SPOTLIGHT_EXPONENT,
     SPOTLIGHT_COLOR, SPOTLIGHT_INTENSITY, AMBIENT_LIGHT,
     MATERIAL_BASE_COLOR, MATERIAL_METALLIC, MATERIAL_ROUGHNESS, MATERIAL_AO,
-    BOX_COLOR
+    BOX_COLOR, SHADOW_ENABLED, SHADOW_MAP_SIZE, SHADOW_BIAS, SHADOW_DARKNESS
 )
 
 # Anisotropic filtering extension constants
@@ -859,9 +859,17 @@ class CoverFlowGLWidget(QOpenGLWidget):
             vertex_shader_source = _load_shader('vertex_shader.glsl')
             fragment_shader_source = _load_shader('fragment_shader.glsl')
             
+            print("Compiling vertex shader...")
             vertex_shader = compileShader(vertex_shader_source, GL_VERTEX_SHADER)
+            print("Vertex shader compiled successfully")
+            
+            print("Compiling fragment shader...")
             fragment_shader = compileShader(fragment_shader_source, GL_FRAGMENT_SHADER)
+            print("Fragment shader compiled successfully")
+            
+            print("Linking shader program...")
             self.shader_program = compileProgram(vertex_shader, fragment_shader)
+            print("Shader program linked successfully")
             
             # Get uniform locations for texture and rendering
             self.uniform_texture = glGetUniformLocation(self.shader_program, "textureSampler")
@@ -892,9 +900,30 @@ class CoverFlowGLWidget(QOpenGLWidget):
             self.uniform_metallic = glGetUniformLocation(self.shader_program, "metallic")
             self.uniform_roughness = glGetUniformLocation(self.shader_program, "roughness")
             self.uniform_ao = glGetUniformLocation(self.shader_program, "ao")
+            
+            # Shadow mapping uniforms
+            self.uniform_shadow_map = glGetUniformLocation(self.shader_program, "shadowMap")
+            self.uniform_shadow_matrix = glGetUniformLocation(self.shader_program, "shadowMatrix")
+            self.uniform_use_shadows = glGetUniformLocation(self.shader_program, "useShadows")
+            self.uniform_shadow_bias = glGetUniformLocation(self.shader_program, "shadowBias")
+            self.uniform_shadow_darkness = glGetUniformLocation(self.shader_program, "shadowDarkness")
+            
+            # Debug: Print uniform locations
+            print(f"Shadow uniform locations: shadowMap={self.uniform_shadow_map}, "
+                  f"shadowMatrix={self.uniform_shadow_matrix}, useShadows={self.uniform_use_shadows}, "
+                  f"shadowBias={self.uniform_shadow_bias}, shadowDarkness={self.uniform_shadow_darkness}")
         except Exception as e:
             print(f"Shader compilation failed: {e}")
             self.shader_program = None
+            # Initialize shadow uniforms to -1 to indicate they're not available
+            self.uniform_shadow_map = -1
+            self.uniform_shadow_matrix = -1
+            self.uniform_use_shadows = -1
+            self.uniform_shadow_bias = -1
+            self.uniform_shadow_darkness = -1
+        
+        # Initialize shadow mapping
+        self._initShadowMap()
         
         self.texture_id = None
         
@@ -903,6 +932,63 @@ class CoverFlowGLWidget(QOpenGLWidget):
         
         # Pre-compile box geometry into a display list for reuse
         self._compileBoxDisplayList()
+    
+    def _initShadowMap(self):
+        """Initialize framebuffer and texture for shadow mapping."""
+        try:
+            importlib.reload(lighting_config)
+            
+            # Skip shadow map creation if disabled
+            if not lighting_config.SHADOW_ENABLED:
+                print("Shadows disabled, skipping shadow map creation")
+                self.shadow_fbo = None
+                self.shadow_map_texture = None
+                return
+            
+            shadow_map_size = lighting_config.SHADOW_MAP_SIZE
+            
+            # Create shadow map texture
+            self.shadow_map_texture = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.shadow_map_texture)
+            
+            # Initialize with white (far depth) to avoid black screen if sampling fails
+            import numpy as np
+            white_data = np.ones((shadow_map_size, shadow_map_size), dtype=np.float32)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, shadow_map_size, shadow_map_size, 
+                        0, GL_DEPTH_COMPONENT, GL_FLOAT, white_data)
+            
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+            
+            # Create framebuffer for shadow rendering
+            self.shadow_fbo = glGenFramebuffers(1)
+            glBindFramebuffer(GL_FRAMEBUFFER, self.shadow_fbo)
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, 
+                                  self.shadow_map_texture, 0)
+            
+            # Don't need color buffer for shadow map
+            glDrawBuffer(GL_NONE)
+            glReadBuffer(GL_NONE)
+            
+            # Check framebuffer status
+            status = glCheckFramebufferStatus(GL_FRAMEBUFFER)
+            if status != GL_FRAMEBUFFER_COMPLETE:
+                print(f"Shadow framebuffer incomplete: {status}")
+                self.shadow_fbo = None
+                self.shadow_map_texture = None
+            else:
+                print(f"Shadow mapping initialized successfully: {shadow_map_size}x{shadow_map_size}")
+            
+            # Unbind framebuffer
+            glBindFramebuffer(GL_FRAMEBUFFER, 0)
+        except Exception as e:
+            print(f"Shadow map initialization failed: {e}")
+            import traceback
+            traceback.print_exc()
+            self.shadow_fbo = None
+            self.shadow_map_texture = None
 
     def resizeGL(self, w, h):
         glViewport(0, 0, w, h)
@@ -1227,6 +1313,169 @@ class CoverFlowGLWidget(QOpenGLWidget):
         # Disable checkerboard for other objects
         if self.shader_program:
             glUniform1i(self.uniform_use_checkerboard, 0)
+
+    def renderShadowMap(self, render_scene_func):
+        """Render the scene from the light's perspective to create shadow map.
+        
+        Args:
+            render_scene_func: Function to call that renders all shadow-casting objects
+        """
+        if not hasattr(self, 'shadow_fbo') or self.shadow_fbo is None:
+            return np.identity(4, dtype=np.float32)
+        
+        try:
+            importlib.reload(lighting_config)
+            
+            # Save ALL current state
+            viewport = glGetIntegerv(GL_VIEWPORT)
+            saved_program = glGetIntegerv(GL_CURRENT_PROGRAM)
+            
+            # Save current matrices
+            glMatrixMode(GL_PROJECTION)
+            glPushMatrix()
+            glMatrixMode(GL_MODELVIEW)
+            glPushMatrix()
+            
+            # Bind shadow framebuffer
+            glBindFramebuffer(GL_FRAMEBUFFER, self.shadow_fbo)
+            glViewport(0, 0, lighting_config.SHADOW_MAP_SIZE, lighting_config.SHADOW_MAP_SIZE)
+            glClear(GL_DEPTH_BUFFER_BIT)
+            
+            # Disable shader for shadow pass (depth only)
+            glUseProgram(0)
+            
+            # Setup light's view-projection matrix
+            glMatrixMode(GL_PROJECTION)
+            glLoadIdentity()
+            
+            # Use perspective projection for spotlight
+            import math
+            fov = lighting_config.SPOTLIGHT_CONE_ANGLE * 2.2  # Slightly wider than cone
+            gluPerspective(fov, 1.0, 1.0, 100.0)
+            
+            glMatrixMode(GL_MODELVIEW)
+            glLoadIdentity()
+            
+            # Position camera at light position looking at target
+            light_pos = [lighting_config.SPOTLIGHT_POSITION_X,
+                        lighting_config.SPOTLIGHT_POSITION_Y,
+                        lighting_config.SPOTLIGHT_POSITION_Z]
+            
+            # Look at origin (where the current box center is)
+            gluLookAt(light_pos[0], light_pos[1], light_pos[2],  # Eye position
+                     0.0, 0.0, 0.0,  # Look at origin
+                     0.0, 1.0, 0.0)  # Up vector
+            
+            # Render scene from light's perspective
+            render_scene_func()
+            
+            # Get the light's view-projection matrix for shadow coordinate transformation
+            modelview = glGetFloatv(GL_MODELVIEW_MATRIX)
+            projection = glGetFloatv(GL_PROJECTION_MATRIX)
+            
+            # Restore ALL state
+            glBindFramebuffer(GL_FRAMEBUFFER, 0)
+            glViewport(viewport[0], viewport[1], viewport[2], viewport[3])
+            
+            # Restore matrices - CRITICAL!
+            glMatrixMode(GL_PROJECTION)
+            glPopMatrix()
+            glMatrixMode(GL_MODELVIEW)
+            glPopMatrix()
+            
+            # Restore shader program
+            glUseProgram(saved_program)
+            
+            # Compute shadow matrix (bias * projection * view)
+            # Bias matrix transforms from [-1,1] to [0,1]
+            bias_matrix = np.array([
+                [0.5, 0.0, 0.0, 0.5],
+                [0.0, 0.5, 0.0, 0.5],
+                [0.0, 0.0, 0.5, 0.5],
+                [0.0, 0.0, 0.0, 1.0]
+            ], dtype=np.float32)
+            
+            shadow_matrix = bias_matrix @ projection @ modelview
+            
+            return shadow_matrix
+        except Exception as e:
+            print(f"Shadow map rendering failed: {e}")
+            import traceback
+            traceback.print_exc()
+            # Restore state on error
+            glBindFramebuffer(GL_FRAMEBUFFER, 0)
+            glMatrixMode(GL_PROJECTION)
+            glPopMatrix()
+            glMatrixMode(GL_MODELVIEW)
+            glPopMatrix()
+            if 'saved_program' in locals():
+                glUseProgram(saved_program)
+            return np.identity(4, dtype=np.float32)
+
+    def _renderAllBoxes(self, z, max_quad_h, max_quad_w, for_shadows=False):
+        """Render all VHS boxes for either shadow pass or main rendering.
+        
+        Args:
+            z: Camera z distance
+            max_quad_h: Maximum quad height
+            max_quad_w: Maximum quad width  
+            for_shadows: If True, render simplified geometry for shadow map
+        """
+        # For now, just render a simple placeholder box at origin for shadows
+        # This will be expanded to match the full rendering logic
+        if for_shadows:
+            # Simplified rendering for shadow map - just basic geometry
+            glPushMatrix()
+            glTranslatef(0.0, 0.0, 0.0)  # At origin where boxes are
+            
+            # Draw a simple box
+            quad_h = max_quad_h * 0.8
+            quad_w = self.STANDARD_ASPECT_RATIO * quad_h
+            if quad_w > max_quad_w * 0.8:
+                quad_w = max_quad_w * 0.8
+                quad_h = quad_w / self.STANDARD_ASPECT_RATIO
+            
+            # Just render box geometry without textures
+            half_w = quad_w / 2
+            half_h = quad_h / 2
+            depth = quad_h * 0.13
+            half_d = depth / 2
+            
+            # Simple box for shadow casting
+            glBegin(GL_QUADS)
+            # Front
+            glVertex3f(-half_w, -half_h, half_d)
+            glVertex3f(half_w, -half_h, half_d)
+            glVertex3f(half_w, half_h, half_d)
+            glVertex3f(-half_w, half_h, half_d)
+            # Back
+            glVertex3f(-half_w, -half_h, -half_d)
+            glVertex3f(-half_w, half_h, -half_d)
+            glVertex3f(half_w, half_h, -half_d)
+            glVertex3f(half_w, -half_h, -half_d)
+            # Top
+            glVertex3f(-half_w, half_h, -half_d)
+            glVertex3f(-half_w, half_h, half_d)
+            glVertex3f(half_w, half_h, half_d)
+            glVertex3f(half_w, half_h, -half_d)
+            # Bottom
+            glVertex3f(-half_w, -half_h, -half_d)
+            glVertex3f(half_w, -half_h, -half_d)
+            glVertex3f(half_w, -half_h, half_d)
+            glVertex3f(-half_w, -half_h, half_d)
+            # Left
+            glVertex3f(-half_w, -half_h, -half_d)
+            glVertex3f(-half_w, -half_h, half_d)
+            glVertex3f(-half_w, half_h, half_d)
+            glVertex3f(-half_w, half_h, -half_d)
+            # Right
+            glVertex3f(half_w, -half_h, -half_d)
+            glVertex3f(half_w, half_h, -half_d)
+            glVertex3f(half_w, half_h, half_d)
+            glVertex3f(half_w, -half_h, half_d)
+            glEnd()
+            
+            glPopMatrix()
 
     def drawVHSBox(self, width, height, texture_id, back_texture_id=None, image_aspect=None):
         """Draw a 3D VHS box with the cover texture on front, text on back, and solid sides with chamfered edges
@@ -1695,6 +1944,45 @@ class CoverFlowGLWidget(QOpenGLWidget):
             glUniform1f(self.uniform_metallic, lighting_config.MATERIAL_METALLIC)
             glUniform1f(self.uniform_roughness, lighting_config.MATERIAL_ROUGHNESS)
             glUniform1f(self.uniform_ao, lighting_config.MATERIAL_AO)
+            
+            # Setup shadow mapping
+            if lighting_config.SHADOW_ENABLED and hasattr(self, 'shadow_map_texture') and self.shadow_map_texture:
+                # Render shadow map first
+                def render_scene_for_shadows():
+                    # Render only the boxes (not ground plane) for shadow casting
+                    self._renderAllBoxes(z, max_quad_h, max_quad_w, for_shadows=True)
+                
+                shadow_matrix = self.renderShadowMap(render_scene_for_shadows)
+                
+                # Bind shadow map to texture unit 1
+                glActiveTexture(GL_TEXTURE1)
+                glBindTexture(GL_TEXTURE_2D, self.shadow_map_texture)
+                
+                # Only set uniform if it exists
+                if self.uniform_shadow_map >= 0:
+                    glUniform1i(self.uniform_shadow_map, 1)
+                
+                # Set shadow matrix uniform
+                if self.uniform_shadow_matrix >= 0:
+                    glUniformMatrix4fv(self.uniform_shadow_matrix, 1, GL_FALSE, shadow_matrix.T)
+                
+                # Set shadow parameters
+                if self.uniform_use_shadows >= 0:
+                    glUniform1i(self.uniform_use_shadows, 1)
+                if self.uniform_shadow_bias >= 0:
+                    glUniform1f(self.uniform_shadow_bias, lighting_config.SHADOW_BIAS)
+                if self.uniform_shadow_darkness >= 0:
+                    glUniform1f(self.uniform_shadow_darkness, lighting_config.SHADOW_DARKNESS)
+                
+                # Reset to texture unit 0 for cover textures
+                glActiveTexture(GL_TEXTURE0)
+            else:
+                # Shadows disabled - set identity matrix and disable shadow flag
+                if hasattr(self, 'uniform_shadow_matrix') and self.uniform_shadow_matrix >= 0:
+                    identity = np.identity(4, dtype=np.float32)
+                    glUniformMatrix4fv(self.uniform_shadow_matrix, 1, GL_FALSE, identity.T)
+                if hasattr(self, 'uniform_use_shadows') and self.uniform_use_shadows >= 0:
+                    glUniform1i(self.uniform_use_shadows, 0)
             
             glUniform1i(self.uniform_texture, 0)  # Texture unit 0
         

@@ -6,11 +6,16 @@ varying vec2 fragTexCoord;
 varying vec4 fragColor;
 varying vec3 fragTangent;
 varying vec3 fragBitangent;
+varying vec4 fragShadowCoord;
 
 uniform sampler2D textureSampler;
+uniform sampler2D shadowMap;
 uniform bool useTexture;
 uniform bool useCheckerboard;
 uniform float checkerboardScale;
+uniform bool useShadows;
+uniform float shadowBias;
+uniform float shadowDarkness;
 
 // Light properties
 uniform vec3 lightPosition;
@@ -250,8 +255,44 @@ void main() {
     // Calculate attenuation
     float attenuation = calculateAttenuation(distance);
     
-    // Calculate radiance using blended color
-    vec3 radiance = spotColor * lightIntensity * attenuation * spotEffect;
+    // Calculate shadow factor
+    float shadow = 1.0;
+    if (useShadows) {
+        // Check if shadow coordinate is valid
+        if (fragShadowCoord.w > 0.0) {
+            // Perspective divide
+            vec3 projCoords = fragShadowCoord.xyz / fragShadowCoord.w;
+            
+            // Only apply shadows if within shadow map bounds
+            if (projCoords.x >= 0.0 && projCoords.x <= 1.0 && 
+                projCoords.y >= 0.0 && projCoords.y <= 1.0 && 
+                projCoords.z >= 0.0 && projCoords.z <= 1.0) {
+                
+                // Sample shadow map with PCF (Percentage Closer Filtering) for soft shadows
+                float shadowSum = 0.0;
+                float texelSize = 1.0 / 2048.0; // Should match SHADOW_MAP_SIZE
+                int pcfSamples = 0;
+                
+                // 3x3 PCF kernel with manual depth comparison
+                for (int x = -1; x <= 1; x++) {
+                    for (int y = -1; y <= 1; y++) {
+                        vec2 offset = vec2(float(x), float(y)) * texelSize;
+                        float shadowDepth = texture2D(shadowMap, projCoords.xy + offset).r;
+                        float currentDepth = projCoords.z - shadowBias;
+                        shadowSum += (currentDepth <= shadowDepth) ? 1.0 : 0.0;
+                        pcfSamples++;
+                    }
+                }
+                
+                shadow = shadowSum / float(pcfSamples);
+                // Apply shadow darkness
+                shadow = mix(1.0 - shadowDarkness, 1.0, shadow);
+            }
+        }
+    }
+    
+    // Calculate radiance using blended color and shadow
+    vec3 radiance = spotColor * lightIntensity * attenuation * spotEffect * shadow;
     
     // Calculate PBR lighting
     vec3 Lo = calculatePBRLighting(N, V, L, albedo, metallic, roughness, F0, radiance);
