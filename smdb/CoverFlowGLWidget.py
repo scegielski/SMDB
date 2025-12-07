@@ -1652,7 +1652,12 @@ class CoverFlowGLWidget(QOpenGLWidget):
         # Calculate quad_h for ground plane positioning
         max_quad_h = 1.0
         quad_h_for_ground = max_quad_h * 0.8  # Match the scaling used for boxes in multi-cover mode
+        
+        # Apply camera Z-translation so ground plane moves with boxes
+        glPushMatrix()
+        glTranslatef(0.0, 0.0, -z)
         self.drawGroundPlane(quad_h_for_ground)
+        glPopMatrix()
         
         # Determine how many surrounding covers to show
         # Reduced for better performance with chamfered boxes
