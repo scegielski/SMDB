@@ -33,7 +33,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
     SPOTLIGHT_CONE_ANGLE = 30.5      # Cone angle in degrees (smaller = tighter beam)
     SPOTLIGHT_EXPONENT = 3.0         # Falloff sharpness (higher = sharper, lower = softer)
     SPOTLIGHT_COLOR = (1.0, 1.0, 0.98)  # Warm white light (RGB 0-1)
-    SPOTLIGHT_INTENSITY = 200.0      # Light intensity (higher = brighter)
+    SPOTLIGHT_INTENSITY = 100.0      # Light intensity (higher = brighter)
     AMBIENT_LIGHT = 0.0              # Ambient lighting constant (0 = no ambient light)
     
     # PBR Material properties for VHS boxes
@@ -43,7 +43,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
     MATERIAL_AO = 1.0                # Ambient occlusion factor (0-1)
     
     # VHS box surface color (RGB 0-1) - used for all non-textured surfaces
-    BOX_COLOR = (0.2, 0.0, 0.0)
+    BOX_COLOR = (0.0, 0.0, 0.0)
 
     def setModelAndIndex(self, model, current_index, proxy_model=None, table_view=None):
         # Detect if proxy model changed (filter was applied or removed)
@@ -733,7 +733,11 @@ class CoverFlowGLWidget(QOpenGLWidget):
         
         # Create QImage for rendering text
         image = QImage(width, height, QImage.Format_RGBA8888)
-        image.fill(QColor(20, 20, 20, 255))  # Dark background
+        # Use BOX_COLOR as background (converted from 0-1 range to 0-255)
+        box_r = int(self.BOX_COLOR[0] * 255)
+        box_g = int(self.BOX_COLOR[1] * 255)
+        box_b = int(self.BOX_COLOR[2] * 255)
+        image.fill(QColor(box_r, box_g, box_b, 255))  # BOX_COLOR background
         
         # Set up painter
         painter = QPainter(image)
@@ -1240,10 +1244,10 @@ class CoverFlowGLWidget(QOpenGLWidget):
             if self.shader_program:
                 glUniform1i(self.uniform_use_texture, 1)
             
-            # Set texture to border color (dark grey to match box sides) outside texture region
+            # Set texture to border color (BOX_COLOR to match box sides) outside texture region
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER)
-            border_color = [0.2, 0.2, 0.2, 1.0]
+            border_color = [*self.BOX_COLOR, 1.0]
             glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, border_color)
             
             # Calculate UV coordinates to fit image within box while maintaining aspect ratio
