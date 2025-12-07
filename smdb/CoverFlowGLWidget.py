@@ -19,6 +19,7 @@ VERTEX_SHADER = """
 varying vec3 fragNormal;
 varying vec3 fragPosition;
 varying vec2 fragTexCoord;
+varying vec4 fragColor;
 
 void main() {
     // Transform vertex position to view space
@@ -29,6 +30,9 @@ void main() {
     
     // Pass through texture coordinates
     fragTexCoord = vec2(gl_MultiTexCoord0);
+    
+    // Pass through vertex color
+    fragColor = gl_Color;
     
     // Transform vertex to clip space
     gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
@@ -41,6 +45,7 @@ FRAGMENT_SHADER = """
 varying vec3 fragNormal;
 varying vec3 fragPosition;
 varying vec2 fragTexCoord;
+varying vec4 fragColor;
 
 uniform sampler2D textureSampler;
 uniform bool useTexture;
@@ -57,12 +62,12 @@ uniform float linearAtten;       // Linear attenuation
 uniform float quadraticAtten;    // Quadratic attenuation
 
 void main() {
-    // Base color from texture or white
+    // Base color from texture or vertex color
     vec4 baseColor;
     if (useTexture) {
         baseColor = texture2D(textureSampler, fragTexCoord);
     } else {
-        baseColor = vec4(1.0, 1.0, 1.0, 1.0);
+        baseColor = fragColor;  // Use color from glColor3f/glColor4f
     }
     
     // Normalize the interpolated normal
@@ -76,17 +81,18 @@ void main() {
     // Calculate spotlight effect
     vec3 spotDir = normalize(lightDirection);
     float spotDot = dot(-L, spotDir);
-    float spotAngle = acos(spotDot) * 180.0 / 3.14159265;
     
-    // Check if fragment is within spotlight cone
-    if (spotAngle > spotCutoff) {
-        // Outside cone - completely dark (no ambient)
-        gl_FragColor = vec4(0.0, 0.0, 0.0, baseColor.a);
-        return;
-    }
+    // Convert cutoff angle to cosine for comparison
+    float cutoffCos = cos(spotCutoff * 3.14159265 / 180.0);
     
-    // Calculate spotlight intensity with smooth falloff
-    float spotEffect = pow(spotDot, spotExponent);
+    // Create a wider soft edge region (20 degrees of smooth falloff)
+    float outerCutoff = cos((spotCutoff + 20.0) * 3.14159265 / 180.0);
+    
+    // Smooth falloff from outer edge to inner cone
+    float spotEffect = smoothstep(outerCutoff, cutoffCos, spotDot);
+    
+    // Apply additional exponential falloff within the cone for smooth gradient
+    spotEffect = pow(spotEffect, spotExponent);
     
     // Calculate attenuation
     float attenuation = 1.0 / (constantAtten + linearAtten * distance + quadraticAtten * distance * distance);
@@ -114,6 +120,24 @@ class CoverFlowGLWidget(QOpenGLWidget):
 
     CACHE_RADIUS = 25
     STANDARD_ASPECT_RATIO = 2.0 / 3.0  # Standard movie poster aspect ratio (width/height)
+    
+    # Spotlight configuration - adjust these to control the lighting effect
+    SPOTLIGHT_HEIGHT = 15.0          # How high above the movies (units)
+    SPOTLIGHT_FORWARD = 8.0          # How far in front of center movie (units)
+    SPOTLIGHT_CONE_ANGLE = 30.5      # Cone angle in degrees (smaller = tighter beam)
+    SPOTLIGHT_EXPONENT = 3.0         # Falloff sharpness (higher = sharper, lower = softer)
+    SPOTLIGHT_DIFFUSE = (2.0, 2.0, 2.0)   # Light color intensity (RGB 0-1)
+    SPOTLIGHT_SPECULAR = (2.0, 2.0, 2.0)   # Specular highlight color (RGB 0-1)
+    SPOTLIGHT_CONSTANT_ATTEN = 1.0    # Constant attenuation factor
+    SPOTLIGHT_LINEAR_ATTEN = 0.001    # Linear distance attenuation
+    SPOTLIGHT_QUADRATIC_ATTEN = 0.1  # Quadratic distance attenuation
+    
+    # Material properties for VHS boxes
+    MATERIAL_SHININESS = 50.0         # Plastic shininess (higher = glossier)
+    MATERIAL_SPECULAR = (5.0, 5.0, 5.0)  # Specular reflection color
+    
+    # VHS box surface color (RGB 0-1) - used for all non-textured surfaces
+    BOX_COLOR = (0.2, 0.0, 0.0)
 
     def setModelAndIndex(self, model, current_index, proxy_model=None, table_view=None):
         # Detect if proxy model changed (filter was applied or removed)
@@ -1315,7 +1339,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # No texture - draw placeholder front face (inset by chamfer)
             if self.shader_program:
                 glUniform1i(self.uniform_use_texture, 0)
-            glColor3f(0.3, 0.3, 0.3)
+            glColor3f(*self.BOX_COLOR)
             glBegin(GL_QUADS)
             glNormal3f(0.0, 0.0, 1.0)
             glVertex3f(-half_w + chamfer, -half_h + chamfer, half_d)
@@ -1327,7 +1351,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         # Front face chamfer edges - batched for performance
         # Slightly higher shininess for chamfered edges to catch light
         glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 48.0)
-        glColor3f(0.35, 0.35, 0.35)
+        glColor3f(*self.BOX_COLOR)
         glBegin(GL_QUADS)
         # Top edge chamfer
         glNormal3f(0.0, 0.707, 0.707)
@@ -1401,7 +1425,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # No text texture - draw solid dark gray back (inset by chamfer)
             if self.shader_program:
                 glUniform1i(self.uniform_use_texture, 0)
-            glColor3f(0.2, 0.2, 0.2)
+            glColor3f(*self.BOX_COLOR)
             glBegin(GL_QUADS)
             glNormal3f(0.0, 0.0, -1.0)  # Normal pointing backward
             glVertex3f(-half_w + chamfer, -half_h + chamfer, -half_d)
@@ -1414,7 +1438,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         if self.shader_program:
             glUniform1i(self.uniform_use_texture, 0)
         glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 48.0)
-        glColor3f(0.18, 0.18, 0.18)
+        glColor3f(*self.BOX_COLOR)
         glBegin(GL_QUADS)
         # Top edge chamfer
         glNormal3f(0.0, 0.707, -0.707)
@@ -1468,7 +1492,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         
         # Top face - chamfered (main surface inset from edges)
         glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 32.0)
-        glColor3f(0.15, 0.15, 0.15)
+        glColor3f(*self.BOX_COLOR)
         glBegin(GL_QUADS)
         glNormal3f(0.0, 1.0, 0.0)  # Normal pointing up
         glVertex3f(-half_w + chamfer, half_h, -half_d + chamfer)
@@ -1532,7 +1556,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         
         # Bottom face - chamfered (main surface inset from edges)
         glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 32.0)
-        glColor3f(0.15, 0.15, 0.15)
+        glColor3f(*self.BOX_COLOR)
         glBegin(GL_QUADS)
         glNormal3f(0.0, -1.0, 0.0)  # Normal pointing down
         glVertex3f(-half_w + chamfer, -half_h, -half_d + chamfer)
@@ -1596,7 +1620,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         
         # Left and right face chamfers - batched
         glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 40.0)
-        glColor3f(0.25, 0.25, 0.25)
+        glColor3f(*self.BOX_COLOR)
         glBegin(GL_QUADS)
         # Left face
         glNormal3f(-1.0, 0.0, 0.0)
@@ -1642,10 +1666,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
         if self.shader_program:
             glUseProgram(self.shader_program)
             
-            # Set up spotlight parameters (in view space)
-            spotlight_height = 15.0
-            spotlight_forward = 8.0
-            light_pos_world = [0.0, spotlight_height, -z + spotlight_forward, 1.0]
+            # Set up spotlight parameters using class constants
+            light_pos_world = [0.0, self.SPOTLIGHT_HEIGHT, -z + self.SPOTLIGHT_FORWARD, 1.0]
             
             # Transform light position to view space using current modelview matrix
             modelview = glGetFloatv(GL_MODELVIEW_MATRIX)
@@ -1655,21 +1677,21 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 modelview[0][2] * light_pos_world[0] + modelview[1][2] * light_pos_world[1] + modelview[2][2] * light_pos_world[2] + modelview[3][2] * light_pos_world[3]
             ]
             
-            # Light direction (straight down, slightly back)
+            # Light direction (straight down)
             light_dir = [0.0, -1.0, 0.0]
             
-            # Set shader uniforms
+            # Set shader uniforms using class constants
             glUniform3f(self.uniform_light_pos, light_pos_view[0], light_pos_view[1], light_pos_view[2])
             glUniform3f(self.uniform_light_dir, light_dir[0], light_dir[1], light_dir[2])
-            glUniform1f(self.uniform_spot_cutoff, 30.5)  # degrees
-            glUniform1f(self.uniform_spot_exponent, 3.0)
-            glUniform3f(self.uniform_light_diffuse, 0.8, 0.8, 0.75)  # Normalized diffuse
-            glUniform3f(self.uniform_light_specular, 1.0, 1.0, 1.0)   # Normalized specular
-            glUniform1f(self.uniform_material_shininess, 32.0)
-            glUniform3f(self.uniform_material_specular, 0.6, 0.6, 0.6)
-            glUniform1f(self.uniform_constant_atten, 1.0)
-            glUniform1f(self.uniform_linear_atten, 0.001)
-            glUniform1f(self.uniform_quadratic_atten, 0.0001)
+            glUniform1f(self.uniform_spot_cutoff, self.SPOTLIGHT_CONE_ANGLE)
+            glUniform1f(self.uniform_spot_exponent, self.SPOTLIGHT_EXPONENT)
+            glUniform3f(self.uniform_light_diffuse, *self.SPOTLIGHT_DIFFUSE)
+            glUniform3f(self.uniform_light_specular, *self.SPOTLIGHT_SPECULAR)
+            glUniform1f(self.uniform_material_shininess, self.MATERIAL_SHININESS)
+            glUniform3f(self.uniform_material_specular, *self.MATERIAL_SPECULAR)
+            glUniform1f(self.uniform_constant_atten, self.SPOTLIGHT_CONSTANT_ATTEN)
+            glUniform1f(self.uniform_linear_atten, self.SPOTLIGHT_LINEAR_ATTEN)
+            glUniform1f(self.uniform_quadratic_atten, self.SPOTLIGHT_QUADRATIC_ATTEN)
             glUniform1i(self.uniform_texture, 0)  # Texture unit 0
         
         # Determine how many surrounding covers to show
