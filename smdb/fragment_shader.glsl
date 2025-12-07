@@ -27,6 +27,7 @@ uniform float roughness;
 uniform float ao;  // Ambient occlusion
 
 const float PI = 3.14159265359;
+const float AMBIENT_LIGHT = 0.0;  // Ambient lighting constant
 
 // ===== MATERIAL FUNCTIONS =====
 vec3 getMaterialBaseColor() {
@@ -168,9 +169,8 @@ void main() {
     // Calculate PBR lighting
     vec3 Lo = calculatePBRLighting(N, V, L, albedo, metallic, roughness, F0, radiance);
     
-    // Add ambient lighting (simplified)
-    vec3 ambient = vec3(0.03) * albedo * ao;
-    
+    // Apply ambient lighting (currently set to 0)
+    vec3 ambient = AMBIENT_LIGHT * albedo * ao;
     vec3 color = ambient + Lo;
     
     // HDR tone mapping (simple Reinhard)

@@ -33,7 +33,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
     SPOTLIGHT_CONE_ANGLE = 30.5      # Cone angle in degrees (smaller = tighter beam)
     SPOTLIGHT_EXPONENT = 3.0         # Falloff sharpness (higher = sharper, lower = softer)
     SPOTLIGHT_COLOR = (1.0, 1.0, 0.98)  # Warm white light (RGB 0-1)
-    SPOTLIGHT_INTENSITY = 800.0      # Light intensity (higher = brighter)
+    SPOTLIGHT_INTENSITY = 200.0      # Light intensity (higher = brighter)
+    AMBIENT_LIGHT = 0.0              # Ambient lighting constant (0 = no ambient light)
     
     # PBR Material properties for VHS boxes
     MATERIAL_BASE_COLOR = (1.0, 1.0, 1.0)  # Base color tint (multiplied with texture)
