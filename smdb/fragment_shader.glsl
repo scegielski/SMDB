@@ -21,8 +21,7 @@ uniform float shadowDarkness;
 uniform vec3 lightPosition;
 uniform vec3 lightDirection;
 uniform float spotCutoff;
-uniform float spotExponent;
-uniform float spotRadialFalloff;  // Radial falloff from center to edge
+uniform float spotInnerAngle;  // Inner cone angle (full intensity)
 uniform float spotCenterBoost;    // Center brightness boost
 uniform vec3 lightColor;
 uniform vec3 lightCenterColor;    // Light color at center of cone
@@ -142,10 +141,10 @@ vec3 calculatePBRLighting(vec3 N, vec3 V, vec3 L, vec3 albedo, float metallic, f
 
 // Spotlight effect with smooth falloff
 // Returns both intensity and radial position (for color blending)
-void calculateSpotlightEffect(vec3 L, vec3 spotDir, float cutoffAngle, float exponent, 
+void calculateSpotlightEffect(vec3 L, vec3 spotDir, float outerAngle, float innerAngle, 
                                out float intensity, out float radialPos) {
     // If cone angle is 0 or negative, no spotlight effect
-    if (cutoffAngle <= 0.0) {
+    if (outerAngle <= 0.0) {
         intensity = 0.0;
         radialPos = 0.0;
         return;
@@ -154,45 +153,30 @@ void calculateSpotlightEffect(vec3 L, vec3 spotDir, float cutoffAngle, float exp
     // Calculate angle between light direction and spotlight direction
     float spotDot = dot(-L, spotDir);
     
-    // Convert cutoff angle from degrees to cosine
+    // Convert angles from degrees to cosine
     // Note: smaller angles → larger cosine values (cos is decreasing function)
-    float innerCutoffCos = cos(cutoffAngle * PI / 180.0);
+    float outerCutoffCos = cos(outerAngle * PI / 180.0);
     
-    // Outer cutoff: transition zone is proportional to cone angle for better scaling
-    // For small cones, use smaller transition; for large cones, use larger
-    // Minimum transition is 0.5 degrees (instead of 5) to allow very tight beams
-    float transitionWidth = max(0.5, cutoffAngle * 0.3);
-    float outerCutoffCos = cos((cutoffAngle + transitionWidth) * PI / 180.0);
+    // Clamp inner angle to be within outer angle
+    float clampedInnerAngle = min(innerAngle, outerAngle);
+    float innerCutoffCos = cos(clampedInnerAngle * PI / 180.0);
     
-    // smoothstep: when spotDot is between outer and inner, interpolate from 0 to 1
-    // Note: outerCutoffCos < innerCutoffCos because cosine decreases as angle increases
+    // Smooth transition between inner (full intensity) and outer (zero intensity)
+    // When innerAngle == outerAngle: hard edge (no transition)
+    // When innerAngle < outerAngle: smooth gradient between the two
     intensity = smoothstep(outerCutoffCos, innerCutoffCos, spotDot);
     
-    // Apply exponent for additional falloff control
-    // exponent > 1 makes edges sharper, exponent < 1 makes them softer
-    // Use 1/exponent so higher values = softer (more intuitive)
-    if (exponent > 0.0) {
-        intensity = pow(intensity, 1.0 / exponent);
-    }
-    
     // Calculate radial position from center to edge of cone (0 = edge, 1 = center)
-    // This is used separately for color blending
-    float normalizedDot = (spotDot - outerCutoffCos) / (1.0 - outerCutoffCos);
+    // Use outer cutoff for consistent positioning
+    float normalizedDot = (spotDot - outerCutoffCos) / max(1.0 - outerCutoffCos, 0.0001);
     radialPos = clamp(normalizedDot, 0.0, 1.0);
     
-    // Apply radial falloff to intensity: pow makes center brighter, edges darker
-    // spotRadialFalloff = 0: no falloff (uniform across cone)
-    // spotRadialFalloff > 0: darker at edges, brighter at center
-    float radialFactor = 1.0;
-    if (spotRadialFalloff > 0.0) {
-        radialFactor = pow(radialPos, spotRadialFalloff);
-    }
-    
     // Apply center boost to make the very center even brighter
+    float radialFactor = 1.0;
     if (spotCenterBoost > 1.0) {
         // Boost the brightest part (center) even more
         float centerFactor = pow(radialPos, 4.0);  // Sharp center detection
-        radialFactor *= mix(1.0, spotCenterBoost, centerFactor);
+        radialFactor = mix(1.0, spotCenterBoost, centerFactor);
     }
     
     intensity *= radialFactor;
@@ -227,7 +211,7 @@ void main() {
     vec3 spotDir = normalize(lightDirection);
     float spotEffect;
     float radialPosition;
-    calculateSpotlightEffect(L, spotDir, spotCutoff, spotExponent, spotEffect, radialPosition);
+    calculateSpotlightEffect(L, spotDir, spotCutoff, spotInnerAngle, spotEffect, radialPosition);
     
     // Remap radial position based on start and end blend angles
     // radialPosition goes from 0 (edge) to 1 (center)

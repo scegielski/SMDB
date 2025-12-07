@@ -12,7 +12,7 @@ import importlib
 from . import lighting_config
 from .lighting_config import (
     SPOTLIGHT_POSITION_X, SPOTLIGHT_POSITION_Y, SPOTLIGHT_POSITION_Z,
-    SPOTLIGHT_CONE_ANGLE, SPOTLIGHT_EXPONENT,
+    SPOTLIGHT_CONE_ANGLE, SPOTLIGHT_INNER_CONE_ANGLE,
     SPOTLIGHT_COLOR, SPOTLIGHT_INTENSITY, AMBIENT_LIGHT,
     MATERIAL_BASE_COLOR, MATERIAL_METALLIC, MATERIAL_ROUGHNESS, MATERIAL_AO,
     BOX_COLOR, SHADOW_ENABLED, SHADOW_MAP_SIZE, SHADOW_BIAS, SHADOW_DARKNESS
@@ -881,8 +881,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             self.uniform_light_pos = glGetUniformLocation(self.shader_program, "lightPosition")
             self.uniform_light_dir = glGetUniformLocation(self.shader_program, "lightDirection")
             self.uniform_spot_cutoff = glGetUniformLocation(self.shader_program, "spotCutoff")
-            self.uniform_spot_exponent = glGetUniformLocation(self.shader_program, "spotExponent")
-            self.uniform_spot_radial_falloff = glGetUniformLocation(self.shader_program, "spotRadialFalloff")
+            self.uniform_spot_inner_angle = glGetUniformLocation(self.shader_program, "spotInnerAngle")
             self.uniform_spot_center_boost = glGetUniformLocation(self.shader_program, "spotCenterBoost")
             self.uniform_light_color = glGetUniformLocation(self.shader_program, "lightColor")
             self.uniform_light_center_color = glGetUniformLocation(self.shader_program, "lightCenterColor")
@@ -1925,8 +1924,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             glUniform3f(self.uniform_light_pos, light_pos_view[0], light_pos_view[1], light_pos_view[2])
             glUniform3f(self.uniform_light_dir, light_dir_view[0], light_dir_view[1], light_dir_view[2])
             glUniform1f(self.uniform_spot_cutoff, lighting_config.SPOTLIGHT_CONE_ANGLE)
-            glUniform1f(self.uniform_spot_exponent, lighting_config.SPOTLIGHT_EXPONENT)
-            glUniform1f(self.uniform_spot_radial_falloff, lighting_config.SPOTLIGHT_RADIAL_FALLOFF)
+            glUniform1f(self.uniform_spot_inner_angle, lighting_config.SPOTLIGHT_INNER_CONE_ANGLE)
             glUniform1f(self.uniform_spot_center_boost, lighting_config.SPOTLIGHT_CENTER_BOOST)
             glUniform3f(self.uniform_light_color, *lighting_config.SPOTLIGHT_COLOR)
             glUniform3f(self.uniform_light_center_color, *lighting_config.SPOTLIGHT_CENTER_COLOR)
