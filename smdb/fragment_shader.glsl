@@ -17,7 +17,14 @@ uniform vec3 lightPosition;
 uniform vec3 lightDirection;
 uniform float spotCutoff;
 uniform float spotExponent;
+uniform float spotRadialFalloff;  // Radial falloff from center to edge
+uniform float spotCenterBoost;    // Center brightness boost
 uniform vec3 lightColor;
+uniform vec3 lightCenterColor;    // Light color at center of cone
+uniform vec3 lightEdgeColor;      // Light color at edge of cone
+uniform float lightColorBlendExp; // Exponent for color blending curve
+uniform float lightColorBlendStart; // Radial position where blend starts (0=edge, 1=center)
+uniform float lightColorBlendEnd;   // Radial position where blend ends (0=edge, 1=center)
 uniform float lightIntensity;
 uniform float attenuationLinear;
 uniform float attenuationQuadratic;
@@ -129,10 +136,14 @@ vec3 calculatePBRLighting(vec3 N, vec3 V, vec3 L, vec3 albedo, float metallic, f
 // ===== LIGHT ATTENUATION FUNCTIONS =====
 
 // Spotlight effect with smooth falloff
-float calculateSpotlightEffect(vec3 L, vec3 spotDir, float cutoffAngle, float exponent) {
+// Returns both intensity and radial position (for color blending)
+void calculateSpotlightEffect(vec3 L, vec3 spotDir, float cutoffAngle, float exponent, 
+                               out float intensity, out float radialPos) {
     // If cone angle is 0 or negative, no spotlight effect
     if (cutoffAngle <= 0.0) {
-        return 0.0;
+        intensity = 0.0;
+        radialPos = 0.0;
+        return;
     }
     
     // Calculate angle between light direction and spotlight direction
@@ -150,7 +161,7 @@ float calculateSpotlightEffect(vec3 L, vec3 spotDir, float cutoffAngle, float ex
     
     // smoothstep: when spotDot is between outer and inner, interpolate from 0 to 1
     // Note: outerCutoffCos < innerCutoffCos because cosine decreases as angle increases
-    float intensity = smoothstep(outerCutoffCos, innerCutoffCos, spotDot);
+    intensity = smoothstep(outerCutoffCos, innerCutoffCos, spotDot);
     
     // Apply exponent for additional falloff control
     // exponent > 1 makes edges sharper, exponent < 1 makes them softer
@@ -159,7 +170,27 @@ float calculateSpotlightEffect(vec3 L, vec3 spotDir, float cutoffAngle, float ex
         intensity = pow(intensity, 1.0 / exponent);
     }
     
-    return intensity;
+    // Calculate radial position from center to edge of cone (0 = edge, 1 = center)
+    // This is used separately for color blending
+    float normalizedDot = (spotDot - outerCutoffCos) / (1.0 - outerCutoffCos);
+    radialPos = clamp(normalizedDot, 0.0, 1.0);
+    
+    // Apply radial falloff to intensity: pow makes center brighter, edges darker
+    // spotRadialFalloff = 0: no falloff (uniform across cone)
+    // spotRadialFalloff > 0: darker at edges, brighter at center
+    float radialFactor = 1.0;
+    if (spotRadialFalloff > 0.0) {
+        radialFactor = pow(radialPos, spotRadialFalloff);
+    }
+    
+    // Apply center boost to make the very center even brighter
+    if (spotCenterBoost > 1.0) {
+        // Boost the brightest part (center) even more
+        float centerFactor = pow(radialPos, 4.0);  // Sharp center detection
+        radialFactor *= mix(1.0, spotCenterBoost, centerFactor);
+    }
+    
+    intensity *= radialFactor;
 }
 
 // Distance attenuation (inverse square law with adjustments)
@@ -187,15 +218,40 @@ void main() {
     vec3 F0 = vec3(0.04);  // Base reflectance for dielectrics
     F0 = mix(F0, albedo, metallic);
     
-    // Calculate spotlight effect
+    // Calculate spotlight effect and radial position
     vec3 spotDir = normalize(lightDirection);
-    float spotEffect = calculateSpotlightEffect(L, spotDir, spotCutoff, spotExponent);
+    float spotEffect;
+    float radialPosition;
+    calculateSpotlightEffect(L, spotDir, spotCutoff, spotExponent, spotEffect, radialPosition);
+    
+    // Remap radial position based on start and end blend angles
+    // radialPosition goes from 0 (edge) to 1 (center)
+    // Remap to blend range: anything before start = edge color, after end = center color
+    float blendStart = clamp(lightColorBlendStart, 0.0, 1.0);
+    float blendEnd = clamp(lightColorBlendEnd, 0.0, 1.0);
+    float colorBlendFactor = 0.0;
+    
+    if (blendEnd > blendStart) {
+        // Normal case: blend from start to end
+        colorBlendFactor = clamp((radialPosition - blendStart) / (blendEnd - blendStart), 0.0, 1.0);
+    } else {
+        // Reversed or same: just use radialPosition
+        colorBlendFactor = radialPosition;
+    }
+    
+    // Apply exponent to color blend factor
+    if (lightColorBlendExp > 0.0) {
+        colorBlendFactor = pow(colorBlendFactor, lightColorBlendExp);
+    }
+    
+    // Blend between edge color and center color
+    vec3 spotColor = mix(lightEdgeColor, lightCenterColor, colorBlendFactor);
     
     // Calculate attenuation
     float attenuation = calculateAttenuation(distance);
     
-    // Calculate radiance
-    vec3 radiance = lightColor * lightIntensity * attenuation * spotEffect;
+    // Calculate radiance using blended color
+    vec3 radiance = spotColor * lightIntensity * attenuation * spotEffect;
     
     // Calculate PBR lighting
     vec3 Lo = calculatePBRLighting(N, V, L, albedo, metallic, roughness, F0, radiance);

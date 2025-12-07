@@ -874,7 +874,14 @@ class CoverFlowGLWidget(QOpenGLWidget):
             self.uniform_light_dir = glGetUniformLocation(self.shader_program, "lightDirection")
             self.uniform_spot_cutoff = glGetUniformLocation(self.shader_program, "spotCutoff")
             self.uniform_spot_exponent = glGetUniformLocation(self.shader_program, "spotExponent")
+            self.uniform_spot_radial_falloff = glGetUniformLocation(self.shader_program, "spotRadialFalloff")
+            self.uniform_spot_center_boost = glGetUniformLocation(self.shader_program, "spotCenterBoost")
             self.uniform_light_color = glGetUniformLocation(self.shader_program, "lightColor")
+            self.uniform_light_center_color = glGetUniformLocation(self.shader_program, "lightCenterColor")
+            self.uniform_light_edge_color = glGetUniformLocation(self.shader_program, "lightEdgeColor")
+            self.uniform_light_color_blend_exp = glGetUniformLocation(self.shader_program, "lightColorBlendExp")
+            self.uniform_light_color_blend_start = glGetUniformLocation(self.shader_program, "lightColorBlendStart")
+            self.uniform_light_color_blend_end = glGetUniformLocation(self.shader_program, "lightColorBlendEnd")
             self.uniform_light_intensity = glGetUniformLocation(self.shader_program, "lightIntensity")
             self.uniform_attenuation_linear = glGetUniformLocation(self.shader_program, "attenuationLinear")
             self.uniform_attenuation_quadratic = glGetUniformLocation(self.shader_program, "attenuationQuadratic")
@@ -910,10 +917,12 @@ class CoverFlowGLWidget(QOpenGLWidget):
     def _onConfigChanged(self, path):
         """Called when lighting_config.py is modified - triggers a redraw."""
         # Re-add the path since QFileSystemWatcher removes it after detecting a change
-        if not self._config_watcher.files():
+        # This happens when editors save by removing and recreating the file
+        if path not in self._config_watcher.files():
             self._config_watcher.addPath(path)
         # Force a redraw to pick up the new config values
         self.update()
+        print(f"Config file changed, reloading: {path}")
 
     def _compileBoxDisplayList(self):
         """Pre-compile the box geometry (sides, edges, corners) into a display list.
@@ -1668,7 +1677,14 @@ class CoverFlowGLWidget(QOpenGLWidget):
             glUniform3f(self.uniform_light_dir, light_dir_view[0], light_dir_view[1], light_dir_view[2])
             glUniform1f(self.uniform_spot_cutoff, lighting_config.SPOTLIGHT_CONE_ANGLE)
             glUniform1f(self.uniform_spot_exponent, lighting_config.SPOTLIGHT_EXPONENT)
+            glUniform1f(self.uniform_spot_radial_falloff, lighting_config.SPOTLIGHT_RADIAL_FALLOFF)
+            glUniform1f(self.uniform_spot_center_boost, lighting_config.SPOTLIGHT_CENTER_BOOST)
             glUniform3f(self.uniform_light_color, *lighting_config.SPOTLIGHT_COLOR)
+            glUniform3f(self.uniform_light_center_color, *lighting_config.SPOTLIGHT_CENTER_COLOR)
+            glUniform3f(self.uniform_light_edge_color, *lighting_config.SPOTLIGHT_EDGE_COLOR)
+            glUniform1f(self.uniform_light_color_blend_exp, lighting_config.SPOTLIGHT_COLOR_BLEND_EXPONENT)
+            glUniform1f(self.uniform_light_color_blend_start, lighting_config.SPOTLIGHT_COLOR_BLEND_START)
+            glUniform1f(self.uniform_light_color_blend_end, lighting_config.SPOTLIGHT_COLOR_BLEND_END)
             glUniform1f(self.uniform_light_intensity, lighting_config.SPOTLIGHT_INTENSITY)
             glUniform1f(self.uniform_attenuation_linear, lighting_config.SPOTLIGHT_ATTENUATION_LINEAR)
             glUniform1f(self.uniform_attenuation_quadratic, lighting_config.SPOTLIGHT_ATTENUATION_QUADRATIC)
