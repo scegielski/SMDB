@@ -730,11 +730,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
         
         # Create QImage for rendering text
         image = QImage(width, height, QImage.Format_RGBA8888)
-        # Use BOX_COLOR as background (converted from 0-1 range to 0-255)
-        box_r = int(BOX_COLOR[0] * 255)
-        box_g = int(BOX_COLOR[1] * 255)
-        box_b = int(BOX_COLOR[2] * 255)
-        image.fill(QColor(box_r, box_g, box_b, 255))  # BOX_COLOR background
+        # Use transparent background - the shader will composite over BOX_COLOR
+        image.fill(QColor(0, 0, 0, 0))  # Fully transparent background
         
         # Set up painter
         painter = QPainter(image)
@@ -748,7 +745,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         
         # Draw title at top
         painter.setFont(title_font)
-        painter.setPen(QColor(220, 220, 220))
+        painter.setPen(QColor(255, 255, 255))  # White text for compositing
         title_rect = QRect(20, 20, width - 40, 80)
         painter.drawText(title_rect, Qt.AlignTop | Qt.TextWordWrap, title_with_year)
         
@@ -787,7 +784,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     
                     # Draw the label in header font
                     painter.setFont(header_font)
-                    painter.setPen(QColor(240, 240, 240))
+                    painter.setPen(QColor(255, 255, 255))  # White text
                     fm = QFontMetrics(header_font)
                     line_rect = QRect(20, current_y, width - 40, fm.height())
                     painter.drawText(line_rect, Qt.AlignTop, label)
@@ -796,7 +793,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     # Draw the content in body font if not empty
                     if content:
                         painter.setFont(text_font)
-                        painter.setPen(QColor(200, 200, 200))
+                        painter.setPen(QColor(255, 255, 255))  # White text
                         fm = QFontMetrics(text_font)
                         line_rect = QRect(20, current_y, width - 40, fm.height() * 3)
                         bounding_rect = painter.boundingRect(line_rect, Qt.AlignTop | Qt.TextWordWrap, content)
@@ -809,11 +806,11 @@ class CoverFlowGLWidget(QOpenGLWidget):
             
             if is_header:
                 painter.setFont(header_font)
-                painter.setPen(QColor(240, 240, 240))
+                painter.setPen(QColor(255, 255, 255))  # White text
                 fm = QFontMetrics(header_font)
             else:
                 painter.setFont(text_font)
-                painter.setPen(QColor(200, 200, 200))
+                painter.setPen(QColor(255, 255, 255))  # White text
                 fm = QFontMetrics(text_font)
             
             # Draw the line
@@ -879,6 +876,9 @@ class CoverFlowGLWidget(QOpenGLWidget):
             self.uniform_spot_exponent = glGetUniformLocation(self.shader_program, "spotExponent")
             self.uniform_light_color = glGetUniformLocation(self.shader_program, "lightColor")
             self.uniform_light_intensity = glGetUniformLocation(self.shader_program, "lightIntensity")
+            self.uniform_attenuation_linear = glGetUniformLocation(self.shader_program, "attenuationLinear")
+            self.uniform_attenuation_quadratic = glGetUniformLocation(self.shader_program, "attenuationQuadratic")
+            self.uniform_ambient_light = glGetUniformLocation(self.shader_program, "ambientLight")
             
             # PBR Material uniforms
             self.uniform_base_color = glGetUniformLocation(self.shader_program, "baseColor")
@@ -1252,7 +1252,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # Set texture to border color (BOX_COLOR to match box sides) outside texture region
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER)
-            border_color = [*BOX_COLOR, 1.0]
+            border_color = [*lighting_config.BOX_COLOR, 1.0]
             glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, border_color)
             
             # Calculate UV coordinates to fit image within box while maintaining aspect ratio
@@ -1296,7 +1296,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # No texture - draw placeholder front face (inset by chamfer)
             if self.shader_program:
                 glUniform1i(self.uniform_use_texture, 0)
-            glColor3f(*BOX_COLOR)
+            glColor3f(*lighting_config.BOX_COLOR)
             glBegin(GL_QUADS)
             glNormal3f(0.0, 0.0, 1.0)
             glVertex3f(-half_w + chamfer, -half_h + chamfer, half_d)
@@ -1308,7 +1308,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         # Front face chamfer edges - batched for performance
         # Slightly higher shininess for chamfered edges to catch light
         glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 48.0)
-        glColor3f(*BOX_COLOR)
+        glColor3f(*lighting_config.BOX_COLOR)
         glBegin(GL_QUADS)
         # Top edge chamfer
         glNormal3f(0.0, 0.707, 0.707)
@@ -1366,7 +1366,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
             glEnable(GL_TEXTURE_2D)
             if self.shader_program:
                 glUniform1i(self.uniform_use_texture, 1)
-            glColor3f(1.0, 1.0, 1.0)  # Full brightness for text visibility
+            # Set color to BOX_COLOR so shader can composite white text over it
+            glColor3f(*lighting_config.BOX_COLOR)
             glBegin(GL_QUADS)
             glNormal3f(0.0, 0.0, -1.0)  # Normal pointing backward
             # Flip texture coordinates to read correctly from back (inset by chamfer)
@@ -1382,7 +1383,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # No text texture - draw solid dark gray back (inset by chamfer)
             if self.shader_program:
                 glUniform1i(self.uniform_use_texture, 0)
-            glColor3f(*BOX_COLOR)
+            glColor3f(*lighting_config.BOX_COLOR)
             glBegin(GL_QUADS)
             glNormal3f(0.0, 0.0, -1.0)  # Normal pointing backward
             glVertex3f(-half_w + chamfer, -half_h + chamfer, -half_d)
@@ -1395,7 +1396,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         if self.shader_program:
             glUniform1i(self.uniform_use_texture, 0)
         glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 48.0)
-        glColor3f(*BOX_COLOR)
+        glColor3f(*lighting_config.BOX_COLOR)
         glBegin(GL_QUADS)
         # Top edge chamfer
         glNormal3f(0.0, 0.707, -0.707)
@@ -1449,7 +1450,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         
         # Top face - chamfered (main surface inset from edges)
         glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 32.0)
-        glColor3f(*BOX_COLOR)
+        glColor3f(*lighting_config.BOX_COLOR)
         glBegin(GL_QUADS)
         glNormal3f(0.0, 1.0, 0.0)  # Normal pointing up
         glVertex3f(-half_w + chamfer, half_h, -half_d + chamfer)
@@ -1513,7 +1514,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         
         # Bottom face - chamfered (main surface inset from edges)
         glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 32.0)
-        glColor3f(*BOX_COLOR)
+        glColor3f(*lighting_config.BOX_COLOR)
         glBegin(GL_QUADS)
         glNormal3f(0.0, -1.0, 0.0)  # Normal pointing down
         glVertex3f(-half_w + chamfer, -half_h, -half_d + chamfer)
@@ -1577,7 +1578,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         
         # Left and right face chamfers - batched
         glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 40.0)
-        glColor3f(*BOX_COLOR)
+        glColor3f(*lighting_config.BOX_COLOR)
         glBegin(GL_QUADS)
         # Left face
         glNormal3f(-1.0, 0.0, 0.0)
@@ -1669,6 +1670,9 @@ class CoverFlowGLWidget(QOpenGLWidget):
             glUniform1f(self.uniform_spot_exponent, lighting_config.SPOTLIGHT_EXPONENT)
             glUniform3f(self.uniform_light_color, *lighting_config.SPOTLIGHT_COLOR)
             glUniform1f(self.uniform_light_intensity, lighting_config.SPOTLIGHT_INTENSITY)
+            glUniform1f(self.uniform_attenuation_linear, lighting_config.SPOTLIGHT_ATTENUATION_LINEAR)
+            glUniform1f(self.uniform_attenuation_quadratic, lighting_config.SPOTLIGHT_ATTENUATION_QUADRATIC)
+            glUniform1f(self.uniform_ambient_light, lighting_config.AMBIENT_LIGHT)
             
             # Set PBR material uniforms
             glUniform3f(self.uniform_base_color, *lighting_config.MATERIAL_BASE_COLOR)

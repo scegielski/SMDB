@@ -19,6 +19,9 @@ uniform float spotCutoff;
 uniform float spotExponent;
 uniform vec3 lightColor;
 uniform float lightIntensity;
+uniform float attenuationLinear;
+uniform float attenuationQuadratic;
+uniform float ambientLight;  // Ambient lighting constant
 
 // Material properties (PBR-like)
 uniform vec3 baseColor;
@@ -27,13 +30,18 @@ uniform float roughness;
 uniform float ao;  // Ambient occlusion
 
 const float PI = 3.14159265359;
-const float AMBIENT_LIGHT = 0.0;  // Ambient lighting constant
 
 // ===== MATERIAL FUNCTIONS =====
 vec3 getMaterialBaseColor() {
     vec4 texColor;
     if (useTexture) {
         texColor = texture2D(textureSampler, fragTexCoord);
+        
+        // Composite white text over box color based on texture alpha
+        // If texture is fully transparent (alpha = 0), show box color
+        // If texture is fully opaque (alpha = 1), show white text
+        // fragColor contains the BOX_COLOR for back face
+        texColor.rgb = mix(fragColor.rgb, texColor.rgb, texColor.a);
     } else {
         texColor = fragColor;
     }
@@ -51,10 +59,8 @@ vec3 getMaterialBaseColor() {
 }
 
 float getMaterialAlpha() {
-    if (useTexture) {
-        return texture2D(textureSampler, fragTexCoord).a;
-    }
-    return fragColor.a;
+    // Always return 1.0 for opaque rendering after compositing
+    return 1.0;
 }
 
 // ===== PBR LIGHTING FUNCTIONS =====
@@ -158,8 +164,9 @@ float calculateSpotlightEffect(vec3 L, vec3 spotDir, float cutoffAngle, float ex
 
 // Distance attenuation (inverse square law with adjustments)
 float calculateAttenuation(float distance) {
-    // Physical inverse square falloff with small constant to prevent singularity
-    return 1.0 / (1.0 + 0.09 * distance + 0.032 * distance * distance);
+    // Configurable attenuation: lower coefficients = softer falloff
+    // Set both to 0 for no distance attenuation (constant intensity)
+    return 1.0 / (1.0 + attenuationLinear * distance + attenuationQuadratic * distance * distance);
 }
 
 void main() {
@@ -193,8 +200,8 @@ void main() {
     // Calculate PBR lighting
     vec3 Lo = calculatePBRLighting(N, V, L, albedo, metallic, roughness, F0, radiance);
     
-    // Apply ambient lighting (currently set to 0)
-    vec3 ambient = AMBIENT_LIGHT * albedo * ao;
+    // Apply ambient lighting
+    vec3 ambient = ambientLight * albedo * ao;
     vec3 color = ambient + Lo;
     
     // HDR tone mapping (simple Reinhard)
