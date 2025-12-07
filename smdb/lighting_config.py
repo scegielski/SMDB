@@ -8,13 +8,13 @@ spotlight configuration used to render VHS box covers in the cover flow widget.
 # Spotlight configuration - adjust these to control the lighting effect
 # Fixed spotlight position in world space (does not move)
 SPOTLIGHT_POSITION_X = 0.0       # X position (centered)
-SPOTLIGHT_POSITION_Y = 5.0      # Y position (height above origin)
-SPOTLIGHT_POSITION_Z = 8.0       # Z position (in front of origin)
+SPOTLIGHT_POSITION_Y = 25.0      # Y position (height above origin)
+SPOTLIGHT_POSITION_Z = 15.0       # Z position (in front of origin)
 
-SPOTLIGHT_CONE_ANGLE = 1.0      # Cone angle in degrees (smaller = tighter beam)
-SPOTLIGHT_EXPONENT = 3.0         # Falloff sharpness (higher = sharper, lower = softer)
-SPOTLIGHT_COLOR = (1.0, 1.0, 0.98)  # Warm white light (RGB 0-1)
-SPOTLIGHT_INTENSITY = 100.0      # Light intensity (higher = brighter)
+SPOTLIGHT_CONE_ANGLE = 3.0     # Cone angle in degrees (smaller = tighter beam)
+SPOTLIGHT_EXPONENT = 0.1        # Falloff sharpness (higher = sharper, lower = softer)
+SPOTLIGHT_COLOR = (1.0, 1.0, 1.0)  # Warm white light (RGB 0-1)
+SPOTLIGHT_INTENSITY = 200.0      # Light intensity (higher = brighter)
 AMBIENT_LIGHT = 0.0              # Ambient lighting constant (0 = no ambient light)
 
 # PBR Material properties for VHS boxes

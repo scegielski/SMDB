@@ -124,12 +124,36 @@ vec3 calculatePBRLighting(vec3 N, vec3 V, vec3 L, vec3 albedo, float metallic, f
 
 // Spotlight effect with smooth falloff
 float calculateSpotlightEffect(vec3 L, vec3 spotDir, float cutoffAngle, float exponent) {
-    float spotDot = dot(-L, spotDir);
-    float cutoffCos = cos(cutoffAngle * PI / 180.0);
-    float outerCutoff = cos((cutoffAngle + 20.0) * PI / 180.0);
+    // If cone angle is 0 or negative, no spotlight effect
+    if (cutoffAngle <= 0.0) {
+        return 0.0;
+    }
     
-    float spotEffect = smoothstep(outerCutoff, cutoffCos, spotDot);
-    return pow(spotEffect, exponent);
+    // Calculate angle between light direction and spotlight direction
+    float spotDot = dot(-L, spotDir);
+    
+    // Convert cutoff angle from degrees to cosine
+    // Note: smaller angles → larger cosine values (cos is decreasing function)
+    float innerCutoffCos = cos(cutoffAngle * PI / 180.0);
+    
+    // Outer cutoff: transition zone is proportional to cone angle for better scaling
+    // For small cones, use smaller transition; for large cones, use larger
+    // Minimum transition is 0.5 degrees (instead of 5) to allow very tight beams
+    float transitionWidth = max(0.5, cutoffAngle * 0.3);
+    float outerCutoffCos = cos((cutoffAngle + transitionWidth) * PI / 180.0);
+    
+    // smoothstep: when spotDot is between outer and inner, interpolate from 0 to 1
+    // Note: outerCutoffCos < innerCutoffCos because cosine decreases as angle increases
+    float intensity = smoothstep(outerCutoffCos, innerCutoffCos, spotDot);
+    
+    // Apply exponent for additional falloff control
+    // exponent > 1 makes edges sharper, exponent < 1 makes them softer
+    // Use 1/exponent so higher values = softer (more intuitive)
+    if (exponent > 0.0) {
+        intensity = pow(intensity, 1.0 / exponent);
+    }
+    
+    return intensity;
 }
 
 // Distance attenuation (inverse square law with adjustments)

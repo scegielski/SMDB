@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import QOpenGLWidget
-from PyQt5.QtCore import Qt, pyqtSignal, QRect, QTime
+from PyQt5.QtCore import Qt, pyqtSignal, QRect, QTime, QFileSystemWatcher
 from PyQt5.QtGui import QImage, QPainter, QFont, QColor, QFontMetrics
 from OpenGL.GL import *
 from OpenGL.GL.shaders import compileProgram, compileShader
@@ -8,6 +8,8 @@ import numpy as np
 import threading
 import os
 import ujson
+import importlib
+from . import lighting_config
 from .lighting_config import (
     SPOTLIGHT_POSITION_X, SPOTLIGHT_POSITION_Y, SPOTLIGHT_POSITION_Z,
     SPOTLIGHT_CONE_ANGLE, SPOTLIGHT_EXPONENT,
@@ -557,6 +559,12 @@ class CoverFlowGLWidget(QOpenGLWidget):
         self.last_drag_time = None
         self.drag_history = []  # Track recent drag movements for velocity calculation
         
+        # Setup file watcher for lighting config hot-reload
+        self._config_watcher = QFileSystemWatcher()
+        config_path = os.path.join(os.path.dirname(__file__), 'lighting_config.py')
+        self._config_watcher.addPath(config_path)
+        self._config_watcher.fileChanged.connect(self._onConfigChanged)
+        
         # Camera panning state (middle button)
         self.is_panning = False
         self.pan_start_x = None
@@ -898,6 +906,14 @@ class CoverFlowGLWidget(QOpenGLWidget):
         # Increased far plane to 500.0 to accommodate max camera_z of 30.0
         gluPerspective(fov, w / h if h != 0 else 1, 0.1, 500.0)
         glMatrixMode(GL_MODELVIEW)
+    
+    def _onConfigChanged(self, path):
+        """Called when lighting_config.py is modified - triggers a redraw."""
+        # Re-add the path since QFileSystemWatcher removes it after detecting a change
+        if not self._config_watcher.files():
+            self._config_watcher.addPath(path)
+        # Force a redraw to pick up the new config values
+        self.update()
 
     def _compileBoxDisplayList(self):
         """Pre-compile the box geometry (sides, edges, corners) into a display list.
@@ -1607,8 +1623,13 @@ class CoverFlowGLWidget(QOpenGLWidget):
         if self.shader_program:
             glUseProgram(self.shader_program)
             
+            # Reload lighting config to pick up changes without restart
+            importlib.reload(lighting_config)
+            
             # Fixed spotlight position in world space (does not move with camera)
-            light_pos_world = [SPOTLIGHT_POSITION_X, SPOTLIGHT_POSITION_Y, SPOTLIGHT_POSITION_Z, 1.0]
+            light_pos_world = [lighting_config.SPOTLIGHT_POSITION_X, 
+                             lighting_config.SPOTLIGHT_POSITION_Y, 
+                             lighting_config.SPOTLIGHT_POSITION_Z, 1.0]
             
             # Current box center in world space (at origin, translated by -z during rendering)
             box_center_world = [0.0, 0.0, -z]
@@ -1644,16 +1665,16 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # Set light uniforms
             glUniform3f(self.uniform_light_pos, light_pos_view[0], light_pos_view[1], light_pos_view[2])
             glUniform3f(self.uniform_light_dir, light_dir_view[0], light_dir_view[1], light_dir_view[2])
-            glUniform1f(self.uniform_spot_cutoff, SPOTLIGHT_CONE_ANGLE)
-            glUniform1f(self.uniform_spot_exponent, SPOTLIGHT_EXPONENT)
-            glUniform3f(self.uniform_light_color, *SPOTLIGHT_COLOR)
-            glUniform1f(self.uniform_light_intensity, SPOTLIGHT_INTENSITY)
+            glUniform1f(self.uniform_spot_cutoff, lighting_config.SPOTLIGHT_CONE_ANGLE)
+            glUniform1f(self.uniform_spot_exponent, lighting_config.SPOTLIGHT_EXPONENT)
+            glUniform3f(self.uniform_light_color, *lighting_config.SPOTLIGHT_COLOR)
+            glUniform1f(self.uniform_light_intensity, lighting_config.SPOTLIGHT_INTENSITY)
             
             # Set PBR material uniforms
-            glUniform3f(self.uniform_base_color, *MATERIAL_BASE_COLOR)
-            glUniform1f(self.uniform_metallic, MATERIAL_METALLIC)
-            glUniform1f(self.uniform_roughness, MATERIAL_ROUGHNESS)
-            glUniform1f(self.uniform_ao, MATERIAL_AO)
+            glUniform3f(self.uniform_base_color, *lighting_config.MATERIAL_BASE_COLOR)
+            glUniform1f(self.uniform_metallic, lighting_config.MATERIAL_METALLIC)
+            glUniform1f(self.uniform_roughness, lighting_config.MATERIAL_ROUGHNESS)
+            glUniform1f(self.uniform_ao, lighting_config.MATERIAL_AO)
             
             glUniform1i(self.uniform_texture, 0)  # Texture unit 0
         
