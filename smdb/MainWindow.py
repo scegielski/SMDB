@@ -56,6 +56,7 @@ from .HistoryWidget import HistoryWidget
 from .WatchListWidget import WatchListWidget
 from .MovieData import MovieData
 from .MovieFilterProxyModel import MovieFilterProxyModel
+from .LightingControlsWidget import LightingControlsWidget
 
 
 def _default_collections_folder():
@@ -266,6 +267,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.showBackupList = self.settings.value('showBackupList', False, type=bool)
         self.showHistoryList = self.settings.value('showHistoryList', False, type=bool)
         self.showLog = self.settings.value('showLog', True, type=bool)
+        self.showLightingControls = self.settings.value('showLightingControls', False, type=bool)
 
         # Default state of cancel button
         self.isCanceled = False
@@ -505,14 +507,38 @@ class MainWindow(QtWidgets.QMainWindow):
         # Movie section widget
         self.initUIMovieSection()
 
+        # Lighting Controls Widget
+        self.lightingControlsWidget = LightingControlsWidget(
+            parent=self,
+            bgColorA=self.bgColorA,
+            bgColorB=self.bgColorB,
+            bgColorC=self.bgColorC,
+            fgColor=self.fgColor
+        )
+        # Connect signal to refresh the cover flow widget when controls change
+        self.lightingControlsWidget.controlsChanged.connect(self.onLightingControlsChanged)
+
+        # Wrap lighting controls in a frame
+        self.lightingControlsFrame = QtWidgets.QFrame()
+        self.lightingControlsFrame.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
+        self.lightingControlsFrame.setLineWidth(5)
+        self.lightingControlsFrame.setStyleSheet(f"background: {self.bgColorB};"
+                                                  f"border-radius: 10px;")
+        lightingControlsLayout = QtWidgets.QVBoxLayout()
+        self.lightingControlsFrame.setLayout(lightingControlsLayout)
+        lightingControlsLayout.addWidget(self.lightingControlsWidget)
+        if not self.showLightingControls:
+            self.lightingControlsFrame.hide()
+
         # Add the sub-layouts to the self.mainHSplitter
         self.mainHSplitter.addWidget(self.filtersVSplitter)
         self.mainHSplitter.addWidget(self.moviesWatchListBackupVSplitter)
+        self.mainHSplitter.addWidget(self.lightingControlsFrame)  # Lighting controls before movie section
         self.mainHSplitter.addWidget(self.movieSectionWidget)
         self.mainHSplitter.splitterMoved.connect(self.resizeCoverFile)
 
-        # Main horizontal sizes
-        sizes = [int(x) for x in self.settings.value('mainHSplitterSizes', [270, 750, 800], type=list)]
+        # Main horizontal sizes (added fourth panel for lighting controls, positioned before movie section)
+        sizes = [int(x) for x in self.settings.value('mainHSplitterSizes', [270, 750, 300, 800], type=list)]
         self.mainHSplitter.setSizes(sizes)
 
         # Log Panel
@@ -743,6 +769,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings.setValue('showHistoryList', self.showHistoryList)
         self.settings.setValue('showBackupList', self.showBackupList)
         self.settings.setValue('showLog', self.showLog)
+        self.settings.setValue('showLightingControls', self.showLightingControls)
         self.settings.setValue('fontSize', self.fontSize)
         
         # Save API keys if they have been set
@@ -898,6 +925,12 @@ class MainWindow(QtWidgets.QMainWindow):
         showLogAction.setChecked(self.showLog)
         showLogAction.triggered.connect(self.showLogMenu)
         viewMenu.addAction(showLogAction)
+
+        showLightingControlsAction = QtWidgets.QAction("Show Lighting Controls", self)
+        showLightingControlsAction.setCheckable(True)
+        showLightingControlsAction.setChecked(self.showLightingControls)
+        showLightingControlsAction.triggered.connect(self.showLightingControlsMenu)
+        viewMenu.addAction(showLightingControlsAction)
 
         restoreDefaultWindowsAction = QtWidgets.QAction("Restore default window configuration", self)
         restoreDefaultWindowsAction.triggered.connect(self.restoreDefaultWindows)
@@ -2647,6 +2680,22 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.logWidget.hide()
             else:
                 self.logWidget.show()
+
+    def showLightingControlsMenu(self):
+        if self.lightingControlsFrame:
+            self.showLightingControls = not self.showLightingControls
+            if not self.showLightingControls:
+                self.lightingControlsFrame.hide()
+            else:
+                self.lightingControlsFrame.show()
+
+    def onLightingControlsChanged(self):
+        """Called when lighting controls are changed - refresh the cover flow widget."""
+        # Trigger a redraw of the OpenGL cover flow widget
+        if hasattr(self, 'coverFlowWidget'):
+            # Force a full repaint to pick up new lighting values
+            self.coverFlowWidget.update()
+            self.coverFlowWidget.repaint()
 
     def showLogContextMenu(self, position):
         if not self.logTextWidget:

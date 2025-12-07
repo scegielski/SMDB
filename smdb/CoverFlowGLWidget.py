@@ -935,7 +935,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
     def _initShadowMap(self):
         """Initialize framebuffer and texture for shadow mapping."""
         try:
-            importlib.reload(lighting_config)
+            # Use lighting config values directly (don't reload, to preserve UI changes)
+            # importlib.reload(lighting_config)
             
             # Skip shadow map creation if disabled
             if not lighting_config.SHADOW_ENABLED:
@@ -1323,7 +1324,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
             return np.identity(4, dtype=np.float32)
         
         try:
-            importlib.reload(lighting_config)
+            # Use lighting config values directly (don't reload, to preserve UI changes)
+            # importlib.reload(lighting_config)
             
             # Save ALL current state
             viewport = glGetIntegerv(GL_VIEWPORT)
@@ -1881,8 +1883,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
         if self.shader_program:
             glUseProgram(self.shader_program)
             
-            # Reload lighting config to pick up changes without restart
-            importlib.reload(lighting_config)
+            # Use lighting config values directly (don't reload, to preserve UI changes)
+            # importlib.reload(lighting_config) - commented out to allow UI control updates
             
             # Fixed spotlight position in world space (does not move with camera)
             light_pos_world = [lighting_config.SPOTLIGHT_POSITION_X, 
