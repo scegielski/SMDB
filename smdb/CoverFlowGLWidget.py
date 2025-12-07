@@ -8,6 +8,12 @@ import numpy as np
 import threading
 import os
 import ujson
+from .lighting_config import (
+    SPOTLIGHT_HEIGHT, SPOTLIGHT_FORWARD, SPOTLIGHT_CONE_ANGLE, SPOTLIGHT_EXPONENT,
+    SPOTLIGHT_COLOR, SPOTLIGHT_INTENSITY, AMBIENT_LIGHT,
+    MATERIAL_BASE_COLOR, MATERIAL_METALLIC, MATERIAL_ROUGHNESS, MATERIAL_AO,
+    BOX_COLOR
+)
 
 # Anisotropic filtering extension constants
 GL_TEXTURE_MAX_ANISOTROPY_EXT = 0x84FE
@@ -26,24 +32,6 @@ class CoverFlowGLWidget(QOpenGLWidget):
 
     CACHE_RADIUS = 25
     STANDARD_ASPECT_RATIO = 2.0 / 3.0  # Standard movie poster aspect ratio (width/height)
-    
-    # Spotlight configuration - adjust these to control the lighting effect
-    SPOTLIGHT_HEIGHT = 15.0          # How high above the movies (units)
-    SPOTLIGHT_FORWARD = 8.0          # How far in front of center movie (units)
-    SPOTLIGHT_CONE_ANGLE = 30.5      # Cone angle in degrees (smaller = tighter beam)
-    SPOTLIGHT_EXPONENT = 3.0         # Falloff sharpness (higher = sharper, lower = softer)
-    SPOTLIGHT_COLOR = (1.0, 1.0, 0.98)  # Warm white light (RGB 0-1)
-    SPOTLIGHT_INTENSITY = 100.0      # Light intensity (higher = brighter)
-    AMBIENT_LIGHT = 0.0              # Ambient lighting constant (0 = no ambient light)
-    
-    # PBR Material properties for VHS boxes
-    MATERIAL_BASE_COLOR = (1.0, 1.0, 1.0)  # Base color tint (multiplied with texture)
-    MATERIAL_METALLIC = 0.0          # 0.0 = dielectric (plastic), 1.0 = metallic
-    MATERIAL_ROUGHNESS = 0.3         # 0.0 = smooth/glossy, 1.0 = rough/matte
-    MATERIAL_AO = 1.0                # Ambient occlusion factor (0-1)
-    
-    # VHS box surface color (RGB 0-1) - used for all non-textured surfaces
-    BOX_COLOR = (0.0, 0.0, 0.0)
 
     def setModelAndIndex(self, model, current_index, proxy_model=None, table_view=None):
         # Detect if proxy model changed (filter was applied or removed)
@@ -734,9 +722,9 @@ class CoverFlowGLWidget(QOpenGLWidget):
         # Create QImage for rendering text
         image = QImage(width, height, QImage.Format_RGBA8888)
         # Use BOX_COLOR as background (converted from 0-1 range to 0-255)
-        box_r = int(self.BOX_COLOR[0] * 255)
-        box_g = int(self.BOX_COLOR[1] * 255)
-        box_b = int(self.BOX_COLOR[2] * 255)
+        box_r = int(BOX_COLOR[0] * 255)
+        box_g = int(BOX_COLOR[1] * 255)
+        box_b = int(BOX_COLOR[2] * 255)
         image.fill(QColor(box_r, box_g, box_b, 255))  # BOX_COLOR background
         
         # Set up painter
@@ -1247,7 +1235,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # Set texture to border color (BOX_COLOR to match box sides) outside texture region
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER)
-            border_color = [*self.BOX_COLOR, 1.0]
+            border_color = [*BOX_COLOR, 1.0]
             glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, border_color)
             
             # Calculate UV coordinates to fit image within box while maintaining aspect ratio
@@ -1291,7 +1279,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # No texture - draw placeholder front face (inset by chamfer)
             if self.shader_program:
                 glUniform1i(self.uniform_use_texture, 0)
-            glColor3f(*self.BOX_COLOR)
+            glColor3f(*BOX_COLOR)
             glBegin(GL_QUADS)
             glNormal3f(0.0, 0.0, 1.0)
             glVertex3f(-half_w + chamfer, -half_h + chamfer, half_d)
@@ -1303,7 +1291,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         # Front face chamfer edges - batched for performance
         # Slightly higher shininess for chamfered edges to catch light
         glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 48.0)
-        glColor3f(*self.BOX_COLOR)
+        glColor3f(*BOX_COLOR)
         glBegin(GL_QUADS)
         # Top edge chamfer
         glNormal3f(0.0, 0.707, 0.707)
@@ -1377,7 +1365,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # No text texture - draw solid dark gray back (inset by chamfer)
             if self.shader_program:
                 glUniform1i(self.uniform_use_texture, 0)
-            glColor3f(*self.BOX_COLOR)
+            glColor3f(*BOX_COLOR)
             glBegin(GL_QUADS)
             glNormal3f(0.0, 0.0, -1.0)  # Normal pointing backward
             glVertex3f(-half_w + chamfer, -half_h + chamfer, -half_d)
@@ -1390,7 +1378,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         if self.shader_program:
             glUniform1i(self.uniform_use_texture, 0)
         glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 48.0)
-        glColor3f(*self.BOX_COLOR)
+        glColor3f(*BOX_COLOR)
         glBegin(GL_QUADS)
         # Top edge chamfer
         glNormal3f(0.0, 0.707, -0.707)
@@ -1444,7 +1432,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         
         # Top face - chamfered (main surface inset from edges)
         glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 32.0)
-        glColor3f(*self.BOX_COLOR)
+        glColor3f(*BOX_COLOR)
         glBegin(GL_QUADS)
         glNormal3f(0.0, 1.0, 0.0)  # Normal pointing up
         glVertex3f(-half_w + chamfer, half_h, -half_d + chamfer)
@@ -1508,7 +1496,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         
         # Bottom face - chamfered (main surface inset from edges)
         glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 32.0)
-        glColor3f(*self.BOX_COLOR)
+        glColor3f(*BOX_COLOR)
         glBegin(GL_QUADS)
         glNormal3f(0.0, -1.0, 0.0)  # Normal pointing down
         glVertex3f(-half_w + chamfer, -half_h, -half_d + chamfer)
@@ -1572,7 +1560,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         
         # Left and right face chamfers - batched
         glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 40.0)
-        glColor3f(*self.BOX_COLOR)
+        glColor3f(*BOX_COLOR)
         glBegin(GL_QUADS)
         # Left face
         glNormal3f(-1.0, 0.0, 0.0)
@@ -1619,7 +1607,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             glUseProgram(self.shader_program)
             
             # Set up spotlight parameters using class constants
-            light_pos_world = [0.0, self.SPOTLIGHT_HEIGHT, -z + self.SPOTLIGHT_FORWARD, 1.0]
+            light_pos_world = [0.0, SPOTLIGHT_HEIGHT, -z + SPOTLIGHT_FORWARD, 1.0]
             
             # Transform light position to view space using current modelview matrix
             modelview = glGetFloatv(GL_MODELVIEW_MATRIX)
@@ -1635,16 +1623,16 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # Set light uniforms
             glUniform3f(self.uniform_light_pos, light_pos_view[0], light_pos_view[1], light_pos_view[2])
             glUniform3f(self.uniform_light_dir, light_dir[0], light_dir[1], light_dir[2])
-            glUniform1f(self.uniform_spot_cutoff, self.SPOTLIGHT_CONE_ANGLE)
-            glUniform1f(self.uniform_spot_exponent, self.SPOTLIGHT_EXPONENT)
-            glUniform3f(self.uniform_light_color, *self.SPOTLIGHT_COLOR)
-            glUniform1f(self.uniform_light_intensity, self.SPOTLIGHT_INTENSITY)
+            glUniform1f(self.uniform_spot_cutoff, SPOTLIGHT_CONE_ANGLE)
+            glUniform1f(self.uniform_spot_exponent, SPOTLIGHT_EXPONENT)
+            glUniform3f(self.uniform_light_color, *SPOTLIGHT_COLOR)
+            glUniform1f(self.uniform_light_intensity, SPOTLIGHT_INTENSITY)
             
             # Set PBR material uniforms
-            glUniform3f(self.uniform_base_color, *self.MATERIAL_BASE_COLOR)
-            glUniform1f(self.uniform_metallic, self.MATERIAL_METALLIC)
-            glUniform1f(self.uniform_roughness, self.MATERIAL_ROUGHNESS)
-            glUniform1f(self.uniform_ao, self.MATERIAL_AO)
+            glUniform3f(self.uniform_base_color, *MATERIAL_BASE_COLOR)
+            glUniform1f(self.uniform_metallic, MATERIAL_METALLIC)
+            glUniform1f(self.uniform_roughness, MATERIAL_ROUGHNESS)
+            glUniform1f(self.uniform_ao, MATERIAL_AO)
             
             glUniform1i(self.uniform_texture, 0)  # Texture unit 0
         
