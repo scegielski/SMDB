@@ -18,12 +18,16 @@ VERTEX_SHADER = """
 #version 120
 varying vec3 fragNormal;
 varying vec3 fragPosition;
+varying vec3 fragWorldPosition;
 varying vec2 fragTexCoord;
 varying vec4 fragColor;
 
 void main() {
     // Transform vertex position to view space
     fragPosition = vec3(gl_ModelViewMatrix * gl_Vertex);
+    
+    // Pass world position for procedural texturing
+    fragWorldPosition = gl_Vertex.xyz;
     
     // Transform normal to view space
     fragNormal = normalize(gl_NormalMatrix * gl_Normal);
@@ -44,11 +48,14 @@ FRAGMENT_SHADER = """
 #version 120
 varying vec3 fragNormal;
 varying vec3 fragPosition;
+varying vec3 fragWorldPosition;
 varying vec2 fragTexCoord;
 varying vec4 fragColor;
 
 uniform sampler2D textureSampler;
 uniform bool useTexture;
+uniform bool useCheckerboard;    // Enable checkerboard pattern
+uniform float checkerboardScale; // Size of checkerboard squares
 uniform vec3 lightPosition;      // Spotlight position in view space
 uniform vec3 lightDirection;     // Spotlight direction
 uniform float spotCutoff;        // Spotlight cone angle (degrees)
@@ -68,6 +75,18 @@ void main() {
         baseColor = texture2D(textureSampler, fragTexCoord);
     } else {
         baseColor = fragColor;  // Use color from glColor3f/glColor4f
+    }
+    
+    // Apply checkerboard pattern if enabled
+    float checkerFactor = 1.0;
+    if (useCheckerboard) {
+        // Use world position for consistent pattern
+        float checkX = floor(fragWorldPosition.x / checkerboardScale);
+        float checkZ = floor(fragWorldPosition.z / checkerboardScale);
+        float pattern = mod(checkX + checkZ, 2.0);
+        // Create checkerboard: dark (0.3) and light (0.7) squares
+        checkerFactor = mix(0.3, 0.7, pattern);
+        baseColor.rgb *= checkerFactor;
     }
     
     // Normalize the interpolated normal
@@ -105,7 +124,11 @@ void main() {
     vec3 V = normalize(-fragPosition);  // View direction
     vec3 H = normalize(L + V);          // Halfway vector
     float specular = pow(max(dot(N, H), 0.0), materialShininess);
+    // Apply checkerboard to specular as well
     vec3 specularColor = lightSpecular * materialSpecular * specular;
+    if (useCheckerboard) {
+        specularColor *= checkerFactor;
+    }
     
     // Combine lighting components with spotlight and attenuation
     vec3 finalColor = (diffuseColor + specularColor) * spotEffect * attenuation;
@@ -969,6 +992,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
             self.uniform_constant_atten = glGetUniformLocation(self.shader_program, "constantAtten")
             self.uniform_linear_atten = glGetUniformLocation(self.shader_program, "linearAtten")
             self.uniform_quadratic_atten = glGetUniformLocation(self.shader_program, "quadraticAtten")
+            self.uniform_use_checkerboard = glGetUniformLocation(self.shader_program, "useCheckerboard")
+            self.uniform_checkerboard_scale = glGetUniformLocation(self.shader_program, "checkerboardScale")
         except Exception as e:
             print(f"Shader compilation failed: {e}")
             self.shader_program = None
@@ -1277,6 +1302,11 @@ class CoverFlowGLWidget(QOpenGLWidget):
         # Dark ground color - very dark gray, almost black
         ground_color = (0.05, 0.05, 0.05)
         
+        # Enable checkerboard pattern for ground plane
+        if self.shader_program:
+            glUniform1i(self.uniform_use_checkerboard, 1)
+            glUniform1f(self.uniform_checkerboard_scale, 0.2)  # 2-unit squares
+        
         glColor3f(*ground_color)
         glBegin(GL_QUADS)
         glNormal3f(0.0, 1.0, 0.0)  # Normal pointing up
@@ -1285,6 +1315,10 @@ class CoverFlowGLWidget(QOpenGLWidget):
         glVertex3f(plane_size, ground_y, plane_size)
         glVertex3f(-plane_size, ground_y, plane_size)
         glEnd()
+        
+        # Disable checkerboard for other objects
+        if self.shader_program:
+            glUniform1i(self.uniform_use_checkerboard, 0)
 
     def drawVHSBox(self, width, height, texture_id, back_texture_id=None, image_aspect=None):
         """Draw a 3D VHS box with the cover texture on front, text on back, and solid sides with chamfered edges
