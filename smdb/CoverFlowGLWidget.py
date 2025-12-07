@@ -32,15 +32,14 @@ class CoverFlowGLWidget(QOpenGLWidget):
     SPOTLIGHT_FORWARD = 8.0          # How far in front of center movie (units)
     SPOTLIGHT_CONE_ANGLE = 30.5      # Cone angle in degrees (smaller = tighter beam)
     SPOTLIGHT_EXPONENT = 3.0         # Falloff sharpness (higher = sharper, lower = softer)
-    SPOTLIGHT_DIFFUSE = (5.0, 5.0, 5.0)   # Light color intensity (RGB 0-1)
-    SPOTLIGHT_SPECULAR = (5.0, 5.0, 5.0)   # Specular highlight color (RGB 0-1)
-    SPOTLIGHT_CONSTANT_ATTEN = 1.0    # Constant attenuation factor
-    SPOTLIGHT_LINEAR_ATTEN = 0.00001    # Linear distance attenuation
-    SPOTLIGHT_QUADRATIC_ATTEN = 0.001  # Quadratic distance attenuation
+    SPOTLIGHT_COLOR = (1.0, 1.0, 0.98)  # Warm white light (RGB 0-1)
+    SPOTLIGHT_INTENSITY = 800.0      # Light intensity (higher = brighter)
     
-    # Material properties for VHS boxes
-    MATERIAL_SHININESS = 50.0         # Plastic shininess (higher = glossier)
-    MATERIAL_SPECULAR = (5.0, 5.0, 5.0)  # Specular reflection color
+    # PBR Material properties for VHS boxes
+    MATERIAL_BASE_COLOR = (1.0, 1.0, 1.0)  # Base color tint (multiplied with texture)
+    MATERIAL_METALLIC = 0.0          # 0.0 = dielectric (plastic), 1.0 = metallic
+    MATERIAL_ROUGHNESS = 0.3         # 0.0 = smooth/glossy, 1.0 = rough/matte
+    MATERIAL_AO = 1.0                # Ambient occlusion factor (0-1)
     
     # VHS box surface color (RGB 0-1) - used for all non-textured surfaces
     BOX_COLOR = (0.2, 0.0, 0.0)
@@ -865,22 +864,25 @@ class CoverFlowGLWidget(QOpenGLWidget):
             fragment_shader = compileShader(fragment_shader_source, GL_FRAGMENT_SHADER)
             self.shader_program = compileProgram(vertex_shader, fragment_shader)
             
-            # Get uniform locations
+            # Get uniform locations for texture and rendering
             self.uniform_texture = glGetUniformLocation(self.shader_program, "textureSampler")
             self.uniform_use_texture = glGetUniformLocation(self.shader_program, "useTexture")
+            self.uniform_use_checkerboard = glGetUniformLocation(self.shader_program, "useCheckerboard")
+            self.uniform_checkerboard_scale = glGetUniformLocation(self.shader_program, "checkerboardScale")
+            
+            # Light uniforms
             self.uniform_light_pos = glGetUniformLocation(self.shader_program, "lightPosition")
             self.uniform_light_dir = glGetUniformLocation(self.shader_program, "lightDirection")
             self.uniform_spot_cutoff = glGetUniformLocation(self.shader_program, "spotCutoff")
             self.uniform_spot_exponent = glGetUniformLocation(self.shader_program, "spotExponent")
-            self.uniform_light_diffuse = glGetUniformLocation(self.shader_program, "lightDiffuse")
-            self.uniform_light_specular = glGetUniformLocation(self.shader_program, "lightSpecular")
-            self.uniform_material_shininess = glGetUniformLocation(self.shader_program, "materialShininess")
-            self.uniform_material_specular = glGetUniformLocation(self.shader_program, "materialSpecular")
-            self.uniform_constant_atten = glGetUniformLocation(self.shader_program, "constantAtten")
-            self.uniform_linear_atten = glGetUniformLocation(self.shader_program, "linearAtten")
-            self.uniform_quadratic_atten = glGetUniformLocation(self.shader_program, "quadraticAtten")
-            self.uniform_use_checkerboard = glGetUniformLocation(self.shader_program, "useCheckerboard")
-            self.uniform_checkerboard_scale = glGetUniformLocation(self.shader_program, "checkerboardScale")
+            self.uniform_light_color = glGetUniformLocation(self.shader_program, "lightColor")
+            self.uniform_light_intensity = glGetUniformLocation(self.shader_program, "lightIntensity")
+            
+            # PBR Material uniforms
+            self.uniform_base_color = glGetUniformLocation(self.shader_program, "baseColor")
+            self.uniform_metallic = glGetUniformLocation(self.shader_program, "metallic")
+            self.uniform_roughness = glGetUniformLocation(self.shader_program, "roughness")
+            self.uniform_ao = glGetUniformLocation(self.shader_program, "ao")
         except Exception as e:
             print(f"Shader compilation failed: {e}")
             self.shader_program = None
@@ -1625,18 +1627,20 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # Light direction (straight down)
             light_dir = [0.0, -1.0, 0.0]
             
-            # Set shader uniforms using class constants
+            # Set light uniforms
             glUniform3f(self.uniform_light_pos, light_pos_view[0], light_pos_view[1], light_pos_view[2])
             glUniform3f(self.uniform_light_dir, light_dir[0], light_dir[1], light_dir[2])
             glUniform1f(self.uniform_spot_cutoff, self.SPOTLIGHT_CONE_ANGLE)
             glUniform1f(self.uniform_spot_exponent, self.SPOTLIGHT_EXPONENT)
-            glUniform3f(self.uniform_light_diffuse, *self.SPOTLIGHT_DIFFUSE)
-            glUniform3f(self.uniform_light_specular, *self.SPOTLIGHT_SPECULAR)
-            glUniform1f(self.uniform_material_shininess, self.MATERIAL_SHININESS)
-            glUniform3f(self.uniform_material_specular, *self.MATERIAL_SPECULAR)
-            glUniform1f(self.uniform_constant_atten, self.SPOTLIGHT_CONSTANT_ATTEN)
-            glUniform1f(self.uniform_linear_atten, self.SPOTLIGHT_LINEAR_ATTEN)
-            glUniform1f(self.uniform_quadratic_atten, self.SPOTLIGHT_QUADRATIC_ATTEN)
+            glUniform3f(self.uniform_light_color, *self.SPOTLIGHT_COLOR)
+            glUniform1f(self.uniform_light_intensity, self.SPOTLIGHT_INTENSITY)
+            
+            # Set PBR material uniforms
+            glUniform3f(self.uniform_base_color, *self.MATERIAL_BASE_COLOR)
+            glUniform1f(self.uniform_metallic, self.MATERIAL_METALLIC)
+            glUniform1f(self.uniform_roughness, self.MATERIAL_ROUGHNESS)
+            glUniform1f(self.uniform_ao, self.MATERIAL_AO)
+            
             glUniform1i(self.uniform_texture, 0)  # Texture unit 0
         
         # Draw ground plane first (so boxes render on top)

@@ -4,87 +4,180 @@ varying vec3 fragPosition;
 varying vec3 fragWorldPosition;
 varying vec2 fragTexCoord;
 varying vec4 fragColor;
+varying vec3 fragTangent;
+varying vec3 fragBitangent;
 
 uniform sampler2D textureSampler;
 uniform bool useTexture;
-uniform bool useCheckerboard;    // Enable checkerboard pattern
-uniform float checkerboardScale; // Size of checkerboard squares
-uniform vec3 lightPosition;      // Spotlight position in view space
-uniform vec3 lightDirection;     // Spotlight direction
-uniform float spotCutoff;        // Spotlight cone angle (degrees)
-uniform float spotExponent;      // Spotlight falloff
-uniform vec3 lightDiffuse;       // Light diffuse color
-uniform vec3 lightSpecular;      // Light specular color
-uniform float materialShininess; // Material shininess
-uniform vec3 materialSpecular;   // Material specular color
-uniform float constantAtten;     // Constant attenuation
-uniform float linearAtten;       // Linear attenuation
-uniform float quadraticAtten;    // Quadratic attenuation
+uniform bool useCheckerboard;
+uniform float checkerboardScale;
 
-void main() {
-    // Base color from texture or vertex color
-    vec4 baseColor;
+// Light properties
+uniform vec3 lightPosition;
+uniform vec3 lightDirection;
+uniform float spotCutoff;
+uniform float spotExponent;
+uniform vec3 lightColor;
+uniform float lightIntensity;
+
+// Material properties (PBR-like)
+uniform vec3 baseColor;
+uniform float metallic;
+uniform float roughness;
+uniform float ao;  // Ambient occlusion
+
+const float PI = 3.14159265359;
+
+// ===== MATERIAL FUNCTIONS =====
+vec3 getMaterialBaseColor() {
+    vec4 texColor;
     if (useTexture) {
-        baseColor = texture2D(textureSampler, fragTexCoord);
+        texColor = texture2D(textureSampler, fragTexCoord);
     } else {
-        baseColor = fragColor;  // Use color from glColor3f/glColor4f
+        texColor = fragColor;
     }
     
     // Apply checkerboard pattern if enabled
-    float checkerFactor = 1.0;
     if (useCheckerboard) {
-        // Use world position for consistent pattern
         float checkX = floor(fragWorldPosition.x / checkerboardScale);
         float checkZ = floor(fragWorldPosition.z / checkerboardScale);
         float pattern = mod(checkX + checkZ, 2.0);
-        // Create checkerboard: dark (0.3) and light (0.7) squares
-        checkerFactor = mix(0.3, 0.7, pattern);
-        baseColor.rgb *= checkerFactor;
+        float checkerFactor = mix(0.3, 0.7, pattern);
+        texColor.rgb *= checkerFactor;
     }
     
-    // Normalize the interpolated normal
-    vec3 N = normalize(fragNormal);
+    return texColor.rgb * baseColor;
+}
+
+float getMaterialAlpha() {
+    if (useTexture) {
+        return texture2D(textureSampler, fragTexCoord).a;
+    }
+    return fragColor.a;
+}
+
+// ===== PBR LIGHTING FUNCTIONS =====
+
+// Normal Distribution Function (GGX/Trowbridge-Reitz)
+float distributionGGX(vec3 N, vec3 H, float roughness) {
+    float a = roughness * roughness;
+    float a2 = a * a;
+    float NdotH = max(dot(N, H), 0.0);
+    float NdotH2 = NdotH * NdotH;
     
-    // Calculate light direction from fragment to light
+    float nom = a2;
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+    
+    return nom / denom;
+}
+
+// Geometry Function (Schlick-GGX)
+float geometrySchlickGGX(float NdotV, float roughness) {
+    float r = (roughness + 1.0);
+    float k = (r * r) / 8.0;
+    
+    float nom = NdotV;
+    float denom = NdotV * (1.0 - k) + k;
+    
+    return nom / denom;
+}
+
+float geometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float ggx2 = geometrySchlickGGX(NdotV, roughness);
+    float ggx1 = geometrySchlickGGX(NdotL, roughness);
+    
+    return ggx1 * ggx2;
+}
+
+// Fresnel-Schlick approximation
+vec3 fresnelSchlick(float cosTheta, vec3 F0) {
+    return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+}
+
+// Calculate PBR lighting
+vec3 calculatePBRLighting(vec3 N, vec3 V, vec3 L, vec3 albedo, float metallic, float roughness, vec3 F0, vec3 radiance) {
+    vec3 H = normalize(V + L);
+    
+    // Cook-Torrance BRDF
+    float NDF = distributionGGX(N, H, roughness);
+    float G = geometrySmith(N, V, L, roughness);
+    vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
+    
+    vec3 numerator = NDF * G * F;
+    float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
+    vec3 specular = numerator / denominator;
+    
+    // Energy conservation
+    vec3 kS = F;
+    vec3 kD = vec3(1.0) - kS;
+    kD *= 1.0 - metallic;
+    
+    float NdotL = max(dot(N, L), 0.0);
+    return (kD * albedo / PI + specular) * radiance * NdotL;
+}
+
+// ===== LIGHT ATTENUATION FUNCTIONS =====
+
+// Spotlight effect with smooth falloff
+float calculateSpotlightEffect(vec3 L, vec3 spotDir, float cutoffAngle, float exponent) {
+    float spotDot = dot(-L, spotDir);
+    float cutoffCos = cos(cutoffAngle * PI / 180.0);
+    float outerCutoff = cos((cutoffAngle + 20.0) * PI / 180.0);
+    
+    float spotEffect = smoothstep(outerCutoff, cutoffCos, spotDot);
+    return pow(spotEffect, exponent);
+}
+
+// Distance attenuation (inverse square law with adjustments)
+float calculateAttenuation(float distance) {
+    // Physical inverse square falloff with small constant to prevent singularity
+    return 1.0 / (1.0 + 0.09 * distance + 0.032 * distance * distance);
+}
+
+void main() {
+    // Get material properties
+    vec3 albedo = getMaterialBaseColor();
+    float alpha = getMaterialAlpha();
+    
+    // Setup surface properties
+    vec3 N = normalize(fragNormal);
+    vec3 V = normalize(-fragPosition);
+    
+    // Calculate light vector
     vec3 L = lightPosition - fragPosition;
     float distance = length(L);
     L = normalize(L);
     
+    // Calculate Fresnel reflectance at normal incidence
+    vec3 F0 = vec3(0.04);  // Base reflectance for dielectrics
+    F0 = mix(F0, albedo, metallic);
+    
     // Calculate spotlight effect
     vec3 spotDir = normalize(lightDirection);
-    float spotDot = dot(-L, spotDir);
-    
-    // Convert cutoff angle to cosine for comparison
-    float cutoffCos = cos(spotCutoff * 3.14159265 / 180.0);
-    
-    // Create a wider soft edge region (20 degrees of smooth falloff)
-    float outerCutoff = cos((spotCutoff + 20.0) * 3.14159265 / 180.0);
-    
-    // Smooth falloff from outer edge to inner cone
-    float spotEffect = smoothstep(outerCutoff, cutoffCos, spotDot);
-    
-    // Apply additional exponential falloff within the cone for smooth gradient
-    spotEffect = pow(spotEffect, spotExponent);
+    float spotEffect = calculateSpotlightEffect(L, spotDir, spotCutoff, spotExponent);
     
     // Calculate attenuation
-    float attenuation = 1.0 / (constantAtten + linearAtten * distance + quadraticAtten * distance * distance);
+    float attenuation = calculateAttenuation(distance);
     
-    // Diffuse lighting
-    float diffuse = max(dot(N, L), 0.0);
-    vec3 diffuseColor = lightDiffuse * diffuse * baseColor.rgb;
+    // Calculate radiance
+    vec3 radiance = lightColor * lightIntensity * attenuation * spotEffect;
     
-    // Specular lighting (Blinn-Phong)
-    vec3 V = normalize(-fragPosition);  // View direction
-    vec3 H = normalize(L + V);          // Halfway vector
-    float specular = pow(max(dot(N, H), 0.0), materialShininess);
-    // Apply checkerboard to specular as well
-    vec3 specularColor = lightSpecular * materialSpecular * specular;
-    if (useCheckerboard) {
-        specularColor *= checkerFactor;
-    }
+    // Calculate PBR lighting
+    vec3 Lo = calculatePBRLighting(N, V, L, albedo, metallic, roughness, F0, radiance);
     
-    // Combine lighting components with spotlight and attenuation
-    vec3 finalColor = (diffuseColor + specularColor) * spotEffect * attenuation;
+    // Add ambient lighting (simplified)
+    vec3 ambient = vec3(0.03) * albedo * ao;
     
-    gl_FragColor = vec4(finalColor, baseColor.a);
+    vec3 color = ambient + Lo;
+    
+    // HDR tone mapping (simple Reinhard)
+    color = color / (color + vec3(1.0));
+    
+    // Gamma correction (approximate)
+    color = pow(color, vec3(1.0 / 2.2));
+    
+    gl_FragColor = vec4(color, alpha);
 }
