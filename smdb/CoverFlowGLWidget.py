@@ -1262,6 +1262,30 @@ class CoverFlowGLWidget(QOpenGLWidget):
         
         glEndList()
 
+    def drawGroundPlane(self, quad_h):
+        """Draw a large ground plane that the VHS boxes sit on.
+        
+        Args:
+            quad_h: Height of the VHS box quad (used to position the ground plane)
+        """
+        # Ground plane sits at the bottom of the boxes
+        ground_y = -quad_h / 2
+        
+        # Extend the plane 10000 units in all directions
+        plane_size = 10000.0
+        
+        # Dark ground color - very dark gray, almost black
+        ground_color = (0.05, 0.05, 0.05)
+        
+        glColor3f(*ground_color)
+        glBegin(GL_QUADS)
+        glNormal3f(0.0, 1.0, 0.0)  # Normal pointing up
+        glVertex3f(-plane_size, ground_y, -plane_size)
+        glVertex3f(plane_size, ground_y, -plane_size)
+        glVertex3f(plane_size, ground_y, plane_size)
+        glVertex3f(-plane_size, ground_y, plane_size)
+        glEnd()
+
     def drawVHSBox(self, width, height, texture_id, back_texture_id=None, image_aspect=None):
         """Draw a 3D VHS box with the cover texture on front, text on back, and solid sides with chamfered edges
         
@@ -1693,6 +1717,12 @@ class CoverFlowGLWidget(QOpenGLWidget):
             glUniform1f(self.uniform_linear_atten, self.SPOTLIGHT_LINEAR_ATTEN)
             glUniform1f(self.uniform_quadratic_atten, self.SPOTLIGHT_QUADRATIC_ATTEN)
             glUniform1i(self.uniform_texture, 0)  # Texture unit 0
+        
+        # Draw ground plane first (so boxes render on top)
+        # Calculate quad_h for ground plane positioning
+        max_quad_h = 1.0
+        quad_h_for_ground = max_quad_h * 0.8  # Match the scaling used for boxes in multi-cover mode
+        self.drawGroundPlane(quad_h_for_ground)
         
         # Determine how many surrounding covers to show
         # Reduced for better performance with chamfered boxes
