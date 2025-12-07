@@ -831,15 +831,19 @@ class CoverFlowGLWidget(QOpenGLWidget):
         
         # Enable lighting for 3D depth perception
         glEnable(GL_LIGHTING)
-        glEnable(GL_LIGHT0)
+        glDisable(GL_LIGHT0)  # Disable fill light - only use spotlight
+        glEnable(GL_LIGHT1)  # Spotlight for center movie
         glEnable(GL_COLOR_MATERIAL)
         glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE)
         
-        # Set up light position and properties
+        # Set global ambient to zero so unlit areas are completely black
+        glLightModelfv(GL_LIGHT_MODEL_AMBIENT, [0.0, 0.0, 0.0, 1.0])
+        
+        # Set up LIGHT0: directional light from front (general fill light)
         glLightfv(GL_LIGHT0, GL_POSITION, [0.0, 0.0, 1.0, 0.0])  # Directional light from front
-        glLightfv(GL_LIGHT0, GL_AMBIENT, [0.3, 0.3, 0.3, 1.0])
-        glLightfv(GL_LIGHT0, GL_DIFFUSE, [0.8, 0.8, 0.8, 1.0])
-        glLightfv(GL_LIGHT0, GL_SPECULAR, [0.5, 0.5, 0.5, 1.0])
+        glLightfv(GL_LIGHT0, GL_AMBIENT, [0.0, 0.0, 0.0, 1.0])  # No ambient - let distance fade to black
+        glLightfv(GL_LIGHT0, GL_DIFFUSE, [0.5, 0.5, 0.5, 1.0])  # Reduced diffuse for spotlight effect
+        glLightfv(GL_LIGHT0, GL_SPECULAR, [0.3, 0.3, 0.3, 1.0])  # Reduced specular
         
         self.texture_id = None
         
@@ -1151,6 +1155,11 @@ class CoverFlowGLWidget(QOpenGLWidget):
         half_h = height / 2
         half_d = depth / 2
         
+        # Set material properties for VHS plastic with specular highlights
+        # VHS boxes have a semi-glossy plastic finish
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, [0.6, 0.6, 0.6, 1.0])
+        glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 32.0)  # Medium shininess for plastic
+        
         # Front face (with texture or placeholder) - chamfered version
         if texture_id and texture_id != 0:
             glBindTexture(GL_TEXTURE_2D, texture_id)
@@ -1209,6 +1218,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
             glEnd()
         
         # Front face chamfer edges - batched for performance
+        # Slightly higher shininess for chamfered edges to catch light
+        glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 48.0)
         glColor3f(0.35, 0.35, 0.35)
         glBegin(GL_QUADS)
         # Top edge chamfer
@@ -1287,6 +1298,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             glEnd()
         
         # Back face chamfer edges - batched for performance
+        glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 48.0)
         glColor3f(0.18, 0.18, 0.18)
         glBegin(GL_QUADS)
         # Top edge chamfer
@@ -1340,6 +1352,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         glEnd()
         
         # Top face - chamfered (main surface inset from edges)
+        glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 32.0)
         glColor3f(0.15, 0.15, 0.15)
         glBegin(GL_QUADS)
         glNormal3f(0.0, 1.0, 0.0)  # Normal pointing up
@@ -1350,6 +1363,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         glEnd()
         
         # Top face edge chamfers - batched
+        glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 48.0)
         glBegin(GL_QUADS)
         # Front-top edge
         glNormal3f(0.0, 0.707, 0.707)
@@ -1402,6 +1416,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         glEnd()
         
         # Bottom face - chamfered (main surface inset from edges)
+        glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 32.0)
         glColor3f(0.15, 0.15, 0.15)
         glBegin(GL_QUADS)
         glNormal3f(0.0, -1.0, 0.0)  # Normal pointing down
@@ -1412,6 +1427,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         glEnd()
         
         # Bottom face edge chamfers - batched
+        glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 48.0)
         glBegin(GL_QUADS)
         # Front-bottom edge
         glNormal3f(0.0, -0.707, 0.707)
@@ -1464,6 +1480,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         glEnd()
         
         # Left and right face chamfers - batched
+        glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 40.0)
         glColor3f(0.25, 0.25, 0.25)
         glBegin(GL_QUADS)
         # Left face
@@ -1505,6 +1522,25 @@ class CoverFlowGLWidget(QOpenGLWidget):
         z = (max_quad_h / 2) / math.tan(math.radians(current_fov / 2))
         camera_z = getattr(self, 'camera_z', 0.0)
         z += camera_z
+        
+        # Set up LIGHT1: spotlight shining down on center movie
+        # Position above and in front of center (in world coordinates)
+        spotlight_height = 15.0  # High above the movies
+        spotlight_forward = 8.0  # Well in front to illuminate the covers
+        glLightfv(GL_LIGHT1, GL_POSITION, [0.0, spotlight_height, -z + spotlight_forward, 1.0])  # Positional light
+        
+        # Point straight down since light is already positioned in front
+        glLightfv(GL_LIGHT1, GL_SPOT_DIRECTION, [0.0, -1.0, -0.1])
+        
+        glLightf(GL_LIGHT1, GL_SPOT_CUTOFF, 30.5)  # Half of 89 degrees - narrower cone
+        glLightf(GL_LIGHT1, GL_SPOT_EXPONENT, 3.0)  # Very soft falloff
+        glLightfv(GL_LIGHT1, GL_AMBIENT, [0.0, 0.0, 0.0, 1.0])  # No ambient from spotlight
+        glLightfv(GL_LIGHT1, GL_DIFFUSE, [20.0, 20.0, 20.0, 1.0])  # Even brighter to compensate
+        glLightfv(GL_LIGHT1, GL_SPECULAR, [50.0, 50.0, 50.0, 1.0])  # Even brighter specular
+        # Minimal attenuation so light reaches far
+        glLightf(GL_LIGHT1, GL_CONSTANT_ATTENUATION, 1.0)
+        glLightf(GL_LIGHT1, GL_LINEAR_ATTENUATION, 0.001)
+        glLightf(GL_LIGHT1, GL_QUADRATIC_ATTENUATION, 0.0001)
         
         # Determine how many surrounding covers to show
         # Reduced for better performance with chamfered boxes
@@ -1853,13 +1889,10 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     
                     glRotatef(current_rotation + curve_angle, 0.0, 1.0, 0.0)
                     
-                    # Set opacity and brightness for distance-based fading
-                    glColor4f(alpha, alpha, alpha, 1.0)
+                    # Let lighting handle all visibility - no manual alpha fading
+                    glColor4f(1.0, 1.0, 1.0, 1.0)
                     
                     self.drawVHSBox(quad_w, quad_h, texture_id, back_texture_id, img_aspect)
-                    
-                    # Reset color to white
-                    glColor4f(1.0, 1.0, 1.0, 1.0)
                     
                     glPopMatrix()
 
