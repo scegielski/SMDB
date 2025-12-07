@@ -9,7 +9,8 @@ import threading
 import os
 import ujson
 from .lighting_config import (
-    SPOTLIGHT_HEIGHT, SPOTLIGHT_FORWARD, SPOTLIGHT_CONE_ANGLE, SPOTLIGHT_EXPONENT,
+    SPOTLIGHT_POSITION_X, SPOTLIGHT_POSITION_Y, SPOTLIGHT_POSITION_Z,
+    SPOTLIGHT_CONE_ANGLE, SPOTLIGHT_EXPONENT,
     SPOTLIGHT_COLOR, SPOTLIGHT_INTENSITY, AMBIENT_LIGHT,
     MATERIAL_BASE_COLOR, MATERIAL_METALLIC, MATERIAL_ROUGHNESS, MATERIAL_AO,
     BOX_COLOR
@@ -1606,8 +1607,24 @@ class CoverFlowGLWidget(QOpenGLWidget):
         if self.shader_program:
             glUseProgram(self.shader_program)
             
-            # Set up spotlight parameters using class constants
-            light_pos_world = [0.0, SPOTLIGHT_HEIGHT, -z + SPOTLIGHT_FORWARD, 1.0]
+            # Fixed spotlight position in world space (does not move with camera)
+            light_pos_world = [SPOTLIGHT_POSITION_X, SPOTLIGHT_POSITION_Y, SPOTLIGHT_POSITION_Z, 1.0]
+            
+            # Current box center in world space (at origin, translated by -z during rendering)
+            box_center_world = [0.0, 0.0, -z]
+            
+            # Calculate light direction to point at current box center
+            # Direction vector from light position to box center
+            dir_x = box_center_world[0] - light_pos_world[0]
+            dir_y = box_center_world[1] - light_pos_world[1]
+            dir_z = box_center_world[2] - light_pos_world[2]
+            
+            # Normalize the direction vector
+            length = math.sqrt(dir_x * dir_x + dir_y * dir_y + dir_z * dir_z)
+            if length > 0:
+                light_dir = [dir_x / length, dir_y / length, dir_z / length]
+            else:
+                light_dir = [0.0, -1.0, 0.0]  # Fallback to straight down
             
             # Transform light position to view space using current modelview matrix
             modelview = glGetFloatv(GL_MODELVIEW_MATRIX)
@@ -1617,12 +1634,16 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 modelview[0][2] * light_pos_world[0] + modelview[1][2] * light_pos_world[1] + modelview[2][2] * light_pos_world[2] + modelview[3][2] * light_pos_world[3]
             ]
             
-            # Light direction (straight down)
-            light_dir = [0.0, -1.0, 0.0]
+            # Transform light direction to view space (only rotation, no translation for direction vectors)
+            light_dir_view = [
+                modelview[0][0] * light_dir[0] + modelview[1][0] * light_dir[1] + modelview[2][0] * light_dir[2],
+                modelview[0][1] * light_dir[0] + modelview[1][1] * light_dir[1] + modelview[2][1] * light_dir[2],
+                modelview[0][2] * light_dir[0] + modelview[1][2] * light_dir[1] + modelview[2][2] * light_dir[2]
+            ]
             
             # Set light uniforms
             glUniform3f(self.uniform_light_pos, light_pos_view[0], light_pos_view[1], light_pos_view[2])
-            glUniform3f(self.uniform_light_dir, light_dir[0], light_dir[1], light_dir[2])
+            glUniform3f(self.uniform_light_dir, light_dir_view[0], light_dir_view[1], light_dir_view[2])
             glUniform1f(self.uniform_spot_cutoff, SPOTLIGHT_CONE_ANGLE)
             glUniform1f(self.uniform_spot_exponent, SPOTLIGHT_EXPONENT)
             glUniform3f(self.uniform_light_color, *SPOTLIGHT_COLOR)
