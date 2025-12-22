@@ -1250,6 +1250,11 @@ class MainWindow(QtWidgets.QMainWindow):
             t0 = time.perf_counter()
             smdbData = readSmdbFile(smdbFile)
             read_time = time.perf_counter() - t0
+            # Ensure new fields exist for backward compatibility with older SMDB files
+            if smdbData:
+                smdbData.setdefault('writers', {})
+                smdbData.setdefault('producers', {})
+                smdbData.setdefault('composers', {})
             # Capture and log read time for the main movies SMDB at startup
             try:
                 if smdbFile == self.moviesSmdbFile and not getattr(self, "_readMoviesSmdbLogged", False):
@@ -2951,7 +2956,8 @@ class MainWindow(QtWidgets.QMainWindow):
         if jsonName in jsonData and jsonData[jsonName]:
             for name in jsonData[jsonName]:
                 numMovies = 0
-                if name in self.moviesSmdbData[smdbName]:
+                # Check if smdbName exists in moviesSmdbData (for backward compatibility)
+                if smdbName in self.moviesSmdbData and name in self.moviesSmdbData[smdbName]:
                     numMovies = self.moviesSmdbData[smdbName][name]['num movies']
                 item = QtWidgets.QListWidgetItem('%s (%d)' % (name, numMovies))
                 item.setData(QtCore.Qt.UserRole, [userRoleName, name])
@@ -3043,6 +3049,24 @@ class MainWindow(QtWidgets.QMainWindow):
         self.movieInfoAddSpacer()
         self.movieInfoAddHeading("Cast:")
         self.movieInfoAddSection(jsonData, 'cast', 'actors', 'actor')
+
+        # Add Writers section if available
+        if 'writers' in jsonData and jsonData['writers']:
+            self.movieInfoAddSpacer()
+            self.movieInfoAddHeading("Writers:")
+            self.movieInfoAddSection(jsonData, 'writers', 'writers', 'writer')
+
+        # Add Producers section if available
+        if 'producers' in jsonData and jsonData['producers']:
+            self.movieInfoAddSpacer()
+            self.movieInfoAddHeading("Producers:")
+            self.movieInfoAddSection(jsonData, 'producers', 'producers', 'producer')
+
+        # Add Composers section if available
+        if 'composers' in jsonData and jsonData['composers']:
+            self.movieInfoAddSpacer()
+            self.movieInfoAddHeading("Composers:")
+            self.movieInfoAddSection(jsonData, 'composers', 'composers', 'composer')
 
         similar_movies = jsonData.get('similar movies') or []
         if isinstance(similar_movies, list) and similar_movies:
@@ -3197,6 +3221,9 @@ class MainWindow(QtWidgets.QMainWindow):
         titles = {}
         directors = {}
         actors = {}
+        writers = {}
+        producers = {}
+        composers = {}
         mpaaRatings = {}
         ratings = {}
         genres = {}
@@ -3351,6 +3378,30 @@ class MainWindow(QtWidgets.QMainWindow):
                     if not titlesOnly:
                         add_to_index(actors, actor, titleYearTuple)
 
+                # Writers
+                movieWritersList = []
+                jsonWriters = jsonData.get('writers') or []
+                for writer in jsonWriters:
+                    movieWritersList.append(writer)
+                    if not titlesOnly:
+                        add_to_index(writers, writer, titleYearTuple)
+
+                # Producers
+                movieProducersList = []
+                jsonProducers = jsonData.get('producers') or []
+                for producer in jsonProducers:
+                    movieProducersList.append(producer)
+                    if not titlesOnly:
+                        add_to_index(producers, producer, titleYearTuple)
+
+                # Composers
+                movieComposersList = []
+                jsonComposers = jsonData.get('composers') or []
+                for composer in jsonComposers:
+                    movieComposersList.append(composer)
+                    if not titlesOnly:
+                        add_to_index(composers, composer, titleYearTuple)
+
                 # User tags
                 jsonUserTags = jsonData.get('user tags') or []
                 if not titlesOnly:
@@ -3474,6 +3525,9 @@ class MainWindow(QtWidgets.QMainWindow):
                     'countries': jsonCountries or None,
                     'companies': jsonCompanies or None,
                     'actors': movieActorsList,
+                    'writers': movieWritersList,
+                    'producers': movieProducersList,
+                    'composers': movieComposersList,
                     'rank': rank,
                     'width': jsonWidth,
                     'height': jsonHeight,
@@ -3506,6 +3560,9 @@ class MainWindow(QtWidgets.QMainWindow):
             normalize_index_for_json(genres)
             normalize_index_for_json(directors)
             normalize_index_for_json(actors)
+            normalize_index_for_json(writers)
+            normalize_index_for_json(producers)
+            normalize_index_for_json(composers)
             normalize_index_for_json(companies)
             normalize_index_for_json(countries)
             normalize_index_for_json(userTags)
@@ -3515,6 +3572,9 @@ class MainWindow(QtWidgets.QMainWindow):
             data['genres'] = collections.OrderedDict(sorted(genres.items()))
             data['directors'] = collections.OrderedDict(sorted(directors.items()))
             data['actors'] = collections.OrderedDict(sorted(actors.items()))
+            data['writers'] = collections.OrderedDict(sorted(writers.items()))
+            data['producers'] = collections.OrderedDict(sorted(producers.items()))
+            data['composers'] = collections.OrderedDict(sorted(composers.items()))
             data['companies'] = collections.OrderedDict(sorted(companies.items()))
             data['countries'] = collections.OrderedDict(sorted(countries.items()))
             data['user tags'] = collections.OrderedDict(sorted(userTags.items()))

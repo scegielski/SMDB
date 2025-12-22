@@ -629,6 +629,8 @@ class MovieData:
                 'Genres': [g['name'] for g in raw_data.get('genres', []) if g.get('name')],
                 'ProductionCompanies': [c['name'] for c in raw_data.get('production_companies', []) if c.get('name')],
                 'Writers': [c['name'] for c in crew if c.get('department') == 'Writing' and c.get('name')],
+                'Producers': [c['name'] for c in crew if c.get('job') in ['Producer', 'Executive Producer'] and c.get('name')],
+                'Composers': [c['name'] for c in crew if c.get('department') == 'Sound' and c.get('job') == 'Original Music Composer' and c.get('name')],
                 'Keywords': [k['name'] for k in raw_data.get('keywords', {}).get('keywords', []) if k.get('name')],
                 
                 # TMDB-specific
@@ -757,6 +759,10 @@ class MovieData:
         # Add additional TMDB data if available
         if movieData.get('Writers'):
             d['writers'] = movieData.get('Writers')
+        if movieData.get('Producers'):
+            d['producers'] = movieData.get('Producers')
+        if movieData.get('Composers'):
+            d['composers'] = movieData.get('Composers')
         if movieData.get('Keywords'):
             d['keywords'] = movieData.get('Keywords')
         if movieData.get('Tagline'):

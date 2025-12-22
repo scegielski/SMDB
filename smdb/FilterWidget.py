@@ -54,6 +54,9 @@ class FilterWidget(QtWidgets.QFrame):
         self.filterByDict = {
             'Director': 'directors',
             'Actor': 'actors',
+            'Writer': 'writers',
+            'Producer': 'producers',
+            'Composer': 'composers',
             'Genre': 'genres',
             'Mpaa Rating': 'mpaa ratings',
             'User Tags': 'user tags',
