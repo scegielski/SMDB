@@ -1868,7 +1868,13 @@ class MainWindow(QtWidgets.QMainWindow):
                     except Exception:
                         pass
             
-            titleYear = (title.lower(), year)
+            # Convert year to int for consistent comparison
+            try:
+                year_int = int(year) if year else 0
+            except (ValueError, TypeError):
+                year_int = 0
+            
+            titleYear = (title.lower(), year_int)
             
             # Store instance information
             titleYearInstances[titleYear].append({
@@ -1909,22 +1915,62 @@ class MainWindow(QtWidgets.QMainWindow):
                     except Exception:
                         pass
             
-            titleYear = (title.lower(), year)
+            # Convert year to int for consistent comparison
+            try:
+                year_int = int(year) if year else 0
+            except (ValueError, TypeError):
+                year_int = 0
+            
+            titleYear = (title.lower(), year_int)
             if titleYear in duplicates and not isKnownDuplicate:
                 self.moviesTableModel.setDuplicate(modelIndex, 'Yes')
 
         self.moviesTableModel.changedLayout()
         
-        # Hide non-duplicates from the list
-        self.statusBar().showMessage('Hiding non-duplicates...')
+        # Filter to show only duplicates using the proxy model
+        self.statusBar().showMessage('Filtering duplicates...')
         QtCore.QCoreApplication.processEvents()
-        for row in range(self.moviesTableModel.rowCount()):
-            modelIndex = self.moviesTableModel.index(row, Columns.Duplicate.value)
-            duplicateValue = self.moviesTableModel.data(modelIndex, QtCore.Qt.DisplayRole)
-            if duplicateValue != 'Yes':
-                self.moviesTableView.hideRow(row)
         
-        # Sort by Title after hiding non-duplicates
+        self.output(f"Total duplicate titleYear pairs found: {len(duplicates)}")
+        self.output(f"Total titleYear instances tracked: {len(titleYearInstances)}")
+        
+        # Debug: show some examples
+        duplicate_count = 0
+        for titleYear, instances in titleYearInstances.items():
+            if len(instances) >= 2:
+                duplicate_count += 1
+                if duplicate_count <= 3:  # Show first 3 examples
+                    self.output(f"Duplicate: {titleYear[0]} ({titleYear[1]}) - {len(instances)} instances")
+        
+        # Build list of ALL instances of duplicate movies for the filter
+        # This ensures both/all copies show up in the filtered view
+        duplicate_movies = []
+        for titleYear, instances in titleYearInstances.items():
+            # Count non-known-duplicate instances
+            non_known_instances = [inst for inst in instances if not inst.get('knownDuplicate', False)]
+            
+            # Only consider it a duplicate if there are 2+ non-known-duplicate copies
+            if len(non_known_instances) >= 2:
+                # Add all non-known-duplicate instances to the filter
+                for instance in non_known_instances:
+                    row = instance['row']
+                    title = self.moviesTableModel.getTitle(row)
+                    year = self.moviesTableModel.getYear(row)
+                    try:
+                        year_int = int(year) if year else 0
+                    except (ValueError, TypeError):
+                        year_int = 0
+                    duplicate_movies.append((title, year_int))
+        
+        self.output(f"Found {len(duplicate_movies)} movie instances to show as duplicates")
+        
+        # Apply the filter using the proxy model
+        self.moviesTableProxyModel.setMovieListFilter(duplicate_movies, mode='include')
+        self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
+        self.output(f"Proxy model row count after filter: {self.numVisibleMovies}")
+        self.showMoviesTableSelectionStatus()
+        
+        # Sort by Title after filtering duplicates
         self.statusBar().showMessage('Sorting duplicates by title...')
         QtCore.QCoreApplication.processEvents()
         self.moviesTableView.sortByColumn(Columns.Title.value, QtCore.Qt.AscendingOrder)
@@ -3764,8 +3810,9 @@ class MainWindow(QtWidgets.QMainWindow):
             action.triggered.connect(lambda checked, collection=c: self.filterCollection(collection))
             filterBySubmenu.addAction(action)
 
-        if self.moviesTableView.selectionModel().selectedRows():
-            modelIndex = self.moviesTableView.selectionModel().selectedRows()[0]
+        selectionModel = self.moviesTableView.selectionModel()
+        if selectionModel and selectionModel.selectedRows():
+            modelIndex = selectionModel.selectedRows()[0]
             self.clickedTable(modelIndex,
                               self.moviesTableModel,
                               self.moviesTableProxyModel)
