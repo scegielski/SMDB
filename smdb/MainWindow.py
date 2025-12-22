@@ -41,6 +41,7 @@ from pymediainfo import MediaInfo
 import re
 from pprint import pprint
 import urllib.parse
+import urllib.request
 import zipfile
 import io
 
@@ -3818,6 +3819,10 @@ class MainWindow(QtWidgets.QMainWindow):
         downloadDataAction.triggered.connect(self.downloadDataMenu)
         moviesTableRightMenu.addAction(downloadDataAction)
 
+        downloadMissingDataAction = QtWidgets.QAction("Download Missing Data", self)
+        downloadMissingDataAction.triggered.connect(self.downloadMissingDataMenu)
+        moviesTableRightMenu.addAction(downloadMissingDataAction)
+
         downloadDataAction = QtWidgets.QAction("Force Download Data", self)
         downloadDataAction.triggered.connect(lambda: self.downloadDataMenu(force=True))
         moviesTableRightMenu.addAction(downloadDataAction)
@@ -4673,6 +4678,341 @@ class MainWindow(QtWidgets.QMainWindow):
         summary = f"Synopsis download complete: {downloaded_count} downloaded, {skipped_count} skipped, {failed_count} failed"
         self.statusBar().showMessage(summary)
         self.output(summary)
+
+    def downloadMissingDataMenu(self):
+        """Download missing data fields for selected movies.
+        
+        Checks existing JSON files to identify missing fields and downloads only those.
+        Also checks for missing poster files.
+        
+        Full dataset fields checked:
+        - title, id, year, rating, mpaa rating
+        - directors, cast, writers, producers, composers
+        - genres, countries, companies
+        - runtime, box office, plot, synopsis
+        - keywords, tagline, budget, revenue
+        - cover url, poster file
+        - size, width, height, channels (file info)
+        """
+        # Ensure API keys are available before proceeding
+        if not self.movieData._ensureApiKeys():
+            return
+        
+        numSelectedItems = len(self.moviesTableView.selectionModel().selectedRows())
+        self.progressBar.setMaximum(numSelectedItems)
+        progress = 0
+        self.isCanceled = False
+        import time
+        start_time = time.time()
+        
+        downloaded_count = 0
+        skipped_count = 0
+        failed_count = 0
+        
+        # Track what was downloaded
+        missing_fields_count = collections.defaultdict(int)
+        
+        for proxyIndex in self.moviesTableView.selectionModel().selectedRows():
+            QtCore.QCoreApplication.processEvents()
+            if self.isCanceled:
+                self.statusBar().showMessage('Cancelled')
+                self.isCanceled = False
+                self.progressBar.setValue(0)
+                return
+
+            progress += 1
+            self.progressBar.setValue(progress)
+
+            # Calculate ETA
+            if progress > 0:
+                elapsed_time = time.time() - start_time
+                avg_time_per_item = elapsed_time / progress
+                remaining_items = numSelectedItems - progress
+                eta_seconds = avg_time_per_item * remaining_items
+                
+                if eta_seconds < 60:
+                    eta_str = f"{int(eta_seconds)}s"
+                else:
+                    eta_minutes = int(eta_seconds / 60)
+                    eta_secs = int(eta_seconds % 60)
+                    eta_str = f"{eta_minutes}m {eta_secs}s"
+                
+                message = "Downloading missing data (%d/%d) - ETA: %s" % (progress, numSelectedItems, eta_str)
+            else:
+                message = "Downloading missing data (%d/%d)" % (progress, numSelectedItems)
+            
+            self.statusBar().showMessage(message)
+            QtCore.QCoreApplication.processEvents()
+
+            sourceRow = self.getSourceRow(proxyIndex)
+            movieFolderName = self.moviesTableModel.getFolderName(sourceRow)
+            moviePath = self.moviesTableModel.getPath(sourceRow)
+            moviePath = self.findMovie(moviePath, movieFolderName)
+            if not os.path.exists(moviePath):
+                failed_count += 1
+                continue
+
+            jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
+            coverFile = os.path.join(moviePath, '%s.jpg' % movieFolderName)
+            if not os.path.exists(coverFile):
+                coverFilePng = os.path.join(moviePath, '%s.png' % movieFolderName)
+                if os.path.exists(coverFilePng):
+                    coverFile = coverFilePng
+            
+            # Check if JSON file exists
+            if not os.path.exists(jsonFile):
+                self.output(f"No JSON file for {movieFolderName}, using regular download...")
+                self.movieData.downloadMovieData(proxyIndex, force=False, doJson=True, doCover=True)
+                downloaded_count += 1
+                continue
+            
+            # Load existing JSON
+            try:
+                with open(jsonFile, 'r', encoding='utf-8') as f:
+                    jsonData = ujson.load(f)
+            except Exception as e:
+                self.output(f"Error reading JSON for {movieFolderName}: {e}")
+                failed_count += 1
+                continue
+            
+            # Define expected fields from the full dataset
+            expected_fields = {
+                'title': 'Title',
+                'id': 'IMDb ID',
+                'year': 'Year',
+                'rating': 'Rating',
+                'mpaa rating': 'MPAA Rating',
+                'directors': 'Directors',
+                'cast': 'Cast',
+                'writers': 'Writers',
+                'producers': 'Producers',
+                'composers': 'Composers',
+                'genres': 'Genres',
+                'countries': 'Countries',
+                'companies': 'Companies',
+                'runtime': 'Runtime',
+                'box office': 'Box Office',
+                'plot': 'Plot',
+                'synopsis': 'Synopsis',
+                'keywords': 'Keywords',
+                'tagline': 'Tagline',
+                'budget': 'Budget',
+                'revenue': 'Revenue',
+                'cover url': 'Cover URL',
+                'size': 'File Size',
+                'width': 'Video Width',
+                'height': 'Video Height',
+                'channels': 'Audio Channels'
+            }
+            
+            # Check which fields are missing or empty
+            missing_fields = []
+            for field, display_name in expected_fields.items():
+                value = jsonData.get(field)
+                # Consider field missing if it doesn't exist, is None, empty string, or empty list
+                if value is None or value == '' or value == [] or value == {}:
+                    missing_fields.append(field)
+                    missing_fields_count[display_name] += 1
+            
+            # Check if poster file is missing
+            poster_missing = not os.path.exists(coverFile)
+            if poster_missing:
+                missing_fields_count['Poster File'] += 1
+            
+            # If nothing is missing, skip
+            if not missing_fields and not poster_missing:
+                self.output(f"All data present for {movieFolderName}, skipping...")
+                skipped_count += 1
+                continue
+            
+            # Log what's missing with separator line
+            self.output("")  # Blank separator line
+            missing_display = [expected_fields.get(f, f) for f in missing_fields]
+            if poster_missing:
+                missing_display.append('Poster File')
+            self.output(f"Missing data for {movieFolderName}: {', '.join(missing_display)}")
+            
+            # Download the missing data
+            try:
+                title = jsonData.get('title')
+                year = jsonData.get('year')
+                imdbId = jsonData.get('id')
+                
+                if not title:
+                    self.output(f"No title in JSON for {movieFolderName}, cannot download missing data")
+                    failed_count += 1
+                    continue
+                
+                # Get the IMDb ID if missing
+                if not imdbId:
+                    imdbId = self.movieData._resolveImdbId(title, year)
+                    if not imdbId:
+                        self.output(f"Could not resolve IMDb ID for {movieFolderName}")
+                        failed_count += 1
+                        continue
+                
+                # Fetch fresh data from TMDB/OMDb
+                movie = self.movieData._getMovieTmdb(title, year, imdbId)
+                if not movie:
+                    self.output(f"TMDB lookup failed, trying OMDb for {movieFolderName}")
+                    movie = self.movieData._getMovieOmdb(title, year, imdbId)
+                
+                if not movie:
+                    self.output(f"Could not fetch movie data for {movieFolderName}")
+                    failed_count += 1
+                    continue
+                
+                # Update only missing fields in the JSON
+                updated = False
+                
+                # Map downloaded data to JSON fields
+                field_mapping = {
+                    'title': lambda m: m.get('Title'),
+                    'id': lambda m: m.get('ImdbID') or m.get('imdbID'),
+                    'year': lambda m: m.get('Year'),
+                    'rating': lambda m: m.get('ImdbRating') or m.get('imdbRating'),
+                    'mpaa rating': lambda m: m.get('Rated'),
+                    'runtime': lambda m: m.get('Runtime', '').split()[0] if m.get('Runtime') else None,
+                    'box office': lambda m: m.get('BoxOffice'),
+                    'plot': lambda m: m.get('Plot'),
+                    'synopsis': lambda m: m.get('Synopsis'),
+                    'tagline': lambda m: m.get('Tagline'),
+                    'budget': lambda m: m.get('Budget'),
+                    'revenue': lambda m: m.get('Revenue'),
+                    'cover url': lambda m: m.get('Poster'),
+                }
+                
+                # Handle list fields
+                def get_list_field(data, field_name):
+                    """Get a list field from movie data, handling both list and string formats."""
+                    value = data.get(field_name)
+                    if value is None:
+                        return None
+                    if isinstance(value, list):
+                        return value if value else None
+                    if isinstance(value, str):
+                        result = [v.strip() for v in value.split(',') if v.strip()]
+                        return result if result else None
+                    return None
+                
+                list_field_mapping = {
+                    'directors': lambda m: get_list_field(m, 'Directors'),
+                    'cast': lambda m: get_list_field(m, 'Actors'),
+                    'writers': lambda m: m.get('Writers') if isinstance(m.get('Writers'), list) else None,
+                    'producers': lambda m: m.get('Producers') if isinstance(m.get('Producers'), list) else None,
+                    'composers': lambda m: m.get('Composers') if isinstance(m.get('Composers'), list) else None,
+                    'genres': lambda m: get_list_field(m, 'Genres'),
+                    'countries': lambda m: (m.get('Countries') if isinstance(m.get('Countries'), list) 
+                                          else get_list_field(m, 'Country')),
+                    'companies': lambda m: m.get('ProductionCompanies') if isinstance(m.get('ProductionCompanies'), list) else None,
+                    'keywords': lambda m: m.get('Keywords') if isinstance(m.get('Keywords'), list) else None,
+                }
+                
+                # Update scalar fields
+                for field, getter in field_mapping.items():
+                    if field in missing_fields:
+                        new_value = getter(movie)
+                        if new_value is not None and new_value != '':
+                            jsonData[field] = new_value
+                            updated = True
+                
+                # Update list fields
+                for field, getter in list_field_mapping.items():
+                    if field in missing_fields:
+                        new_value = getter(movie)
+                        if new_value is not None:
+                            jsonData[field] = new_value
+                            updated = True
+                
+                # Update file info if missing
+                if any(f in missing_fields for f in ['size', 'width', 'height', 'channels']):
+                    self.movieData._getMovieFileInfo(moviePath, movie)
+                    if 'size' in missing_fields and movie.get('size'):
+                        jsonData['size'] = movie['size']
+                        updated = True
+                    if 'width' in missing_fields and movie.get('width'):
+                        jsonData['width'] = movie['width']
+                        updated = True
+                    if 'height' in missing_fields and movie.get('height'):
+                        jsonData['height'] = movie['height']
+                        updated = True
+                    if 'channels' in missing_fields and movie.get('channels'):
+                        jsonData['channels'] = movie['channels']
+                        updated = True
+                
+                # Write updated JSON if anything changed
+                if updated:
+                    try:
+                        with open(jsonFile, 'w', encoding='utf-8') as f:
+                            ujson.dump(jsonData, f, indent=4)
+                        self.output(f"Updated JSON for {movieFolderName}")
+                    except Exception as e:
+                        self.output(f"Error writing JSON for {movieFolderName}: {e}")
+                        failed_count += 1
+                        continue
+                
+                # Download poster if missing
+                if poster_missing:
+                    movieCoverUrl = None
+                    coverDownloaded = False
+                    
+                    # Try OMDB first for cover
+                    omdb_data = self.movieData._getMovieOmdb(title, year, imdbId)
+                    if omdb_data and omdb_data.get('Poster') and omdb_data['Poster'] != 'N/A':
+                        movieCoverUrl = omdb_data['Poster']
+                        try:
+                            urllib.request.urlretrieve(movieCoverUrl, coverFile)
+                            coverDownloaded = True
+                            self.output(f"Downloaded cover from OMDb for {movieFolderName}")
+                        except Exception as e:
+                            self.output(f"OMDb cover download failed: {e}")
+                    
+                    # Fallback to TMDB if OMDB failed
+                    if not coverDownloaded:
+                        if 'PosterFullSize' in movie:
+                            movieCoverUrl = movie['PosterFullSize']
+                        elif 'Poster' in movie:
+                            movieCoverUrl = movie['Poster']
+                        
+                        if movieCoverUrl:
+                            try:
+                                urllib.request.urlretrieve(movieCoverUrl, coverFile)
+                                self.output(f"Downloaded cover from TMDB for {movieFolderName}")
+                            except Exception as e:
+                                self.output(f"TMDB cover download failed: {e}")
+                        else:
+                            self.output(f"No cover image available for {movieFolderName}")
+                
+                downloaded_count += 1
+                
+                # Update the view
+                self.moviesTableModel.setMovieDataWithJson(sourceRow,
+                                                          jsonFile,
+                                                          moviePath,
+                                                          movieFolderName)
+                self.moviesTableView.selectRow(proxyIndex.row())
+                self.clickedTable(proxyIndex,
+                                  self.moviesTableModel,
+                                  self.moviesTableProxyModel)
+                
+            except Exception as e:
+                self.output(f"Error downloading missing data for {movieFolderName}: {e}")
+                import traceback
+                self.output(traceback.format_exc())
+                failed_count += 1
+        
+        self.progressBar.setValue(0)
+        
+        # Show summary
+        summary = f"Missing data download complete: {downloaded_count} updated, {skipped_count} skipped, {failed_count} failed"
+        self.statusBar().showMessage(summary)
+        self.output(summary)
+        
+        # Show detailed breakdown of what was missing
+        if missing_fields_count:
+            self.output("\nMissing fields breakdown:")
+            for field, count in sorted(missing_fields_count.items(), key=lambda x: x[1], reverse=True):
+                self.output(f"  {field}: {count} movies")
 
     def removeJsonFilesMenu(self):
         filesToDelete = []
