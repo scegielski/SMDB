@@ -221,22 +221,46 @@ def open_url(url, new=2):
             wslview = shutil.which("wslview")
             if wslview:
                 try:
-                    subprocess.Popen([wslview, url])
+                    subprocess.Popen(
+                        [wslview, url],
+                        stdin=subprocess.DEVNULL,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        start_new_session=True
+                    )
                     return True
                 except Exception as e:
                     output(f"wslview failed: {e}")
 
             if shutil.which("powershell.exe"):
-                subprocess.Popen(["powershell.exe", "-NoProfile", "Start-Process", url])
+                subprocess.Popen(
+                    ["powershell.exe", "-NoProfile", "Start-Process", url],
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True
+                )
                 return True
 
             if shutil.which("cmd.exe"):
-                subprocess.Popen(["cmd.exe", "/C", "start", "", url])
+                subprocess.Popen(
+                    ["cmd.exe", "/C", "start", "", url],
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True
+                )
                 return True
 
         opener = "open" if sys.platform == "darwin" else "xdg-open"
         if shutil.which(opener):
-            subprocess.Popen([opener, url])
+            subprocess.Popen(
+                [opener, url],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True
+            )
             return True
 
         return webbrowser.open(url, new=new)
@@ -355,12 +379,37 @@ def copyCoverImage(movie, coverFile):
 def runFile(file):
     import shutil
     if sys.platform == "win32":
-        subprocess.Popen(f"start \"\" \"{file}\"", shell=True)
+        # Launch file as a completely independent process that persists after parent closes
+        # CREATE_BREAKAWAY_FROM_JOB prevents the process from being terminated when parent exits
+        DETACHED_PROCESS = 0x00000008
+        CREATE_NEW_PROCESS_GROUP = 0x00000200
+        CREATE_BREAKAWAY_FROM_JOB = 0x01000000
+        CREATE_NO_WINDOW = 0x08000000
+        
+        subprocess.Popen(
+            ["cmd.exe", "/C", "start", "/B", "", file],
+            creationflags=(
+                DETACHED_PROCESS | 
+                CREATE_NEW_PROCESS_GROUP | 
+                CREATE_BREAKAWAY_FROM_JOB |
+                CREATE_NO_WINDOW
+            ),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=True
+        )
     elif "microsoft" in os.uname().release.lower():  # WSL detection
         # Try xdg-open first
         if shutil.which("xdg-open"):
             try:
-                subprocess.call(["xdg-open", file])
+                subprocess.Popen(
+                    ["xdg-open", file],
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True
+                )
                 return
             except Exception as e:
                 output(f"xdg-open failed: {e}")
@@ -373,10 +422,22 @@ def runFile(file):
                 win_path = completed.stdout.strip()
         except Exception as e:
             output(f"wslpath failed: {e}")
-        subprocess.Popen(["cmd.exe", "/C", "start", "", win_path])
+        subprocess.Popen(
+            ["cmd.exe", "/C", "start", "", win_path],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True
+        )
     else:
         opener = "open" if sys.platform == "darwin" else "xdg-open"
-        subprocess.call([opener, file])
+        subprocess.Popen(
+            [opener, file],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True
+        )
 
 
 def removeFolders(parent, foldersToDelete):
