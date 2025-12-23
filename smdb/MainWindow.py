@@ -200,6 +200,19 @@ class MainWindow(QtWidgets.QMainWindow):
         # Store current plot search regex for highlighting
         self.plotSearchRegex = None
 
+        # Mapping of movie info category names to smdbData keys
+        self.categoryToSmdbKey = {
+            'actor': 'actors',
+            'director': 'directors',
+            'producer': 'producers',
+            'writer': 'writers',
+            'composer': 'composers',
+            'company': 'companies',
+            'country': 'countries',
+            'genre': 'genres',
+            'year': 'years'
+        }
+
         # Define API keys here and use throughout the class
         self.openSubtitlesApiKey = "9iBc6gQ0mlsC9hdapJs6IR2JfmT6F3f1"
 
@@ -2786,30 +2799,19 @@ class MainWindow(QtWidgets.QMainWindow):
 
         movieList = []
         for data in items_data:
-            smdbKey = None
             if not data or len(data) < 2:
                 continue
             category = data[0]
             if category == 'similar_movie':
                 continue
             name = str(data[1])
-            if category:
-                if category == 'actor':
-                    smdbKey = 'actors'
-                elif category == 'director':
-                    smdbKey = 'directors'
-                elif category == 'company':
-                    smdbKey = 'companies'
-                elif category == 'country':
-                    smdbKey = 'countries'
-                elif category == 'genre':
-                    smdbKey = 'genres'
-                elif category == 'year':
-                    smdbKey = 'years'
-                else:
-                    continue
+            
+            # Use the mapping dictionary to get the smdbKey
+            smdbKey = self.categoryToSmdbKey.get(category)
+            if not smdbKey:
+                continue
 
-            if name in self.moviesSmdbData[smdbKey]:
+            if smdbKey in self.moviesSmdbData and name in self.moviesSmdbData[smdbKey]:
                 movies = self.moviesSmdbData[smdbKey][name]['movies']
                 for movie in movies:
                     movieList.append(movie)
