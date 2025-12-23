@@ -244,11 +244,15 @@ class CoverFlowGLWidget(QOpenGLWidget):
             self.camera_pan_x = self.camera_reset_start_x * (1 - eased_progress)
             self.camera_pan_y = self.camera_reset_start_y * (1 - eased_progress)
             self.camera_z = self.camera_reset_start_z * (1 - eased_progress) + self.INITIAL_CAMERA_Z * eased_progress
+            self.camera_orbit_x = self.camera_reset_start_orbit_x * (1 - eased_progress)
+            self.camera_orbit_y = self.camera_reset_start_orbit_y * (1 - eased_progress)
             
             if self.camera_reset_progress >= 1.0:
                 self.camera_pan_x = 0.0
                 self.camera_pan_y = 0.0
                 self.camera_z = self.INITIAL_CAMERA_Z
+                self.camera_orbit_x = 0.0
+                self.camera_orbit_y = 0.0
                 try:
                     self.killTimer(self.camera_reset_timer)
                 except:
@@ -547,6 +551,14 @@ class CoverFlowGLWidget(QOpenGLWidget):
         self.camera_pan_x = 0.0  # Camera horizontal pan offset
         self.camera_pan_y = 0.0  # Camera vertical pan offset
         
+        # Camera orbit rotation (Ctrl+LMB)
+        self.camera_orbit_x = 0.0  # Rotation around X axis (pitch)
+        self.camera_orbit_y = 0.0  # Rotation around Y axis (yaw)
+        self.is_orbiting = False
+        self.orbit_start_x = None
+        self.orbit_start_y = None
+        self.orbit_pivot = np.array([0.0, 0.0, -3.0])  # 3D point to orbit around
+        
         # Display list cache for box geometry
         self._box_display_list = None  # Cached compiled box geometry
         self._box_cache_mutex = None  # Will be initialized in initializeGL
@@ -596,6 +608,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
             self.camera_reset_start_x = self.camera_pan_x
             self.camera_reset_start_y = self.camera_pan_y
             self.camera_reset_start_z = self.camera_z
+            self.camera_reset_start_orbit_x = self.camera_orbit_x
+            self.camera_reset_start_orbit_y = self.camera_orbit_y
             self.camera_reset_progress = 0.0
             
             if self.camera_reset_timer is None:
@@ -1860,6 +1874,13 @@ class CoverFlowGLWidget(QOpenGLWidget):
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glLoadIdentity()
         
+        # Apply camera orbit rotation around pivot point
+        # Translate to pivot, rotate, translate back
+        glTranslatef(self.orbit_pivot[0], self.orbit_pivot[1], self.orbit_pivot[2])
+        glRotatef(self.camera_orbit_x, 1.0, 0.0, 0.0)  # Pitch
+        glRotatef(self.camera_orbit_y, 0.0, 1.0, 0.0)  # Yaw
+        glTranslatef(-self.orbit_pivot[0], -self.orbit_pivot[1], -self.orbit_pivot[2])
+        
         # Apply camera panning
         glTranslatef(self.camera_pan_x, self.camera_pan_y, 0.0)
         
@@ -2378,6 +2399,75 @@ class CoverFlowGLWidget(QOpenGLWidget):
         glGenerateMipmap(GL_TEXTURE_2D)  # Generate mipmaps
         return texture_id
 
+    def _rayBoxIntersection(self, ray_origin, ray_dir, box_center, box_size):
+        """Test ray-box intersection using slab method.
+        Returns (hit, t, point) where hit is bool, t is distance, point is 3D intersection.
+        """
+        # Box bounds
+        box_min = box_center - box_size / 2
+        box_max = box_center + box_size / 2
+        
+        t_min = -np.inf
+        t_max = np.inf
+        
+        for i in range(3):
+            if abs(ray_dir[i]) < 1e-8:
+                # Ray parallel to slab, check if origin is within slab
+                if ray_origin[i] < box_min[i] or ray_origin[i] > box_max[i]:
+                    return False, 0.0, None
+            else:
+                # Compute intersection t values
+                t1 = (box_min[i] - ray_origin[i]) / ray_dir[i]
+                t2 = (box_max[i] - ray_origin[i]) / ray_dir[i]
+                
+                if t1 > t2:
+                    t1, t2 = t2, t1
+                
+                t_min = max(t_min, t1)
+                t_max = min(t_max, t2)
+                
+                if t_min > t_max:
+                    return False, 0.0, None
+        
+        if t_max < 0:
+            return False, 0.0, None
+        
+        t = t_min if t_min > 0 else t_max
+        point = ray_origin + ray_dir * t
+        return True, t, point
+    
+    def _screenToWorldRay(self, screen_x, screen_y):
+        """Convert screen coordinates to world space ray.
+        Returns (ray_origin, ray_direction) in world space.
+        """
+        import math
+        
+        # Get viewport dimensions
+        viewport = glGetIntegerv(GL_VIEWPORT)
+        
+        # Get modelview and projection matrices
+        modelview = glGetDoublev(GL_MODELVIEW_MATRIX)
+        projection = glGetDoublev(GL_PROJECTION_MATRIX)
+        
+        # Convert screen y (top=0) to OpenGL y (bottom=0)
+        win_y = viewport[3] - screen_y
+        
+        # Unproject near and far points
+        try:
+            near_point = gluUnProject(screen_x, win_y, 0.0, modelview, projection, viewport)
+            far_point = gluUnProject(screen_x, win_y, 1.0, modelview, projection, viewport)
+            
+            # Calculate ray direction
+            ray_origin = np.array(near_point, dtype=np.float64)
+            ray_end = np.array(far_point, dtype=np.float64)
+            ray_dir = ray_end - ray_origin
+            ray_dir = ray_dir / np.linalg.norm(ray_dir)  # Normalize
+            
+            return ray_origin, ray_dir
+        except:
+            # Fallback to default
+            return np.array([0.0, 0.0, 0.0]), np.array([0.0, 0.0, -1.0])
+    
     def mousePressEvent(self, event):
         if event.button() == Qt.MiddleButton:
             # Start camera panning
@@ -2387,6 +2477,61 @@ class CoverFlowGLWidget(QOpenGLWidget):
             return
         
         if event.button() == Qt.LeftButton:
+            # Check if Ctrl is pressed for orbiting
+            if event.modifiers() & Qt.ControlModifier:
+                self.is_orbiting = True
+                self.orbit_start_x = event.x()
+                self.orbit_start_y = event.y()
+                
+                # Calculate orbit pivot from ray-scene intersection
+                ray_origin, ray_dir = self._screenToWorldRay(event.x(), event.y())
+                
+                # Test intersection with visible covers
+                import math
+                current_fov = getattr(self, 'current_fov', self.INITIAL_FOV)
+                max_quad_h = 1.0
+                widget_w = self.width()
+                widget_h = self.height() if self.height() != 0 else 1
+                window_aspect = widget_w / widget_h
+                z = (max_quad_h / 2) / math.tan(math.radians(current_fov / 2))
+                camera_z = getattr(self, 'camera_z', 0.0)
+                z += camera_z
+                
+                # Check current cover (index 0)
+                closest_hit = None
+                closest_t = np.inf
+                
+                if hasattr(self, '_model') and hasattr(self, '_current_index'):
+                    # Test center cover
+                    box_center = np.array([0.0, 0.0, -z])
+                    box_size = np.array([max_quad_h * self.STANDARD_ASPECT_RATIO, max_quad_h, 0.15])
+                    hit, t, point = self._rayBoxIntersection(ray_origin, ray_dir, box_center, box_size)
+                    
+                    if hit and t < closest_t:
+                        closest_t = t
+                        closest_hit = point
+                    
+                    # Test surrounding covers
+                    spacing = 0.65
+                    for offset in range(-10, 11):
+                        if offset == 0:
+                            continue
+                        x_offset = offset * spacing
+                        box_center = np.array([x_offset, 0.0, -z])
+                        hit, t, point = self._rayBoxIntersection(ray_origin, ray_dir, box_center, box_size)
+                        
+                        if hit and t < closest_t:
+                            closest_t = t
+                            closest_hit = point
+                
+                # Set orbit pivot to hit point or default to center cover
+                if closest_hit is not None:
+                    self.orbit_pivot = closest_hit
+                else:
+                    # Default to center of current cover
+                    self.orbit_pivot = np.array([0.0, 0.0, -z])
+                
+                return
             self.drag_start_x = event.x()
             self.last_mouse_x = event.x()
             # Don't reset drag_offset - continue from where we left off
@@ -2424,6 +2569,25 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     self._settling_timer = None
 
     def mouseMoveEvent(self, event):
+        # Handle camera orbiting with Ctrl+LMB
+        if self.is_orbiting and self.orbit_start_x is not None:
+            dx = event.x() - self.orbit_start_x
+            dy = event.y() - self.orbit_start_y
+            
+            # Convert pixel movement to rotation angles
+            # Scale factor for sensitivity (adjust as needed)
+            sensitivity = 0.5
+            self.camera_orbit_y += dx * sensitivity  # Yaw (left-right rotation)
+            self.camera_orbit_x += dy * sensitivity  # Pitch (up-down rotation)
+            
+            # Clamp pitch to avoid flipping
+            self.camera_orbit_x = max(-89.0, min(89.0, self.camera_orbit_x))
+            
+            self.orbit_start_x = event.x()
+            self.orbit_start_y = event.y()
+            self.update()
+            return
+        
         # Handle camera panning with middle button
         if self.is_panning and self.pan_start_x is not None:
             import math
@@ -2585,6 +2749,12 @@ class CoverFlowGLWidget(QOpenGLWidget):
             return
         
         if event.button() == Qt.LeftButton:
+            # Stop orbiting
+            if self.is_orbiting:
+                self.is_orbiting = False
+                self.orbit_start_x = None
+                self.orbit_start_y = None
+                return
             self.last_mouse_x = None
             
             # Calculate velocity from recent drag history
