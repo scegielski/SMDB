@@ -2767,9 +2767,16 @@ class MainWindow(QtWidgets.QMainWindow):
         if len(selected_items) == 0:
             return
 
+        # Cache item data before any operations that might clear the list
+        items_data = []
         for item in selected_items:
             data = item.data(QtCore.Qt.UserRole)
-            if data and len(data) >= 3 and data[0] == 'similar_movie':
+            if data:
+                items_data.append(data)
+
+        # Check for similar_movie selection first
+        for data in items_data:
+            if len(data) >= 3 and data[0] == 'similar_movie':
                 title = data[1]
                 year = data[2]
                 self.selectMovieByTitleYear(title, year)
@@ -2778,9 +2785,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.moviesTableTitleFilterBox.clear()
 
         movieList = []
-        for item in selected_items:
+        for data in items_data:
             smdbKey = None
-            data = item.data(QtCore.Qt.UserRole)
             if not data or len(data) < 2:
                 continue
             category = data[0]
