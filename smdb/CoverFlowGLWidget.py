@@ -1885,15 +1885,15 @@ class CoverFlowGLWidget(QOpenGLWidget):
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glLoadIdentity()
         
+        # Apply camera panning first (in camera's local XY plane)
+        glTranslatef(self.camera_pan_x, self.camera_pan_y, 0.0)
+        
         # Apply camera orbit rotation around pivot point
         # Translate to pivot, rotate, translate back
         glTranslatef(self.orbit_pivot[0], self.orbit_pivot[1], self.orbit_pivot[2])
         glRotatef(self.camera_orbit_x, 1.0, 0.0, 0.0)  # Pitch
         glRotatef(self.camera_orbit_y, 0.0, 1.0, 0.0)  # Yaw
         glTranslatef(-self.orbit_pivot[0], -self.orbit_pivot[1], -self.orbit_pivot[2])
-        
-        # Apply camera panning
-        glTranslatef(self.camera_pan_x, self.camera_pan_y, 0.0)
         
         widget_w = self.width()
         widget_h = self.height()
