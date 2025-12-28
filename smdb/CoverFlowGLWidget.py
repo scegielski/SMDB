@@ -23,9 +23,20 @@ GL_TEXTURE_MAX_ANISOTROPY_EXT = 0x84FE
 GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT = 0x84FF
 
 # Shaders are loaded from external files for better syntax highlighting
+def _get_resource_path(filename):
+    """Get the path to a resource file, handling PyInstaller bundled executables."""
+    import sys
+    # When running as a PyInstaller bundle, resources are extracted to sys._MEIPASS
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        # Look in the 'smdb' subdirectory where we bundled the shaders
+        return os.path.join(sys._MEIPASS, 'smdb', filename)
+    else:
+        # Running as normal Python script
+        return os.path.join(os.path.dirname(__file__), filename)
+
 def _load_shader(filename):
     """Load shader source from file relative to this module."""
-    shader_path = os.path.join(os.path.dirname(__file__), filename)
+    shader_path = _get_resource_path(filename)
     with open(shader_path, 'r') as f:
         return f.read()
 

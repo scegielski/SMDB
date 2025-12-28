@@ -18,6 +18,13 @@ datas += collect_data_files('imdb', include_py_files=False)
 collections_glob = os.path.join(REPO_ROOT, 'smdb', 'collections', '*')
 datas += [(path, 'collections') for path in glob(collections_glob) if os.path.isfile(path)]
 
+# Bundle shader files for OpenGL rendering
+shader_files = ['vertex_shader.glsl', 'fragment_shader.glsl']
+for shader in shader_files:
+    shader_path = os.path.join(REPO_ROOT, 'smdb', shader)
+    if os.path.exists(shader_path):
+        datas.append((shader_path, 'smdb'))
+
 a = Analysis(
     [os.path.join(REPO_ROOT, 'smdb', '__main__.py')],
     pathex=[REPO_ROOT],
