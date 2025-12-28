@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import QOpenGLWidget
-from PyQt5.QtCore import Qt, pyqtSignal, QRect, QTime, QFileSystemWatcher
+from PyQt5.QtCore import Qt, pyqtSignal, QRect, QTime, QFileSystemWatcher, QSettings
 from PyQt5.QtGui import QImage, QPainter, QFont, QColor, QFontMetrics
 from OpenGL.GL import *
 from OpenGL.GL.shaders import compileProgram, compileShader
@@ -2944,3 +2944,31 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 self._settling_elapsed.start()
             
             self.drag_history = []
+
+    def saveCameraSettings(self, settings: QSettings):
+        """Save camera settings (pan, dolly/zoom, orbit) to QSettings."""
+        settings.beginGroup('CameraSettings')
+        
+        settings.setValue('camera_pan_x', self.camera_pan_x)
+        settings.setValue('camera_pan_y', self.camera_pan_y)
+        settings.setValue('camera_z', self.camera_z)
+        settings.setValue('camera_orbit_x', self.camera_orbit_x)
+        settings.setValue('camera_orbit_y', self.camera_orbit_y)
+        
+        settings.endGroup()
+    
+    def loadCameraSettings(self, settings: QSettings):
+        """Load camera settings (pan, dolly/zoom, orbit) from QSettings."""
+        settings.beginGroup('CameraSettings')
+        
+        self.camera_pan_x = settings.value('camera_pan_x', 0.0, type=float)
+        self.camera_pan_y = settings.value('camera_pan_y', 0.0, type=float)
+        self.camera_z = settings.value('camera_z', self.INITIAL_CAMERA_Z, type=float)
+        self.camera_orbit_x = settings.value('camera_orbit_x', 0.0, type=float)
+        self.camera_orbit_y = settings.value('camera_orbit_y', 0.0, type=float)
+        
+        # Also update zoom target to match loaded camera_z
+        self.zoom_target = self.camera_z
+        self.zoom_start = self.camera_z
+        
+        settings.endGroup()

@@ -8,7 +8,7 @@ constants used in the CoverFlow 3D rendering.
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                               QSlider, QDoubleSpinBox, QGroupBox, QScrollArea,
                               QFrame, QPushButton, QCheckBox)
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal, QSettings
 from . import lighting_config
 import importlib
 
@@ -545,3 +545,55 @@ class LightingControlsWidget(QWidget):
         
         self.spotlightWireframeCheckbox.setChecked(lighting_config.SPOTLIGHT_WIREFRAME_ENABLED)
         self.shadowEnabledCheckbox.setChecked(lighting_config.SHADOW_ENABLED)
+    
+    def saveSettings(self, settings: QSettings):
+        """Save all lighting control values to QSettings."""
+        settings.beginGroup('LightingControls')
+        
+        # Save all numeric and color controls
+        for key, control in self.controls.items():
+            value = control.getValue()
+            if isinstance(value, tuple):
+                # Color values - save as list
+                settings.setValue(key, list(value))
+            else:
+                settings.setValue(key, value)
+        
+        # Save checkbox states
+        settings.setValue('SPOTLIGHT_WIREFRAME_ENABLED', self.spotlightWireframeCheckbox.isChecked())
+        settings.setValue('SHADOW_ENABLED', self.shadowEnabledCheckbox.isChecked())
+        
+        settings.endGroup()
+    
+    def loadSettings(self, settings: QSettings):
+        """Load all lighting control values from QSettings."""
+        settings.beginGroup('LightingControls')
+        
+        # Load all numeric and color controls
+        for key, control in self.controls.items():
+            default_val = getattr(lighting_config, key)
+            if isinstance(default_val, tuple):
+                # Color values - load as list and convert to tuple
+                loaded = settings.value(key, list(default_val), type=list)
+                if loaded and len(loaded) >= 3:
+                    value = (float(loaded[0]), float(loaded[1]), float(loaded[2]))
+                else:
+                    value = default_val
+            else:
+                value = settings.value(key, default_val, type=float)
+            
+            control.setValue(value)
+            setattr(lighting_config, key, value)
+        
+        # Load checkbox states
+        wireframe_enabled = settings.value('SPOTLIGHT_WIREFRAME_ENABLED', 
+                                           lighting_config.SPOTLIGHT_WIREFRAME_ENABLED, type=bool)
+        self.spotlightWireframeCheckbox.setChecked(wireframe_enabled)
+        lighting_config.SPOTLIGHT_WIREFRAME_ENABLED = wireframe_enabled
+        
+        shadow_enabled = settings.value('SHADOW_ENABLED', 
+                                        lighting_config.SHADOW_ENABLED, type=bool)
+        self.shadowEnabledCheckbox.setChecked(shadow_enabled)
+        lighting_config.SHADOW_ENABLED = shadow_enabled
+        
+        settings.endGroup()

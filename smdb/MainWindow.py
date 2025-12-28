@@ -387,6 +387,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.coverFlowWidget.wheelMovieChange.connect(self.coverFlowWheelNavigate)
         self.coverFlowWidget.scrollAnimationComplete.connect(self.onCoverFlowAnimationComplete)
         self.moviesTabWidget.addTab(self.coverFlowWidget, "Cover Flow")
+        # Load saved camera settings
+        self.coverFlowWidget.loadCameraSettings(self.settings)
         
         # Restore saved tab index (0=List, 1=Cover Flow)
         savedTabIndex = self.settings.value('moviesTabIndex', 0, type=int)
@@ -529,6 +531,8 @@ class MainWindow(QtWidgets.QMainWindow):
             bgColorC=self.bgColorC,
             fgColor=self.fgColor
         )
+        # Load saved lighting settings
+        self.lightingControlsWidget.loadSettings(self.settings)
         # Connect signal to refresh the cover flow widget when controls change
         self.lightingControlsWidget.controlsChanged.connect(self.onLightingControlsChanged)
 
@@ -801,6 +805,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings.setValue('primaryFilterColumn1Width', self.primaryFilterWidget.filterTable.columnWidth(1))
         self.settings.setValue('secondaryFilterColumn0Width', self.secondaryFilterWidget.filterTable.columnWidth(0))
         self.settings.setValue('secondaryFilterColumn1Width', self.secondaryFilterWidget.filterTable.columnWidth(1))
+
+        # Save lighting controls settings
+        if hasattr(self, 'lightingControlsWidget'):
+            self.lightingControlsWidget.saveSettings(self.settings)
+        
+        # Save camera settings (pan, dolly/zoom, orbit)
+        if hasattr(self, 'coverFlowWidget'):
+            self.coverFlowWidget.saveCameraSettings(self.settings)
 
     def saveTableColumns(self, saveName, tableView, columnsVisible):
         visibleColumns = list()
