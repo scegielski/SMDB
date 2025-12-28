@@ -275,24 +275,51 @@ class LightingControlsWidget(QWidget):
         spotlightPosGroup.setLayout(spotlightPosLayout)
         
         self.controls['SPOTLIGHT_POSITION_X'] = ControlRow(
-            "Position X", -50.0, 50.0, lighting_config.SPOTLIGHT_POSITION_X, 0.1, 1
+            "Position X", -2.0, 2.0, lighting_config.SPOTLIGHT_POSITION_X, 0.01, 2
         )
         self.controls['SPOTLIGHT_POSITION_X'].valueChanged.connect(self._updateConfig)
         spotlightPosLayout.addWidget(self.controls['SPOTLIGHT_POSITION_X'])
         
         self.controls['SPOTLIGHT_POSITION_Y'] = ControlRow(
-            "Position Y", -50.0, 50.0, lighting_config.SPOTLIGHT_POSITION_Y, 0.1, 1
+            "Position Y", -2.0, 2.0, lighting_config.SPOTLIGHT_POSITION_Y, 0.01, 2
         )
         self.controls['SPOTLIGHT_POSITION_Y'].valueChanged.connect(self._updateConfig)
         spotlightPosLayout.addWidget(self.controls['SPOTLIGHT_POSITION_Y'])
         
         self.controls['SPOTLIGHT_POSITION_Z'] = ControlRow(
-            "Position Z", -50.0, 100.0, lighting_config.SPOTLIGHT_POSITION_Z, 0.1, 1
+            "Position Z", -2.0, 2.0, lighting_config.SPOTLIGHT_POSITION_Z, 0.01, 2
         )
         self.controls['SPOTLIGHT_POSITION_Z'].valueChanged.connect(self._updateConfig)
         spotlightPosLayout.addWidget(self.controls['SPOTLIGHT_POSITION_Z'])
         
         containerLayout.addWidget(spotlightPosGroup)
+        
+        # Spotlight Target Position Group
+        spotlightTargetGroup = QGroupBox("Spotlight Target Position")
+        spotlightTargetGroup.setStyleSheet(f"QGroupBox {{ font-weight: bold; padding-top: 15px; }}")
+        spotlightTargetLayout = QVBoxLayout()
+        spotlightTargetLayout.setSpacing(5)
+        spotlightTargetGroup.setLayout(spotlightTargetLayout)
+        
+        self.controls['SPOTLIGHT_TARGET_X'] = ControlRow(
+            "Target X", -2.0, 2.0, lighting_config.SPOTLIGHT_TARGET_X, 0.01, 2
+        )
+        self.controls['SPOTLIGHT_TARGET_X'].valueChanged.connect(self._updateConfig)
+        spotlightTargetLayout.addWidget(self.controls['SPOTLIGHT_TARGET_X'])
+        
+        self.controls['SPOTLIGHT_TARGET_Y'] = ControlRow(
+            "Target Y", -2.0, 2.0, lighting_config.SPOTLIGHT_TARGET_Y, 0.01, 2
+        )
+        self.controls['SPOTLIGHT_TARGET_Y'].valueChanged.connect(self._updateConfig)
+        spotlightTargetLayout.addWidget(self.controls['SPOTLIGHT_TARGET_Y'])
+        
+        self.controls['SPOTLIGHT_TARGET_Z'] = ControlRow(
+            "Target Z", -2.0, 2.0, lighting_config.SPOTLIGHT_TARGET_Z, 0.01, 2
+        )
+        self.controls['SPOTLIGHT_TARGET_Z'].valueChanged.connect(self._updateConfig)
+        spotlightTargetLayout.addWidget(self.controls['SPOTLIGHT_TARGET_Z'])
+        
+        containerLayout.addWidget(spotlightTargetGroup)
         
         # Spotlight Properties Group
         spotlightPropsGroup = QGroupBox("Spotlight Properties")

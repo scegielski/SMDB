@@ -7,9 +7,14 @@ spotlight configuration used to render VHS box covers in the cover flow widget.
 
 # Spotlight configuration - adjust these to control the lighting effect
 # Fixed spotlight position in world space (does not move)
-SPOTLIGHT_POSITION_X = -10.0       # X position (centered)
-SPOTLIGHT_POSITION_Y = 10.0      # Y position (height above origin)
-SPOTLIGHT_POSITION_Z = 55.0       # Z position (in front of origin)
+SPOTLIGHT_POSITION_X = 0.0         # X position (centered)
+SPOTLIGHT_POSITION_Y = 1.0         # Y position (height above origin)
+SPOTLIGHT_POSITION_Z = 2.0         # Z position (in front of origin)
+
+# Spotlight target position (where the light points at)
+SPOTLIGHT_TARGET_X = 0.0          # Target X position
+SPOTLIGHT_TARGET_Y = 0.0          # Target Y position
+SPOTLIGHT_TARGET_Z = 0.0          # Target Z position
 
 SPOTLIGHT_CONE_ANGLE = 1.5     # Cone angle in degrees (smaller = tighter beam)
 SPOTLIGHT_INNER_CONE_ANGLE = 0.0  # Inner cone angle (full intensity inside this angle)

@@ -1354,8 +1354,12 @@ class CoverFlowGLWidget(QOpenGLWidget):
             lighting_config.SPOTLIGHT_POSITION_Z
         ])
         
-        # Target point (origin where the boxes are)
-        target = np.array([0.0, 0.0, 0.0])
+        # Target point (where the spotlight is aimed)
+        target = np.array([
+            lighting_config.SPOTLIGHT_TARGET_X,
+            lighting_config.SPOTLIGHT_TARGET_Y,
+            lighting_config.SPOTLIGHT_TARGET_Z
+        ])
         
         # Calculate direction from light to target
         direction = target - light_pos
@@ -2079,7 +2083,9 @@ class CoverFlowGLWidget(QOpenGLWidget):
                              lighting_config.SPOTLIGHT_POSITION_Z, 1.0]
             
             # Current box center in world space (at origin)
-            box_center_world = [0.0, 0.0, 0.0]
+            box_center_world = [lighting_config.SPOTLIGHT_TARGET_X, 
+                               lighting_config.SPOTLIGHT_TARGET_Y, 
+                               lighting_config.SPOTLIGHT_TARGET_Z]
             
             # Calculate light direction to point at current box center
             # Direction vector from light position to box center
