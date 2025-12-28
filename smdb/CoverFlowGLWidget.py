@@ -1339,6 +1339,165 @@ class CoverFlowGLWidget(QOpenGLWidget):
         if self.shader_program:
             glUniform1i(self.uniform_use_checkerboard, 0)
 
+    def drawSpotlightWireframe(self):
+        """Draw a wireframe visualization of the spotlight cone.
+        
+        Shows the light's origin, direction, and both inner and outer cone angles
+        as a clean wireframe representation.
+        """
+        import math
+        
+        # Get spotlight parameters from config
+        light_pos = np.array([
+            lighting_config.SPOTLIGHT_POSITION_X,
+            lighting_config.SPOTLIGHT_POSITION_Y,
+            lighting_config.SPOTLIGHT_POSITION_Z
+        ])
+        
+        # Target point (origin where the boxes are)
+        target = np.array([0.0, 0.0, 0.0])
+        
+        # Calculate direction from light to target
+        direction = target - light_pos
+        cone_length = np.linalg.norm(direction)
+        if cone_length < 0.001:
+            return
+        direction = direction / cone_length
+        
+        # Get cone angles (convert from degrees to radians)
+        outer_angle_rad = math.radians(lighting_config.SPOTLIGHT_CONE_ANGLE)
+        inner_angle_rad = math.radians(lighting_config.SPOTLIGHT_INNER_CONE_ANGLE)
+        
+        # Calculate radius at target distance for both cones
+        outer_radius = cone_length * math.tan(outer_angle_rad)
+        inner_radius = cone_length * math.tan(inner_angle_rad)
+        
+        # Build orthonormal basis for the cone circles
+        # Find a perpendicular vector to direction
+        if abs(direction[1]) < 0.99:
+            up = np.array([0.0, 1.0, 0.0])
+        else:
+            up = np.array([1.0, 0.0, 0.0])
+        
+        right = np.cross(direction, up)
+        right = right / np.linalg.norm(right)
+        up = np.cross(right, direction)
+        up = up / np.linalg.norm(up)
+        
+        # Disable shader program for wireframe drawing (use fixed-function pipeline)
+        glUseProgram(0)
+        
+        # Disable depth writing but keep depth test for proper occlusion
+        glDepthMask(GL_FALSE)
+        
+        # Set line width for visibility
+        glLineWidth(1.5)
+        
+        # Number of segments for circle approximation
+        num_segments = 32
+        
+        # Colors for visualization
+        outer_color = (1.0, 0.8, 0.0, 0.8)  # Yellow-orange for outer cone
+        inner_color = (1.0, 0.4, 0.0, 0.8)  # Orange for inner cone
+        direction_color = (1.0, 1.0, 1.0, 0.9)  # White for main direction
+        light_pos_color = (1.0, 1.0, 0.5, 1.0)  # Bright yellow for light position
+        
+        # Draw light position marker (small cross/star)
+        glBegin(GL_LINES)
+        glColor4f(*light_pos_color)
+        marker_size = 0.5
+        # X axis
+        glVertex3f(light_pos[0] - marker_size, light_pos[1], light_pos[2])
+        glVertex3f(light_pos[0] + marker_size, light_pos[1], light_pos[2])
+        # Y axis
+        glVertex3f(light_pos[0], light_pos[1] - marker_size, light_pos[2])
+        glVertex3f(light_pos[0], light_pos[1] + marker_size, light_pos[2])
+        # Z axis
+        glVertex3f(light_pos[0], light_pos[1], light_pos[2] - marker_size)
+        glVertex3f(light_pos[0], light_pos[1], light_pos[2] + marker_size)
+        glEnd()
+        
+        # Draw central direction line (from light to target)
+        glBegin(GL_LINES)
+        glColor4f(*direction_color)
+        glVertex3f(light_pos[0], light_pos[1], light_pos[2])
+        glVertex3f(target[0], target[1], target[2])
+        glEnd()
+        
+        # Function to draw a cone wireframe
+        def draw_cone_wireframe(radius, color, draw_lines_to_apex=True):
+            if radius < 0.001:
+                return
+                
+            glColor4f(*color)
+            
+            # Calculate circle points at target distance
+            circle_points = []
+            for i in range(num_segments):
+                angle = 2.0 * math.pi * i / num_segments
+                point = target + right * (radius * math.cos(angle)) + up * (radius * math.sin(angle))
+                circle_points.append(point)
+            
+            # Draw the circle outline at the base of the cone
+            glBegin(GL_LINE_LOOP)
+            for point in circle_points:
+                glVertex3f(point[0], point[1], point[2])
+            glEnd()
+            
+            # Draw lines from apex (light position) to circle points
+            if draw_lines_to_apex:
+                glBegin(GL_LINES)
+                # Draw 8 evenly spaced lines for clean visualization
+                for i in range(0, num_segments, num_segments // 8):
+                    glVertex3f(light_pos[0], light_pos[1], light_pos[2])
+                    glVertex3f(circle_points[i][0], circle_points[i][1], circle_points[i][2])
+                glEnd()
+        
+        # Draw outer cone (full brightness boundary)
+        draw_cone_wireframe(outer_radius, outer_color, draw_lines_to_apex=True)
+        
+        # Draw inner cone if different from outer (full intensity region)
+        if inner_angle_rad > 0.001 and abs(outer_angle_rad - inner_angle_rad) > 0.001:
+            draw_cone_wireframe(inner_radius, inner_color, draw_lines_to_apex=True)
+        
+        # Draw intermediate rings along the cone for better depth perception
+        num_rings = 3
+        for ring_idx in range(1, num_rings + 1):
+            t = ring_idx / (num_rings + 1)
+            ring_distance = cone_length * t
+            ring_center = light_pos + direction * ring_distance
+            ring_outer_radius = ring_distance * math.tan(outer_angle_rad)
+            
+            # Fade alpha based on distance
+            ring_alpha = 0.3 + 0.3 * (1.0 - t)
+            
+            glColor4f(outer_color[0], outer_color[1], outer_color[2], ring_alpha)
+            glBegin(GL_LINE_LOOP)
+            for i in range(num_segments):
+                angle = 2.0 * math.pi * i / num_segments
+                point = ring_center + right * (ring_outer_radius * math.cos(angle)) + up * (ring_outer_radius * math.sin(angle))
+                glVertex3f(point[0], point[1], point[2])
+            glEnd()
+            
+            # Inner ring too if applicable
+            if inner_angle_rad > 0.001:
+                ring_inner_radius = ring_distance * math.tan(inner_angle_rad)
+                glColor4f(inner_color[0], inner_color[1], inner_color[2], ring_alpha)
+                glBegin(GL_LINE_LOOP)
+                for i in range(num_segments):
+                    angle = 2.0 * math.pi * i / num_segments
+                    point = ring_center + right * (ring_inner_radius * math.cos(angle)) + up * (ring_inner_radius * math.sin(angle))
+                    glVertex3f(point[0], point[1], point[2])
+                glEnd()
+        
+        # Restore state
+        glDepthMask(GL_TRUE)
+        glLineWidth(1.0)
+        
+        # Re-enable shader program if it exists
+        if self.shader_program:
+            glUseProgram(self.shader_program)
+
     def renderShadowMap(self, render_scene_func):
         """Render the scene from the light's perspective to create shadow map.
         
@@ -2377,6 +2536,10 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     self.drawVHSBox(quad_w, quad_h, texture_id, back_texture_id, img_aspect)
                     
                     glPopMatrix()
+        
+        # Draw spotlight wireframe visualization if enabled
+        if lighting_config.SPOTLIGHT_WIREFRAME_ENABLED:
+            self.drawSpotlightWireframe()
 
     def createTextureFromQImage(self, qimage):
         qimage = qimage.convertToFormat(QImage.Format_RGBA8888)

@@ -447,6 +447,21 @@ class LightingControlsWidget(QWidget):
         
         containerLayout.addWidget(boxColorGroup)
         
+        # Visualization Group
+        visualizationGroup = QGroupBox("Visualization")
+        visualizationGroup.setStyleSheet(f"QGroupBox {{ font-weight: bold; padding-top: 15px; }}")
+        visualizationLayout = QVBoxLayout()
+        visualizationLayout.setSpacing(5)
+        visualizationGroup.setLayout(visualizationLayout)
+        
+        # Spotlight wireframe checkbox
+        self.spotlightWireframeCheckbox = QCheckBox("Show Spotlight Wireframe")
+        self.spotlightWireframeCheckbox.setChecked(lighting_config.SPOTLIGHT_WIREFRAME_ENABLED)
+        self.spotlightWireframeCheckbox.stateChanged.connect(self._updateConfig)
+        visualizationLayout.addWidget(self.spotlightWireframeCheckbox)
+        
+        containerLayout.addWidget(visualizationGroup)
+        
         # Shadow Configuration Group
         shadowGroup = QGroupBox("Shadow Configuration")
         shadowGroup.setStyleSheet(f"QGroupBox {{ font-weight: bold; padding-top: 15px; }}")
@@ -497,6 +512,9 @@ class LightingControlsWidget(QWidget):
                 value = control.getValue()
                 setattr(lighting_config, key, value)
         
+        # Update spotlight wireframe checkbox
+        lighting_config.SPOTLIGHT_WIREFRAME_ENABLED = self.spotlightWireframeCheckbox.isChecked()
+        
         # Update shadow enabled checkbox
         lighting_config.SHADOW_ENABLED = self.shadowEnabledCheckbox.isChecked()
         
@@ -513,6 +531,7 @@ class LightingControlsWidget(QWidget):
             default_val = getattr(lighting_config, key)
             control.setValue(default_val)
         
+        self.spotlightWireframeCheckbox.setChecked(lighting_config.SPOTLIGHT_WIREFRAME_ENABLED)
         self.shadowEnabledCheckbox.setChecked(lighting_config.SHADOW_ENABLED)
         
         # Trigger update
@@ -524,4 +543,5 @@ class LightingControlsWidget(QWidget):
             current_val = getattr(lighting_config, key)
             control.setValue(current_val)
         
+        self.spotlightWireframeCheckbox.setChecked(lighting_config.SPOTLIGHT_WIREFRAME_ENABLED)
         self.shadowEnabledCheckbox.setChecked(lighting_config.SHADOW_ENABLED)
