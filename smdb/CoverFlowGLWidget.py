@@ -1885,8 +1885,22 @@ class CoverFlowGLWidget(QOpenGLWidget):
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glLoadIdentity()
         
-        # Apply camera panning first (in camera's local XY plane)
-        glTranslatef(self.camera_pan_x, self.camera_pan_y, 0.0)
+        # Calculate base camera distance (without user dolly offset)
+        import math
+        widget_w = self.width()
+        widget_h = self.height()
+        if widget_h == 0:
+            widget_h = 1
+        window_aspect = widget_w / widget_h
+        max_quad_h = 1.0
+        max_quad_w = window_aspect
+        current_fov = getattr(self, 'current_fov', self.INITIAL_FOV)
+        base_z = (max_quad_h / 2) / math.tan(math.radians(current_fov / 2))
+        camera_z = getattr(self, 'camera_z', 0.0)
+        z = base_z + camera_z
+        
+        # Apply camera panning and dolly first (in camera's local space)
+        glTranslatef(self.camera_pan_x, self.camera_pan_y, -camera_z)
         
         # Apply camera orbit rotation around pivot point
         # Translate to pivot, rotate, translate back
@@ -1894,22 +1908,6 @@ class CoverFlowGLWidget(QOpenGLWidget):
         glRotatef(self.camera_orbit_x, 1.0, 0.0, 0.0)  # Pitch
         glRotatef(self.camera_orbit_y, 0.0, 1.0, 0.0)  # Yaw
         glTranslatef(-self.orbit_pivot[0], -self.orbit_pivot[1], -self.orbit_pivot[2])
-        
-        widget_w = self.width()
-        widget_h = self.height()
-        if widget_h == 0:
-            widget_h = 1
-        window_aspect = widget_w / widget_h
-        # Define max quad dimensions based on window aspect
-        max_quad_h = 1.0
-        max_quad_w = window_aspect
-        
-        import math
-        # Use a reference quad height for camera positioning
-        current_fov = getattr(self, 'current_fov', self.INITIAL_FOV)
-        z = (max_quad_h / 2) / math.tan(math.radians(current_fov / 2))
-        camera_z = getattr(self, 'camera_z', 0.0)
-        z += camera_z
         
         # Activate shader program for per-pixel lighting
         if self.shader_program:
@@ -1923,8 +1921,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
                              lighting_config.SPOTLIGHT_POSITION_Y, 
                              lighting_config.SPOTLIGHT_POSITION_Z, 1.0]
             
-            # Current box center in world space (at origin, translated by -z during rendering)
-            box_center_world = [0.0, 0.0, -z]
+            # Current box center in world space (at origin, translated by -base_z during rendering)
+            box_center_world = [0.0, 0.0, -base_z]
             
             # Calculate light direction to point at current box center
             # Direction vector from light position to box center
@@ -1982,7 +1980,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 # Render shadow map first
                 def render_scene_for_shadows():
                     # Render only the boxes (not ground plane) for shadow casting
-                    self._renderAllBoxes(z, max_quad_h, max_quad_w, for_shadows=True)
+                    self._renderAllBoxes(base_z, max_quad_h, max_quad_w, for_shadows=True)
                 
                 shadow_matrix = self.renderShadowMap(render_scene_for_shadows)
                 
@@ -2025,7 +2023,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
         
         # Apply camera Z-translation so ground plane moves with boxes
         glPushMatrix()
-        glTranslatef(0.0, 0.0, -z)
+        glTranslatef(0.0, 0.0, -base_z)
         self.drawGroundPlane(quad_h_for_ground)
         glPopMatrix()
         
@@ -2055,7 +2053,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             
             # Draw previous cover with its own quad dimensions
             glPushMatrix()
-            glTranslatef(0.0, prev_y_offset, -z)
+            glTranslatef(0.0, prev_y_offset, -base_z)
             glRotatef(self.y_rotation, 0.0, 1.0, 0.0)
             # Use cached texture and geometry if available
             prev_texture_id = self._prev_texture_id
@@ -2086,7 +2084,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             
             # Draw current cover with its own quad dimensions
             glPushMatrix()
-            glTranslatef(0.0, curr_y_offset, -z)
+            glTranslatef(0.0, curr_y_offset, -base_z)
             glRotatef(self.y_rotation, 0.0, 1.0, 0.0)
             curr_texture_id = self.texture_id
             curr_back_texture_id = None
@@ -2138,7 +2136,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             
             if not has_index or not has_model:
                 # Fall back to single cover rendering
-                glTranslatef(0.0, 0.0, -z)
+                glTranslatef(0.0, 0.0, -base_z)
                 glRotatef(self.y_rotation, 0.0, 1.0, 0.0)
                 if self.cover_image and not self.cover_image.isNull():
                     if self.texture_id is None:
@@ -2343,7 +2341,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     alpha = max(0.3, 1.0 - (distance * 0.15))  # Fade based on distance
                     
                     glPushMatrix()
-                    glTranslatef(x_offset, 0.0, -z - z_curve)  # Move back in z based on curve
+                    glTranslatef(x_offset, 0.0, -base_z - z_curve)  # Move back in z based on curve
                     
                     # Get stored rotation for this movie, default to 0
                     # Use current rotation (which is being animated toward target)
@@ -2504,9 +2502,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 widget_w = self.width()
                 widget_h = self.height() if self.height() != 0 else 1
                 window_aspect = widget_w / widget_h
-                z = (max_quad_h / 2) / math.tan(math.radians(current_fov / 2))
-                camera_z = getattr(self, 'camera_z', 0.0)
-                z += camera_z
+                base_z = (max_quad_h / 2) / math.tan(math.radians(current_fov / 2))
                 
                 # Check current cover (index 0)
                 closest_hit = None
@@ -2514,7 +2510,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 
                 if hasattr(self, '_model') and hasattr(self, '_current_index'):
                     # Test center cover
-                    box_center = np.array([0.0, 0.0, -z])
+                    box_center = np.array([0.0, 0.0, -base_z])
                     box_size = np.array([max_quad_h * self.STANDARD_ASPECT_RATIO, max_quad_h, 0.15])
                     hit, t, point = self._rayBoxIntersection(ray_origin, ray_dir, box_center, box_size)
                     
@@ -2528,7 +2524,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
                         if offset == 0:
                             continue
                         x_offset = offset * spacing
-                        box_center = np.array([x_offset, 0.0, -z])
+                        box_center = np.array([x_offset, 0.0, -base_z])
                         hit, t, point = self._rayBoxIntersection(ray_origin, ray_dir, box_center, box_size)
                         
                         if hit and t < closest_t:
@@ -2540,7 +2536,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     self.orbit_pivot = closest_hit
                 else:
                     # Default to center of current cover
-                    self.orbit_pivot = np.array([0.0, 0.0, -z])
+                    self.orbit_pivot = np.array([0.0, 0.0, -base_z])
                 
                 return
             self.drag_start_x = event.x()
