@@ -3097,7 +3097,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 display_text, title_value, year_value = self.parseSimilarMovieEntry(entry)
                 item = QtWidgets.QListWidgetItem(display_text)
                 item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable)
-                item.setData(QtCore.Qt.UserRole, ['recommended_movie', title_value, year_value])
+                item.setData(QtCore.Qt.UserRole, ['similar_movie', title_value, year_value])
                 self.movieInfoListView.addItem(item)
 
         similar_movies = jsonData.get('similar movies') or []
