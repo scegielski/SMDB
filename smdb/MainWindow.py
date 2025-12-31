@@ -3089,6 +3089,17 @@ class MainWindow(QtWidgets.QMainWindow):
             self.movieInfoAddHeading("Composers:")
             self.movieInfoAddSection(jsonData, 'composers', 'composers', 'composer')
 
+        recommended_movies = jsonData.get('recommended movies') or []
+        if isinstance(recommended_movies, list) and recommended_movies:
+            self.movieInfoAddSpacer()
+            self.movieInfoAddHeading("Recommended Movies:")
+            for entry in recommended_movies:
+                display_text, title_value, year_value = self.parseSimilarMovieEntry(entry)
+                item = QtWidgets.QListWidgetItem(display_text)
+                item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable)
+                item.setData(QtCore.Qt.UserRole, ['recommended_movie', title_value, year_value])
+                self.movieInfoListView.addItem(item)
+
         similar_movies = jsonData.get('similar movies') or []
         if isinstance(similar_movies, list) and similar_movies:
             self.movieInfoAddSpacer()
@@ -4822,7 +4833,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 'size': 'File Size',
                 'width': 'Video Width',
                 'height': 'Video Height',
-                'channels': 'Audio Channels'
+                'channels': 'Audio Channels',
+                'similar movies': 'Similar Movies',
+                'recommended movies': 'Recommended Movies',
             }
             
             # Check which fields are missing or empty
@@ -4926,6 +4939,8 @@ class MainWindow(QtWidgets.QMainWindow):
                                           else get_list_field(m, 'Country')),
                     'companies': lambda m: m.get('ProductionCompanies') if isinstance(m.get('ProductionCompanies'), list) else None,
                     'keywords': lambda m: m.get('Keywords') if isinstance(m.get('Keywords'), list) else None,
+                    'similar movies': lambda m: m.get('SimilarMoviesTmdb') if isinstance(m.get('SimilarMoviesTmdb'), list) else None,
+                    'recommended movies': lambda m: m.get('RecommendedMoviesTmdb') if isinstance(m.get('RecommendedMoviesTmdb'), list) else None,
                 }
                 
                 # Update scalar fields

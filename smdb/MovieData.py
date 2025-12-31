@@ -753,7 +753,8 @@ class MovieData:
         d['cover url'] = movieData.get('Poster')
         d['full-size cover url'] = movieData.get('PosterFullSize') or movieData.get('Poster')
         
-        # Use TMDB similar movies
+        # Use TMDB similar movies and recomended movies
+        d['recommended movies'] = movieData.get('RecommendedMoviesTmdb') or []
         d['similar movies'] = movieData.get('SimilarMoviesTmdb') or []
         
         # Add additional TMDB data if available
