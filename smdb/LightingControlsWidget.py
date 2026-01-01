@@ -7,7 +7,8 @@ constants used in the CoverFlow 3D rendering.
 
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                               QSlider, QDoubleSpinBox, QGroupBox, QScrollArea,
-                              QFrame, QPushButton, QCheckBox, QSizePolicy, QToolButton)
+                              QFrame, QPushButton, QCheckBox, QSizePolicy, QToolButton,
+                              QMessageBox)
 from PyQt5.QtCore import Qt, pyqtSignal, QSettings, QPropertyAnimation, QParallelAnimationGroup
 from . import lighting_config
 import importlib
@@ -506,6 +507,12 @@ class LightingControlsWidget(QWidget):
         resetButton.setStyleSheet(f"background: {self.bgColorA}; border-radius: 5px; padding: 8px;")
         containerLayout.addWidget(resetButton)
         
+        # Save as Defaults button
+        saveDefaultsButton = QPushButton("Save as Defaults")
+        saveDefaultsButton.clicked.connect(self._saveAsDefaults)
+        saveDefaultsButton.setStyleSheet(f"background: {self.bgColorA}; border-radius: 5px; padding: 8px;")
+        containerLayout.addWidget(saveDefaultsButton)
+        
         # Add stretch at bottom
         containerLayout.addStretch()
     
@@ -528,6 +535,18 @@ class LightingControlsWidget(QWidget):
     
     def _resetToDefaults(self):
         """Reset all controls to their default values."""
+        # Show confirmation dialog
+        reply = QMessageBox.question(
+            self,
+            'Reset to Defaults',
+            'Are you sure you want to reset all lighting settings to their default values?',
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        
+        if reply == QMessageBox.No:
+            return
+        
         # Reload the module to get original defaults
         importlib.reload(lighting_config)
         
@@ -541,6 +560,75 @@ class LightingControlsWidget(QWidget):
         
         # Trigger update
         self._updateConfig()
+    
+    def _saveAsDefaults(self):
+        """Save current values as defaults to lighting_config.py file."""
+        import os
+        
+        # Show confirmation dialog
+        reply = QMessageBox.question(
+            self,
+            'Save as Defaults',
+            'Are you sure you want to save the current lighting settings as defaults?\n\nThis will modify the lighting_config.py file.',
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        
+        if reply == QMessageBox.No:
+            return
+        
+        # Get the path to lighting_config.py
+        config_path = os.path.join(os.path.dirname(__file__), 'lighting_config.py')
+        
+        # Read the current file
+        with open(config_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        
+        # Create updated content
+        new_lines = []
+        for line in lines:
+            # Check if this line defines a constant we want to update
+            updated = False
+            for key, control in self.controls.items():
+                if line.strip().startswith(f'{key} ='):
+                    value = control.getValue()
+                    if isinstance(value, tuple):
+                        # Format as tuple with 3 decimal places
+                        new_lines.append(f'{key} = ({value[0]:.3f}, {value[1]:.3f}, {value[2]:.3f})\n')
+                    else:
+                        # Determine decimal places based on magnitude
+                        if abs(value) < 0.01 and value != 0:
+                            new_lines.append(f'{key} = {value:.4f}\n')
+                        elif abs(value) < 1.0:
+                            new_lines.append(f'{key} = {value:.3f}\n')
+                        elif abs(value) >= 100:
+                            new_lines.append(f'{key} = {value:.1f}\n')
+                        else:
+                            new_lines.append(f'{key} = {value:.1f}\n')
+                    updated = True
+                    break
+            
+            # Check for checkbox settings
+            if not updated:
+                if line.strip().startswith('SPOTLIGHT_WIREFRAME_ENABLED ='):
+                    is_checked = self.spotlightWireframeCheckbox.isChecked()
+                    new_lines.append(f'SPOTLIGHT_WIREFRAME_ENABLED = {is_checked}\n')
+                    updated = True
+                elif line.strip().startswith('SHADOW_ENABLED ='):
+                    is_checked = self.shadowEnabledCheckbox.isChecked()
+                    new_lines.append(f'SHADOW_ENABLED = {is_checked}\n')
+                    updated = True
+            
+            # If not updated, keep the original line
+            if not updated:
+                new_lines.append(line)
+        
+        # Write back to file
+        with open(config_path, 'w', encoding='utf-8') as f:
+            f.writelines(new_lines)
+        
+        # Reload the module to pick up changes
+        importlib.reload(lighting_config)
     
     def refreshFromConfig(self):
         """Refresh all controls from current config values (for hot-reload)."""

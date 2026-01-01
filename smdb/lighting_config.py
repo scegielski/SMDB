@@ -7,45 +7,45 @@ spotlight configuration used to render VHS box covers in the cover flow widget.
 
 # Spotlight configuration - adjust these to control the lighting effect
 # Fixed spotlight position in world space (does not move)
-SPOTLIGHT_POSITION_X = 0.0         # X position (centered)
-SPOTLIGHT_POSITION_Y = 1.0         # Y position (height above origin)
-SPOTLIGHT_POSITION_Z = 2.0         # Z position (in front of origin)
+SPOTLIGHT_POSITION_X = -0.570
+SPOTLIGHT_POSITION_Y = 1.5
+SPOTLIGHT_POSITION_Z = 3.6
 
 # Spotlight target position (where the light points at)
-SPOTLIGHT_TARGET_X = 0.0          # Target X position
-SPOTLIGHT_TARGET_Y = 0.0          # Target Y position
-SPOTLIGHT_TARGET_Z = 0.0          # Target Z position
+SPOTLIGHT_TARGET_X = 0.000
+SPOTLIGHT_TARGET_Y = 0.000
+SPOTLIGHT_TARGET_Z = 0.360
 
-SPOTLIGHT_CONE_ANGLE = 1.5     # Cone angle in degrees (smaller = tighter beam)
-SPOTLIGHT_INNER_CONE_ANGLE = 0.0  # Inner cone angle (full intensity inside this angle)
-SPOTLIGHT_CENTER_BOOST = 5.0    # Center brightness boost (higher = brighter center)
-SPOTLIGHT_CENTER_COLOR = (1.0, 1.0, 1.0)  # Light color at center of cone (RGB 0-1)
-SPOTLIGHT_EDGE_COLOR = (1.0, 1.0, 1.0)    # Light color at edge of cone (RGB 0-1)
-SPOTLIGHT_COLOR_BLEND_EXPONENT = 7.0      # Color blending curve (higher = more center color, lower = more edge color)
-SPOTLIGHT_COLOR_BLEND_START = 0.9         # Radial position where color blend starts (0=edge, 1=center)
-SPOTLIGHT_COLOR_BLEND_END = 1.0           # Radial position where color blend ends (0=edge, 1=center)
-SPOTLIGHT_INTENSITY = 8.0      # Light intensity (higher = brighter)
-SPOTLIGHT_ATTENUATION_LINEAR = 0.01   # Linear distance falloff (lower = softer, 0 = no falloff)
-SPOTLIGHT_ATTENUATION_QUADRATIC = 0.001  # Quadratic distance falloff (lower = softer, 0 = no falloff)
-AMBIENT_LIGHT = 0.0              # Ambient lighting constant (0 = no ambient light)
+SPOTLIGHT_CONE_ANGLE = 12.0
+SPOTLIGHT_INNER_CONE_ANGLE = 0.000
+SPOTLIGHT_CENTER_BOOST = 0.000
+SPOTLIGHT_CENTER_COLOR = (0.994, 1.000, 0.997)
+SPOTLIGHT_EDGE_COLOR = (1.000, 1.000, 1.000)
+SPOTLIGHT_COLOR_BLEND_EXPONENT = 4.2
+SPOTLIGHT_COLOR_BLEND_START = 0.020
+SPOTLIGHT_COLOR_BLEND_END = 0.990
+SPOTLIGHT_INTENSITY = 13.4
+SPOTLIGHT_ATTENUATION_LINEAR = 0.000
+SPOTLIGHT_ATTENUATION_QUADRATIC = 0.000
+AMBIENT_LIGHT = 0.000
 
 # PBR Material properties for VHS boxes
-MATERIAL_BASE_COLOR = (1.0, 1.0, 1.0)  # Base color tint (multiplied with texture)
-MATERIAL_METALLIC = 0.0          # 0.0 = dielectric (plastic), 1.0 = metallic
-MATERIAL_ROUGHNESS = 0.3         # 0.0 = smooth/glossy, 1.0 = rough/matte
-MATERIAL_AO = 1.0                # Ambient occlusion factor (0-1)
+MATERIAL_BASE_COLOR = (0.300, 0.300, 0.300)
+MATERIAL_METALLIC = 0.000
+MATERIAL_ROUGHNESS = 0.062
+MATERIAL_AO = 1.0
 
 # Ground/checkerboard material properties
-GROUND_BASE_COLOR = (1.2, 1.2, 1.2)  # Base color tint for ground (can be brighter than 1.0)
+GROUND_BASE_COLOR = (0.300, 0.286, 0.300)
 
 # VHS box surface color (RGB 0-1) - used for all non-textured surfaces
-BOX_COLOR = (0.001, 0.001, 0.001)
+BOX_COLOR = (0.100, 0.100, 0.100)
 
 # Spotlight visualization
-SPOTLIGHT_WIREFRAME_ENABLED = False  # Show wireframe visualization of spotlight cone
+SPOTLIGHT_WIREFRAME_ENABLED = False
 
 # Shadow configuration - Real shadow mapping from spotlight
-SHADOW_ENABLED = False           # Enable/disable shadows (work in progress)
-SHADOW_MAP_SIZE = 2048           # Shadow map resolution (higher = sharper shadows, more expensive)
-SHADOW_BIAS = 0.005              # Shadow bias to prevent shadow acne
-SHADOW_DARKNESS = 0.7            # How dark shadows are (0-1, higher = darker)
+SHADOW_ENABLED = False
+SHADOW_MAP_SIZE = 1408.0
+SHADOW_BIAS = 0.0050
+SHADOW_DARKNESS = 0.700
