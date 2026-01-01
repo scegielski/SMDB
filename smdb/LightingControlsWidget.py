@@ -7,7 +7,7 @@ constants used in the CoverFlow 3D rendering.
 
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                               QSlider, QDoubleSpinBox, QGroupBox, QScrollArea,
-                              QFrame, QPushButton, QCheckBox)
+                              QFrame, QPushButton, QCheckBox, QSizePolicy)
 from PyQt5.QtCore import Qt, pyqtSignal, QSettings
 from . import lighting_config
 import importlib
@@ -29,7 +29,7 @@ class ControlRow(QWidget):
         
         # Label
         self.label = QLabel(label)
-        self.label.setMinimumWidth(220)
+        self.label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
         layout.addWidget(self.label)
         
         # Slider
@@ -37,6 +37,7 @@ class ControlRow(QWidget):
         self.slider.setMinimum(0)
         self.slider.setMaximum(1000)  # Use 1000 steps for precision
         self.slider.setValue(int((default_val - min_val) / (max_val - min_val) * 1000))
+        self.slider.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.slider.valueChanged.connect(self._onSliderChanged)
         layout.addWidget(self.slider, 1)
         
@@ -275,19 +276,19 @@ class LightingControlsWidget(QWidget):
         spotlightPosGroup.setLayout(spotlightPosLayout)
         
         self.controls['SPOTLIGHT_POSITION_X'] = ControlRow(
-            "Position X", -2.0, 2.0, lighting_config.SPOTLIGHT_POSITION_X, 0.01, 2
+            "Position X", -5.0, 5.0, lighting_config.SPOTLIGHT_POSITION_X, 0.01, 2
         )
         self.controls['SPOTLIGHT_POSITION_X'].valueChanged.connect(self._updateConfig)
         spotlightPosLayout.addWidget(self.controls['SPOTLIGHT_POSITION_X'])
         
         self.controls['SPOTLIGHT_POSITION_Y'] = ControlRow(
-            "Position Y", -2.0, 2.0, lighting_config.SPOTLIGHT_POSITION_Y, 0.01, 2
+            "Position Y", -5.0, 5.0, lighting_config.SPOTLIGHT_POSITION_Y, 0.01, 2
         )
         self.controls['SPOTLIGHT_POSITION_Y'].valueChanged.connect(self._updateConfig)
         spotlightPosLayout.addWidget(self.controls['SPOTLIGHT_POSITION_Y'])
         
         self.controls['SPOTLIGHT_POSITION_Z'] = ControlRow(
-            "Position Z", -2.0, 2.0, lighting_config.SPOTLIGHT_POSITION_Z, 0.01, 2
+            "Position Z", -5.0, 5.0, lighting_config.SPOTLIGHT_POSITION_Z, 0.01, 2
         )
         self.controls['SPOTLIGHT_POSITION_Z'].valueChanged.connect(self._updateConfig)
         spotlightPosLayout.addWidget(self.controls['SPOTLIGHT_POSITION_Z'])
@@ -302,19 +303,19 @@ class LightingControlsWidget(QWidget):
         spotlightTargetGroup.setLayout(spotlightTargetLayout)
         
         self.controls['SPOTLIGHT_TARGET_X'] = ControlRow(
-            "Target X", -2.0, 2.0, lighting_config.SPOTLIGHT_TARGET_X, 0.01, 2
+            "Target X", -5.0, 5.0, lighting_config.SPOTLIGHT_TARGET_X, 0.01, 2
         )
         self.controls['SPOTLIGHT_TARGET_X'].valueChanged.connect(self._updateConfig)
         spotlightTargetLayout.addWidget(self.controls['SPOTLIGHT_TARGET_X'])
         
         self.controls['SPOTLIGHT_TARGET_Y'] = ControlRow(
-            "Target Y", -2.0, 2.0, lighting_config.SPOTLIGHT_TARGET_Y, 0.01, 2
+            "Target Y", -5.0, 5.0, lighting_config.SPOTLIGHT_TARGET_Y, 0.01, 2
         )
         self.controls['SPOTLIGHT_TARGET_Y'].valueChanged.connect(self._updateConfig)
         spotlightTargetLayout.addWidget(self.controls['SPOTLIGHT_TARGET_Y'])
         
         self.controls['SPOTLIGHT_TARGET_Z'] = ControlRow(
-            "Target Z", -2.0, 2.0, lighting_config.SPOTLIGHT_TARGET_Z, 0.01, 2
+            "Target Z", -5.0, 5.0, lighting_config.SPOTLIGHT_TARGET_Z, 0.01, 2
         )
         self.controls['SPOTLIGHT_TARGET_Z'].valueChanged.connect(self._updateConfig)
         spotlightTargetLayout.addWidget(self.controls['SPOTLIGHT_TARGET_Z'])
