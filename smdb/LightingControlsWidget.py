@@ -313,7 +313,7 @@ class LightingControlsWidget(QWidget):
         
         # ========== LIGHTING SECTION (Collapsible) ==========
         lightingSection = CollapsibleBox("Lighting")
-        lightingSection.setExpanded(True)  # Start expanded
+        lightingSection.setExpanded(False)  # Start collapsed
         containerLayout.addWidget(lightingSection)
         
         self.controls['SPOTLIGHT_POSITION_X'] = ControlRow(
