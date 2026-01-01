@@ -316,279 +316,189 @@ class LightingControlsWidget(QWidget):
         lightingSection.setExpanded(True)  # Start expanded
         containerLayout.addWidget(lightingSection)
         
-        # Spotlight Position Group
-        spotlightPosGroup = QGroupBox("Spotlight Position")
-        spotlightPosGroup.setStyleSheet(f"QGroupBox {{ font-weight: bold; padding-top: 15px; }}")
-        spotlightPosLayout = QVBoxLayout()
-        spotlightPosLayout.setSpacing(5)
-        spotlightPosGroup.setLayout(spotlightPosLayout)
-        
         self.controls['SPOTLIGHT_POSITION_X'] = ControlRow(
             "Position X", -5.0, 5.0, lighting_config.SPOTLIGHT_POSITION_X, 0.01, 2
         )
         self.controls['SPOTLIGHT_POSITION_X'].valueChanged.connect(self._updateConfig)
-        spotlightPosLayout.addWidget(self.controls['SPOTLIGHT_POSITION_X'])
+        lightingSection.addWidget(self.controls['SPOTLIGHT_POSITION_X'])
         
         self.controls['SPOTLIGHT_POSITION_Y'] = ControlRow(
             "Position Y", -5.0, 5.0, lighting_config.SPOTLIGHT_POSITION_Y, 0.01, 2
         )
         self.controls['SPOTLIGHT_POSITION_Y'].valueChanged.connect(self._updateConfig)
-        spotlightPosLayout.addWidget(self.controls['SPOTLIGHT_POSITION_Y'])
+        lightingSection.addWidget(self.controls['SPOTLIGHT_POSITION_Y'])
         
         self.controls['SPOTLIGHT_POSITION_Z'] = ControlRow(
             "Position Z", -5.0, 5.0, lighting_config.SPOTLIGHT_POSITION_Z, 0.01, 2
         )
         self.controls['SPOTLIGHT_POSITION_Z'].valueChanged.connect(self._updateConfig)
-        spotlightPosLayout.addWidget(self.controls['SPOTLIGHT_POSITION_Z'])
-        
-        lightingSection.addWidget(spotlightPosGroup)
-        
-        # Spotlight Target Position Group
-        spotlightTargetGroup = QGroupBox("Spotlight Target Position")
-        spotlightTargetGroup.setStyleSheet(f"QGroupBox {{ font-weight: bold; padding-top: 15px; }}")
-        spotlightTargetLayout = QVBoxLayout()
-        spotlightTargetLayout.setSpacing(5)
-        spotlightTargetGroup.setLayout(spotlightTargetLayout)
+        lightingSection.addWidget(self.controls['SPOTLIGHT_POSITION_Z'])
         
         self.controls['SPOTLIGHT_TARGET_X'] = ControlRow(
             "Target X", -5.0, 5.0, lighting_config.SPOTLIGHT_TARGET_X, 0.01, 2
         )
         self.controls['SPOTLIGHT_TARGET_X'].valueChanged.connect(self._updateConfig)
-        spotlightTargetLayout.addWidget(self.controls['SPOTLIGHT_TARGET_X'])
+        lightingSection.addWidget(self.controls['SPOTLIGHT_TARGET_X'])
         
         self.controls['SPOTLIGHT_TARGET_Y'] = ControlRow(
             "Target Y", -5.0, 5.0, lighting_config.SPOTLIGHT_TARGET_Y, 0.01, 2
         )
         self.controls['SPOTLIGHT_TARGET_Y'].valueChanged.connect(self._updateConfig)
-        spotlightTargetLayout.addWidget(self.controls['SPOTLIGHT_TARGET_Y'])
+        lightingSection.addWidget(self.controls['SPOTLIGHT_TARGET_Y'])
         
         self.controls['SPOTLIGHT_TARGET_Z'] = ControlRow(
             "Target Z", -5.0, 5.0, lighting_config.SPOTLIGHT_TARGET_Z, 0.01, 2
         )
         self.controls['SPOTLIGHT_TARGET_Z'].valueChanged.connect(self._updateConfig)
-        spotlightTargetLayout.addWidget(self.controls['SPOTLIGHT_TARGET_Z'])
-        
-        lightingSection.addWidget(spotlightTargetGroup)
-        
-        # Spotlight Properties Group
-        spotlightPropsGroup = QGroupBox("Spotlight Properties")
-        spotlightPropsGroup.setStyleSheet(f"QGroupBox {{ font-weight: bold; padding-top: 15px; }}")
-        spotlightPropsLayout = QVBoxLayout()
-        spotlightPropsLayout.setSpacing(5)
-        spotlightPropsGroup.setLayout(spotlightPropsLayout)
+        lightingSection.addWidget(self.controls['SPOTLIGHT_TARGET_Z'])
         
         self.controls['SPOTLIGHT_CONE_ANGLE'] = ControlRow(
             "Cone Angle", 0.0, 90.0, lighting_config.SPOTLIGHT_CONE_ANGLE, 0.1, 1
         )
         self.controls['SPOTLIGHT_CONE_ANGLE'].valueChanged.connect(self._updateConfig)
-        spotlightPropsLayout.addWidget(self.controls['SPOTLIGHT_CONE_ANGLE'])
+        lightingSection.addWidget(self.controls['SPOTLIGHT_CONE_ANGLE'])
         
         self.controls['SPOTLIGHT_INNER_CONE_ANGLE'] = ControlRow(
             "Inner Cone Angle", 0.0, 90.0, lighting_config.SPOTLIGHT_INNER_CONE_ANGLE, 0.1, 1
         )
         self.controls['SPOTLIGHT_INNER_CONE_ANGLE'].valueChanged.connect(self._updateConfig)
-        spotlightPropsLayout.addWidget(self.controls['SPOTLIGHT_INNER_CONE_ANGLE'])
+        lightingSection.addWidget(self.controls['SPOTLIGHT_INNER_CONE_ANGLE'])
         
         self.controls['SPOTLIGHT_CENTER_BOOST'] = ControlRow(
             "Center Boost", 0.0, 20.0, lighting_config.SPOTLIGHT_CENTER_BOOST, 0.1, 1
         )
         self.controls['SPOTLIGHT_CENTER_BOOST'].valueChanged.connect(self._updateConfig)
-        spotlightPropsLayout.addWidget(self.controls['SPOTLIGHT_CENTER_BOOST'])
+        lightingSection.addWidget(self.controls['SPOTLIGHT_CENTER_BOOST'])
         
         self.controls['SPOTLIGHT_INTENSITY'] = ControlRow(
             "Intensity", 0.0, 100.0, lighting_config.SPOTLIGHT_INTENSITY, 0.1, 1
         )
         self.controls['SPOTLIGHT_INTENSITY'].valueChanged.connect(self._updateConfig)
-        spotlightPropsLayout.addWidget(self.controls['SPOTLIGHT_INTENSITY'])
+        lightingSection.addWidget(self.controls['SPOTLIGHT_INTENSITY'])
         
         self.controls['SPOTLIGHT_ATTENUATION_LINEAR'] = ControlRow(
             "Attenuation Linear", 0.0, 1.0, lighting_config.SPOTLIGHT_ATTENUATION_LINEAR, 0.001, 3
         )
         self.controls['SPOTLIGHT_ATTENUATION_LINEAR'].valueChanged.connect(self._updateConfig)
-        spotlightPropsLayout.addWidget(self.controls['SPOTLIGHT_ATTENUATION_LINEAR'])
+        lightingSection.addWidget(self.controls['SPOTLIGHT_ATTENUATION_LINEAR'])
         
         self.controls['SPOTLIGHT_ATTENUATION_QUADRATIC'] = ControlRow(
             "Attenuation Quadratic", 0.0, 1.0, lighting_config.SPOTLIGHT_ATTENUATION_QUADRATIC, 0.0001, 4
         )
         self.controls['SPOTLIGHT_ATTENUATION_QUADRATIC'].valueChanged.connect(self._updateConfig)
-        spotlightPropsLayout.addWidget(self.controls['SPOTLIGHT_ATTENUATION_QUADRATIC'])
-        
-        lightingSection.addWidget(spotlightPropsGroup)
-        
-        # Spotlight Color Group
-        spotlightColorGroup = QGroupBox("Spotlight Colors")
-        spotlightColorGroup.setStyleSheet(f"QGroupBox {{ font-weight: bold; padding-top: 15px; }}")
-        spotlightColorLayout = QVBoxLayout()
-        spotlightColorLayout.setSpacing(5)
-        spotlightColorGroup.setLayout(spotlightColorLayout)
+        lightingSection.addWidget(self.controls['SPOTLIGHT_ATTENUATION_QUADRATIC'])
         
         self.controls['SPOTLIGHT_CENTER_COLOR'] = ColorControlRow(
             "Center Color", lighting_config.SPOTLIGHT_CENTER_COLOR
         )
         self.controls['SPOTLIGHT_CENTER_COLOR'].valueChanged.connect(self._updateConfig)
-        spotlightColorLayout.addWidget(self.controls['SPOTLIGHT_CENTER_COLOR'])
+        lightingSection.addWidget(self.controls['SPOTLIGHT_CENTER_COLOR'])
         
         self.controls['SPOTLIGHT_EDGE_COLOR'] = ColorControlRow(
             "Edge Color", lighting_config.SPOTLIGHT_EDGE_COLOR
         )
         self.controls['SPOTLIGHT_EDGE_COLOR'].valueChanged.connect(self._updateConfig)
-        spotlightColorLayout.addWidget(self.controls['SPOTLIGHT_EDGE_COLOR'])
+        lightingSection.addWidget(self.controls['SPOTLIGHT_EDGE_COLOR'])
         
         self.controls['SPOTLIGHT_COLOR_BLEND_EXPONENT'] = ControlRow(
             "Color Blend Exponent", 0.0, 20.0, lighting_config.SPOTLIGHT_COLOR_BLEND_EXPONENT, 0.1, 1
         )
         self.controls['SPOTLIGHT_COLOR_BLEND_EXPONENT'].valueChanged.connect(self._updateConfig)
-        spotlightColorLayout.addWidget(self.controls['SPOTLIGHT_COLOR_BLEND_EXPONENT'])
+        lightingSection.addWidget(self.controls['SPOTLIGHT_COLOR_BLEND_EXPONENT'])
         
         self.controls['SPOTLIGHT_COLOR_BLEND_START'] = ControlRow(
             "Color Blend Start", 0.0, 1.0, lighting_config.SPOTLIGHT_COLOR_BLEND_START, 0.01, 2
         )
         self.controls['SPOTLIGHT_COLOR_BLEND_START'].valueChanged.connect(self._updateConfig)
-        spotlightColorLayout.addWidget(self.controls['SPOTLIGHT_COLOR_BLEND_START'])
+        lightingSection.addWidget(self.controls['SPOTLIGHT_COLOR_BLEND_START'])
         
         self.controls['SPOTLIGHT_COLOR_BLEND_END'] = ControlRow(
             "Color Blend End", 0.0, 1.0, lighting_config.SPOTLIGHT_COLOR_BLEND_END, 0.01, 2
         )
         self.controls['SPOTLIGHT_COLOR_BLEND_END'].valueChanged.connect(self._updateConfig)
-        spotlightColorLayout.addWidget(self.controls['SPOTLIGHT_COLOR_BLEND_END'])
-        
-        lightingSection.addWidget(spotlightColorGroup)
-        
-        # Ambient Light Group
-        ambientGroup = QGroupBox("Ambient Light")
-        ambientGroup.setStyleSheet(f"QGroupBox {{ font-weight: bold; padding-top: 15px; }}")
-        ambientLayout = QVBoxLayout()
-        ambientLayout.setSpacing(5)
-        ambientGroup.setLayout(ambientLayout)
+        lightingSection.addWidget(self.controls['SPOTLIGHT_COLOR_BLEND_END'])
         
         self.controls['AMBIENT_LIGHT'] = ControlRow(
             "Ambient Light", 0.0, 1.0, lighting_config.AMBIENT_LIGHT, 0.01, 2
         )
         self.controls['AMBIENT_LIGHT'].valueChanged.connect(self._updateConfig)
-        ambientLayout.addWidget(self.controls['AMBIENT_LIGHT'])
-        
-        lightingSection.addWidget(ambientGroup)
-        
-        # Visualization Group
-        visualizationGroup = QGroupBox("Visualization")
-        visualizationGroup.setStyleSheet(f"QGroupBox {{ font-weight: bold; padding-top: 15px; }}")
-        visualizationLayout = QVBoxLayout()
-        visualizationLayout.setSpacing(5)
-        visualizationGroup.setLayout(visualizationLayout)
+        lightingSection.addWidget(self.controls['AMBIENT_LIGHT'])
         
         # Spotlight wireframe checkbox
         self.spotlightWireframeCheckbox = QCheckBox("Show Spotlight Wireframe")
         self.spotlightWireframeCheckbox.setChecked(lighting_config.SPOTLIGHT_WIREFRAME_ENABLED)
         self.spotlightWireframeCheckbox.stateChanged.connect(self._updateConfig)
-        visualizationLayout.addWidget(self.spotlightWireframeCheckbox)
-        
-        lightingSection.addWidget(visualizationGroup)
-        
-        # Shadow Configuration Group
-        shadowGroup = QGroupBox("Shadow Configuration")
-        shadowGroup.setStyleSheet(f"QGroupBox {{ font-weight: bold; padding-top: 15px; }}")
-        shadowLayout = QVBoxLayout()
-        shadowLayout.setSpacing(5)
-        shadowGroup.setLayout(shadowLayout)
+        lightingSection.addWidget(self.spotlightWireframeCheckbox)
         
         # Shadow enabled checkbox
         self.shadowEnabledCheckbox = QCheckBox("Enable Shadows")
         self.shadowEnabledCheckbox.setChecked(lighting_config.SHADOW_ENABLED)
         self.shadowEnabledCheckbox.stateChanged.connect(self._updateConfig)
-        shadowLayout.addWidget(self.shadowEnabledCheckbox)
+        lightingSection.addWidget(self.shadowEnabledCheckbox)
         
         self.controls['SHADOW_MAP_SIZE'] = ControlRow(
             "Shadow Map Size", 512, 4096, lighting_config.SHADOW_MAP_SIZE, 128, 0
         )
         self.controls['SHADOW_MAP_SIZE'].valueChanged.connect(self._updateConfig)
-        shadowLayout.addWidget(self.controls['SHADOW_MAP_SIZE'])
+        lightingSection.addWidget(self.controls['SHADOW_MAP_SIZE'])
         
         self.controls['SHADOW_BIAS'] = ControlRow(
             "Shadow Bias", 0.0, 0.1, lighting_config.SHADOW_BIAS, 0.0001, 4
         )
         self.controls['SHADOW_BIAS'].valueChanged.connect(self._updateConfig)
-        shadowLayout.addWidget(self.controls['SHADOW_BIAS'])
+        lightingSection.addWidget(self.controls['SHADOW_BIAS'])
         
         self.controls['SHADOW_DARKNESS'] = ControlRow(
             "Shadow Darkness", 0.0, 1.0, lighting_config.SHADOW_DARKNESS, 0.01, 2
         )
         self.controls['SHADOW_DARKNESS'].valueChanged.connect(self._updateConfig)
-        shadowLayout.addWidget(self.controls['SHADOW_DARKNESS'])
-        
-        lightingSection.addWidget(shadowGroup)
+        lightingSection.addWidget(self.controls['SHADOW_DARKNESS'])
         
         # ========== BOX MATERIAL SECTION (Collapsible) ==========
         boxMaterialSection = CollapsibleBox("Box Material")
         boxMaterialSection.setExpanded(False)  # Start collapsed
         containerLayout.addWidget(boxMaterialSection)
         
-        # Material Properties Group
-        materialGroup = QGroupBox("Material Properties")
-        materialGroup.setStyleSheet(f"QGroupBox {{ font-weight: bold; padding-top: 15px; }}")
-        materialLayout = QVBoxLayout()
-        materialLayout.setSpacing(5)
-        materialGroup.setLayout(materialLayout)
-        
         self.controls['MATERIAL_BASE_COLOR'] = ColorControlRow(
-            "Base Color", lighting_config.MATERIAL_BASE_COLOR
+            "Texture Multiplier", lighting_config.MATERIAL_BASE_COLOR
         )
         self.controls['MATERIAL_BASE_COLOR'].valueChanged.connect(self._updateConfig)
-        materialLayout.addWidget(self.controls['MATERIAL_BASE_COLOR'])
+        boxMaterialSection.addWidget(self.controls['MATERIAL_BASE_COLOR'])
         
         self.controls['MATERIAL_METALLIC'] = ControlRow(
             "Metallic", 0.0, 1.0, lighting_config.MATERIAL_METALLIC, 0.01, 2
         )
         self.controls['MATERIAL_METALLIC'].valueChanged.connect(self._updateConfig)
-        materialLayout.addWidget(self.controls['MATERIAL_METALLIC'])
+        boxMaterialSection.addWidget(self.controls['MATERIAL_METALLIC'])
         
         self.controls['MATERIAL_ROUGHNESS'] = ControlRow(
             "Roughness", 0.0, 1.0, lighting_config.MATERIAL_ROUGHNESS, 0.001, 3
         )
         self.controls['MATERIAL_ROUGHNESS'].valueChanged.connect(self._updateConfig)
-        materialLayout.addWidget(self.controls['MATERIAL_ROUGHNESS'])
+        boxMaterialSection.addWidget(self.controls['MATERIAL_ROUGHNESS'])
         
         self.controls['MATERIAL_AO'] = ControlRow(
-            "Ambient Occlusion", 0.0, 1.0, lighting_config.MATERIAL_AO, 0.01, 2
+            "AO", 0.0, 1.0, lighting_config.MATERIAL_AO, 0.01, 2
         )
         self.controls['MATERIAL_AO'].valueChanged.connect(self._updateConfig)
-        materialLayout.addWidget(self.controls['MATERIAL_AO'])
-        
-        boxMaterialSection.addWidget(materialGroup)
-        
-        # Box Color Group
-        boxColorGroup = QGroupBox("VHS Box Color")
-        boxColorGroup.setStyleSheet(f"QGroupBox {{ font-weight: bold; padding-top: 15px; }}")
-        boxColorLayout = QVBoxLayout()
-        boxColorLayout.setSpacing(5)
-        boxColorGroup.setLayout(boxColorLayout)
+        boxMaterialSection.addWidget(self.controls['MATERIAL_AO'])
         
         self.controls['BOX_COLOR'] = ColorControlRow(
             "Box Color", lighting_config.BOX_COLOR
         )
         self.controls['BOX_COLOR'].valueChanged.connect(self._updateConfig)
-        boxColorLayout.addWidget(self.controls['BOX_COLOR'])
-        
-        boxMaterialSection.addWidget(boxColorGroup)
+        boxMaterialSection.addWidget(self.controls['BOX_COLOR'])
         
         # ========== GROUND MATERIAL SECTION (Collapsible) ==========
         groundMaterialSection = CollapsibleBox("Ground Material")
         groundMaterialSection.setExpanded(False)  # Start collapsed
         containerLayout.addWidget(groundMaterialSection)
         
-        # Ground Material Group
-        groundGroup = QGroupBox("Ground Material")
-        groundGroup.setStyleSheet(f"QGroupBox {{ font-weight: bold; padding-top: 15px; }}")
-        groundLayout = QVBoxLayout()
-        groundLayout.setSpacing(5)
-        groundGroup.setLayout(groundLayout)
-        
         self.controls['GROUND_BASE_COLOR'] = ColorControlRow(
             "Ground Base Color", lighting_config.GROUND_BASE_COLOR, max_value=2.0
         )
         self.controls['GROUND_BASE_COLOR'].valueChanged.connect(self._updateConfig)
-        groundLayout.addWidget(self.controls['GROUND_BASE_COLOR'])
-        
-        groundMaterialSection.addWidget(groundGroup)
+        groundMaterialSection.addWidget(self.controls['GROUND_BASE_COLOR'])
         
         # Reset button
         resetButton = QPushButton("Reset to Defaults")
