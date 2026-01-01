@@ -7,10 +7,52 @@ constants used in the CoverFlow 3D rendering.
 
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                               QSlider, QDoubleSpinBox, QGroupBox, QScrollArea,
-                              QFrame, QPushButton, QCheckBox, QSizePolicy)
-from PyQt5.QtCore import Qt, pyqtSignal, QSettings
+                              QFrame, QPushButton, QCheckBox, QSizePolicy, QToolButton)
+from PyQt5.QtCore import Qt, pyqtSignal, QSettings, QPropertyAnimation, QParallelAnimationGroup
 from . import lighting_config
 import importlib
+
+
+class CollapsibleBox(QWidget):
+    """A collapsible group box widget."""
+    
+    def __init__(self, title="", parent=None):
+        super().__init__(parent)
+        
+        self.toggle_button = QToolButton()
+        self.toggle_button.setStyleSheet("QToolButton { border: none; font-weight: bold; font-size: 12px; }")
+        self.toggle_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.toggle_button.setArrowType(Qt.RightArrow)
+        self.toggle_button.setText(title)
+        self.toggle_button.setCheckable(True)
+        self.toggle_button.setChecked(False)
+        
+        self.content_area = QWidget()
+        self.content_layout = QVBoxLayout()
+        self.content_layout.setContentsMargins(15, 5, 5, 5)
+        self.content_layout.setSpacing(5)
+        self.content_area.setLayout(self.content_layout)
+        self.content_area.setVisible(False)
+        
+        lay = QVBoxLayout(self)
+        lay.setSpacing(0)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(self.toggle_button)
+        lay.addWidget(self.content_area)
+        
+        self.toggle_button.clicked.connect(self.toggle)
+    
+    def toggle(self):
+        checked = self.toggle_button.isChecked()
+        self.toggle_button.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
+        self.content_area.setVisible(checked)
+    
+    def addWidget(self, widget):
+        self.content_layout.addWidget(widget)
+    
+    def setExpanded(self, expanded):
+        self.toggle_button.setChecked(expanded)
+        self.toggle()
 
 
 class ControlRow(QWidget):
@@ -269,6 +311,11 @@ class LightingControlsWidget(QWidget):
         # Store control widgets for later access
         self.controls = {}
         
+        # ========== LIGHTING SECTION (Collapsible) ==========
+        lightingSection = CollapsibleBox("Lighting")
+        lightingSection.setExpanded(True)  # Start expanded
+        containerLayout.addWidget(lightingSection)
+        
         # Spotlight Position Group
         spotlightPosGroup = QGroupBox("Spotlight Position")
         spotlightPosGroup.setStyleSheet(f"QGroupBox {{ font-weight: bold; padding-top: 15px; }}")
@@ -294,7 +341,7 @@ class LightingControlsWidget(QWidget):
         self.controls['SPOTLIGHT_POSITION_Z'].valueChanged.connect(self._updateConfig)
         spotlightPosLayout.addWidget(self.controls['SPOTLIGHT_POSITION_Z'])
         
-        containerLayout.addWidget(spotlightPosGroup)
+        lightingSection.addWidget(spotlightPosGroup)
         
         # Spotlight Target Position Group
         spotlightTargetGroup = QGroupBox("Spotlight Target Position")
@@ -321,7 +368,7 @@ class LightingControlsWidget(QWidget):
         self.controls['SPOTLIGHT_TARGET_Z'].valueChanged.connect(self._updateConfig)
         spotlightTargetLayout.addWidget(self.controls['SPOTLIGHT_TARGET_Z'])
         
-        containerLayout.addWidget(spotlightTargetGroup)
+        lightingSection.addWidget(spotlightTargetGroup)
         
         # Spotlight Properties Group
         spotlightPropsGroup = QGroupBox("Spotlight Properties")
@@ -366,7 +413,7 @@ class LightingControlsWidget(QWidget):
         self.controls['SPOTLIGHT_ATTENUATION_QUADRATIC'].valueChanged.connect(self._updateConfig)
         spotlightPropsLayout.addWidget(self.controls['SPOTLIGHT_ATTENUATION_QUADRATIC'])
         
-        containerLayout.addWidget(spotlightPropsGroup)
+        lightingSection.addWidget(spotlightPropsGroup)
         
         # Spotlight Color Group
         spotlightColorGroup = QGroupBox("Spotlight Colors")
@@ -405,7 +452,7 @@ class LightingControlsWidget(QWidget):
         self.controls['SPOTLIGHT_COLOR_BLEND_END'].valueChanged.connect(self._updateConfig)
         spotlightColorLayout.addWidget(self.controls['SPOTLIGHT_COLOR_BLEND_END'])
         
-        containerLayout.addWidget(spotlightColorGroup)
+        lightingSection.addWidget(spotlightColorGroup)
         
         # Ambient Light Group
         ambientGroup = QGroupBox("Ambient Light")
@@ -420,70 +467,7 @@ class LightingControlsWidget(QWidget):
         self.controls['AMBIENT_LIGHT'].valueChanged.connect(self._updateConfig)
         ambientLayout.addWidget(self.controls['AMBIENT_LIGHT'])
         
-        containerLayout.addWidget(ambientGroup)
-        
-        # Material Properties Group
-        materialGroup = QGroupBox("Material Properties")
-        materialGroup.setStyleSheet(f"QGroupBox {{ font-weight: bold; padding-top: 15px; }}")
-        materialLayout = QVBoxLayout()
-        materialLayout.setSpacing(5)
-        materialGroup.setLayout(materialLayout)
-        
-        self.controls['MATERIAL_BASE_COLOR'] = ColorControlRow(
-            "Base Color", lighting_config.MATERIAL_BASE_COLOR
-        )
-        self.controls['MATERIAL_BASE_COLOR'].valueChanged.connect(self._updateConfig)
-        materialLayout.addWidget(self.controls['MATERIAL_BASE_COLOR'])
-        
-        self.controls['MATERIAL_METALLIC'] = ControlRow(
-            "Metallic", 0.0, 1.0, lighting_config.MATERIAL_METALLIC, 0.01, 2
-        )
-        self.controls['MATERIAL_METALLIC'].valueChanged.connect(self._updateConfig)
-        materialLayout.addWidget(self.controls['MATERIAL_METALLIC'])
-        
-        self.controls['MATERIAL_ROUGHNESS'] = ControlRow(
-            "Roughness", 0.0, 1.0, lighting_config.MATERIAL_ROUGHNESS, 0.001, 3
-        )
-        self.controls['MATERIAL_ROUGHNESS'].valueChanged.connect(self._updateConfig)
-        materialLayout.addWidget(self.controls['MATERIAL_ROUGHNESS'])
-        
-        self.controls['MATERIAL_AO'] = ControlRow(
-            "Ambient Occlusion", 0.0, 1.0, lighting_config.MATERIAL_AO, 0.01, 2
-        )
-        self.controls['MATERIAL_AO'].valueChanged.connect(self._updateConfig)
-        materialLayout.addWidget(self.controls['MATERIAL_AO'])
-        
-        containerLayout.addWidget(materialGroup)
-        
-        # Ground Material Group
-        groundGroup = QGroupBox("Ground Material")
-        groundGroup.setStyleSheet(f"QGroupBox {{ font-weight: bold; padding-top: 15px; }}")
-        groundLayout = QVBoxLayout()
-        groundLayout.setSpacing(5)
-        groundGroup.setLayout(groundLayout)
-        
-        self.controls['GROUND_BASE_COLOR'] = ColorControlRow(
-            "Ground Base Color", lighting_config.GROUND_BASE_COLOR, max_value=2.0
-        )
-        self.controls['GROUND_BASE_COLOR'].valueChanged.connect(self._updateConfig)
-        groundLayout.addWidget(self.controls['GROUND_BASE_COLOR'])
-        
-        containerLayout.addWidget(groundGroup)
-        
-        # Box Color Group
-        boxColorGroup = QGroupBox("VHS Box Color")
-        boxColorGroup.setStyleSheet(f"QGroupBox {{ font-weight: bold; padding-top: 15px; }}")
-        boxColorLayout = QVBoxLayout()
-        boxColorLayout.setSpacing(5)
-        boxColorGroup.setLayout(boxColorLayout)
-        
-        self.controls['BOX_COLOR'] = ColorControlRow(
-            "Box Color", lighting_config.BOX_COLOR
-        )
-        self.controls['BOX_COLOR'].valueChanged.connect(self._updateConfig)
-        boxColorLayout.addWidget(self.controls['BOX_COLOR'])
-        
-        containerLayout.addWidget(boxColorGroup)
+        lightingSection.addWidget(ambientGroup)
         
         # Visualization Group
         visualizationGroup = QGroupBox("Visualization")
@@ -498,7 +482,7 @@ class LightingControlsWidget(QWidget):
         self.spotlightWireframeCheckbox.stateChanged.connect(self._updateConfig)
         visualizationLayout.addWidget(self.spotlightWireframeCheckbox)
         
-        containerLayout.addWidget(visualizationGroup)
+        lightingSection.addWidget(visualizationGroup)
         
         # Shadow Configuration Group
         shadowGroup = QGroupBox("Shadow Configuration")
@@ -531,7 +515,80 @@ class LightingControlsWidget(QWidget):
         self.controls['SHADOW_DARKNESS'].valueChanged.connect(self._updateConfig)
         shadowLayout.addWidget(self.controls['SHADOW_DARKNESS'])
         
-        containerLayout.addWidget(shadowGroup)
+        lightingSection.addWidget(shadowGroup)
+        
+        # ========== BOX MATERIAL SECTION (Collapsible) ==========
+        boxMaterialSection = CollapsibleBox("Box Material")
+        boxMaterialSection.setExpanded(False)  # Start collapsed
+        containerLayout.addWidget(boxMaterialSection)
+        
+        # Material Properties Group
+        materialGroup = QGroupBox("Material Properties")
+        materialGroup.setStyleSheet(f"QGroupBox {{ font-weight: bold; padding-top: 15px; }}")
+        materialLayout = QVBoxLayout()
+        materialLayout.setSpacing(5)
+        materialGroup.setLayout(materialLayout)
+        
+        self.controls['MATERIAL_BASE_COLOR'] = ColorControlRow(
+            "Base Color", lighting_config.MATERIAL_BASE_COLOR
+        )
+        self.controls['MATERIAL_BASE_COLOR'].valueChanged.connect(self._updateConfig)
+        materialLayout.addWidget(self.controls['MATERIAL_BASE_COLOR'])
+        
+        self.controls['MATERIAL_METALLIC'] = ControlRow(
+            "Metallic", 0.0, 1.0, lighting_config.MATERIAL_METALLIC, 0.01, 2
+        )
+        self.controls['MATERIAL_METALLIC'].valueChanged.connect(self._updateConfig)
+        materialLayout.addWidget(self.controls['MATERIAL_METALLIC'])
+        
+        self.controls['MATERIAL_ROUGHNESS'] = ControlRow(
+            "Roughness", 0.0, 1.0, lighting_config.MATERIAL_ROUGHNESS, 0.001, 3
+        )
+        self.controls['MATERIAL_ROUGHNESS'].valueChanged.connect(self._updateConfig)
+        materialLayout.addWidget(self.controls['MATERIAL_ROUGHNESS'])
+        
+        self.controls['MATERIAL_AO'] = ControlRow(
+            "Ambient Occlusion", 0.0, 1.0, lighting_config.MATERIAL_AO, 0.01, 2
+        )
+        self.controls['MATERIAL_AO'].valueChanged.connect(self._updateConfig)
+        materialLayout.addWidget(self.controls['MATERIAL_AO'])
+        
+        boxMaterialSection.addWidget(materialGroup)
+        
+        # Box Color Group
+        boxColorGroup = QGroupBox("VHS Box Color")
+        boxColorGroup.setStyleSheet(f"QGroupBox {{ font-weight: bold; padding-top: 15px; }}")
+        boxColorLayout = QVBoxLayout()
+        boxColorLayout.setSpacing(5)
+        boxColorGroup.setLayout(boxColorLayout)
+        
+        self.controls['BOX_COLOR'] = ColorControlRow(
+            "Box Color", lighting_config.BOX_COLOR
+        )
+        self.controls['BOX_COLOR'].valueChanged.connect(self._updateConfig)
+        boxColorLayout.addWidget(self.controls['BOX_COLOR'])
+        
+        boxMaterialSection.addWidget(boxColorGroup)
+        
+        # ========== GROUND MATERIAL SECTION (Collapsible) ==========
+        groundMaterialSection = CollapsibleBox("Ground Material")
+        groundMaterialSection.setExpanded(False)  # Start collapsed
+        containerLayout.addWidget(groundMaterialSection)
+        
+        # Ground Material Group
+        groundGroup = QGroupBox("Ground Material")
+        groundGroup.setStyleSheet(f"QGroupBox {{ font-weight: bold; padding-top: 15px; }}")
+        groundLayout = QVBoxLayout()
+        groundLayout.setSpacing(5)
+        groundGroup.setLayout(groundLayout)
+        
+        self.controls['GROUND_BASE_COLOR'] = ColorControlRow(
+            "Ground Base Color", lighting_config.GROUND_BASE_COLOR, max_value=2.0
+        )
+        self.controls['GROUND_BASE_COLOR'].valueChanged.connect(self._updateConfig)
+        groundLayout.addWidget(self.controls['GROUND_BASE_COLOR'])
+        
+        groundMaterialSection.addWidget(groundGroup)
         
         # Reset button
         resetButton = QPushButton("Reset to Defaults")
