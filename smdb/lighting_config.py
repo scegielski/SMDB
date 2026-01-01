@@ -25,15 +25,15 @@ SPOTLIGHT_COLOR_BLEND_EXPONENT = 7.0      # Color blending curve (higher = more 
 SPOTLIGHT_COLOR_BLEND_START = 0.9         # Radial position where color blend starts (0=edge, 1=center)
 SPOTLIGHT_COLOR_BLEND_END = 1.0           # Radial position where color blend ends (0=edge, 1=center)
 SPOTLIGHT_COLOR = (1.0, 1.0, 1.0)  # Warm white light (RGB 0-1)
-SPOTLIGHT_INTENSITY = 20.0      # Light intensity (higher = brighter)
+SPOTLIGHT_INTENSITY = 8.0      # Light intensity (higher = brighter)
 SPOTLIGHT_ATTENUATION_LINEAR = 0.01   # Linear distance falloff (lower = softer, 0 = no falloff)
 SPOTLIGHT_ATTENUATION_QUADRATIC = 0.001  # Quadratic distance falloff (lower = softer, 0 = no falloff)
 AMBIENT_LIGHT = 0.0              # Ambient lighting constant (0 = no ambient light)
 
 # PBR Material properties for VHS boxes
-MATERIAL_BASE_COLOR = (0.5, 0.5, 0.5)  # Base color tint (multiplied with texture)
+MATERIAL_BASE_COLOR = (1.0, 1.0, 1.0)  # Base color tint (multiplied with texture)
 MATERIAL_METALLIC = 0.0          # 0.0 = dielectric (plastic), 1.0 = metallic
-MATERIAL_ROUGHNESS = 0.075         # 0.0 = smooth/glossy, 1.0 = rough/matte
+MATERIAL_ROUGHNESS = 0.3         # 0.0 = smooth/glossy, 1.0 = rough/matte
 MATERIAL_AO = 1.0                # Ambient occlusion factor (0-1)
 
 # VHS box surface color (RGB 0-1) - used for all non-textured surfaces

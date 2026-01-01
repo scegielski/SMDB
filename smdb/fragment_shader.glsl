@@ -285,11 +285,11 @@ void main() {
     vec3 ambient = ambientLight * albedo * ao;
     vec3 color = ambient + Lo;
     
-    // HDR tone mapping (simple Reinhard)
-    color = color / (color + vec3(1.0));
+    // HDR tone mapping (gentler Reinhard to preserve saturation)
+    //color = color / (color + vec3(0.5));
     
     // Gamma correction (approximate)
-    color = pow(color, vec3(1.0 / 2.2));
+    //color = pow(color, vec3(1.0 / 2.2));
     
     gl_FragColor = vec4(color, alpha);
 }
