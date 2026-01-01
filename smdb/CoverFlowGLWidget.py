@@ -2234,15 +2234,33 @@ class CoverFlowGLWidget(QOpenGLWidget):
                             abs_offset = abs(effective_offset)
                             if abs_offset <= parabola_range:
                                 z_curve = (effective_offset * effective_offset) * parabola_coef
+                                curve_slope = 2 * parabola_coef * effective_offset
+                                curve_angle = math.atan(curve_slope) * (180.0 / math.pi) * 1.1
                             else:
                                 z_at_boundary = parabola_coef * parabola_range * parabola_range
                                 slope_at_boundary = 2 * parabola_coef * parabola_range
                                 distance_beyond = abs_offset - parabola_range
                                 z_curve = z_at_boundary + slope_at_boundary * distance_beyond
+                                sign = 1 if effective_offset >= 0 else -1
+                                curve_angle = math.atan(slope_at_boundary) * (180.0 / math.pi) * sign * 1.1
+                            
+                            # Calculate rotation (match main render)
+                            idx = self._current_index + i if hasattr(self, '_current_index') else i
+                            movie_rotation = self.movie_rotations.get(idx, 0.0) if hasattr(self, 'movie_rotations') else 0.0
+                            rotation_factor = max(0.0, 1.0 - abs(effective_offset))
+                            if movie_rotation > 90:
+                                if effective_offset > 0:
+                                    normalized_rotation = movie_rotation - 360
+                                    current_rotation = normalized_rotation * rotation_factor
+                                else:
+                                    current_rotation = movie_rotation * rotation_factor
+                            else:
+                                current_rotation = movie_rotation * rotation_factor
                             
                             # Render a simple box for shadows
                             glPushMatrix()
                             glTranslatef(x_offset, 0.0, -z_curve)
+                            glRotatef(current_rotation + curve_angle, 0.0, 1.0, 0.0)  # Apply rotation + curve angle
                             
                             quad_h = max_quad_h * 0.8
                             quad_w = self.STANDARD_ASPECT_RATIO * quad_h
