@@ -2200,11 +2200,79 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # Setup shadow mapping
             try:
                 if lighting_config.SHADOW_ENABLED and hasattr(self, 'shadow_map_texture') and self.shadow_map_texture:
-                    # Render shadow map first
+                    # Render shadow map - pass self so it can access current scroll_offset
                     def render_scene_for_shadows():
-                        # Render only the boxes (not ground plane) for shadow casting
-                        # The box should be at origin in world space
-                        self._renderAllBoxes(0, max_quad_h, max_quad_w, for_shadows=True)
+                        # Calculate scroll offset same way as main render
+                        scroll_offset_now = 0.0
+                        if getattr(self, '_scrolling', False):
+                            progress = self._scroll_progress
+                            smooth_progress = progress * progress * (3 - 2 * progress)
+                            index_delta = self._scroll_to - self._scroll_from
+                            scroll_offset_now = index_delta * smooth_progress
+                        
+                        # Add drag offset
+                        if hasattr(self, 'drag_offset'):
+                            scroll_offset_now += self.drag_offset
+                        
+                        # Render all visible boxes at their scroll positions
+                        num_surrounding = 10  # Match main render
+                        vertical_spacing = 0.65  # Match main render spacing
+                        
+                        # Render surrounding covers
+                        for i in range(-num_surrounding, num_surrounding + 1):
+                            offset_from_current = i
+                            effective_offset = offset_from_current - scroll_offset_now
+                            x_offset = effective_offset * vertical_spacing
+                            
+                            # Only render if reasonably close to center
+                            if abs(effective_offset) > 15:
+                                continue
+                            
+                            # Parabolic z-curve (match main render)
+                            parabola_range = 3.0
+                            parabola_coef = 0.3
+                            abs_offset = abs(effective_offset)
+                            if abs_offset <= parabola_range:
+                                z_curve = (effective_offset * effective_offset) * parabola_coef
+                            else:
+                                z_at_boundary = parabola_coef * parabola_range * parabola_range
+                                slope_at_boundary = 2 * parabola_coef * parabola_range
+                                distance_beyond = abs_offset - parabola_range
+                                z_curve = z_at_boundary + slope_at_boundary * distance_beyond
+                            
+                            # Render a simple box for shadows
+                            glPushMatrix()
+                            glTranslatef(x_offset, 0.0, -z_curve)
+                            
+                            quad_h = max_quad_h * 0.8
+                            quad_w = self.STANDARD_ASPECT_RATIO * quad_h
+                            if quad_w > max_quad_w * 0.8:
+                                quad_w = max_quad_w * 0.8
+                                quad_h = quad_w / self.STANDARD_ASPECT_RATIO
+                            
+                            half_w = quad_w / 2
+                            half_h = quad_h / 2
+                            depth = quad_h * 0.13
+                            half_d = depth / 2
+                            
+                            # Simple box geometry for shadow casting
+                            glBegin(GL_QUADS)
+                            # Front, back, top, bottom, left, right
+                            glVertex3f(-half_w, -half_h, half_d); glVertex3f(half_w, -half_h, half_d)
+                            glVertex3f(half_w, half_h, half_d); glVertex3f(-half_w, half_h, half_d)
+                            glVertex3f(-half_w, -half_h, -half_d); glVertex3f(half_w, -half_h, -half_d)
+                            glVertex3f(half_w, half_h, -half_d); glVertex3f(-half_w, half_h, -half_d)
+                            glVertex3f(-half_w, half_h, half_d); glVertex3f(half_w, half_h, half_d)
+                            glVertex3f(half_w, half_h, -half_d); glVertex3f(-half_w, half_h, -half_d)
+                            glVertex3f(-half_w, -half_h, half_d); glVertex3f(half_w, -half_h, half_d)
+                            glVertex3f(half_w, -half_h, -half_d); glVertex3f(-half_w, -half_h, -half_d)
+                            glVertex3f(-half_w, -half_h, half_d); glVertex3f(-half_w, half_h, half_d)
+                            glVertex3f(-half_w, half_h, -half_d); glVertex3f(-half_w, -half_h, -half_d)
+                            glVertex3f(half_w, -half_h, half_d); glVertex3f(half_w, half_h, half_d)
+                            glVertex3f(half_w, half_h, -half_d); glVertex3f(half_w, -half_h, -half_d)
+                            glEnd()
+                            
+                            glPopMatrix()
                     
                     light_view, light_proj = self.renderShadowMap(render_scene_for_shadows)
                     
