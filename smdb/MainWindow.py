@@ -3505,6 +3505,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 if not isinstance(jsonSimilarMovies, list):
                     jsonSimilarMovies = [jsonSimilarMovies] if jsonSimilarMovies else []
 
+                jsonRecommendedMovies = jsonData.get('recommended movies') or []
+                if not isinstance(jsonRecommendedMovies, list):
+                    jsonRecommendedMovies = [jsonRecommendedMovies] if jsonRecommendedMovies else []
+
                 # Known duplicate status
                 knownDuplicate = jsonData.get('known duplicate', False)
 
@@ -3570,6 +3574,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     'subtitles exist': subtitlesExist,
                     'date watched': dateWatched,
                     'similar movies': jsonSimilarMovies,
+                    'recommended movies': jsonRecommendedMovies,
                     'known duplicate': knownDuplicate,
                     'plot': jsonPlot,
                     'synopsis': jsonSynopsis
