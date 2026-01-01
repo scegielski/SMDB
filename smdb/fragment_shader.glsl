@@ -16,6 +16,7 @@ uniform float checkerboardScale;
 uniform bool useShadows;
 uniform float shadowBias;
 uniform float shadowDarkness;
+uniform float shadowMapSize;
 
 // Light properties
 uniform vec3 lightPosition;
@@ -258,7 +259,7 @@ void main() {
                 
                 // Sample shadow map with PCF (Percentage Closer Filtering) for soft shadows
                 float shadowSum = 0.0;
-                float texelSize = 1.0 / 2048.0; // Should match SHADOW_MAP_SIZE
+                float texelSize = 1.0 / shadowMapSize;
                 int pcfSamples = 0;
                 
                 // 3x3 PCF kernel with manual depth comparison

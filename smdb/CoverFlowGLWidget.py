@@ -935,6 +935,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             self.uniform_use_shadows = glGetUniformLocation(self.shader_program, "useShadows")
             self.uniform_shadow_bias = glGetUniformLocation(self.shader_program, "shadowBias")
             self.uniform_shadow_darkness = glGetUniformLocation(self.shader_program, "shadowDarkness")
+            self.uniform_shadow_map_size = glGetUniformLocation(self.shader_program, "shadowMapSize")
             
             # Debug: Print uniform locations
             print(f"Shadow uniform locations: shadowMap={self.uniform_shadow_map}, "
@@ -972,9 +973,16 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 print("Shadows disabled, skipping shadow map creation")
                 self.shadow_fbo = None
                 self.shadow_map_texture = None
+                self._current_shadow_map_size = None
                 return
             
             shadow_map_size = int(lighting_config.SHADOW_MAP_SIZE)
+            
+            # Clean up existing shadow map if it exists
+            if hasattr(self, 'shadow_map_texture') and self.shadow_map_texture:
+                glDeleteTextures([self.shadow_map_texture])
+            if hasattr(self, 'shadow_fbo') and self.shadow_fbo:
+                glDeleteFramebuffers(1, [self.shadow_fbo])
             
             # Create shadow map texture
             self.shadow_map_texture = glGenTextures(1)
@@ -995,18 +1003,16 @@ class CoverFlowGLWidget(QOpenGLWidget):
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, 
                                   self.shadow_map_texture, 0)
             
-            # Don't need color buffer for shadow map
-            glDrawBuffer(GL_NONE)
-            glReadBuffer(GL_NONE)
-            
             # Check framebuffer status
             status = glCheckFramebufferStatus(GL_FRAMEBUFFER)
             if status != GL_FRAMEBUFFER_COMPLETE:
                 print(f"Shadow framebuffer incomplete: {status}")
                 self.shadow_fbo = None
                 self.shadow_map_texture = None
+                self._current_shadow_map_size = None
             else:
                 print(f"Shadow mapping initialized successfully: {shadow_map_size}x{shadow_map_size}")
+                self._current_shadow_map_size = shadow_map_size
             
             # Unbind framebuffer
             glBindFramebuffer(GL_FRAMEBUFFER, 0)
@@ -1592,6 +1598,14 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # Get the light's matrices directly (OpenGL column-major format)
             light_modelview = glGetFloatv(GL_MODELVIEW_MATRIX)
             light_projection = glGetFloatv(GL_PROJECTION_MATRIX)
+            
+            # Debug: print matrix values when shadow map size is different
+            if not hasattr(self, '_last_shadow_size'):
+                self._last_shadow_size = lighting_config.SHADOW_MAP_SIZE
+            if self._last_shadow_size != lighting_config.SHADOW_MAP_SIZE:
+                print(f"\nShadow map size changed from {self._last_shadow_size} to {lighting_config.SHADOW_MAP_SIZE}")
+                print(f"Light projection matrix (should not change):\n{light_projection}")
+                self._last_shadow_size = lighting_config.SHADOW_MAP_SIZE
             
             # Pop matrices
             glMatrixMode(GL_PROJECTION)
@@ -2199,6 +2213,29 @@ class CoverFlowGLWidget(QOpenGLWidget):
             
             # Setup shadow mapping
             try:
+                # Check if shadow map size has changed and recreate if needed
+                if lighting_config.SHADOW_ENABLED:
+                    current_size = int(lighting_config.SHADOW_MAP_SIZE)
+                    if not hasattr(self, '_current_shadow_map_size') or self._current_shadow_map_size != current_size:
+                        print(f"Shadow map size changed, will reinitialize: {current_size}")
+                        # Mark for recreation but don't do it mid-frame
+                        self._shadow_map_needs_recreation = True
+                
+                # Recreate shadow map if needed (at safe point before shadow pass)
+                if getattr(self, '_shadow_map_needs_recreation', False):
+                    # Save state before recreation
+                    saved_fbo = glGetIntegerv(GL_FRAMEBUFFER_BINDING)
+                    saved_texture = glGetIntegerv(GL_TEXTURE_BINDING_2D)
+                    saved_program = glGetIntegerv(GL_CURRENT_PROGRAM)
+                    
+                    self._initShadowMap()
+                    self._shadow_map_needs_recreation = False
+                    
+                    # Restore state after recreation
+                    glBindFramebuffer(GL_FRAMEBUFFER, saved_fbo)
+                    glBindTexture(GL_TEXTURE_2D, saved_texture)
+                    glUseProgram(saved_program)
+                
                 if lighting_config.SHADOW_ENABLED and hasattr(self, 'shadow_map_texture') and self.shadow_map_texture:
                     # Render shadow map - pass self so it can access current scroll_offset
                     def render_scene_for_shadows():
@@ -2327,6 +2364,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
                         glUniform1f(self.uniform_shadow_bias, lighting_config.SHADOW_BIAS)
                     if self.uniform_shadow_darkness >= 0:
                         glUniform1f(self.uniform_shadow_darkness, lighting_config.SHADOW_DARKNESS)
+                    if hasattr(self, 'uniform_shadow_map_size') and self.uniform_shadow_map_size >= 0:
+                        glUniform1f(self.uniform_shadow_map_size, lighting_config.SHADOW_MAP_SIZE)
                     
                     if self._shadow_setup_count <= 1:
                         print(f"Shadow bias: {lighting_config.SHADOW_BIAS}, darkness: {lighting_config.SHADOW_DARKNESS}")
