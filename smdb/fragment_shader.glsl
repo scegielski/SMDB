@@ -36,6 +36,7 @@ uniform float ambientLight;  // Ambient lighting constant
 
 // Material properties (PBR-like)
 uniform vec3 baseColor;
+uniform vec3 groundBaseColor;
 uniform float metallic;
 uniform float roughness;
 uniform float ao;  // Ambient occlusion
@@ -62,8 +63,9 @@ vec3 getMaterialBaseColor() {
         float checkX = floor(fragWorldPosition.x / checkerboardScale);
         float checkZ = floor(fragWorldPosition.z / checkerboardScale);
         float pattern = mod(checkX + checkZ, 2.0);
-        float checkerFactor = mix(0.3, 0.7, pattern);
+        float checkerFactor = mix(0.6, 0.9, pattern);
         texColor.rgb *= checkerFactor;
+        return texColor.rgb * groundBaseColor;
     }
     
     return texColor.rgb * baseColor;

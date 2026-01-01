@@ -36,6 +36,9 @@ MATERIAL_METALLIC = 0.0          # 0.0 = dielectric (plastic), 1.0 = metallic
 MATERIAL_ROUGHNESS = 0.3         # 0.0 = smooth/glossy, 1.0 = rough/matte
 MATERIAL_AO = 1.0                # Ambient occlusion factor (0-1)
 
+# Ground/checkerboard material properties
+GROUND_BASE_COLOR = (1.2, 1.2, 1.2)  # Base color tint for ground (can be brighter than 1.0)
+
 # VHS box surface color (RGB 0-1) - used for all non-textured surfaces
 BOX_COLOR = (0.001, 0.001, 0.001)
 

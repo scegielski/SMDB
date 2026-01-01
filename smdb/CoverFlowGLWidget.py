@@ -15,6 +15,7 @@ from .lighting_config import (
     SPOTLIGHT_CONE_ANGLE, SPOTLIGHT_INNER_CONE_ANGLE,
     SPOTLIGHT_COLOR, SPOTLIGHT_INTENSITY, AMBIENT_LIGHT,
     MATERIAL_BASE_COLOR, MATERIAL_METALLIC, MATERIAL_ROUGHNESS, MATERIAL_AO,
+    GROUND_BASE_COLOR,
     BOX_COLOR, SHADOW_ENABLED, SHADOW_MAP_SIZE, SHADOW_BIAS, SHADOW_DARKNESS
 )
 
@@ -921,6 +922,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             
             # PBR Material uniforms
             self.uniform_base_color = glGetUniformLocation(self.shader_program, "baseColor")
+            self.uniform_ground_base_color = glGetUniformLocation(self.shader_program, "groundBaseColor")
             self.uniform_metallic = glGetUniformLocation(self.shader_program, "metallic")
             self.uniform_roughness = glGetUniformLocation(self.shader_program, "roughness")
             self.uniform_ao = glGetUniformLocation(self.shader_program, "ao")
@@ -1318,15 +1320,12 @@ class CoverFlowGLWidget(QOpenGLWidget):
         # Extend the plane 10000 units in all directions
         plane_size = 10000.0
         
-        # Dark ground color - very dark gray, almost black
-        ground_color = (0.05, 0.05, 0.05)
-        
         # Enable checkerboard pattern for ground plane
         if self.shader_program:
             glUniform1i(self.uniform_use_checkerboard, 1)
             glUniform1f(self.uniform_checkerboard_scale, 0.2)  # 2-unit squares
         
-        glColor3f(*ground_color)
+        glColor3f(1.0, 1.0, 1.0)
         glBegin(GL_QUADS)
         glNormal3f(0.0, 1.0, 0.0)  # Normal pointing up
         glVertex3f(-plane_size, ground_y, -plane_size)
@@ -2134,6 +2133,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             
             # Set PBR material uniforms
             glUniform3f(self.uniform_base_color, *lighting_config.MATERIAL_BASE_COLOR)
+            glUniform3f(self.uniform_ground_base_color, *lighting_config.GROUND_BASE_COLOR)
             glUniform1f(self.uniform_metallic, lighting_config.MATERIAL_METALLIC)
             glUniform1f(self.uniform_roughness, lighting_config.MATERIAL_ROUGHNESS)
             glUniform1f(self.uniform_ao, lighting_config.MATERIAL_AO)

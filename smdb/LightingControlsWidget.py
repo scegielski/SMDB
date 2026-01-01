@@ -91,9 +91,10 @@ class ColorControlRow(QWidget):
     """A control row for RGB color values (0-1 range) with individual sliders."""
     valueChanged = pyqtSignal(tuple)
     
-    def __init__(self, label, default_color=(1.0, 1.0, 1.0), parent=None):
+    def __init__(self, label, default_color=(1.0, 1.0, 1.0), max_value=1.0, parent=None):
         super().__init__(parent)
         self._updating = False
+        self.max_value = max_value
         
         # Main vertical layout
         mainLayout = QVBoxLayout()
@@ -116,13 +117,13 @@ class ColorControlRow(QWidget):
         self.r_slider = QSlider(Qt.Horizontal)
         self.r_slider.setMinimum(0)
         self.r_slider.setMaximum(1000)
-        self.r_slider.setValue(int(default_color[0] * 1000))
+        self.r_slider.setValue(int(default_color[0] / max_value * 1000))
         self.r_slider.valueChanged.connect(lambda: self._onSliderChanged('r'))
         rLayout.addWidget(self.r_slider, 1)
         
         self.r_spinbox = QDoubleSpinBox()
         self.r_spinbox.setMinimum(0.0)
-        self.r_spinbox.setMaximum(1.0)
+        self.r_spinbox.setMaximum(max_value)
         self.r_spinbox.setSingleStep(0.01)
         self.r_spinbox.setDecimals(3)
         self.r_spinbox.setValue(default_color[0])
@@ -142,13 +143,13 @@ class ColorControlRow(QWidget):
         self.g_slider = QSlider(Qt.Horizontal)
         self.g_slider.setMinimum(0)
         self.g_slider.setMaximum(1000)
-        self.g_slider.setValue(int(default_color[1] * 1000))
+        self.g_slider.setValue(int(default_color[1] / max_value * 1000))
         self.g_slider.valueChanged.connect(lambda: self._onSliderChanged('g'))
         gLayout.addWidget(self.g_slider, 1)
         
         self.g_spinbox = QDoubleSpinBox()
         self.g_spinbox.setMinimum(0.0)
-        self.g_spinbox.setMaximum(1.0)
+        self.g_spinbox.setMaximum(max_value)
         self.g_spinbox.setSingleStep(0.01)
         self.g_spinbox.setDecimals(3)
         self.g_spinbox.setValue(default_color[1])
@@ -168,13 +169,13 @@ class ColorControlRow(QWidget):
         self.b_slider = QSlider(Qt.Horizontal)
         self.b_slider.setMinimum(0)
         self.b_slider.setMaximum(1000)
-        self.b_slider.setValue(int(default_color[2] * 1000))
+        self.b_slider.setValue(int(default_color[2] / max_value * 1000))
         self.b_slider.valueChanged.connect(lambda: self._onSliderChanged('b'))
         bLayout.addWidget(self.b_slider, 1)
         
         self.b_spinbox = QDoubleSpinBox()
         self.b_spinbox.setMinimum(0.0)
-        self.b_spinbox.setMaximum(1.0)
+        self.b_spinbox.setMaximum(max_value)
         self.b_spinbox.setSingleStep(0.01)
         self.b_spinbox.setDecimals(3)
         self.b_spinbox.setValue(default_color[2])
@@ -190,13 +191,13 @@ class ColorControlRow(QWidget):
         self._updating = True
         
         if channel == 'r':
-            value = self.r_slider.value() / 1000.0
+            value = self.r_slider.value() / 1000.0 * self.max_value
             self.r_spinbox.setValue(value)
         elif channel == 'g':
-            value = self.g_slider.value() / 1000.0
+            value = self.g_slider.value() / 1000.0 * self.max_value
             self.g_spinbox.setValue(value)
         elif channel == 'b':
-            value = self.b_slider.value() / 1000.0
+            value = self.b_slider.value() / 1000.0 * self.max_value
             self.b_spinbox.setValue(value)
         
         self.valueChanged.emit(self.getValue())
@@ -208,11 +209,11 @@ class ColorControlRow(QWidget):
         self._updating = True
         
         if channel == 'r':
-            self.r_slider.setValue(int(self.r_spinbox.value() * 1000))
+            self.r_slider.setValue(int(self.r_spinbox.value() / self.max_value * 1000))
         elif channel == 'g':
-            self.g_slider.setValue(int(self.g_spinbox.value() * 1000))
+            self.g_slider.setValue(int(self.g_spinbox.value() / self.max_value * 1000))
         elif channel == 'b':
-            self.b_slider.setValue(int(self.b_spinbox.value() * 1000))
+            self.b_slider.setValue(int(self.b_spinbox.value() / self.max_value * 1000))
         
         self.valueChanged.emit(self.getValue())
         self._updating = False
@@ -223,11 +224,11 @@ class ColorControlRow(QWidget):
     def setValue(self, color):
         self._updating = True
         self.r_spinbox.setValue(color[0])
-        self.r_slider.setValue(int(color[0] * 1000))
+        self.r_slider.setValue(int(color[0] / self.max_value * 1000))
         self.g_spinbox.setValue(color[1])
-        self.g_slider.setValue(int(color[1] * 1000))
+        self.g_slider.setValue(int(color[1] / self.max_value * 1000))
         self.b_spinbox.setValue(color[2])
-        self.b_slider.setValue(int(color[2] * 1000))
+        self.b_slider.setValue(int(color[2] / self.max_value * 1000))
         self._updating = False
 
 
@@ -459,6 +460,21 @@ class LightingControlsWidget(QWidget):
         materialLayout.addWidget(self.controls['MATERIAL_AO'])
         
         containerLayout.addWidget(materialGroup)
+        
+        # Ground Material Group
+        groundGroup = QGroupBox("Ground Material")
+        groundGroup.setStyleSheet(f"QGroupBox {{ font-weight: bold; padding-top: 15px; }}")
+        groundLayout = QVBoxLayout()
+        groundLayout.setSpacing(5)
+        groundGroup.setLayout(groundLayout)
+        
+        self.controls['GROUND_BASE_COLOR'] = ColorControlRow(
+            "Ground Base Color", lighting_config.GROUND_BASE_COLOR, max_value=2.0
+        )
+        self.controls['GROUND_BASE_COLOR'].valueChanged.connect(self._updateConfig)
+        groundLayout.addWidget(self.controls['GROUND_BASE_COLOR'])
+        
+        containerLayout.addWidget(groundGroup)
         
         # Box Color Group
         boxColorGroup = QGroupBox("VHS Box Color")
