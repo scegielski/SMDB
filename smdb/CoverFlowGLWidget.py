@@ -13,7 +13,7 @@ from . import lighting_config
 from .lighting_config import (
     SPOTLIGHT_POSITION_X, SPOTLIGHT_POSITION_Y, SPOTLIGHT_POSITION_Z,
     SPOTLIGHT_CONE_ANGLE, SPOTLIGHT_INNER_CONE_ANGLE,
-    SPOTLIGHT_COLOR, SPOTLIGHT_INTENSITY, AMBIENT_LIGHT,
+    SPOTLIGHT_INTENSITY, AMBIENT_LIGHT,
     MATERIAL_BASE_COLOR, MATERIAL_METALLIC, MATERIAL_ROUGHNESS, MATERIAL_AO,
     GROUND_BASE_COLOR,
     BOX_COLOR, SHADOW_ENABLED, SHADOW_MAP_SIZE, SHADOW_BIAS, SHADOW_DARKNESS
@@ -2120,7 +2120,6 @@ class CoverFlowGLWidget(QOpenGLWidget):
             glUniform1f(self.uniform_spot_cutoff, lighting_config.SPOTLIGHT_CONE_ANGLE)
             glUniform1f(self.uniform_spot_inner_angle, lighting_config.SPOTLIGHT_INNER_CONE_ANGLE)
             glUniform1f(self.uniform_spot_center_boost, lighting_config.SPOTLIGHT_CENTER_BOOST)
-            glUniform3f(self.uniform_light_color, *lighting_config.SPOTLIGHT_COLOR)
             glUniform3f(self.uniform_light_center_color, *lighting_config.SPOTLIGHT_CENTER_COLOR)
             glUniform3f(self.uniform_light_edge_color, *lighting_config.SPOTLIGHT_EDGE_COLOR)
             glUniform1f(self.uniform_light_color_blend_exp, lighting_config.SPOTLIGHT_COLOR_BLEND_EXPONENT)

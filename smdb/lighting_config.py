@@ -24,7 +24,6 @@ SPOTLIGHT_EDGE_COLOR = (1.0, 1.0, 1.0)    # Light color at edge of cone (RGB 0-1
 SPOTLIGHT_COLOR_BLEND_EXPONENT = 7.0      # Color blending curve (higher = more center color, lower = more edge color)
 SPOTLIGHT_COLOR_BLEND_START = 0.9         # Radial position where color blend starts (0=edge, 1=center)
 SPOTLIGHT_COLOR_BLEND_END = 1.0           # Radial position where color blend ends (0=edge, 1=center)
-SPOTLIGHT_COLOR = (1.0, 1.0, 1.0)  # Warm white light (RGB 0-1)
 SPOTLIGHT_INTENSITY = 8.0      # Light intensity (higher = brighter)
 SPOTLIGHT_ATTENUATION_LINEAR = 0.01   # Linear distance falloff (lower = softer, 0 = no falloff)
 SPOTLIGHT_ATTENUATION_QUADRATIC = 0.001  # Quadratic distance falloff (lower = softer, 0 = no falloff)

@@ -387,12 +387,6 @@ class LightingControlsWidget(QWidget):
         self.controls['SPOTLIGHT_EDGE_COLOR'].valueChanged.connect(self._updateConfig)
         spotlightColorLayout.addWidget(self.controls['SPOTLIGHT_EDGE_COLOR'])
         
-        self.controls['SPOTLIGHT_COLOR'] = ColorControlRow(
-            "Base Color", lighting_config.SPOTLIGHT_COLOR
-        )
-        self.controls['SPOTLIGHT_COLOR'].valueChanged.connect(self._updateConfig)
-        spotlightColorLayout.addWidget(self.controls['SPOTLIGHT_COLOR'])
-        
         self.controls['SPOTLIGHT_COLOR_BLEND_EXPONENT'] = ControlRow(
             "Color Blend Exponent", 0.0, 20.0, lighting_config.SPOTLIGHT_COLOR_BLEND_EXPONENT, 0.1, 1
         )
