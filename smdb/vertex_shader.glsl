@@ -9,6 +9,8 @@ varying vec3 fragBitangent;
 varying vec4 fragShadowCoord;
 
 uniform mat4 shadowMatrix;
+uniform mat4 lightViewMatrix;
+uniform mat4 lightProjMatrix;
 
 void main() {
     // Transform vertex position to view space
@@ -34,9 +36,14 @@ void main() {
     // Pass through vertex color
     fragColor = gl_Color;
     
-    // Calculate shadow coordinates (set to zero if not using shadows)
-    vec4 worldPos = gl_ModelViewMatrix * gl_Vertex;
-    fragShadowCoord = shadowMatrix * worldPos;
+    // Calculate shadow coordinates directly in light space
+    vec4 worldPos = gl_Vertex;
+    vec4 lightSpacePos = lightProjMatrix * lightViewMatrix * worldPos;
+    // Apply bias to transform from [-1,1] to [0,1]
+    fragShadowCoord.x = lightSpacePos.x * 0.5 + lightSpacePos.w * 0.5;
+    fragShadowCoord.y = lightSpacePos.y * 0.5 + lightSpacePos.w * 0.5;
+    fragShadowCoord.z = lightSpacePos.z * 0.5 + lightSpacePos.w * 0.5;
+    fragShadowCoord.w = lightSpacePos.w;
     
     // Transform vertex to clip space
     gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;

@@ -249,10 +249,12 @@ void main() {
             // Perspective divide
             vec3 projCoords = fragShadowCoord.xyz / fragShadowCoord.w;
             
+            // Check if coordinates are in valid range (skip Z check - it's for depth compare only)
+            bool inShadowMapBounds = (projCoords.x >= 0.0 && projCoords.x <= 1.0 && 
+                                      projCoords.y >= 0.0 && projCoords.y <= 1.0);
+            
             // Only apply shadows if within shadow map bounds
-            if (projCoords.x >= 0.0 && projCoords.x <= 1.0 && 
-                projCoords.y >= 0.0 && projCoords.y <= 1.0 && 
-                projCoords.z >= 0.0 && projCoords.z <= 1.0) {
+            if (inShadowMapBounds) {
                 
                 // Sample shadow map with PCF (Percentage Closer Filtering) for soft shadows
                 float shadowSum = 0.0;
@@ -264,7 +266,8 @@ void main() {
                     for (int y = -1; y <= 1; y++) {
                         vec2 offset = vec2(float(x), float(y)) * texelSize;
                         float shadowDepth = texture2D(shadowMap, projCoords.xy + offset).r;
-                        float currentDepth = projCoords.z - shadowBias;
+                        // Use absolute Z since it might be negative depending on projection
+                        float currentDepth = abs(projCoords.z) - shadowBias;
                         shadowSum += (currentDepth <= shadowDepth) ? 1.0 : 0.0;
                         pcfSamples++;
                     }
@@ -273,7 +276,13 @@ void main() {
                 shadow = shadowSum / float(pcfSamples);
                 // Apply shadow darkness
                 shadow = mix(1.0 - shadowDarkness, 1.0, shadow);
+            } else {
+                // Outside shadow map bounds - no shadow
+                shadow = 1.0;
             }
+        } else {
+            // Invalid w coordinate - no shadow
+            shadow = 1.0;
         }
     }
     
