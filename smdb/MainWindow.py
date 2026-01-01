@@ -528,7 +528,7 @@ class MainWindow(QtWidgets.QMainWindow):
             parent=self,
             bgColorA=self.bgColorA,
             bgColorB=self.bgColorB,
-            bgColorC=self.bgColorC,
+            bgColorC='rgb(15, 15, 15)',
             fgColor=self.fgColor
         )
         # Load saved lighting settings
