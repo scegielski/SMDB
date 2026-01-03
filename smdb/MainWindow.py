@@ -4751,7 +4751,8 @@ class MainWindow(QtWidgets.QMainWindow):
             f"Year: {movie.get('year', '')}" if movie.get('year') else "",
             f"Genres: {', '.join(movie.get('genres', []))}" if movie.get('genres') else "",
             to_string(movie.get("tagline", "")),
-            to_string(movie.get("synopsis", movie.get("plot", ""))),  # Use synopsis if available, else plot
+            to_string(movie.get("plot", "")),
+            to_string(movie.get("synopsis", "")),
         ]
         return ". ".join(p for p in parts if p)
 
