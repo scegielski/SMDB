@@ -4918,10 +4918,19 @@ class MainWindow(QtWidgets.QMainWindow):
         
         self.progressBar.setValue(0)
         
-        # Show summary
+        # Calculate total elapsed time
+        total_elapsed = time.time() - start_time
+        
+        # Show summary with detailed statistics
         summary = f"Embedding creation complete: {created_count} created, {skipped_count} skipped, {failed_count} failed (stored in memory only)"
         self.statusBar().showMessage(summary)
         self.output(summary)
+        self.output(f"Total time: {total_elapsed:.3f}s")
+        if created_count > 0:
+            self.output(f"Overall throughput: {created_count/total_elapsed:.1f} movies/sec")
+            self.output(f"Average per movie: {(total_elapsed/created_count*1000):.1f}ms")
+        self.output(f"Total embeddings in memory: {created_count}")
+        self.output("Remember to rebuild SMDB file to save embeddings to disk")
 
     def downloadMissingDataMenu(self):
         """Download missing data fields for selected movies.
