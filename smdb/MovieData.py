@@ -374,27 +374,45 @@ class MovieData:
                                     self._output(f"Skipping '{page_title}' - year mismatch (Wikipedia: {wiki_year}, expected: {year})")
                                     continue
                         
-                        # Verify title similarity to avoid wrong movies with matching year
-                        # Extract significant words from both titles (ignore common words)
-                        def extract_significant_words(text):
-                            """Extract significant words, ignoring common articles and prepositions"""
-                            common_words = {'the', 'a', 'an', 'of', 'in', 'at', 'to', 'for', 'and', 'or', 
-                                          'from', 'with', 'part', 'i', 'ii', 'iii', 'iv', 'v', 'film', 'movie'}
-                            # Remove year, parentheses, and special chars, then split
-                            cleaned = re.sub(r'[\(\)\[\]:,\-]', ' ', text.lower())
-                            cleaned = re.sub(r'\b\d{4}\b', '', cleaned)  # Remove years
-                            words = cleaned.split()
-                            return {w for w in words if w and len(w) > 2 and w not in common_words}
+                        # Strict title matching - only accept very close matches
+                        def normalize_title(text):
+                            """Normalize title for comparison by removing common words and punctuation"""
+                            # Remove year in parentheses
+                            text = re.sub(r'\s*\(\d{4}[^)]*\)', '', text)
+                            # Remove "film" or "movie" suffix
+                            text = re.sub(r'\s+(film|movie)\s*$', '', text, flags=re.IGNORECASE)
+                            # Convert to lowercase and remove punctuation
+                            text = re.sub(r'[^\w\s]', '', text.lower())
+                            # Remove articles at the beginning
+                            text = re.sub(r'^\s*(the|a|an)\s+', '', text)
+                            # Normalize whitespace
+                            text = ' '.join(text.split())
+                            return text
                         
-                        title_words = extract_significant_words(title)
-                        page_words = extract_significant_words(page_title)
+                        normalized_search_title = normalize_title(title)
+                        normalized_page_title = normalize_title(page_title)
                         
-                        if title_words and page_words:
-                            # Calculate overlap - at least one significant word should match
-                            common_words_count = len(title_words & page_words)
-                            if common_words_count == 0 and not is_exact_match:
-                                self._output(f"Skipping '{page_title}' - no title words match '{title}'")
-                                continue
+                        # Check if titles match closely
+                        titles_match = False
+                        
+                        # Exact match after normalization
+                        if normalized_search_title == normalized_page_title:
+                            titles_match = True
+                        # Page title contains the search title (for subtitles like "Part I")
+                        elif normalized_search_title in normalized_page_title:
+                            # But the page title shouldn't be much longer (avoid false matches)
+                            length_ratio = len(normalized_page_title) / len(normalized_search_title) if normalized_search_title else 999
+                            if length_ratio < 1.5:  # Allow up to 50% longer for subtitles
+                                titles_match = True
+                        # Search title contains page title (reverse check)
+                        elif normalized_page_title in normalized_search_title:
+                            length_ratio = len(normalized_search_title) / len(normalized_page_title) if normalized_page_title else 999
+                            if length_ratio < 1.5:
+                                titles_match = True
+                        
+                        if not titles_match:
+                            self._output(f"Skipping '{page_title}' - title doesn't match '{title}' closely enough")
+                            continue
                         
                         # Extract the Plot section (try multiple variations)
                         plot_match = re.search(
