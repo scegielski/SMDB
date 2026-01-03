@@ -4791,8 +4791,24 @@ class MainWindow(QtWidgets.QMainWindow):
             self.output("Loading sentence-transformers model (all-mpnet-base-v2)...")
             self.statusBar().showMessage("Loading embedding model...")
             QtCore.QCoreApplication.processEvents()
-            model = SentenceTransformer("all-mpnet-base-v2")
-            self.output("Model loaded successfully")
+            
+            # Check for GPU availability
+            import torch
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            
+            if device == "cuda":
+                gpu_name = torch.cuda.get_device_name(0)
+                self.output(f"GPU detected: {gpu_name}")
+                model = SentenceTransformer("all-mpnet-base-v2", device=device)
+                self.output(f"Model loaded successfully on GPU")
+            else:
+                self.output("No GPU detected, using CPU")
+                self.output(f"PyTorch version: {torch.__version__}")
+                self.output(f"CUDA available: {torch.cuda.is_available()}")
+                self.output(f"CUDA built: {torch.version.cuda if hasattr(torch.version, 'cuda') else 'N/A'}")
+                self.output("To enable GPU: pip uninstall torch && pip install torch --index-url https://download.pytorch.org/whl/cu121")
+                model = SentenceTransformer("all-mpnet-base-v2")
+                self.output("Model loaded successfully on CPU")
         except Exception as e:
             QtWidgets.QMessageBox.critical(
                 self,
