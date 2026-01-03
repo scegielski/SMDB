@@ -2810,9 +2810,26 @@ class MainWindow(QtWidgets.QMainWindow):
                                     self.moviesTableModel,
                                     self.moviesTableProxyModel)
                     return
+                else:
+                    # Movie exists but is not visible in current filter
+                    # Clear filters and try again
+                    self.output(f"Movie '{title} ({year})' not visible in current filter - showing all movies")
+                    self.showAllMoviesTableView()
+                    
+                    # Try to select again after clearing filter
+                    sourceIndex = self.moviesTableModel.index(row, 0)
+                    proxyIndex = self.moviesTableProxyModel.mapFromSource(sourceIndex)
+                    
+                    if proxyIndex.isValid():
+                        self.moviesTableView.selectRow(proxyIndex.row())
+                        self.moviesTableView.scrollTo(proxyIndex)
+                        self.clickedTable(proxyIndex,
+                                        self.moviesTableModel,
+                                        self.moviesTableProxyModel)
+                    return
         
-        # Movie not found or not visible in current filter
-        self.output(f"Movie '{title} ({year})' not found or not visible in current view")
+        # Movie not found at all
+        self.output(f"Movie '{title} ({year})' not found in database")
 
     def showLogMenu(self):
         if self.logWidget:
