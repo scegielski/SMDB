@@ -5471,11 +5471,15 @@ class MainWindow(QtWidgets.QMainWindow):
         for i in top_idx:
             if i == idx:
                 continue
+            movie_path = cache['movie_paths'][i]
+            movie_data = self.moviesSmdbData['titles'][movie_path]
             results.append({
                 'id': cache['movie_ids'][i],
                 'similarity': float(sims[i]),
-                'title': self.moviesSmdbData['titles'][cache['movie_paths'][i]].get('title', ''),
-                'year': self.moviesSmdbData['titles'][cache['movie_paths'][i]].get('year', '')
+                'title': movie_data.get('title', ''),
+                'year': movie_data.get('year', ''),
+                'path': movie_path,
+                'folder': movie_data.get('folder', '')
             })
             if len(results) == k:
                 break

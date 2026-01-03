@@ -1,4 +1,5 @@
 from PyQt5 import QtGui, QtWidgets, QtCore
+import os
 
 
 class SimilarMoviesWidget(QtWidgets.QFrame):
@@ -35,8 +36,8 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         
         # Create table
         self.tableWidget = QtWidgets.QTableWidget()
-        self.tableWidget.setColumnCount(3)
-        self.tableWidget.setHorizontalHeaderLabels(['Year', 'Title', 'Similarity'])
+        self.tableWidget.setColumnCount(4)
+        self.tableWidget.setHorizontalHeaderLabels(['Cover', 'Year', 'Title', 'Similarity'])
         self.tableWidget.setSortingEnabled(True)
         self.tableWidget.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.tableWidget.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
@@ -47,9 +48,13 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         self.tableWidget.setShowGrid(False)
         
         # Set column widths
-        self.tableWidget.setColumnWidth(0, 60)   # Year
-        self.tableWidget.setColumnWidth(1, 400)  # Title
-        self.tableWidget.setColumnWidth(2, 100)  # Similarity
+        self.tableWidget.setColumnWidth(0, 120)  # Cover
+        self.tableWidget.setColumnWidth(1, 60)   # Year
+        self.tableWidget.setColumnWidth(2, 400)  # Title
+        self.tableWidget.setColumnWidth(3, 100)  # Similarity
+        
+        # Set row height for covers
+        self.tableWidget.verticalHeader().setDefaultSectionSize(100)
         
         # Header styling
         hh = self.tableWidget.horizontalHeader()
@@ -66,7 +71,7 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         """Update the table with similar movies.
         
         Args:
-            similar_movies: List of dicts with 'title', 'year', 'similarity' keys
+            similar_movies: List of dicts with 'title', 'year', 'similarity', 'path', 'folder' keys
             movie_path: Path to the currently selected movie
         """
         self.similar_movies = similar_movies or []
@@ -80,17 +85,43 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
             row = self.tableWidget.rowCount()
             self.tableWidget.insertRow(row)
             
+            # Cover column
+            movie_folder = movie.get('folder', '')
+            movie_path_str = movie.get('path', '')
+            coverFile = os.path.join(movie_path_str, f'{movie_folder}.jpg')
+            if not os.path.exists(coverFile):
+                coverFilePng = os.path.join(movie_path_str, f'{movie_folder}.png')
+                if os.path.exists(coverFilePng):
+                    coverFile = coverFilePng
+            
+            coverLabel = QtWidgets.QLabel()
+            if os.path.exists(coverFile):
+                pm = QtGui.QPixmap(coverFile)
+                if not pm.isNull():
+                    scaled_pm = pm.scaled(100, 100, 
+                                         QtCore.Qt.KeepAspectRatio,
+                                         QtCore.Qt.SmoothTransformation)
+                    coverLabel.setPixmap(scaled_pm)
+                    coverLabel.setAlignment(QtCore.Qt.AlignCenter)
+            else:
+                coverLabel.setText("No Cover")
+                coverLabel.setAlignment(QtCore.Qt.AlignCenter)
+            
+            # Store movie data in the label
+            coverLabel.setProperty('movieData', movie)
+            self.tableWidget.setCellWidget(row, 0, coverLabel)
+            
             # Year column
             year = str(movie.get('year', ''))
             yearItem = QtWidgets.QTableWidgetItem(year)
             yearItem.setData(QtCore.Qt.UserRole, movie)  # Store full movie data
-            self.tableWidget.setItem(row, 0, yearItem)
+            self.tableWidget.setItem(row, 1, yearItem)
             
             # Title column
             title = movie.get('title', '')
             titleItem = QtWidgets.QTableWidgetItem(title)
             titleItem.setData(QtCore.Qt.UserRole, movie)
-            self.tableWidget.setItem(row, 1, titleItem)
+            self.tableWidget.setItem(row, 2, titleItem)
             
             # Similarity column
             similarity = movie.get('similarity', 0.0)
@@ -98,11 +129,11 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
             similarityItem.setData(QtCore.Qt.UserRole, movie)
             # Make similarity sortable as number
             similarityItem.setData(QtCore.Qt.UserRole + 1, similarity)
-            self.tableWidget.setItem(row, 2, similarityItem)
+            self.tableWidget.setItem(row, 3, similarityItem)
         
         self.tableWidget.setSortingEnabled(True)
         # Sort by similarity descending by default
-        self.tableWidget.sortItems(2, QtCore.Qt.DescendingOrder)
+        self.tableWidget.sortItems(3, QtCore.Qt.DescendingOrder)
     
     def clearSimilarMovies(self):
         """Clear the similar movies table."""
