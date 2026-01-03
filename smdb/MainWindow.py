@@ -3911,6 +3911,10 @@ class MainWindow(QtWidgets.QMainWindow):
         createEmbeddingsAction.triggered.connect(self.createAllEmbeddingsMenu)
         moviesTableRightMenu.addAction(createEmbeddingsAction)
 
+        cleanJsonFilesAction = QtWidgets.QAction("Clean json files", self)
+        cleanJsonFilesAction.triggered.connect(self.cleanJsonFilesMenu)
+        moviesTableRightMenu.addAction(cleanJsonFilesAction)
+
         moviesTableRightMenu.addSeparator()
 
         # OpenSubtitles download actions
@@ -5241,6 +5245,107 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage(summary)
         self.output(summary)
         self.output("Now rebuild the SMDB file to persist embeddings in the database")
+
+    def cleanJsonFilesMenu(self):
+        """Clean up JSON files by removing obsolete keys for selected movies.
+        
+        Removes: 'similar movies', 'recommended movies', 'embedding', 
+        'embedding_model', 'embedding_dimension'
+        """
+        numSelectedItems = len(self.moviesTableView.selectionModel().selectedRows())
+        if numSelectedItems == 0:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "No Selection",
+                "Please select movies to clean their JSON files."
+            )
+            return
+        
+        # Confirm with user
+        reply = QtWidgets.QMessageBox.question(
+            self,
+            "Clean JSON Files",
+            f"Remove 'similar movies', 'recommended movies', and 'embedding' data " +
+            f"from {numSelectedItems} selected movie(s)?\n\n" +
+            "This cannot be undone.",
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+            QtWidgets.QMessageBox.No
+        )
+        
+        if reply != QtWidgets.QMessageBox.Yes:
+            return
+        
+        import time
+        start_time = time.perf_counter()
+        self.output(f"Cleaning JSON files for {numSelectedItems} movies...")
+        
+        self.progressBar.setMaximum(numSelectedItems)
+        self.isCanceled = False
+        cleaned_count = 0
+        skipped_count = 0
+        failed_count = 0
+        
+        keys_to_remove = ['similar movies', 'recommended movies', 'embedding', 
+                         'embedding_model', 'embedding_dimension']
+        
+        for idx, proxyIndex in enumerate(self.moviesTableView.selectionModel().selectedRows()):
+            if idx % 5 == 0 or idx == numSelectedItems - 1:
+                progress = idx + 1
+                pct = (progress / numSelectedItems * 100)
+                self.progressBar.setValue(progress)
+                self.statusBar().showMessage(f"Cleaning JSON files ({progress}/{numSelectedItems}, {pct:.1f}%)")
+                QtCore.QCoreApplication.processEvents()
+                
+                if self.isCanceled:
+                    self.statusBar().showMessage('Cancelled')
+                    self.isCanceled = False
+                    self.progressBar.setValue(0)
+                    return
+            
+            try:
+                sourceRow = self.getSourceRow(proxyIndex)
+                movieFolderName = self.moviesTableModel.getFolderName(sourceRow)
+                moviePath = self.moviesTableModel.getPath(sourceRow)
+                
+                jsonFile = os.path.join(moviePath, f'{movieFolderName}.json')
+                if not os.path.exists(jsonFile):
+                    skipped_count += 1
+                    continue
+                
+                # Read existing JSON
+                with open(jsonFile, 'r', encoding='utf-8') as f:
+                    jsonData = ujson.load(f)
+                
+                # Remove the specified keys
+                modified = False
+                for key in keys_to_remove:
+                    if key in jsonData:
+                        del jsonData[key]
+                        modified = True
+                
+                # Write back only if modified
+                if modified:
+                    with open(jsonFile, 'w', encoding='utf-8') as f:
+                        ujson.dump(jsonData, f, indent=2, ensure_ascii=False, escape_forward_slashes=False)
+                    cleaned_count += 1
+                else:
+                    skipped_count += 1
+                
+            except Exception as e:
+                self.output(f"Error cleaning {movieFolderName}: {e}")
+                failed_count += 1
+        
+        self.progressBar.setValue(0)
+        elapsed = time.perf_counter() - start_time
+        
+        summary = f"Cleaned {cleaned_count} JSON files in {elapsed:.1f}s"
+        if skipped_count > 0:
+            summary += f", {skipped_count} skipped (no changes needed)"
+        if failed_count > 0:
+            summary += f", {failed_count} failed"
+        
+        self.statusBar().showMessage(summary)
+        self.output(summary)
 
     def calculateSimilarMovies(self, moviePath, k=20):
         """Calculate similar movies on-the-fly for a single movie.
