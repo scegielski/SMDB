@@ -702,6 +702,15 @@ class MovieData:
 
     def _writeJson(self, movieData, jsonFile):
         d = {}
+        
+        # First, read existing JSON file to preserve certain fields like embeddings
+        existing_data = {}
+        if os.path.exists(jsonFile):
+            try:
+                with open(jsonFile, 'r', encoding='utf-8') as f:
+                    existing_data = ujson.load(f)
+            except Exception:
+                pass  # If we can't read it, just continue with empty existing_data
 
         d['title'] = movieData.get('Title')
         d['id'] = movieData.get('ImdbID') or movieData.get('imdbID')  # Support both formats
@@ -786,6 +795,14 @@ class MovieData:
             d['height'] = movieData.get('height')
         if movieData.get('channels'):
             d['channels'] = movieData.get('channels')
+        
+        # Preserve embedding fields from existing JSON if they exist
+        if existing_data.get('embedding'):
+            d['embedding'] = existing_data['embedding']
+        if existing_data.get('embedding_model'):
+            d['embedding_model'] = existing_data['embedding_model']
+        if existing_data.get('embedding_dimension'):
+            d['embedding_dimension'] = existing_data['embedding_dimension']
 
         try:
             with open(jsonFile, "w", encoding="utf-8") as f:

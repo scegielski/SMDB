@@ -3536,6 +3536,11 @@ class MainWindow(QtWidgets.QMainWindow):
                     if jsonSynopsis:
                         jsonSynopsis = jsonSynopsis.split('::')[0]
 
+                # Extract embedding data for caching in smdb file
+                jsonEmbedding = jsonData.get('embedding') or None
+                jsonEmbeddingModel = jsonData.get('embedding_model') or None
+                jsonEmbeddingDimension = jsonData.get('embedding_dimension') or None
+
                 # Subtitles exist status comes from current model value if present
                 try:
                     if len(model._data[row]) > Columns.SubtitlesExist.value:
@@ -3577,7 +3582,10 @@ class MainWindow(QtWidgets.QMainWindow):
                     'recommended movies': jsonRecommendedMovies,
                     'known duplicate': knownDuplicate,
                     'plot': jsonPlot,
-                    'synopsis': jsonSynopsis
+                    'synopsis': jsonSynopsis,
+                    'embedding': jsonEmbedding,
+                    'embedding_model': jsonEmbeddingModel,
+                    'embedding_dimension': jsonEmbeddingDimension
                 }
 
         self.progressBar.setValue(0)
@@ -3585,10 +3593,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage('Sorting Data...')
         QtCore.QCoreApplication.processEvents()
         
-        # Count how many movies have plots and synopsis for logging
+        # Count how many movies have plots, synopsis, and embeddings for logging
         plot_count = sum(1 for t in titles.values() if t.get('plot'))
         synopsis_count = sum(1 for t in titles.values() if t.get('synopsis'))
-        self.output(f"Collected {plot_count} plots and {synopsis_count} synopses out of {len(titles)} movies")
+        embedding_count = sum(1 for t in titles.values() if t.get('embedding'))
+        self.output(f"Collected {plot_count} plots, {synopsis_count} synopses, and {embedding_count} embeddings out of {len(titles)} movies")
 
         # Normalize indexes (convert dict-as-set to lists) before serializing
         data = {'titles': collections.OrderedDict(sorted(titles.items()))}
@@ -3882,6 +3891,13 @@ class MainWindow(QtWidgets.QMainWindow):
         forceDownloadSynopsisAction = QtWidgets.QAction("Force Download Synopsis", self)
         forceDownloadSynopsisAction.triggered.connect(lambda: self.downloadSynopsisMenu(force=True))
         moviesTableRightMenu.addAction(forceDownloadSynopsisAction)
+
+        moviesTableRightMenu.addSeparator()
+
+        # Embedding creation action
+        createEmbeddingAction = QtWidgets.QAction("Create embedding", self)
+        createEmbeddingAction.triggered.connect(self.createEmbeddingMenu)
+        moviesTableRightMenu.addAction(createEmbeddingAction)
 
         moviesTableRightMenu.addSeparator()
 
@@ -4712,6 +4728,179 @@ class MainWindow(QtWidgets.QMainWindow):
         
         # Show summary
         summary = f"Synopsis download complete: {downloaded_count} downloaded, {skipped_count} skipped, {failed_count} failed"
+        self.statusBar().showMessage(summary)
+        self.output(summary)
+
+    def movie_to_text(self, movie):
+        """Convert movie dictionary to text representation for embedding.
+        
+        Args:
+            movie: Dictionary containing movie data (from JSON file)
+            
+        Returns:
+            String representation of the movie suitable for embedding
+        """
+        # Helper function to ensure we get a string
+        def to_string(value):
+            if isinstance(value, list):
+                return ' '.join(str(v) for v in value if v)
+            return str(value) if value else ""
+        
+        parts = [
+            movie.get("title", ""),
+            f"Year: {movie.get('year', '')}" if movie.get('year') else "",
+            f"Genres: {', '.join(movie.get('genres', []))}" if movie.get('genres') else "",
+            to_string(movie.get("tagline", "")),
+            to_string(movie.get("synopsis", movie.get("plot", ""))),  # Use synopsis if available, else plot
+        ]
+        return ". ".join(p for p in parts if p)
+
+    def createEmbeddingMenu(self):
+        """Create embeddings for selected movies using sentence-transformers.
+        
+        Uses the all-mpnet-base-v2 model to generate semantic embeddings from
+        movie titles, genres, taglines, and synopses. Stores the embedding
+        as a list of floats in the movie's JSON file.
+        """
+        try:
+            from sentence_transformers import SentenceTransformer
+            import numpy as np
+        except ImportError:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Missing Package",
+                "sentence-transformers package is not installed.\n\n"
+                "Please install it using:\npip install sentence-transformers"
+            )
+            return
+
+        numSelectedItems = len(self.moviesTableView.selectionModel().selectedRows())
+        self.progressBar.setMaximum(numSelectedItems)
+        progress = 0
+        self.isCanceled = False
+        import time
+        start_time = time.time()
+        
+        created_count = 0
+        skipped_count = 0
+        failed_count = 0
+        
+        # Load the embedding model (this might take a moment the first time)
+        try:
+            self.output("Loading sentence-transformers model (all-mpnet-base-v2)...")
+            self.statusBar().showMessage("Loading embedding model...")
+            QtCore.QCoreApplication.processEvents()
+            model = SentenceTransformer("all-mpnet-base-v2")
+            self.output("Model loaded successfully")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Model Loading Error",
+                f"Failed to load embedding model:\n{str(e)}"
+            )
+            self.output(f"Error loading embedding model: {e}")
+            return
+        
+        for proxyIndex in self.moviesTableView.selectionModel().selectedRows():
+            QtCore.QCoreApplication.processEvents()
+            if self.isCanceled:
+                self.statusBar().showMessage('Cancelled')
+                self.isCanceled = False
+                self.progressBar.setValue(0)
+                return
+
+            progress += 1
+            self.progressBar.setValue(progress)
+
+            # Calculate ETA
+            if progress > 0:
+                elapsed_time = time.time() - start_time
+                avg_time_per_item = elapsed_time / progress
+                remaining_items = numSelectedItems - progress
+                eta_seconds = avg_time_per_item * remaining_items
+                
+                if eta_seconds < 60:
+                    eta_str = f"{int(eta_seconds)}s"
+                else:
+                    eta_minutes = int(eta_seconds / 60)
+                    eta_secs = int(eta_seconds % 60)
+                    eta_str = f"{eta_minutes}m {eta_secs}s"
+                
+                message = "Creating embeddings (%d/%d) - ETA: %s" % (progress, numSelectedItems, eta_str)
+            else:
+                message = "Creating embeddings (%d/%d)" % (progress, numSelectedItems)
+            
+            self.statusBar().showMessage(message)
+            QtCore.QCoreApplication.processEvents()
+
+            sourceRow = self.getSourceRow(proxyIndex)
+            movieFolderName = self.moviesTableModel.getFolderName(sourceRow)
+            moviePath = self.moviesTableModel.getPath(sourceRow)
+            moviePath = self.findMovie(moviePath, movieFolderName)
+            if not os.path.exists(moviePath):
+                failed_count += 1
+                continue
+
+            jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
+            
+            # Check if JSON file exists
+            if not os.path.exists(jsonFile):
+                self.output(f"No JSON file for {movieFolderName}, skipping...")
+                failed_count += 1
+                continue
+            
+            # Load existing JSON
+            try:
+                with open(jsonFile, 'r', encoding='utf-8') as f:
+                    jsonData = ujson.load(f)
+            except Exception as e:
+                self.output(f"Error reading JSON for {movieFolderName}: {e}")
+                failed_count += 1
+                continue
+            
+            # Convert movie to text
+            movie_text = self.movie_to_text(jsonData)
+            
+            if not movie_text or len(movie_text.strip()) < 10:
+                self.output(f"Insufficient data for embedding in {movieFolderName}, skipping...")
+                skipped_count += 1
+                continue
+            
+            # Generate embedding
+            try:
+                self.output(f"Creating embedding for {movieFolderName}...")
+                embedding = model.encode(movie_text, normalize_embeddings=True)
+                
+                # Convert numpy array to list for JSON serialization
+                embedding_list = embedding.tolist()
+                
+                # Store in JSON
+                jsonData['embedding'] = embedding_list
+                jsonData['embedding_model'] = 'all-mpnet-base-v2'
+                jsonData['embedding_dimension'] = len(embedding_list)
+                
+                # Write updated JSON
+                with open(jsonFile, 'w', encoding='utf-8') as f:
+                    ujson.dump(jsonData, f, indent=4)
+                
+                self.output(f"Successfully created embedding ({len(embedding_list)} dimensions)")
+                created_count += 1
+                
+            except Exception as e:
+                self.output(f"Error creating embedding for {movieFolderName}: {e}")
+                failed_count += 1
+                continue
+            
+            # Update the view
+            self.moviesTableView.selectRow(proxyIndex.row())
+            self.clickedTable(proxyIndex,
+                              self.moviesTableModel,
+                              self.moviesTableProxyModel)
+        
+        self.progressBar.setValue(0)
+        
+        # Show summary
+        summary = f"Embedding creation complete: {created_count} created, {skipped_count} skipped, {failed_count} failed"
         self.statusBar().showMessage(summary)
         self.output(summary)
 

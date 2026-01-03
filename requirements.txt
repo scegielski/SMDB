@@ -8,3 +8,4 @@ pyinstaller
 PyOpenGL
 numpy
 msgpack
+sentence-transformers
