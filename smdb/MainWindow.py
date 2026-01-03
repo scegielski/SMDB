@@ -3499,14 +3499,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
                 jsonRuntime = jsonData.get('runtime') or None
 
-                jsonSimilarMovies = jsonData.get('similar movies') or []
-                if not isinstance(jsonSimilarMovies, list):
-                    jsonSimilarMovies = [jsonSimilarMovies] if jsonSimilarMovies else []
-
-                jsonRecommendedMovies = jsonData.get('recommended movies') or []
-                if not isinstance(jsonRecommendedMovies, list):
-                    jsonRecommendedMovies = [jsonRecommendedMovies] if jsonRecommendedMovies else []
-
                 # Known duplicate status
                 knownDuplicate = jsonData.get('known duplicate', False)
 
@@ -3590,8 +3582,6 @@ class MainWindow(QtWidgets.QMainWindow):
                     'date': dateModified,
                     'subtitles exist': subtitlesExist,
                     'date watched': dateWatched,
-                    'similar movies': jsonSimilarMovies,
-                    'recommended movies': jsonRecommendedMovies,
                     'known duplicate': knownDuplicate,
                     'plot': jsonPlot,
                     'synopsis': jsonSynopsis,
@@ -5265,7 +5255,7 @@ class MainWindow(QtWidgets.QMainWindow):
         reply = QtWidgets.QMessageBox.question(
             self,
             "Clean JSON Files",
-            f"Remove 'similar movies', 'recommended movies', and 'embedding' data " +
+            f"Remove obsolete data (similar/recommended/calculated similar movies, embeddings) " +
             f"from {numSelectedItems} selected movie(s)?\n\n" +
             "This cannot be undone.",
             QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
@@ -5285,8 +5275,8 @@ class MainWindow(QtWidgets.QMainWindow):
         skipped_count = 0
         failed_count = 0
         
-        keys_to_remove = ['similar movies', 'recommended movies', 'embedding', 
-                         'embedding_model', 'embedding_dimension']
+        keys_to_remove = ['similar movies', 'recommended movies', 'calculated similar movies',
+                         'embedding', 'embedding_model', 'embedding_dimension']
         
         for idx, proxyIndex in enumerate(self.moviesTableView.selectionModel().selectedRows()):
             if idx % 5 == 0 or idx == numSelectedItems - 1:
