@@ -4818,46 +4818,10 @@ class MainWindow(QtWidgets.QMainWindow):
             self.output(f"Error loading embedding model: {e}")
             return
         
-        # Get selected rows and collect source row indices
-        selectedRows = []
+        # Get selected rows and collect movie data (first pass - no encoding yet)
+        movies_to_encode = []
         for proxyIndex in self.moviesTableView.selectionModel().selectedRows():
             sourceRow = self.getSourceRow(proxyIndex)
-            selectedRows.append(sourceRow)
-        
-        # Iterate over selected movies using source row indices (no UI updates)
-        for idx, sourceRow in enumerate(selectedRows):
-            QtCore.QCoreApplication.processEvents()
-            if self.isCanceled:
-                self.statusBar().showMessage('Cancelled')
-                self.isCanceled = False
-                self.progressBar.setValue(0)
-                return
-
-            progress = idx + 1
-            self.progressBar.setValue(progress)
-
-            # Calculate ETA
-            if progress > 0:
-                elapsed_time = time.time() - start_time
-                avg_time_per_item = elapsed_time / progress
-                remaining_items = numSelectedItems - progress
-                eta_seconds = avg_time_per_item * remaining_items
-                
-                if eta_seconds < 60:
-                    eta_str = f"{int(eta_seconds)}s"
-                else:
-                    eta_minutes = int(eta_seconds / 60)
-                    eta_secs = int(eta_seconds % 60)
-                    eta_str = f"{eta_minutes}m {eta_secs}s"
-                
-                message = "Creating embeddings (%d/%d) - ETA: %s" % (progress, numSelectedItems, eta_str)
-            else:
-                message = "Creating embeddings (%d/%d)" % (progress, numSelectedItems)
-            
-            self.statusBar().showMessage(message)
-            QtCore.QCoreApplication.processEvents()
-
-            # Get movie data from model (no disk I/O)
             movieFolderName = self.moviesTableModel.getFolderName(sourceRow)
             moviePath = self.moviesTableModel.getPath(sourceRow)
             
@@ -4866,9 +4830,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 'title': self.moviesTableModel.getTitle(sourceRow),
                 'year': self.moviesTableModel.getYear(sourceRow),
                 'genres': self.moviesTableModel._data[sourceRow][Columns.Genres.value].split(', ') if self.moviesTableModel._data[sourceRow][Columns.Genres.value] else [],
-                'tagline': '',  # Not stored in model columns
-                'plot': '',  # Not stored in model columns
-                'synopsis': ''  # Not stored in model columns
+                'tagline': '',
+                'plot': '',
+                'synopsis': ''
             }
             
             # Try to get plot/synopsis from smdb_data if loaded
@@ -4882,17 +4846,50 @@ class MainWindow(QtWidgets.QMainWindow):
             # Convert movie to text
             movie_text = self.movie_to_text(movieData)
             
-            if not movie_text or len(movie_text.strip()) < 10:
+            if movie_text and len(movie_text.strip()) >= 10:
+                movies_to_encode.append({
+                    'text': movie_text,
+                    'path': moviePath,
+                    'folder': movieFolderName,
+                    'sourceRow': sourceRow
+                })
+            else:
                 self.output(f"Insufficient data for embedding in {movieFolderName}, skipping...")
                 skipped_count += 1
-                continue
+        
+        if not movies_to_encode:
+            self.output("No movies to encode")
+            self.progressBar.setValue(0)
+            return
+        
+        # Batch encode all movies at once (GPU parallelization)
+        try:
+            self.statusBar().showMessage(f"Encoding {len(movies_to_encode)} movies in batch...")
+            QtCore.QCoreApplication.processEvents()
             
-            # Generate embedding
-            try:
-                embedding = model.encode(movie_text, normalize_embeddings=True)
-                embedding_list = embedding.tolist()
+            texts = [m['text'] for m in movies_to_encode]
+            self.output(f"Starting batch encoding of {len(texts)} movies...")
+            
+            # Encode all at once with batch processing
+            batch_start = time.perf_counter()
+            embeddings = model.encode(
+                texts, 
+                batch_size=128,  # Larger batch size for better GPU utilization
+                show_progress_bar=False,
+                normalize_embeddings=True,
+                convert_to_tensor=False  # Keep output as numpy for faster processing
+            )
+            batch_elapsed = time.perf_counter() - batch_start
+            
+            self.output(f"Batch encoding complete in {batch_elapsed:.3f}s ({len(texts)/batch_elapsed:.1f} movies/sec)")
+            self.output(f"Average time per movie: {(batch_elapsed/len(texts)*1000):.1f}ms")
+            
+            # Store embeddings in memory
+            for idx, movie_info in enumerate(movies_to_encode):
+                embedding_list = embeddings[idx].tolist()
+                moviePath = movie_info['path']
                 
-                # Store embedding in smdbData (in memory only, no disk I/O)
+                # Store embedding in smdbData (in memory only)
                 if hasattr(self, 'smdbData') and self.smdbData and 'titles' in self.smdbData:
                     if moviePath in self.smdbData['titles']:
                         self.smdbData['titles'][moviePath]['embedding'] = embedding_list
@@ -4901,10 +4898,23 @@ class MainWindow(QtWidgets.QMainWindow):
                 
                 created_count += 1
                 
-            except Exception as e:
-                self.output(f"Error creating embedding for {movieFolderName}: {e}")
-                failed_count += 1
-                continue
+                # Update progress periodically
+                if idx % 10 == 0 or idx == len(movies_to_encode) - 1:
+                    progress = idx + 1
+                    self.progressBar.setValue(progress)
+                    pct = (progress / len(movies_to_encode) * 100)
+                    self.statusBar().showMessage(f"Storing embeddings ({progress}/{len(movies_to_encode)}, {pct:.1f}%)")
+                    QtCore.QCoreApplication.processEvents()
+                    
+                    if self.isCanceled:
+                        self.statusBar().showMessage('Cancelled')
+                        self.isCanceled = False
+                        self.progressBar.setValue(0)
+                        return
+                
+        except Exception as e:
+            self.output(f"Error during batch encoding: {e}")
+            failed_count = len(movies_to_encode)
         
         self.progressBar.setValue(0)
         
