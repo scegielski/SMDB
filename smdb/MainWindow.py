@@ -55,6 +55,7 @@ from .MovieTableView import MovieTableView
 from .BackupWidget import BackupWidget
 from .HistoryWidget import HistoryWidget
 from .WatchListWidget import WatchListWidget
+from .SimilarMoviesWidget import SimilarMoviesWidget
 from .MovieData import MovieData
 from .MovieFilterProxyModel import MovieFilterProxyModel
 from .LightingControlsWidget import LightingControlsWidget
@@ -277,6 +278,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.showMovieInfo = self.settings.value('showMovieInfo', True, type=bool)
         self.showMovieSection = self.settings.value('showMovieSection', True, type=bool)
         self.showSummary = self.settings.value('showSummary', True, type=bool)
+        self.showSimilarMovies = self.settings.value('showSimilarMovies', True, type=bool)
         self.showWatchList = self.settings.value('showWatchList', False, type=bool)
         self.showBackupList = self.settings.value('showBackupList', False, type=bool)
         self.showHistoryList = self.settings.value('showHistoryList', False, type=bool)
@@ -783,6 +785,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings.setValue('showMovieInfo', self.showMovieInfo)
         self.settings.setValue('showMovieSection', self.showMovieSection)
         self.settings.setValue('showSummary', self.showSummary)
+        self.settings.setValue('showSimilarMovies', self.showSimilarMovies)
         self.settings.setValue('showWatchList', self.showWatchList)
         self.settings.setValue('showHistoryList', self.showHistoryList)
         self.settings.setValue('showBackupList', self.showBackupList)
@@ -945,6 +948,12 @@ class MainWindow(QtWidgets.QMainWindow):
         showSummaryAction.setChecked(self.showSummary)
         showSummaryAction.triggered.connect(self.showSummaryMenu)
         viewMenu.addAction(showSummaryAction)
+
+        showSimilarMoviesAction = QtWidgets.QAction("Show Similar Movies", self)
+        showSimilarMoviesAction.setCheckable(True)
+        showSimilarMoviesAction.setChecked(self.showSimilarMovies)
+        showSimilarMoviesAction.triggered.connect(self.showSimilarMoviesMenu)
+        viewMenu.addAction(showSimilarMoviesAction)
 
         showLogAction = QtWidgets.QAction("Show Log", self)
         showLogAction.setCheckable(True)
@@ -1239,6 +1248,18 @@ class MainWindow(QtWidgets.QMainWindow):
         self.coverSummaryVSplitter.addWidget(self.summary)
         if not self.showSummary:
             self.summary.hide()
+
+        # Similar Movies Widget
+        self.similarMoviesWidget = SimilarMoviesWidget(
+            parent=self,
+            bgColorA=self.bgColorA,
+            bgColorB=self.bgColorB,
+            bgColorC=self.bgColorC,
+            bgColorD=self.bgColorD
+        )
+        self.coverSummaryVSplitter.addWidget(self.similarMoviesWidget)
+        if not self.showSimilarMovies:
+            self.similarMoviesWidget.hide()
 
         sizes = [int(x) for x in self.settings.value('coverSummaryVSplitterSizes', [600, 200], type=list)]
         self.coverSummaryVSplitter.setSizes(sizes)
@@ -2753,6 +2774,46 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 self.summary.show()
 
+    def showSimilarMoviesMenu(self):
+        if self.similarMoviesWidget:
+            self.showSimilarMovies = not self.showSimilarMovies
+            if not self.showSimilarMovies:
+                self.similarMoviesWidget.hide()
+            else:
+                self.similarMoviesWidget.show()
+
+    def selectMovieInMainList(self, title, year):
+        """Select a movie in the main movies list by title and year.
+        
+        Args:
+            title: Movie title to search for
+            year: Movie year to search for
+        """
+        # Find the movie in the main movies table
+        for row in range(self.moviesTableModel.rowCount()):
+            rowTitle = self.moviesTableModel.getTitle(row)
+            rowYear = self.moviesTableModel.getYear(row)
+            
+            if rowTitle == title and str(rowYear) == str(year):
+                # Find the corresponding proxy row
+                sourceIndex = self.moviesTableModel.index(row, 0)
+                proxyIndex = self.moviesTableProxyModel.mapFromSource(sourceIndex)
+                
+                # Check if the row is visible in the proxy model
+                if proxyIndex.isValid():
+                    # Select the row in the main table
+                    self.moviesTableView.selectRow(proxyIndex.row())
+                    self.moviesTableView.scrollTo(proxyIndex)
+                    
+                    # Update the movie display
+                    self.clickedTable(proxyIndex,
+                                    self.moviesTableModel,
+                                    self.moviesTableProxyModel)
+                    return
+        
+        # Movie not found or not visible in current filter
+        self.output(f"Movie '{title} ({year})' not found or not visible in current view")
+
     def showLogMenu(self):
         if self.logWidget:
             self.showLog = not self.showLog
@@ -3092,24 +3153,18 @@ class MainWindow(QtWidgets.QMainWindow):
             self.movieInfoAddHeading("Composers:")
             self.movieInfoAddSection(jsonData, 'composers', 'composers', 'composer')
         
-        # Calculate and display similar movies based on embeddings
+        self.movieInfoListView.setCurrentRow(0)
+        
+        # Update similar movies widget
         moviePath = jsonData.get('path')
         if moviePath:
             calculated_similar = self.calculateSimilarMovies(moviePath, k=20)
             if calculated_similar:
-                self.movieInfoAddSpacer()
-                self.movieInfoAddHeading("Similar Movies:")
-                for entry in calculated_similar:
-                    title = entry.get('title', '')
-                    year = entry.get('year', '')
-                    similarity = entry.get('similarity', 0.0)
-                    display_text = f"{title} ({year}) [{similarity:.2f}]"
-                    item = QtWidgets.QListWidgetItem(display_text)
-                    item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable)
-                    item.setData(QtCore.Qt.UserRole, ['similar_movie', title, year])
-                    self.movieInfoListView.addItem(item)
-
-        self.movieInfoListView.setCurrentRow(0)
+                self.similarMoviesWidget.updateSimilarMovies(calculated_similar, moviePath)
+            else:
+                self.similarMoviesWidget.clearSimilarMovies()
+        else:
+            self.similarMoviesWidget.clearSimilarMovies()
 
     def highlightSearchTerms(self, text, search_regex):
         """Highlight search terms in text using HTML.
