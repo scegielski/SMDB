@@ -2831,15 +2831,19 @@ class MainWindow(QtWidgets.QMainWindow):
         # Movie not found at all
         self.output(f"Movie '{title} ({year})' not found in database")
     
-    def refreshSimilarMovies(self, moviePath, k=20):
-        """Refresh similar movies for the current movie with a new count.
+    def refreshSimilarMovies(self, moviePath, k=20, content_weight=None, metadata_weight=None):
+        """Refresh similar movies for the current movie with a new count and weights.
         
         Args:
             moviePath: Path to the movie
             k: Number of similar movies to show
+            content_weight: Weight for content embedding (0-1)
+            metadata_weight: Weight for metadata embedding (0-1)
         """
         if moviePath:
-            calculated_similar = self.calculateSimilarMovies(moviePath, k=k)
+            calculated_similar = self.calculateSimilarMovies(moviePath, k=k, 
+                                                            content_weight=content_weight,
+                                                            metadata_weight=metadata_weight)
             if calculated_similar:
                 self.similarMoviesWidget.updateSimilarMovies(calculated_similar, moviePath)
             else:
@@ -3620,6 +3624,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
                 # Extract embedding data - prefer from memory (moviesSmdbData) if available
                 jsonEmbedding = None
+                jsonEmbeddingContent = None
+                jsonEmbeddingMetadata = None
                 jsonEmbeddingModel = None
                 jsonEmbeddingDimension = None
                 
@@ -3627,13 +3633,21 @@ class MainWindow(QtWidgets.QMainWindow):
                 if hasattr(self, 'moviesSmdbData') and self.moviesSmdbData and 'titles' in self.moviesSmdbData:
                     if moviePath in self.moviesSmdbData['titles']:
                         memory_movie = self.moviesSmdbData['titles'][moviePath]
-                        jsonEmbedding = memory_movie.get('embedding')
+                        # Try hybrid embeddings first (new format)
+                        jsonEmbeddingContent = memory_movie.get('embedding_content')
+                        jsonEmbeddingMetadata = memory_movie.get('embedding_metadata')
+                        # Fall back to single embedding (old format)
+                        if not jsonEmbeddingContent:
+                            jsonEmbedding = memory_movie.get('embedding')
                         jsonEmbeddingModel = memory_movie.get('embedding_model')
                         jsonEmbeddingDimension = memory_movie.get('embedding_dimension')
                 
                 # Fall back to JSON file if not in memory
-                if jsonEmbedding is None:
-                    jsonEmbedding = jsonData.get('embedding') or None
+                if jsonEmbeddingContent is None and jsonEmbedding is None:
+                    jsonEmbeddingContent = jsonData.get('embedding_content') or None
+                    jsonEmbeddingMetadata = jsonData.get('embedding_metadata') or None
+                    if not jsonEmbeddingContent:
+                        jsonEmbedding = jsonData.get('embedding') or None
                     jsonEmbeddingModel = jsonData.get('embedding_model') or None
                     jsonEmbeddingDimension = jsonData.get('embedding_dimension') or None
 
@@ -3677,10 +3691,22 @@ class MainWindow(QtWidgets.QMainWindow):
                     'known duplicate': knownDuplicate,
                     'plot': jsonPlot,
                     'synopsis': jsonSynopsis,
-                    'embedding': jsonEmbedding,
-                    'embedding_model': jsonEmbeddingModel,
-                    'embedding_dimension': jsonEmbeddingDimension
                 }
+                
+                # Add embedding data (hybrid or single format)
+                if jsonEmbeddingContent and jsonEmbeddingMetadata:
+                    # New hybrid format
+                    titles[moviePath]['embedding_content'] = jsonEmbeddingContent
+                    titles[moviePath]['embedding_metadata'] = jsonEmbeddingMetadata
+                elif jsonEmbedding:
+                    # Old single embedding format
+                    titles[moviePath]['embedding'] = jsonEmbedding
+                
+                # Add embedding metadata if present
+                if jsonEmbeddingModel:
+                    titles[moviePath]['embedding_model'] = jsonEmbeddingModel
+                if jsonEmbeddingDimension:
+                    titles[moviePath]['embedding_dimension'] = jsonEmbeddingDimension
 
         self.progressBar.setValue(0)
 
@@ -3691,7 +3717,12 @@ class MainWindow(QtWidgets.QMainWindow):
         plot_count = sum(1 for t in titles.values() if t.get('plot'))
         synopsis_count = sum(1 for t in titles.values() if t.get('synopsis'))
         embedding_count = sum(1 for t in titles.values() if t.get('embedding'))
-        self.output(f"Collected {plot_count} plots, {synopsis_count} synopses, and {embedding_count} embeddings out of {len(titles)} movies")
+        hybrid_embedding_count = sum(1 for t in titles.values() if t.get('embedding_content') and t.get('embedding_metadata'))
+        
+        if hybrid_embedding_count > 0:
+            self.output(f"Collected {plot_count} plots, {synopsis_count} synopses, {hybrid_embedding_count} hybrid embeddings, and {embedding_count} single embeddings out of {len(titles)} movies")
+        else:
+            self.output(f"Collected {plot_count} plots, {synopsis_count} synopses, and {embedding_count} embeddings out of {len(titles)} movies")
 
         # Normalize indexes (convert dict-as-set to lists) before serializing
         data = {'titles': collections.OrderedDict(sorted(titles.items()))}
@@ -4854,11 +4885,15 @@ class MainWindow(QtWidgets.QMainWindow):
     def movie_to_text(self, movie):
         """Convert movie dictionary to text representation for embedding.
         
+        This method creates two separate text representations for hybrid embeddings:
+        - content: semantic narrative content (plot, synopsis)
+        - metadata: structured movie attributes (title, year, genres)
+        
         Args:
             movie: Dictionary containing movie data (from JSON file)
             
         Returns:
-            String representation of the movie suitable for embedding
+            Tuple of (content_text, metadata_text) for hybrid embeddings
         """
         # Helper function to ensure we get a string
         def to_string(value):
@@ -4866,15 +4901,23 @@ class MainWindow(QtWidgets.QMainWindow):
                 return ' '.join(str(v) for v in value if v)
             return str(value) if value else ""
         
-        parts = [
+        # Content embedding: semantic narrative (what the movie is about)
+        content_parts = [
+            to_string(movie.get("plot", "")),
+            to_string(movie.get("synopsis", "")),
+        ]
+        content_text = ". ".join(p for p in content_parts if p)
+        
+        # Metadata embedding: structured attributes (movie properties)
+        metadata_parts = [
             movie.get("title", ""),
             f"Year: {movie.get('year', '')}" if movie.get('year') else "",
             f"Genres: {', '.join(movie.get('genres', []))}" if movie.get('genres') else "",
             to_string(movie.get("tagline", "")),
-            to_string(movie.get("plot", "")),
-            to_string(movie.get("synopsis", "")),
         ]
-        return ". ".join(p for p in parts if p)
+        metadata_text = ". ".join(p for p in metadata_parts if p)
+        
+        return (content_text, metadata_text)
 
     def createEmbeddingMenu(self):
         """Create embeddings for selected movies using sentence-transformers.
@@ -4963,12 +5006,14 @@ class MainWindow(QtWidgets.QMainWindow):
                     movieData['synopsis'] = smdb_movie.get('synopsis', '')
                     movieData['tagline'] = smdb_movie.get('tagline', '')
             
-            # Convert movie to text
-            movie_text = self.movie_to_text(movieData)
+            # Convert movie to text (returns content and metadata texts)
+            content_text, metadata_text = self.movie_to_text(movieData)
             
-            if movie_text and len(movie_text.strip()) >= 10:
+            # Need sufficient data in at least one of the texts
+            if (content_text and len(content_text.strip()) >= 10) or (metadata_text and len(metadata_text.strip()) >= 10):
                 movies_to_encode.append({
-                    'text': movie_text,
+                    'content_text': content_text or "No content available",
+                    'metadata_text': metadata_text or "No metadata available",
                     'path': moviePath,
                     'folder': movieFolderName,
                     'sourceRow': sourceRow
@@ -4987,8 +5032,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.statusBar().showMessage(f"Encoding {len(movies_to_encode)} movies in batch...")
             QtCore.QCoreApplication.processEvents()
             
-            texts = [m['text'] for m in movies_to_encode]
-            self.output(f"Starting batch encoding of {len(texts)} movies...")
+            content_texts = [m['content_text'] for m in movies_to_encode]
+            metadata_texts = [m['metadata_text'] for m in movies_to_encode]
+            self.output(f"Starting batch encoding of {len(movies_to_encode)} movies (content + metadata)...")
             
             # Encode all at once with batch processing
             batch_start = time.perf_counter()
@@ -4998,29 +5044,44 @@ class MainWindow(QtWidgets.QMainWindow):
                 model = model.half()  # Convert model to fp16 for 2x speed boost
                 self.output("Using FP16 mixed precision for faster encoding")
             
-            embeddings = model.encode(
-                texts, 
+            # Encode content embeddings
+            self.output("Encoding content embeddings...")
+            content_embeddings = model.encode(
+                content_texts, 
                 batch_size=256,  # Increased batch size for better GPU saturation
                 show_progress_bar=False,
                 normalize_embeddings=True,
                 convert_to_tensor=False
             )
+            
+            # Encode metadata embeddings
+            self.output("Encoding metadata embeddings...")
+            metadata_embeddings = model.encode(
+                metadata_texts, 
+                batch_size=256,
+                show_progress_bar=False,
+                normalize_embeddings=True,
+                convert_to_tensor=False
+            )
+            
             batch_elapsed = time.perf_counter() - batch_start
             
-            self.output(f"Batch encoding complete in {batch_elapsed:.3f}s ({len(texts)/batch_elapsed:.1f} movies/sec)")
-            self.output(f"Average time per movie: {(batch_elapsed/len(texts)*1000):.1f}ms")
+            self.output(f"Batch encoding complete in {batch_elapsed:.3f}s ({len(movies_to_encode)/batch_elapsed:.1f} movies/sec)")
+            self.output(f"Average time per movie: {(batch_elapsed/len(movies_to_encode)*1000):.1f}ms")
             
             # Store embeddings in memory
             for idx, movie_info in enumerate(movies_to_encode):
-                embedding_list = embeddings[idx].tolist()
+                content_embedding_list = content_embeddings[idx].tolist()
+                metadata_embedding_list = metadata_embeddings[idx].tolist()
                 moviePath = movie_info['path']
                 
-                # Store embedding in smdbData (in memory only)
+                # Store embeddings in smdbData (in memory only)
                 if hasattr(self, 'moviesSmdbData') and self.moviesSmdbData and 'titles' in self.moviesSmdbData:
                     if moviePath in self.moviesSmdbData['titles']:
-                        self.moviesSmdbData['titles'][moviePath]['embedding'] = embedding_list
+                        self.moviesSmdbData['titles'][moviePath]['embedding_content'] = content_embedding_list
+                        self.moviesSmdbData['titles'][moviePath]['embedding_metadata'] = metadata_embedding_list
                         self.moviesSmdbData['titles'][moviePath]['embedding_model'] = 'all-mpnet-base-v2'
-                        self.moviesSmdbData['titles'][moviePath]['embedding_dimension'] = len(embedding_list)
+                        self.moviesSmdbData['titles'][moviePath]['embedding_dimension'] = len(content_embedding_list)
                 
                 created_count += 1
                 
@@ -5169,12 +5230,14 @@ class MainWindow(QtWidgets.QMainWindow):
                     movieData['synopsis'] = smdb_movie.get('synopsis', '')
                     movieData['tagline'] = smdb_movie.get('tagline', '')
             
-            # Convert movie to text
-            movie_text = self.movie_to_text(movieData)
+            # Convert movie to text (returns content and metadata texts)
+            content_text, metadata_text = self.movie_to_text(movieData)
             
-            if movie_text and len(movie_text.strip()) >= 10:
+            # Need sufficient data in at least one of the texts
+            if (content_text and len(content_text.strip()) >= 10) or (metadata_text and len(metadata_text.strip()) >= 10):
                 movies_to_encode.append({
-                    'text': movie_text,
+                    'content_text': content_text or "No content available",
+                    'metadata_text': metadata_text or "No metadata available",
                     'path': moviePath,
                     'folder': movieFolderName,
                     'sourceRow': sourceRow
@@ -5194,8 +5257,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.statusBar().showMessage(f"Encoding {len(movies_to_encode)} movies in batch...")
             QtCore.QCoreApplication.processEvents()
             
-            texts = [m['text'] for m in movies_to_encode]
-            self.output(f"Starting batch encoding of {len(texts)} movies...")
+            content_texts = [m['content_text'] for m in movies_to_encode]
+            metadata_texts = [m['metadata_text'] for m in movies_to_encode]
+            self.output(f"Starting batch encoding of {len(movies_to_encode)} movies (content + metadata)...")
             
             # Encode all at once with batch processing
             batch_start = time.perf_counter()
@@ -5205,29 +5269,44 @@ class MainWindow(QtWidgets.QMainWindow):
                 model = model.half()  # Convert model to fp16 for 2x speed boost
                 self.output("Using FP16 mixed precision for faster encoding")
             
-            embeddings = model.encode(
-                texts, 
+            # Encode content embeddings
+            self.output("Encoding content embeddings...")
+            content_embeddings = model.encode(
+                content_texts, 
                 batch_size=256,
                 show_progress_bar=False,
                 normalize_embeddings=True,
                 convert_to_tensor=False
             )
+            
+            # Encode metadata embeddings
+            self.output("Encoding metadata embeddings...")
+            metadata_embeddings = model.encode(
+                metadata_texts, 
+                batch_size=256,
+                show_progress_bar=False,
+                normalize_embeddings=True,
+                convert_to_tensor=False
+            )
+            
             batch_elapsed = time.perf_counter() - batch_start
             
-            self.output(f"Batch encoding complete in {batch_elapsed:.3f}s ({len(texts)/batch_elapsed:.1f} movies/sec)")
-            self.output(f"Average time per movie: {(batch_elapsed/len(texts)*1000):.1f}ms")
+            self.output(f"Batch encoding complete in {batch_elapsed:.3f}s ({len(movies_to_encode)/batch_elapsed:.1f} movies/sec)")
+            self.output(f"Average time per movie: {(batch_elapsed/len(movies_to_encode)*1000):.1f}ms")
             
             # Store embeddings in memory
             for idx, movie_info in enumerate(movies_to_encode):
-                embedding_list = embeddings[idx].tolist()
+                content_embedding_list = content_embeddings[idx].tolist()
+                metadata_embedding_list = metadata_embeddings[idx].tolist()
                 moviePath = movie_info['path']
                 
-                # Store embedding in smdbData (in memory only)
+                # Store embeddings in smdbData (in memory only)
                 if hasattr(self, 'moviesSmdbData') and self.moviesSmdbData and 'titles' in self.moviesSmdbData:
                     if moviePath in self.moviesSmdbData['titles']:
-                        self.moviesSmdbData['titles'][moviePath]['embedding'] = embedding_list
+                        self.moviesSmdbData['titles'][moviePath]['embedding_content'] = content_embedding_list
+                        self.moviesSmdbData['titles'][moviePath]['embedding_metadata'] = metadata_embedding_list
                         self.moviesSmdbData['titles'][moviePath]['embedding_model'] = 'all-mpnet-base-v2'
-                        self.moviesSmdbData['titles'][moviePath]['embedding_dimension'] = len(embedding_list)
+                        self.moviesSmdbData['titles'][moviePath]['embedding_dimension'] = len(content_embedding_list)
                 
                 created_count += 1
                 
@@ -5451,12 +5530,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage(summary)
         self.output(summary)
 
-    def calculateSimilarMovies(self, moviePath, k=20):
-        """Calculate similar movies on-the-fly for a single movie.
+    def calculateSimilarMovies(self, moviePath, k=20, content_weight=None, metadata_weight=None):
+        """Calculate similar movies on-the-fly for a single movie using hybrid embeddings.
         
         Args:
             moviePath: Path to the movie to find similar movies for
             k: Number of similar movies to return (default: 20)
+            content_weight: Weight for content embedding (0-1), if None uses UI slider value
+            metadata_weight: Weight for metadata embedding (0-1), if None uses UI slider value
             
         Returns:
             List of dicts with 'id', 'title', 'year', 'similarity' keys, or None if no embedding
@@ -5466,42 +5547,84 @@ class MainWindow(QtWidgets.QMainWindow):
         except ImportError:
             return None
         
+        # Get weights from UI if not provided
+        if content_weight is None or metadata_weight is None:
+            if hasattr(self, 'similarMoviesWidget'):
+                content_weight, metadata_weight = self.similarMoviesWidget.getWeights()
+            else:
+                content_weight = 0.7
+                metadata_weight = 0.3
+        
         # Check if smdbData is loaded
         if not hasattr(self, 'moviesSmdbData') or not self.moviesSmdbData or 'titles' not in self.moviesSmdbData:
             return None
         
-        # Check if this movie has an embedding
+        # Check if this movie has embeddings
         if moviePath not in self.moviesSmdbData['titles']:
             return None
         
         movie_data = self.moviesSmdbData['titles'][moviePath]
-        if 'embedding' not in movie_data or not movie_data['embedding']:
-            return None
         
-        target_embedding = movie_data['embedding']
-        if not isinstance(target_embedding, (list, tuple)) or len(target_embedding) != 768:
-            return None
+        # Check for hybrid embeddings (new format)
+        has_content = 'embedding_content' in movie_data and movie_data['embedding_content']
+        has_metadata = 'embedding_metadata' in movie_data and movie_data['embedding_metadata']
+        
+        # Fall back to single embedding (old format) if hybrid not available
+        if not has_content and not has_metadata:
+            if 'embedding' not in movie_data or not movie_data['embedding']:
+                return None
+            # Use single embedding as both content and metadata with equal weights
+            target_content = movie_data['embedding']
+            target_metadata = movie_data['embedding']
+            if not isinstance(target_content, (list, tuple)) or len(target_content) != 768:
+                return None
+        else:
+            # Use hybrid embeddings
+            target_content = movie_data.get('embedding_content', [])
+            target_metadata = movie_data.get('embedding_metadata', [])
+            if not isinstance(target_content, (list, tuple)) or len(target_content) != 768:
+                return None
+            if not isinstance(target_metadata, (list, tuple)) or len(target_metadata) != 768:
+                return None
         
         # Build embeddings matrix from all movies (cached if possible)
         if not hasattr(self, '_embeddings_cache') or self._embeddings_cache is None:
             movie_paths = []
             movie_ids = []
-            embeddings_list = []
+            content_embeddings_list = []
+            metadata_embeddings_list = []
             
             for path, data in self.moviesSmdbData['titles'].items():
-                if 'embedding' in data and data['embedding']:
+                # Check for hybrid embeddings first
+                has_content = 'embedding_content' in data and data['embedding_content']
+                has_metadata = 'embedding_metadata' in data and data['embedding_metadata']
+                
+                if has_content and has_metadata:
+                    content_emb = data['embedding_content']
+                    metadata_emb = data['embedding_metadata']
+                    if (isinstance(content_emb, (list, tuple)) and len(content_emb) == 768 and
+                        isinstance(metadata_emb, (list, tuple)) and len(metadata_emb) == 768):
+                        movie_paths.append(path)
+                        movie_ids.append(data.get('id', ''))
+                        content_embeddings_list.append(content_emb)
+                        metadata_embeddings_list.append(metadata_emb)
+                # Fall back to single embedding
+                elif 'embedding' in data and data['embedding']:
                     embedding = data['embedding']
                     if isinstance(embedding, (list, tuple)) and len(embedding) == 768:
                         movie_paths.append(path)
                         movie_ids.append(data.get('id', ''))
-                        embeddings_list.append(embedding)
+                        # Use same embedding for both content and metadata
+                        content_embeddings_list.append(embedding)
+                        metadata_embeddings_list.append(embedding)
             
-            if len(embeddings_list) == 0:
+            if len(content_embeddings_list) == 0:
                 return None
             
-            # Cache the embeddings matrix and lookup dicts
+            # Cache the embeddings matrices and lookup dicts
             self._embeddings_cache = {
-                'embeddings': np.array(embeddings_list, dtype=np.float32),
+                'content_embeddings': np.array(content_embeddings_list, dtype=np.float32),
+                'metadata_embeddings': np.array(metadata_embeddings_list, dtype=np.float32),
                 'movie_paths': movie_paths,
                 'movie_ids': movie_ids,
                 'path_to_idx': {path: idx for idx, path in enumerate(movie_paths)}
@@ -5513,12 +5636,17 @@ class MainWindow(QtWidgets.QMainWindow):
         if moviePath not in cache['path_to_idx']:
             return None
         
-        # Get target movie embedding
+        # Get target movie embeddings
         idx = cache['path_to_idx'][moviePath]
-        v = cache['embeddings'][idx]
+        v_content = cache['content_embeddings'][idx]
+        v_metadata = cache['metadata_embeddings'][idx]
         
-        # Compute cosine similarity with all movies
-        sims = cache['embeddings'] @ v
+        # Compute cosine similarity with weighted combination
+        content_sims = cache['content_embeddings'] @ v_content
+        metadata_sims = cache['metadata_embeddings'] @ v_metadata
+        
+        # Weighted combination
+        sims = content_weight * content_sims + metadata_weight * metadata_sims
         
         # Find top k+1 most similar (including self)
         num_to_get = min(k+1, len(sims))

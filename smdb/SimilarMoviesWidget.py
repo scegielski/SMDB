@@ -54,6 +54,51 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         
         vLayout.addLayout(topBar)
         
+        # Second bar with weight controls for hybrid embeddings
+        weightsBar = QtWidgets.QHBoxLayout()
+        
+        # Content weight slider
+        contentLabel = QtWidgets.QLabel("Content:")
+        contentLabel.setToolTip("Weight for semantic content (plot, synopsis)")
+        weightsBar.addWidget(contentLabel)
+        
+        self.contentSlider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.contentSlider.setMinimum(0)
+        self.contentSlider.setMaximum(100)
+        self.contentSlider.setValue(70)  # Default 0.7
+        self.contentSlider.setTickPosition(QtWidgets.QSlider.TicksBelow)
+        self.contentSlider.setTickInterval(10)
+        self.contentSlider.setToolTip("Weight for semantic content similarity (0.0 - 1.0)")
+        self.contentSlider.valueChanged.connect(self.onWeightChanged)
+        weightsBar.addWidget(self.contentSlider)
+        
+        self.contentValueLabel = QtWidgets.QLabel("0.70")
+        self.contentValueLabel.setMinimumWidth(35)
+        weightsBar.addWidget(self.contentValueLabel)
+        
+        weightsBar.addSpacing(15)
+        
+        # Metadata weight slider
+        metadataLabel = QtWidgets.QLabel("Metadata:")
+        metadataLabel.setToolTip("Weight for structured metadata (title, year, genres)")
+        weightsBar.addWidget(metadataLabel)
+        
+        self.metadataSlider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.metadataSlider.setMinimum(0)
+        self.metadataSlider.setMaximum(100)
+        self.metadataSlider.setValue(30)  # Default 0.3
+        self.metadataSlider.setTickPosition(QtWidgets.QSlider.TicksBelow)
+        self.metadataSlider.setTickInterval(10)
+        self.metadataSlider.setToolTip("Weight for metadata similarity (0.0 - 1.0)")
+        self.metadataSlider.valueChanged.connect(self.onWeightChanged)
+        weightsBar.addWidget(self.metadataSlider)
+        
+        self.metadataValueLabel = QtWidgets.QLabel("0.30")
+        self.metadataValueLabel.setMinimumWidth(35)
+        weightsBar.addWidget(self.metadataValueLabel)
+        
+        vLayout.addLayout(weightsBar)
+        
         # Create table
         self.tableWidget = QtWidgets.QTableWidget()
         self.tableWidget.setColumnCount(4)
@@ -165,7 +210,36 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         """Handle change in the number of similar movies to display."""
         # Recalculate similar movies with new count if we have a current movie
         if self.current_movie_path:
-            self.parent.refreshSimilarMovies(self.current_movie_path, k=value)
+            content_weight, metadata_weight = self.getWeights()
+            self.parent.refreshSimilarMovies(self.current_movie_path, k=value, 
+                                            content_weight=content_weight, 
+                                            metadata_weight=metadata_weight)
+    
+    def onWeightChanged(self, value):
+        """Handle change in weight sliders."""
+        # Update value labels
+        content_weight = self.contentSlider.value() / 100.0
+        metadata_weight = self.metadataSlider.value() / 100.0
+        
+        self.contentValueLabel.setText(f"{content_weight:.2f}")
+        self.metadataValueLabel.setText(f"{metadata_weight:.2f}")
+        
+        # Recalculate similar movies with new weights if we have a current movie
+        if self.current_movie_path:
+            k = self.countSpinBox.value()
+            self.parent.refreshSimilarMovies(self.current_movie_path, k=k,
+                                            content_weight=content_weight,
+                                            metadata_weight=metadata_weight)
+    
+    def getWeights(self):
+        """Get the current weight settings for hybrid embeddings.
+        
+        Returns:
+            Tuple of (content_weight, metadata_weight) as floats 0.0-1.0
+        """
+        content_weight = self.contentSlider.value() / 100.0
+        metadata_weight = self.metadataSlider.value() / 100.0
+        return (content_weight, metadata_weight)
     
     def getSimilarMoviesCount(self):
         """Get the current count setting for similar movies."""
