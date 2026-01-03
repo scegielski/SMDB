@@ -3382,7 +3382,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         jsonYearInt = int(jsonData.get('year'))
                     except ValueError:
                         try:
-                            jy = str(jsonData.get('year')).split('â€“')[0]
+                            jy = str(jsonData.get('year')).split('–')[0]
                             jsonYearInt = int(jy)
                         except Exception:
                             jsonYearInt = 0
@@ -3536,10 +3536,24 @@ class MainWindow(QtWidgets.QMainWindow):
                     if jsonSynopsis:
                         jsonSynopsis = jsonSynopsis.split('::')[0]
 
-                # Extract embedding data for caching in smdb file
-                jsonEmbedding = jsonData.get('embedding') or None
-                jsonEmbeddingModel = jsonData.get('embedding_model') or None
-                jsonEmbeddingDimension = jsonData.get('embedding_dimension') or None
+                # Extract embedding data - prefer from memory (moviesSmdbData) if available
+                jsonEmbedding = None
+                jsonEmbeddingModel = None
+                jsonEmbeddingDimension = None
+                
+                # Check if embeddings exist in memory first
+                if hasattr(self, 'moviesSmdbData') and self.moviesSmdbData and 'titles' in self.moviesSmdbData:
+                    if moviePath in self.moviesSmdbData['titles']:
+                        memory_movie = self.moviesSmdbData['titles'][moviePath]
+                        jsonEmbedding = memory_movie.get('embedding')
+                        jsonEmbeddingModel = memory_movie.get('embedding_model')
+                        jsonEmbeddingDimension = memory_movie.get('embedding_dimension')
+                
+                # Fall back to JSON file if not in memory
+                if jsonEmbedding is None:
+                    jsonEmbedding = jsonData.get('embedding') or None
+                    jsonEmbeddingModel = jsonData.get('embedding_model') or None
+                    jsonEmbeddingDimension = jsonData.get('embedding_dimension') or None
 
                 # Subtitles exist status comes from current model value if present
                 try:
@@ -3697,10 +3711,10 @@ class MainWindow(QtWidgets.QMainWindow):
         title = title.replace('&', 'and')
         title = title.replace("'", "")
         title = title.replace("`", "")
-        title = title.replace("â€™", "")
+        title = title.replace("’", "")
         title = title.replace("...", "")
         title = title.replace("-", " ")
-        title = title.replace("â€”", " ")
+        title = title.replace("—", " ")
         title = title.replace("(", "")
         title = title.replace(")", "")
         title = title.encode('ascii', 'replace').decode()
@@ -3902,6 +3916,10 @@ class MainWindow(QtWidgets.QMainWindow):
         createAllEmbeddingsAction = QtWidgets.QAction("Create embeddings for all movies", self)
         createAllEmbeddingsAction.triggered.connect(self.createAllEmbeddingsMenu)
         moviesTableRightMenu.addAction(createAllEmbeddingsAction)
+
+        findSimilarMoviesAction = QtWidgets.QAction("Find similar movies", self)
+        findSimilarMoviesAction.triggered.connect(self.findSimilarMoviesMenu)
+        moviesTableRightMenu.addAction(findSimilarMoviesAction)
 
         moviesTableRightMenu.addSeparator()
 
@@ -4346,7 +4364,7 @@ class MainWindow(QtWidgets.QMainWindow):
         }
 
         try:
-            self.statusBar().showMessage("Searching OpenSubtitlesâ€¦", 5000)
+            self.statusBar().showMessage("Searching OpenSubtitles…", 5000)
             r = requests.get("https://api.opensubtitles.com/api/v1/subtitles", params=params, headers=headers, timeout=20)
             if r.status_code == 403:
                 # Allow user to provide a valid API key, then retry once
@@ -4840,9 +4858,9 @@ class MainWindow(QtWidgets.QMainWindow):
             }
             
             # Try to get plot/synopsis from smdb_data if loaded
-            if hasattr(self, 'smdbData') and self.smdbData and 'titles' in self.smdbData:
-                if moviePath in self.smdbData['titles']:
-                    smdb_movie = self.smdbData['titles'][moviePath]
+            if hasattr(self, 'moviesSmdbData') and self.moviesSmdbData and 'titles' in self.moviesSmdbData:
+                if moviePath in self.moviesSmdbData['titles']:
+                    smdb_movie = self.moviesSmdbData['titles'][moviePath]
                     movieData['plot'] = smdb_movie.get('plot', '')
                     movieData['synopsis'] = smdb_movie.get('synopsis', '')
                     movieData['tagline'] = smdb_movie.get('tagline', '')
@@ -4900,11 +4918,11 @@ class MainWindow(QtWidgets.QMainWindow):
                 moviePath = movie_info['path']
                 
                 # Store embedding in smdbData (in memory only)
-                if hasattr(self, 'smdbData') and self.smdbData and 'titles' in self.smdbData:
-                    if moviePath in self.smdbData['titles']:
-                        self.smdbData['titles'][moviePath]['embedding'] = embedding_list
-                        self.smdbData['titles'][moviePath]['embedding_model'] = 'all-mpnet-base-v2'
-                        self.smdbData['titles'][moviePath]['embedding_dimension'] = len(embedding_list)
+                if hasattr(self, 'moviesSmdbData') and self.moviesSmdbData and 'titles' in self.moviesSmdbData:
+                    if moviePath in self.moviesSmdbData['titles']:
+                        self.moviesSmdbData['titles'][moviePath]['embedding'] = embedding_list
+                        self.moviesSmdbData['titles'][moviePath]['embedding_model'] = 'all-mpnet-base-v2'
+                        self.moviesSmdbData['titles'][moviePath]['embedding_dimension'] = len(embedding_list)
                 
                 created_count += 1
                 
@@ -4940,7 +4958,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.output(f"Overall throughput: {created_count/total_elapsed:.1f} movies/sec")
             self.output(f"Average per movie: {(total_elapsed/created_count*1000):.1f}ms")
         self.output(f"Total embeddings in memory: {created_count}")
-        self.output("Remember to rebuild SMDB file to save embeddings to disk")
+        self.output("Embeddings stored in memory - rebuild SMDB file to persist")
 
     def createAllEmbeddingsMenu(self):
         """Create embeddings for all movies in the database using sentence-transformers.
@@ -5042,9 +5060,9 @@ class MainWindow(QtWidgets.QMainWindow):
             }
             
             # Try to get plot/synopsis from smdb_data if loaded
-            if hasattr(self, 'smdbData') and self.smdbData and 'titles' in self.smdbData:
-                if moviePath in self.smdbData['titles']:
-                    smdb_movie = self.smdbData['titles'][moviePath]
+            if hasattr(self, 'moviesSmdbData') and self.moviesSmdbData and 'titles' in self.moviesSmdbData:
+                if moviePath in self.moviesSmdbData['titles']:
+                    smdb_movie = self.moviesSmdbData['titles'][moviePath]
                     movieData['plot'] = smdb_movie.get('plot', '')
                     movieData['synopsis'] = smdb_movie.get('synopsis', '')
                     movieData['tagline'] = smdb_movie.get('tagline', '')
@@ -5103,11 +5121,11 @@ class MainWindow(QtWidgets.QMainWindow):
                 moviePath = movie_info['path']
                 
                 # Store embedding in smdbData (in memory only)
-                if hasattr(self, 'smdbData') and self.smdbData and 'titles' in self.smdbData:
-                    if moviePath in self.smdbData['titles']:
-                        self.smdbData['titles'][moviePath]['embedding'] = embedding_list
-                        self.smdbData['titles'][moviePath]['embedding_model'] = 'all-mpnet-base-v2'
-                        self.smdbData['titles'][moviePath]['embedding_dimension'] = len(embedding_list)
+                if hasattr(self, 'moviesSmdbData') and self.moviesSmdbData and 'titles' in self.moviesSmdbData:
+                    if moviePath in self.moviesSmdbData['titles']:
+                        self.moviesSmdbData['titles'][moviePath]['embedding'] = embedding_list
+                        self.moviesSmdbData['titles'][moviePath]['embedding_model'] = 'all-mpnet-base-v2'
+                        self.moviesSmdbData['titles'][moviePath]['embedding_dimension'] = len(embedding_list)
                 
                 created_count += 1
                 
@@ -5143,7 +5161,247 @@ class MainWindow(QtWidgets.QMainWindow):
             self.output(f"Overall throughput: {created_count/total_elapsed:.1f} movies/sec")
             self.output(f"Average per movie: {(total_elapsed/created_count*1000):.1f}ms")
         self.output(f"Total embeddings in memory: {created_count}")
-        self.output("Remember to rebuild SMDB file to save embeddings to disk")
+        self.output("Embeddings stored in memory - rebuild SMDB file to persist")
+
+    def saveEmbeddingsToJsonFiles(self):
+        """Save embeddings from memory to individual JSON files."""
+        if not hasattr(self, 'moviesSmdbData') or not self.moviesSmdbData or 'titles' not in self.moviesSmdbData:
+            self.output("No movie data in memory")
+            return
+        
+        import time
+        start_time = time.perf_counter()
+        self.output("Saving embeddings to JSON files...")
+        
+        # Count movies with embeddings
+        movies_with_embeddings = [
+            (path, data) for path, data in self.moviesSmdbData['titles'].items()
+            if data.get('embedding')
+        ]
+        
+        if not movies_with_embeddings:
+            self.output("No embeddings found in memory")
+            return
+        
+        self.output(f"Found {len(movies_with_embeddings)} movies with embeddings to save")
+        
+        self.progressBar.setMaximum(len(movies_with_embeddings))
+        self.isCanceled = False
+        saved_count = 0
+        failed_count = 0
+        
+        for idx, (moviePath, movieData) in enumerate(movies_with_embeddings):
+            if idx % 10 == 0 or idx == len(movies_with_embeddings) - 1:
+                progress = idx + 1
+                pct = (progress / len(movies_with_embeddings) * 100)
+                self.progressBar.setValue(progress)
+                self.statusBar().showMessage(f"Saving embeddings to JSON files ({progress}/{len(movies_with_embeddings)}, {pct:.1f}%)")
+                QtCore.QCoreApplication.processEvents()
+                
+                if self.isCanceled:
+                    self.statusBar().showMessage('Cancelled')
+                    self.isCanceled = False
+                    self.progressBar.setValue(0)
+                    return
+            
+            try:
+                folderName = movieData.get('folder')
+                if not folderName:
+                    continue
+                
+                jsonFile = os.path.join(moviePath, f'{folderName}.json')
+                if not os.path.exists(jsonFile):
+                    failed_count += 1
+                    continue
+                
+                # Read existing JSON
+                with open(jsonFile, 'r', encoding='utf-8') as f:
+                    jsonData = ujson.load(f)
+                
+                # Add/update embedding fields
+                jsonData['embedding'] = movieData.get('embedding')
+                jsonData['embedding_model'] = movieData.get('embedding_model')
+                jsonData['embedding_dimension'] = movieData.get('embedding_dimension')
+                
+                # Write back to JSON
+                with open(jsonFile, 'w', encoding='utf-8') as f:
+                    ujson.dump(jsonData, f, indent=2, ensure_ascii=False, escape_forward_slashes=False)
+                
+                saved_count += 1
+                
+            except Exception as e:
+                self.output(f"Error saving embedding for {moviePath}: {e}")
+                failed_count += 1
+        
+        self.progressBar.setValue(0)
+        elapsed = time.perf_counter() - start_time
+        
+        summary = f"Saved {saved_count} embeddings to JSON files in {elapsed:.1f}s"
+        if failed_count > 0:
+            summary += f", {failed_count} failed"
+        
+        self.statusBar().showMessage(summary)
+        self.output(summary)
+        self.output("Now rebuild the SMDB file to persist embeddings in the database")
+
+    def findSimilarMoviesMenu(self, k=20):
+        """Find similar movies using embedding similarity for selected movies.
+        
+        Computes cosine similarity between each selected movie and all other movies
+        in the database, then stores the top k most similar movies.
+        
+        Args:
+            k: Number of similar movies to find (default: 20)
+        """
+        try:
+            import numpy as np
+        except ImportError:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Missing Package",
+                "numpy package is not installed.\n\n"
+                "Please install it using:\npip install numpy"
+            )
+            return
+        
+        # Check if smdbData is loaded
+        if not hasattr(self, 'moviesSmdbData') or not self.moviesSmdbData or 'titles' not in self.moviesSmdbData:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "No Data",
+                "moviesSmdbData is not loaded. Please load or rebuild the SMDB file first."
+            )
+            return
+        
+        numSelectedItems = len(self.moviesTableView.selectionModel().selectedRows())
+        self.progressBar.setMaximum(numSelectedItems)
+        progress = 0
+        self.isCanceled = False
+        import time
+        start_time = time.time()
+        
+        processed_count = 0
+        skipped_count = 0
+        failed_count = 0
+        
+        # Build embeddings matrix from all movies
+        self.output("Building embeddings matrix from all movies...")
+        self.statusBar().showMessage("Building embeddings matrix...")
+        QtCore.QCoreApplication.processEvents()
+        
+        movie_paths = []
+        movie_ids = []
+        embeddings_list = []
+        
+        for movie_path, movie_data in self.moviesSmdbData['titles'].items():
+            if 'embedding' in movie_data and movie_data['embedding']:
+                embedding = movie_data['embedding']
+                # Validate embedding is a list/array with expected dimension
+                if isinstance(embedding, (list, tuple)) and len(embedding) == 768:
+                    movie_paths.append(movie_path)
+                    movie_ids.append(movie_data.get('id', ''))
+                    embeddings_list.append(embedding)
+        
+        if len(embeddings_list) == 0:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "No Embeddings",
+                "No embeddings found in database. Please create embeddings first."
+            )
+            return
+        
+        # Convert to numpy array
+        embeddings = np.array(embeddings_list, dtype=np.float32)
+        self.output(f"Loaded {len(embeddings)} movie embeddings ({embeddings.shape[1]} dimensions)")
+        
+        # Create lookup dictionaries
+        path_to_idx = {path: idx for idx, path in enumerate(movie_paths)}
+        
+        # Process selected movies
+        for proxyIndex in self.moviesTableView.selectionModel().selectedRows():
+            QtCore.QCoreApplication.processEvents()
+            if self.isCanceled:
+                self.statusBar().showMessage('Cancelled')
+                self.isCanceled = False
+                self.progressBar.setValue(0)
+                return
+
+            progress += 1
+            self.progressBar.setValue(progress)
+            self.statusBar().showMessage(f"Finding similar movies ({progress}/{numSelectedItems})...")
+
+            sourceRow = self.getSourceRow(proxyIndex)
+            movieFolderName = self.moviesTableModel.getFolderName(sourceRow)
+            moviePath = self.moviesTableModel.getPath(sourceRow)
+            
+            # Check if movie has embedding
+            if moviePath not in path_to_idx:
+                self.output(f"No embedding found for {movieFolderName}, skipping...")
+                skipped_count += 1
+                continue
+            
+            # Get target movie embedding
+            idx = path_to_idx[moviePath]
+            v = embeddings[idx]
+            
+            # Compute cosine similarity with all movies (embeddings are normalized)
+            sims = embeddings @ v
+            
+            # Find top k+1 most similar (including self)
+            top_idx = np.argpartition(-sims, min(k+1, len(sims)))[:min(k+1, len(sims))]
+            top_idx = top_idx[np.argsort(-sims[top_idx])]
+            
+            # Collect results (excluding self)
+            results = []
+            for i in top_idx:
+                if i == idx:
+                    continue
+                results.append({
+                    'id': movie_ids[i],
+                    'similarity': float(sims[i]),
+                    'title': self.moviesSmdbData['titles'][movie_paths[i]].get('title', ''),
+                    'year': self.moviesSmdbData['titles'][movie_paths[i]].get('year', '')
+                })
+                if len(results) == k:
+                    break
+            
+            # Store in smdbData (memory)
+            if moviePath in self.moviesSmdbData['titles']:
+                self.moviesSmdbData['titles'][moviePath]['calculated similar movies'] = results
+            
+            # Also write to JSON file
+            try:
+                jsonFile = os.path.join(moviePath, f'{movieFolderName}.json')
+                if os.path.exists(jsonFile):
+                    with open(jsonFile, 'r', encoding='utf-8') as f:
+                        jsonData = ujson.load(f)
+                    
+                    jsonData['calculated similar movies'] = results
+                    
+                    with open(jsonFile, 'w', encoding='utf-8') as f:
+                        ujson.dump(jsonData, f, indent=4)
+                    
+                    self.output(f"Found {len(results)} similar movies for {movieFolderName} (top similarity: {results[0]['similarity']:.3f})")
+                    processed_count += 1
+                else:
+                    self.output(f"JSON file not found for {movieFolderName}")
+                    failed_count += 1
+            except Exception as e:
+                self.output(f"Error writing similar movies for {movieFolderName}: {e}")
+                failed_count += 1
+        
+        self.progressBar.setValue(0)
+        
+        # Calculate total elapsed time
+        total_elapsed = time.time() - start_time
+        
+        # Show summary
+        summary = f"Similar movies search complete: {processed_count} processed, {skipped_count} skipped, {failed_count} failed"
+        self.statusBar().showMessage(summary)
+        self.output(summary)
+        self.output(f"Total time: {total_elapsed:.3f}s")
+        if processed_count > 0:
+            self.output(f"Average per movie: {(total_elapsed/processed_count):.3f}s")
 
     def downloadMissingDataMenu(self):
         """Download missing data fields for selected movies.
