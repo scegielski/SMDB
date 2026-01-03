@@ -2363,6 +2363,9 @@ class MainWindow(QtWidgets.QMainWindow):
             with open(jsonFile) as f:
                 try:
                     jsonData = ujson.load(f)
+                    # Add moviePath to jsonData so it can be used in movieInfoRefresh
+                    if jsonData:
+                        jsonData['path'] = moviePath
                 except UnicodeDecodeError:
                     self.output("Error reading %s" % jsonFile)
         else:
@@ -3110,6 +3113,23 @@ class MainWindow(QtWidgets.QMainWindow):
                 item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable)
                 item.setData(QtCore.Qt.UserRole, ['similar_movie', title_value, year_value])
                 self.movieInfoListView.addItem(item)
+        
+        # Calculate and display similar movies based on embeddings
+        moviePath = jsonData.get('path')
+        if moviePath:
+            calculated_similar = self.calculateSimilarMovies(moviePath, k=20)
+            if calculated_similar:
+                self.movieInfoAddSpacer()
+                self.movieInfoAddHeading("Calculated Similar Movies:")
+                for entry in calculated_similar:
+                    title = entry.get('title', '')
+                    year = entry.get('year', '')
+                    similarity = entry.get('similarity', 0.0)
+                    display_text = f"{title} ({year}) [{similarity:.2f}]"
+                    item = QtWidgets.QListWidgetItem(display_text)
+                    item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable)
+                    item.setData(QtCore.Qt.UserRole, ['similar_movie', title, year])
+                    self.movieInfoListView.addItem(item)
 
         self.movieInfoListView.setCurrentRow(0)
 
@@ -3916,10 +3936,6 @@ class MainWindow(QtWidgets.QMainWindow):
         createAllEmbeddingsAction = QtWidgets.QAction("Create embeddings for all movies", self)
         createAllEmbeddingsAction.triggered.connect(self.createAllEmbeddingsMenu)
         moviesTableRightMenu.addAction(createAllEmbeddingsAction)
-
-        findSimilarMoviesAction = QtWidgets.QAction("Find similar movies", self)
-        findSimilarMoviesAction.triggered.connect(lambda: self.findSimilarMoviesMenu())
-        moviesTableRightMenu.addAction(findSimilarMoviesAction)
 
         moviesTableRightMenu.addSeparator()
 
@@ -4959,6 +4975,10 @@ class MainWindow(QtWidgets.QMainWindow):
             self.output(f"Average per movie: {(total_elapsed/created_count*1000):.1f}ms")
         self.output(f"Total embeddings in memory: {created_count}")
         self.output("Embeddings stored in memory - rebuild SMDB file to persist")
+        
+        # Clear embeddings cache so new embeddings will be used
+        if created_count > 0:
+            self._embeddings_cache = None
 
     def createAllEmbeddingsMenu(self):
         """Create embeddings for all movies in the database using sentence-transformers.
@@ -5162,6 +5182,10 @@ class MainWindow(QtWidgets.QMainWindow):
             self.output(f"Average per movie: {(total_elapsed/created_count*1000):.1f}ms")
         self.output(f"Total embeddings in memory: {created_count}")
         self.output("Embeddings stored in memory - rebuild SMDB file to persist")
+        
+        # Clear embeddings cache so new embeddings will be used
+        if created_count > 0:
+            self._embeddings_cache = None
 
     def saveEmbeddingsToJsonFiles(self):
         """Save embeddings from memory to individual JSON files."""
@@ -5243,6 +5267,96 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage(summary)
         self.output(summary)
         self.output("Now rebuild the SMDB file to persist embeddings in the database")
+
+    def calculateSimilarMovies(self, moviePath, k=20):
+        """Calculate similar movies on-the-fly for a single movie.
+        
+        Args:
+            moviePath: Path to the movie to find similar movies for
+            k: Number of similar movies to return (default: 20)
+            
+        Returns:
+            List of dicts with 'id', 'title', 'year', 'similarity' keys, or None if no embedding
+        """
+        try:
+            import numpy as np
+        except ImportError:
+            return None
+        
+        # Check if smdbData is loaded
+        if not hasattr(self, 'moviesSmdbData') or not self.moviesSmdbData or 'titles' not in self.moviesSmdbData:
+            return None
+        
+        # Check if this movie has an embedding
+        if moviePath not in self.moviesSmdbData['titles']:
+            return None
+        
+        movie_data = self.moviesSmdbData['titles'][moviePath]
+        if 'embedding' not in movie_data or not movie_data['embedding']:
+            return None
+        
+        target_embedding = movie_data['embedding']
+        if not isinstance(target_embedding, (list, tuple)) or len(target_embedding) != 768:
+            return None
+        
+        # Build embeddings matrix from all movies (cached if possible)
+        if not hasattr(self, '_embeddings_cache') or self._embeddings_cache is None:
+            movie_paths = []
+            movie_ids = []
+            embeddings_list = []
+            
+            for path, data in self.moviesSmdbData['titles'].items():
+                if 'embedding' in data and data['embedding']:
+                    embedding = data['embedding']
+                    if isinstance(embedding, (list, tuple)) and len(embedding) == 768:
+                        movie_paths.append(path)
+                        movie_ids.append(data.get('id', ''))
+                        embeddings_list.append(embedding)
+            
+            if len(embeddings_list) == 0:
+                return None
+            
+            # Cache the embeddings matrix and lookup dicts
+            self._embeddings_cache = {
+                'embeddings': np.array(embeddings_list, dtype=np.float32),
+                'movie_paths': movie_paths,
+                'movie_ids': movie_ids,
+                'path_to_idx': {path: idx for idx, path in enumerate(movie_paths)}
+            }
+        
+        cache = self._embeddings_cache
+        
+        # Check if movie is in the cache
+        if moviePath not in cache['path_to_idx']:
+            return None
+        
+        # Get target movie embedding
+        idx = cache['path_to_idx'][moviePath]
+        v = cache['embeddings'][idx]
+        
+        # Compute cosine similarity with all movies
+        sims = cache['embeddings'] @ v
+        
+        # Find top k+1 most similar (including self)
+        num_to_get = min(k+1, len(sims))
+        top_idx = np.argpartition(-sims, num_to_get)[:num_to_get]
+        top_idx = top_idx[np.argsort(-sims[top_idx])]
+        
+        # Collect results (excluding self)
+        results = []
+        for i in top_idx:
+            if i == idx:
+                continue
+            results.append({
+                'id': cache['movie_ids'][i],
+                'similarity': float(sims[i]),
+                'title': self.moviesSmdbData['titles'][cache['movie_paths'][i]].get('title', ''),
+                'year': self.moviesSmdbData['titles'][cache['movie_paths'][i]].get('year', '')
+            })
+            if len(results) == k:
+                break
+        
+        return results if results else None
 
     def findSimilarMoviesMenu(self, k=20):
         """Find similar movies using embedding similarity for selected movies.
