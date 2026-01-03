@@ -5427,169 +5427,6 @@ class MainWindow(QtWidgets.QMainWindow):
         
         return results if results else None
 
-    def findSimilarMoviesMenu(self, k=20):
-        """Find similar movies using embedding similarity for selected movies.
-        
-        Computes cosine similarity between each selected movie and all other movies
-        in the database, then stores the top k most similar movies.
-        
-        Args:
-            k: Number of similar movies to find (default: 20)
-        """
-        try:
-            import numpy as np
-        except ImportError:
-            QtWidgets.QMessageBox.warning(
-                self,
-                "Missing Package",
-                "numpy package is not installed.\n\n"
-                "Please install it using:\npip install numpy"
-            )
-            return
-        
-        # Check if smdbData is loaded
-        if not hasattr(self, 'moviesSmdbData') or not self.moviesSmdbData or 'titles' not in self.moviesSmdbData:
-            QtWidgets.QMessageBox.warning(
-                self,
-                "No Data",
-                "moviesSmdbData is not loaded. Please load or rebuild the SMDB file first."
-            )
-            return
-        
-        numSelectedItems = len(self.moviesTableView.selectionModel().selectedRows())
-        self.progressBar.setMaximum(numSelectedItems)
-        progress = 0
-        self.isCanceled = False
-        import time
-        start_time = time.time()
-        
-        processed_count = 0
-        skipped_count = 0
-        failed_count = 0
-        
-        # Build embeddings matrix from all movies
-        self.output("Building embeddings matrix from all movies...")
-        self.statusBar().showMessage("Building embeddings matrix...")
-        QtCore.QCoreApplication.processEvents()
-        
-        movie_paths = []
-        movie_ids = []
-        embeddings_list = []
-        
-        for movie_path, movie_data in self.moviesSmdbData['titles'].items():
-            if 'embedding' in movie_data and movie_data['embedding']:
-                embedding = movie_data['embedding']
-                # Validate embedding is a list/array with expected dimension
-                if isinstance(embedding, (list, tuple)) and len(embedding) == 768:
-                    movie_paths.append(movie_path)
-                    movie_ids.append(movie_data.get('id', ''))
-                    embeddings_list.append(embedding)
-        
-        if len(embeddings_list) == 0:
-            QtWidgets.QMessageBox.warning(
-                self,
-                "No Embeddings",
-                "No embeddings found in database. Please create embeddings first."
-            )
-            return
-        
-        # Convert to numpy array
-        embeddings = np.array(embeddings_list, dtype=np.float32)
-        self.output(f"Loaded {len(embeddings)} movie embeddings ({embeddings.shape[1]} dimensions)")
-        
-        # Create lookup dictionaries
-        path_to_idx = {path: idx for idx, path in enumerate(movie_paths)}
-        
-        # Process selected movies
-        for proxyIndex in self.moviesTableView.selectionModel().selectedRows():
-            QtCore.QCoreApplication.processEvents()
-            if self.isCanceled:
-                self.statusBar().showMessage('Cancelled')
-                self.isCanceled = False
-                self.progressBar.setValue(0)
-                return
-
-            progress += 1
-            self.progressBar.setValue(progress)
-            self.statusBar().showMessage(f"Finding similar movies ({progress}/{numSelectedItems})...")
-
-            sourceRow = self.getSourceRow(proxyIndex)
-            movieFolderName = self.moviesTableModel.getFolderName(sourceRow)
-            moviePath = self.moviesTableModel.getPath(sourceRow)
-            
-            # Check if movie has embedding
-            if moviePath not in path_to_idx:
-                self.output(f"No embedding found for {movieFolderName}, skipping...")
-                skipped_count += 1
-                continue
-            
-            # Get target movie embedding
-            idx = path_to_idx[moviePath]
-            v = embeddings[idx]
-            
-            # Compute cosine similarity with all movies (embeddings are normalized)
-            sims = embeddings @ v
-            
-            # Find top k+1 most similar (including self)
-            num_to_get = min(k+1, len(sims))
-            top_idx = np.argpartition(-sims, num_to_get)[:num_to_get]
-            top_idx = top_idx[np.argsort(-sims[top_idx])]
-            
-            # Collect results (excluding self)
-            results = []
-            for i in top_idx:
-                if i == idx:
-                    continue
-                results.append({
-                    'id': movie_ids[i],
-                    'similarity': float(sims[i]),
-                    'title': self.moviesSmdbData['titles'][movie_paths[i]].get('title', ''),
-                    'year': self.moviesSmdbData['titles'][movie_paths[i]].get('year', '')
-                })
-                if len(results) == k:
-                    break
-            
-            # Store in smdbData (memory)
-            if moviePath in self.moviesSmdbData['titles']:
-                self.moviesSmdbData['titles'][moviePath]['calculated similar movies'] = results
-            
-            # Also write to JSON file
-            try:
-                jsonFile = os.path.join(moviePath, f'{movieFolderName}.json')
-                if os.path.exists(jsonFile):
-                    with open(jsonFile, 'r', encoding='utf-8') as f:
-                        jsonData = ujson.load(f)
-                    
-                    jsonData['calculated similar movies'] = results
-                    
-                    with open(jsonFile, 'w', encoding='utf-8') as f:
-                        ujson.dump(jsonData, f, indent=4)
-                    
-                    if len(results) > 0:
-                        self.output(f"Found {len(results)} similar movies for {movieFolderName} (top similarity: {results[0]['similarity']:.3f})")
-                    else:
-                        self.output(f"Found {len(results)} similar movies for {movieFolderName}")
-                    processed_count += 1
-                else:
-                    self.output(f"JSON file not found for {movieFolderName}")
-                    failed_count += 1
-            except Exception as e:
-                self.output(f"Error writing similar movies for {movieFolderName}: {e}")
-                failed_count += 1
-        
-        self.progressBar.setValue(0)
-        
-        # Calculate total elapsed time
-        total_elapsed = time.time() - start_time
-        
-        # Show summary
-        summary = f"Similar movies search complete: {processed_count} processed, {skipped_count} skipped, {failed_count} failed"
-        self.statusBar().showMessage(summary)
-        self.output(summary)
-        self.output(f"Total time: {total_elapsed:.3f}s")
-        if processed_count > 0:
-            self.output(f"Average per movie: {(total_elapsed/processed_count):.3f}s")
-
     def downloadMissingDataMenu(self):
         """Download missing data fields for selected movies.
         
@@ -5714,8 +5551,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 'width': 'Video Width',
                 'height': 'Video Height',
                 'channels': 'Audio Channels',
-                'similar movies': 'Similar Movies',
-                'recommended movies': 'Recommended Movies',
             }
             
             # Check which fields are missing or empty
@@ -5819,8 +5654,6 @@ class MainWindow(QtWidgets.QMainWindow):
                                           else get_list_field(m, 'Country')),
                     'companies': lambda m: m.get('ProductionCompanies') if isinstance(m.get('ProductionCompanies'), list) else None,
                     'keywords': lambda m: m.get('Keywords') if isinstance(m.get('Keywords'), list) else None,
-                    'similar movies': lambda m: m.get('SimilarMoviesTmdb') if isinstance(m.get('SimilarMoviesTmdb'), list) else None,
-                    'recommended movies': lambda m: m.get('RecommendedMoviesTmdb') if isinstance(m.get('RecommendedMoviesTmdb'), list) else None,
                 }
                 
                 # Update scalar fields
