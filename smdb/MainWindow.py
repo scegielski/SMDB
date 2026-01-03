@@ -2830,6 +2830,22 @@ class MainWindow(QtWidgets.QMainWindow):
         
         # Movie not found at all
         self.output(f"Movie '{title} ({year})' not found in database")
+    
+    def refreshSimilarMovies(self, moviePath, k=20):
+        """Refresh similar movies for the current movie with a new count.
+        
+        Args:
+            moviePath: Path to the movie
+            k: Number of similar movies to show
+        """
+        if moviePath:
+            calculated_similar = self.calculateSimilarMovies(moviePath, k=k)
+            if calculated_similar:
+                self.similarMoviesWidget.updateSimilarMovies(calculated_similar, moviePath)
+            else:
+                self.similarMoviesWidget.clearSimilarMovies()
+        else:
+            self.similarMoviesWidget.clearSimilarMovies()
 
     def showLogMenu(self):
         if self.logWidget:
@@ -3175,7 +3191,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # Update similar movies widget
         moviePath = jsonData.get('path')
         if moviePath:
-            calculated_similar = self.calculateSimilarMovies(moviePath, k=20)
+            k = self.similarMoviesWidget.getSimilarMoviesCount()
+            calculated_similar = self.calculateSimilarMovies(moviePath, k=k)
             if calculated_similar:
                 self.similarMoviesWidget.updateSimilarMovies(calculated_similar, moviePath)
             else:

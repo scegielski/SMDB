@@ -31,8 +31,28 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         vLayout = QtWidgets.QVBoxLayout()
         self.setLayout(vLayout)
         
+        # Top bar with label and count control
+        topBar = QtWidgets.QHBoxLayout()
+        
         label = QtWidgets.QLabel("Similar Movies")
-        vLayout.addWidget(label)
+        topBar.addWidget(label)
+        
+        topBar.addStretch()
+        
+        # Add spinbox for controlling number of movies shown
+        countLabel = QtWidgets.QLabel("Show:")
+        topBar.addWidget(countLabel)
+        
+        self.countSpinBox = QtWidgets.QSpinBox()
+        self.countSpinBox.setMinimum(5)
+        self.countSpinBox.setMaximum(100)
+        self.countSpinBox.setValue(20)
+        self.countSpinBox.setSingleStep(5)
+        self.countSpinBox.setToolTip("Number of similar movies to display")
+        self.countSpinBox.valueChanged.connect(self.onCountChanged)
+        topBar.addWidget(self.countSpinBox)
+        
+        vLayout.addLayout(topBar)
         
         # Create table
         self.tableWidget = QtWidgets.QTableWidget()
@@ -140,6 +160,16 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         self.tableWidget.setRowCount(0)
         self.similar_movies = []
         self.current_movie_path = None
+    
+    def onCountChanged(self, value):
+        """Handle change in the number of similar movies to display."""
+        # Recalculate similar movies with new count if we have a current movie
+        if self.current_movie_path:
+            self.parent.refreshSimilarMovies(self.current_movie_path, k=value)
+    
+    def getSimilarMoviesCount(self):
+        """Get the current count setting for similar movies."""
+        return self.countSpinBox.value()
     
     def onMovieSelected(self):
         """Handle movie selection in the similar movies table."""
