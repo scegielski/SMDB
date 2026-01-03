@@ -4818,7 +4818,14 @@ class MainWindow(QtWidgets.QMainWindow):
             self.output(f"Error loading embedding model: {e}")
             return
         
+        # Get selected rows and collect source row indices
+        selectedRows = []
         for proxyIndex in self.moviesTableView.selectionModel().selectedRows():
+            sourceRow = self.getSourceRow(proxyIndex)
+            selectedRows.append(sourceRow)
+        
+        # Iterate over selected movies using source row indices (no UI updates)
+        for idx, sourceRow in enumerate(selectedRows):
             QtCore.QCoreApplication.processEvents()
             if self.isCanceled:
                 self.statusBar().showMessage('Cancelled')
@@ -4826,7 +4833,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.progressBar.setValue(0)
                 return
 
-            progress += 1
+            progress = idx + 1
             self.progressBar.setValue(progress)
 
             # Calculate ETA
@@ -4850,33 +4857,30 @@ class MainWindow(QtWidgets.QMainWindow):
             self.statusBar().showMessage(message)
             QtCore.QCoreApplication.processEvents()
 
-            sourceRow = self.getSourceRow(proxyIndex)
+            # Get movie data from model (no disk I/O)
             movieFolderName = self.moviesTableModel.getFolderName(sourceRow)
             moviePath = self.moviesTableModel.getPath(sourceRow)
-            moviePath = self.findMovie(moviePath, movieFolderName)
-            if not os.path.exists(moviePath):
-                failed_count += 1
-                continue
-
-            jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
             
-            # Check if JSON file exists
-            if not os.path.exists(jsonFile):
-                self.output(f"No JSON file for {movieFolderName}, skipping...")
-                failed_count += 1
-                continue
+            # Build movie dict from in-memory model data
+            movieData = {
+                'title': self.moviesTableModel.getTitle(sourceRow),
+                'year': self.moviesTableModel.getYear(sourceRow),
+                'genres': self.moviesTableModel._data[sourceRow][Columns.Genres.value].split(', ') if self.moviesTableModel._data[sourceRow][Columns.Genres.value] else [],
+                'tagline': '',  # Not stored in model columns
+                'plot': '',  # Not stored in model columns
+                'synopsis': ''  # Not stored in model columns
+            }
             
-            # Load existing JSON
-            try:
-                with open(jsonFile, 'r', encoding='utf-8') as f:
-                    jsonData = ujson.load(f)
-            except Exception as e:
-                self.output(f"Error reading JSON for {movieFolderName}: {e}")
-                failed_count += 1
-                continue
+            # Try to get plot/synopsis from smdb_data if loaded
+            if hasattr(self, 'smdbData') and self.smdbData and 'titles' in self.smdbData:
+                if moviePath in self.smdbData['titles']:
+                    smdb_movie = self.smdbData['titles'][moviePath]
+                    movieData['plot'] = smdb_movie.get('plot', '')
+                    movieData['synopsis'] = smdb_movie.get('synopsis', '')
+                    movieData['tagline'] = smdb_movie.get('tagline', '')
             
             # Convert movie to text
-            movie_text = self.movie_to_text(jsonData)
+            movie_text = self.movie_to_text(movieData)
             
             if not movie_text or len(movie_text.strip()) < 10:
                 self.output(f"Insufficient data for embedding in {movieFolderName}, skipping...")
@@ -4885,39 +4889,27 @@ class MainWindow(QtWidgets.QMainWindow):
             
             # Generate embedding
             try:
-                self.output(f"Creating embedding for {movieFolderName}...")
                 embedding = model.encode(movie_text, normalize_embeddings=True)
-                
-                # Convert numpy array to list for JSON serialization
                 embedding_list = embedding.tolist()
                 
-                # Store in JSON
-                jsonData['embedding'] = embedding_list
-                jsonData['embedding_model'] = 'all-mpnet-base-v2'
-                jsonData['embedding_dimension'] = len(embedding_list)
+                # Store embedding in smdbData (in memory only, no disk I/O)
+                if hasattr(self, 'smdbData') and self.smdbData and 'titles' in self.smdbData:
+                    if moviePath in self.smdbData['titles']:
+                        self.smdbData['titles'][moviePath]['embedding'] = embedding_list
+                        self.smdbData['titles'][moviePath]['embedding_model'] = 'all-mpnet-base-v2'
+                        self.smdbData['titles'][moviePath]['embedding_dimension'] = len(embedding_list)
                 
-                # Write updated JSON
-                with open(jsonFile, 'w', encoding='utf-8') as f:
-                    ujson.dump(jsonData, f, indent=4)
-                
-                self.output(f"Successfully created embedding ({len(embedding_list)} dimensions)")
                 created_count += 1
                 
             except Exception as e:
                 self.output(f"Error creating embedding for {movieFolderName}: {e}")
                 failed_count += 1
                 continue
-            
-            # Update the view
-            self.moviesTableView.selectRow(proxyIndex.row())
-            self.clickedTable(proxyIndex,
-                              self.moviesTableModel,
-                              self.moviesTableProxyModel)
         
         self.progressBar.setValue(0)
         
         # Show summary
-        summary = f"Embedding creation complete: {created_count} created, {skipped_count} skipped, {failed_count} failed"
+        summary = f"Embedding creation complete: {created_count} created, {skipped_count} skipped, {failed_count} failed (stored in memory only)"
         self.statusBar().showMessage(summary)
         self.output(summary)
 
