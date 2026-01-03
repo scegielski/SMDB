@@ -668,23 +668,6 @@ class MovieData:
                 movie_data['Poster'] = poster_url
                 movie_data['PosterFullSize'] = poster_full
             
-            # Similar/Recommended movies - optimized formatting
-            def format_movies(movies_list, limit=5):
-                result = []
-                for m in movies_list[:limit]:
-                    title = m.get('title')
-                    if title:
-                        year_str = (m.get('release_date', ''))[:4]
-                        result.append(f"{title} ({year_str})" if year_str else title)
-                return result
-            
-            movie_data['SimilarMoviesTmdb'] = format_movies(
-                raw_data.get('similar', {}).get('results', [])
-            )
-            movie_data['RecommendedMoviesTmdb'] = format_movies(
-                raw_data.get('recommendations', {}).get('results', [])
-            )
-            
             # Fetch detailed plot from Wikipedia for synopsis
             self._output(f"Fetching Wikipedia plot for '{movie_data['Title']}' ({movie_data['Year']})...")
             wiki_plot = self._getWikipediaPlot(movie_data['Title'], movie_data['Year'])
@@ -761,10 +744,6 @@ class MovieData:
         d['plot'] = movieData.get('Plot')
         d['cover url'] = movieData.get('Poster')
         d['full-size cover url'] = movieData.get('PosterFullSize') or movieData.get('Poster')
-        
-        # Use TMDB similar movies and recomended movies
-        d['recommended movies'] = movieData.get('RecommendedMoviesTmdb') or []
-        d['similar movies'] = movieData.get('SimilarMoviesTmdb') or []
         
         # Add additional TMDB data if available
         if movieData.get('Writers'):
