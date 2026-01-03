@@ -353,9 +353,47 @@ class MovieData:
                             continue
                         
                         # Check if this is actually a film article by looking for Infobox film
-                        if 'Infobox film' not in wikitext and '{{Infobox Film' not in wikitext:
+                        has_film_infobox = 'Infobox film' in wikitext or '{{Infobox Film' in wikitext
+                        if not has_film_infobox:
                             # If exact title match, still try it
                             if not is_exact_match:
+                                continue
+                        
+                        # If we have a year, verify it matches the infobox year
+                        if year and has_film_infobox:
+                            # Look for year in infobox (e.g., | released = {{Film date|1949|...)
+                            year_match = re.search(
+                                r'\|\s*(?:released|release[_ ]date)\s*=\s*.*?(\d{4})',
+                                wikitext,
+                                re.IGNORECASE
+                            )
+                            if year_match:
+                                wiki_year = int(year_match.group(1))
+                                # Allow 1 year difference for release date variations
+                                if abs(wiki_year - int(year)) > 1:
+                                    self._output(f"Skipping '{page_title}' - year mismatch (Wikipedia: {wiki_year}, expected: {year})")
+                                    continue
+                        
+                        # Verify title similarity to avoid wrong movies with matching year
+                        # Extract significant words from both titles (ignore common words)
+                        def extract_significant_words(text):
+                            """Extract significant words, ignoring common articles and prepositions"""
+                            common_words = {'the', 'a', 'an', 'of', 'in', 'at', 'to', 'for', 'and', 'or', 
+                                          'from', 'with', 'part', 'i', 'ii', 'iii', 'iv', 'v', 'film', 'movie'}
+                            # Remove year, parentheses, and special chars, then split
+                            cleaned = re.sub(r'[\(\)\[\]:,\-]', ' ', text.lower())
+                            cleaned = re.sub(r'\b\d{4}\b', '', cleaned)  # Remove years
+                            words = cleaned.split()
+                            return {w for w in words if w and len(w) > 2 and w not in common_words}
+                        
+                        title_words = extract_significant_words(title)
+                        page_words = extract_significant_words(page_title)
+                        
+                        if title_words and page_words:
+                            # Calculate overlap - at least one significant word should match
+                            common_words_count = len(title_words & page_words)
+                            if common_words_count == 0 and not is_exact_match:
+                                self._output(f"Skipping '{page_title}' - no title words match '{title}'")
                                 continue
                         
                         # Extract the Plot section (try multiple variations)

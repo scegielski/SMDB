@@ -4759,7 +4759,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 skipped_count += 1
                 continue
             
-            if existing_synopsis == existing_plot and existing_synopsis:
+            if force and existing_synopsis:
+                self.output(f"Force download: removing existing synopsis for {movieFolderName}...")
+            elif existing_synopsis == existing_plot and existing_synopsis:
                 self.output(f"Synopsis is same as plot for {movieFolderName}, downloading new synopsis...")
             
             # Download synopsis from Wikipedia
@@ -4780,24 +4782,20 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.output(f"Error writing JSON for {movieFolderName}: {e}")
                     failed_count += 1
             else:
-                # No Wikipedia synopsis found
-                # If synopsis was same as plot, remove the duplicate synopsis
-                if existing_synopsis == existing_plot and existing_synopsis:
-                    self.output(f"No Wikipedia synopsis found and existing synopsis duplicates plot - removing duplicate synopsis")
-                    if 'synopsis' in jsonData:
-                        del jsonData['synopsis']
-                        # Write updated JSON
-                        try:
-                            with open(jsonFile, 'w', encoding='utf-8') as f:
-                                ujson.dump(jsonData, f, indent=4)
-                            self.output(f"Removed duplicate synopsis from {movieFolderName}")
-                            skipped_count += 1
-                        except Exception as e:
-                            self.output(f"Error writing JSON for {movieFolderName}: {e}")
-                            failed_count += 1
-                else:
-                    self.output(f"No Wikipedia synopsis found for '{title}' ({year})")
-                    failed_count += 1
+                # No Wikipedia synopsis found - remove synopsis field to keep data clean
+                self.output(f"No Wikipedia synopsis found for '{title}' ({year})")
+                
+                # Remove synopsis field if it exists
+                if 'synopsis' in jsonData:
+                    del jsonData['synopsis']
+                    try:
+                        with open(jsonFile, 'w', encoding='utf-8') as f:
+                            ujson.dump(jsonData, f, indent=4)
+                        self.output(f"Removed invalid/missing synopsis from {movieFolderName}")
+                    except Exception as e:
+                        self.output(f"Error writing JSON for {movieFolderName}: {e}")
+                
+                failed_count += 1
             
             # Update the view
             self.moviesTableView.selectRow(proxyIndex.row())
