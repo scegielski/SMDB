@@ -3918,7 +3918,7 @@ class MainWindow(QtWidgets.QMainWindow):
         moviesTableRightMenu.addAction(createAllEmbeddingsAction)
 
         findSimilarMoviesAction = QtWidgets.QAction("Find similar movies", self)
-        findSimilarMoviesAction.triggered.connect(self.findSimilarMoviesMenu)
+        findSimilarMoviesAction.triggered.connect(lambda: self.findSimilarMoviesMenu())
         moviesTableRightMenu.addAction(findSimilarMoviesAction)
 
         moviesTableRightMenu.addSeparator()
@@ -5348,7 +5348,8 @@ class MainWindow(QtWidgets.QMainWindow):
             sims = embeddings @ v
             
             # Find top k+1 most similar (including self)
-            top_idx = np.argpartition(-sims, min(k+1, len(sims)))[:min(k+1, len(sims))]
+            num_to_get = min(k+1, len(sims))
+            top_idx = np.argpartition(-sims, num_to_get)[:num_to_get]
             top_idx = top_idx[np.argsort(-sims[top_idx])]
             
             # Collect results (excluding self)
@@ -5381,7 +5382,10 @@ class MainWindow(QtWidgets.QMainWindow):
                     with open(jsonFile, 'w', encoding='utf-8') as f:
                         ujson.dump(jsonData, f, indent=4)
                     
-                    self.output(f"Found {len(results)} similar movies for {movieFolderName} (top similarity: {results[0]['similarity']:.3f})")
+                    if len(results) > 0:
+                        self.output(f"Found {len(results)} similar movies for {movieFolderName} (top similarity: {results[0]['similarity']:.3f})")
+                    else:
+                        self.output(f"Found {len(results)} similar movies for {movieFolderName}")
                     processed_count += 1
                 else:
                     self.output(f"JSON file not found for {movieFolderName}")
