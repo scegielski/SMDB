@@ -2381,7 +2381,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         jsonData = None
         if os.path.exists(jsonFile):
-            with open(jsonFile) as f:
+            with open(jsonFile, encoding="utf-8") as f:
                 try:
                     jsonData = ujson.load(f)
                     # Add moviePath to jsonData so it can be used in movieInfoRefresh
@@ -3272,7 +3272,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def getSummary(self, jsonData):
         if not jsonData:
-            return
+            return ''
 
         infoText = ''
         if 'plot' in jsonData and jsonData['plot']:
@@ -3309,7 +3309,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def summaryShow(self, jsonData):
         infoText = self.getSummary(jsonData)
-        self.summary.setText(infoText)
+        if infoText:
+            self.summary.setText(infoText)
+        else:
+            self.summary.clear()
 
     def rebuildSmdbFileAndReload(self):
         """Rebuild SMDB file and reload the movie list"""
