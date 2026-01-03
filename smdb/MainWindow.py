@@ -3091,28 +3091,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.movieInfoAddSpacer()
             self.movieInfoAddHeading("Composers:")
             self.movieInfoAddSection(jsonData, 'composers', 'composers', 'composer')
-
-        recommended_movies = jsonData.get('recommended movies') or []
-        if isinstance(recommended_movies, list) and recommended_movies:
-            self.movieInfoAddSpacer()
-            self.movieInfoAddHeading("Recommended Movies:")
-            for entry in recommended_movies:
-                display_text, title_value, year_value = self.parseSimilarMovieEntry(entry)
-                item = QtWidgets.QListWidgetItem(display_text)
-                item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable)
-                item.setData(QtCore.Qt.UserRole, ['similar_movie', title_value, year_value])
-                self.movieInfoListView.addItem(item)
-
-        similar_movies = jsonData.get('similar movies') or []
-        if isinstance(similar_movies, list) and similar_movies:
-            self.movieInfoAddSpacer()
-            self.movieInfoAddHeading("Similar Movies:")
-            for entry in similar_movies:
-                display_text, title_value, year_value = self.parseSimilarMovieEntry(entry)
-                item = QtWidgets.QListWidgetItem(display_text)
-                item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable)
-                item.setData(QtCore.Qt.UserRole, ['similar_movie', title_value, year_value])
-                self.movieInfoListView.addItem(item)
         
         # Calculate and display similar movies based on embeddings
         moviePath = jsonData.get('path')
@@ -3120,7 +3098,7 @@ class MainWindow(QtWidgets.QMainWindow):
             calculated_similar = self.calculateSimilarMovies(moviePath, k=20)
             if calculated_similar:
                 self.movieInfoAddSpacer()
-                self.movieInfoAddHeading("Calculated Similar Movies:")
+                self.movieInfoAddHeading("Similar Movies:")
                 for entry in calculated_similar:
                     title = entry.get('title', '')
                     year = entry.get('year', '')
@@ -3929,13 +3907,9 @@ class MainWindow(QtWidgets.QMainWindow):
         moviesTableRightMenu.addSeparator()
 
         # Embedding creation actions
-        createEmbeddingAction = QtWidgets.QAction("Create embedding", self)
-        createEmbeddingAction.triggered.connect(self.createEmbeddingMenu)
-        moviesTableRightMenu.addAction(createEmbeddingAction)
-
-        createAllEmbeddingsAction = QtWidgets.QAction("Create embeddings for all movies", self)
-        createAllEmbeddingsAction.triggered.connect(self.createAllEmbeddingsMenu)
-        moviesTableRightMenu.addAction(createAllEmbeddingsAction)
+        createEmbeddingsAction = QtWidgets.QAction("Create embeddings", self)
+        createEmbeddingsAction.triggered.connect(self.createAllEmbeddingsMenu)
+        moviesTableRightMenu.addAction(createEmbeddingsAction)
 
         moviesTableRightMenu.addSeparator()
 
