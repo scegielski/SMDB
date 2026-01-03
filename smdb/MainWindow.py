@@ -3894,10 +3894,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
         moviesTableRightMenu.addSeparator()
 
-        # Embedding creation action
+        # Embedding creation actions
         createEmbeddingAction = QtWidgets.QAction("Create embedding", self)
         createEmbeddingAction.triggered.connect(self.createEmbeddingMenu)
         moviesTableRightMenu.addAction(createEmbeddingAction)
+
+        createAllEmbeddingsAction = QtWidgets.QAction("Create embeddings for all movies", self)
+        createAllEmbeddingsAction.triggered.connect(self.createAllEmbeddingsMenu)
+        moviesTableRightMenu.addAction(createAllEmbeddingsAction)
 
         moviesTableRightMenu.addSeparator()
 
@@ -4872,12 +4876,18 @@ class MainWindow(QtWidgets.QMainWindow):
             
             # Encode all at once with batch processing
             batch_start = time.perf_counter()
+            
+            # Use mixed precision (fp16) for faster GPU computation if available
+            if device == "cuda":
+                model = model.half()  # Convert model to fp16 for 2x speed boost
+                self.output("Using FP16 mixed precision for faster encoding")
+            
             embeddings = model.encode(
                 texts, 
-                batch_size=128,  # Larger batch size for better GPU utilization
+                batch_size=256,  # Increased batch size for better GPU saturation
                 show_progress_bar=False,
                 normalize_embeddings=True,
-                convert_to_tensor=False  # Keep output as numpy for faster processing
+                convert_to_tensor=False
             )
             batch_elapsed = time.perf_counter() - batch_start
             
@@ -4900,6 +4910,209 @@ class MainWindow(QtWidgets.QMainWindow):
                 
                 # Update progress periodically
                 if idx % 10 == 0 or idx == len(movies_to_encode) - 1:
+                    progress = idx + 1
+                    self.progressBar.setValue(progress)
+                    pct = (progress / len(movies_to_encode) * 100)
+                    self.statusBar().showMessage(f"Storing embeddings ({progress}/{len(movies_to_encode)}, {pct:.1f}%)")
+                    QtCore.QCoreApplication.processEvents()
+                    
+                    if self.isCanceled:
+                        self.statusBar().showMessage('Cancelled')
+                        self.isCanceled = False
+                        self.progressBar.setValue(0)
+                        return
+                
+        except Exception as e:
+            self.output(f"Error during batch encoding: {e}")
+            failed_count = len(movies_to_encode)
+        
+        self.progressBar.setValue(0)
+        
+        # Calculate total elapsed time
+        total_elapsed = time.time() - start_time
+        
+        # Show summary with detailed statistics
+        summary = f"Embedding creation complete: {created_count} created, {skipped_count} skipped, {failed_count} failed (stored in memory only)"
+        self.statusBar().showMessage(summary)
+        self.output(summary)
+        self.output(f"Total time: {total_elapsed:.3f}s")
+        if created_count > 0:
+            self.output(f"Overall throughput: {created_count/total_elapsed:.1f} movies/sec")
+            self.output(f"Average per movie: {(total_elapsed/created_count*1000):.1f}ms")
+        self.output(f"Total embeddings in memory: {created_count}")
+        self.output("Remember to rebuild SMDB file to save embeddings to disk")
+
+    def createAllEmbeddingsMenu(self):
+        """Create embeddings for all movies in the database using sentence-transformers.
+        
+        Processes all movies in the model, reading data from in-memory smdbData structure
+        and generating embeddings in batch mode for maximum performance.
+        """
+        import time
+        function_start = time.perf_counter()
+        self.output(f"Starting embedding creation for all movies...")
+        
+        try:
+            import_start = time.perf_counter()
+            from sentence_transformers import SentenceTransformer
+            import numpy as np
+            import_elapsed = time.perf_counter() - import_start
+            self.output(f"Imports took {import_elapsed:.3f}s")
+        except ImportError:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Missing Package",
+                "sentence-transformers package is not installed.\n\n"
+                "Please install it using:\npip install sentence-transformers"
+            )
+            return
+
+        # Get total number of movies
+        totalMovies = self.moviesTableModel.rowCount()
+        self.progressBar.setMaximum(totalMovies)
+        progress = 0
+        self.isCanceled = False
+        start_time = time.time()
+        
+        created_count = 0
+        skipped_count = 0
+        failed_count = 0
+        
+        # Load the embedding model
+        try:
+            model_load_start = time.perf_counter()
+            self.output("Loading sentence-transformers model (all-mpnet-base-v2)...")
+            self.statusBar().showMessage("Loading embedding model...")
+            QtCore.QCoreApplication.processEvents()
+            
+            # Check for GPU availability
+            import torch
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            
+            if device == "cuda":
+                gpu_name = torch.cuda.get_device_name(0)
+                self.output(f"GPU detected: {gpu_name}")
+                model = SentenceTransformer("all-mpnet-base-v2", device=device)
+                self.output(f"Model loaded successfully on GPU")
+            else:
+                self.output("No GPU detected, using CPU")
+                self.output(f"PyTorch version: {torch.__version__}")
+                self.output(f"CUDA available: {torch.cuda.is_available()}")
+                self.output(f"CUDA built: {torch.version.cuda if hasattr(torch.version, 'cuda') else 'N/A'}")
+                self.output("To enable GPU: pip uninstall torch && pip install torch --index-url https://download.pytorch.org/whl/cu121")
+                model = SentenceTransformer("all-mpnet-base-v2")
+                self.output("Model loaded successfully on CPU")
+            
+            model_load_elapsed = time.perf_counter() - model_load_start
+            self.output(f"Model loaded in {model_load_elapsed:.3f}s")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Model Loading Error",
+                f"Failed to load embedding model:\n{str(e)}"
+            )
+            self.output(f"Error loading embedding model: {e}")
+            return
+        
+        # Get all movies from model and collect movie data
+        movies_to_encode = []
+        self.output(f"Collecting data for {totalMovies} movies...")
+        
+        for sourceRow in range(totalMovies):
+            if sourceRow % 100 == 0:
+                QtCore.QCoreApplication.processEvents()
+                self.statusBar().showMessage(f"Collecting movie data ({sourceRow}/{totalMovies})...")
+                if self.isCanceled:
+                    self.statusBar().showMessage('Cancelled')
+                    self.isCanceled = False
+                    self.progressBar.setValue(0)
+                    return
+            
+            movieFolderName = self.moviesTableModel.getFolderName(sourceRow)
+            moviePath = self.moviesTableModel.getPath(sourceRow)
+            
+            # Build movie dict from in-memory model data
+            movieData = {
+                'title': self.moviesTableModel.getTitle(sourceRow),
+                'year': self.moviesTableModel.getYear(sourceRow),
+                'genres': self.moviesTableModel._data[sourceRow][Columns.Genres.value].split(', ') if self.moviesTableModel._data[sourceRow][Columns.Genres.value] else [],
+                'tagline': '',
+                'plot': '',
+                'synopsis': ''
+            }
+            
+            # Try to get plot/synopsis from smdb_data if loaded
+            if hasattr(self, 'smdbData') and self.smdbData and 'titles' in self.smdbData:
+                if moviePath in self.smdbData['titles']:
+                    smdb_movie = self.smdbData['titles'][moviePath]
+                    movieData['plot'] = smdb_movie.get('plot', '')
+                    movieData['synopsis'] = smdb_movie.get('synopsis', '')
+                    movieData['tagline'] = smdb_movie.get('tagline', '')
+            
+            # Convert movie to text
+            movie_text = self.movie_to_text(movieData)
+            
+            if movie_text and len(movie_text.strip()) >= 10:
+                movies_to_encode.append({
+                    'text': movie_text,
+                    'path': moviePath,
+                    'folder': movieFolderName,
+                    'sourceRow': sourceRow
+                })
+            else:
+                skipped_count += 1
+        
+        if not movies_to_encode:
+            self.output("No movies to encode")
+            self.progressBar.setValue(0)
+            return
+        
+        self.output(f"Collected {len(movies_to_encode)} movies for encoding, {skipped_count} skipped due to insufficient data")
+        
+        # Batch encode all movies at once
+        try:
+            self.statusBar().showMessage(f"Encoding {len(movies_to_encode)} movies in batch...")
+            QtCore.QCoreApplication.processEvents()
+            
+            texts = [m['text'] for m in movies_to_encode]
+            self.output(f"Starting batch encoding of {len(texts)} movies...")
+            
+            # Encode all at once with batch processing
+            batch_start = time.perf_counter()
+            
+            # Use mixed precision (fp16) for faster GPU computation if available
+            if device == "cuda":
+                model = model.half()  # Convert model to fp16 for 2x speed boost
+                self.output("Using FP16 mixed precision for faster encoding")
+            
+            embeddings = model.encode(
+                texts, 
+                batch_size=256,
+                show_progress_bar=False,
+                normalize_embeddings=True,
+                convert_to_tensor=False
+            )
+            batch_elapsed = time.perf_counter() - batch_start
+            
+            self.output(f"Batch encoding complete in {batch_elapsed:.3f}s ({len(texts)/batch_elapsed:.1f} movies/sec)")
+            self.output(f"Average time per movie: {(batch_elapsed/len(texts)*1000):.1f}ms")
+            
+            # Store embeddings in memory
+            for idx, movie_info in enumerate(movies_to_encode):
+                embedding_list = embeddings[idx].tolist()
+                moviePath = movie_info['path']
+                
+                # Store embedding in smdbData (in memory only)
+                if hasattr(self, 'smdbData') and self.smdbData and 'titles' in self.smdbData:
+                    if moviePath in self.smdbData['titles']:
+                        self.smdbData['titles'][moviePath]['embedding'] = embedding_list
+                        self.smdbData['titles'][moviePath]['embedding_model'] = 'all-mpnet-base-v2'
+                        self.smdbData['titles'][moviePath]['embedding_dimension'] = len(embedding_list)
+                
+                created_count += 1
+                
+                # Update progress periodically
+                if idx % 50 == 0 or idx == len(movies_to_encode) - 1:
                     progress = idx + 1
                     self.progressBar.setValue(progress)
                     pct = (progress / len(movies_to_encode) * 100)
