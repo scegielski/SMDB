@@ -4670,9 +4670,10 @@ class MainWindow(QtWidgets.QMainWindow):
         Args:
             force: If True, download even if synopsis already exists
         """
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        
         numSelectedItems = len(self.moviesTableView.selectionModel().selectedRows())
         self.progressBar.setMaximum(numSelectedItems)
-        progress = 0
         self.isCanceled = False
         import time
         start_time = time.time()
@@ -4681,71 +4682,51 @@ class MainWindow(QtWidgets.QMainWindow):
         skipped_count = 0
         failed_count = 0
         
+        # Prepare list of movies to process
+        movies_to_process = []
         for proxyIndex in self.moviesTableView.selectionModel().selectedRows():
-            QtCore.QCoreApplication.processEvents()
-            if self.isCanceled:
-                self.statusBar().showMessage('Cancelled')
-                self.isCanceled = False
-                self.progressBar.setValue(0)
-                return
-
-            progress += 1
-            self.progressBar.setValue(progress)
-
-            # Calculate ETA
-            if progress > 0:
-                elapsed_time = time.time() - start_time
-                avg_time_per_item = elapsed_time / progress
-                remaining_items = numSelectedItems - progress
-                eta_seconds = avg_time_per_item * remaining_items
-                
-                if eta_seconds < 60:
-                    eta_str = f"{int(eta_seconds)}s"
-                else:
-                    eta_minutes = int(eta_seconds / 60)
-                    eta_secs = int(eta_seconds % 60)
-                    eta_str = f"{eta_minutes}m {eta_secs}s"
-                
-                message = "Downloading synopsis (%d/%d) - ETA: %s" % (progress, numSelectedItems, eta_str)
-            else:
-                message = "Downloading synopsis (%d/%d)" % (progress, numSelectedItems)
-            
-            self.statusBar().showMessage(message)
-            QtCore.QCoreApplication.processEvents()
-
             sourceRow = self.getSourceRow(proxyIndex)
             movieFolderName = self.moviesTableModel.getFolderName(sourceRow)
             moviePath = self.moviesTableModel.getPath(sourceRow)
             moviePath = self.findMovie(moviePath, movieFolderName)
-            if not os.path.exists(moviePath):
-                failed_count += 1
-                continue
-
-            jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
             
-            # Check if JSON file exists
-            if not os.path.exists(jsonFile):
-                self.output(f"No JSON file for {movieFolderName}, skipping...")
-                failed_count += 1
+            if not os.path.exists(moviePath):
                 continue
+            
+            jsonFile = os.path.join(moviePath, '%s.json' % movieFolderName)
+            if not os.path.exists(jsonFile):
+                continue
+            
+            movies_to_process.append({
+                'proxyIndex': proxyIndex,
+                'sourceRow': sourceRow,
+                'movieFolderName': movieFolderName,
+                'moviePath': moviePath,
+                'jsonFile': jsonFile
+            })
+        
+        # Process movies in parallel
+        max_workers = 5  # Number of concurrent downloads
+        completed = 0
+        
+        def process_movie(movie_info):
+            """Process a single movie download (runs in thread pool)"""
+            jsonFile = movie_info['jsonFile']
+            movieFolderName = movie_info['movieFolderName']
             
             # Load existing JSON
             try:
                 with open(jsonFile, 'r', encoding='utf-8') as f:
                     jsonData = ujson.load(f)
             except Exception as e:
-                self.output(f"Error reading JSON for {movieFolderName}: {e}")
-                failed_count += 1
-                continue
+                return {'status': 'failed', 'movie': movieFolderName, 'error': f"Error reading JSON: {e}"}
             
             # Get title and year from JSON
             title = jsonData.get('title')
             year = jsonData.get('year')
             
             if not title:
-                self.output(f"No title in JSON for {movieFolderName}, skipping...")
-                failed_count += 1
-                continue
+                return {'status': 'failed', 'movie': movieFolderName, 'error': 'No title in JSON'}
             
             # Check if synopsis already exists
             existing_synopsis = jsonData.get('synopsis')
@@ -4755,17 +4736,9 @@ class MainWindow(QtWidgets.QMainWindow):
             should_download = force or not existing_synopsis or (existing_synopsis == existing_plot)
             
             if not should_download:
-                self.output(f"Synopsis already exists for {movieFolderName}, skipping...")
-                skipped_count += 1
-                continue
-            
-            if force and existing_synopsis:
-                self.output(f"Force download: removing existing synopsis for {movieFolderName}...")
-            elif existing_synopsis == existing_plot and existing_synopsis:
-                self.output(f"Synopsis is same as plot for {movieFolderName}, downloading new synopsis...")
+                return {'status': 'skipped', 'movie': movieFolderName, 'message': 'Synopsis already exists'}
             
             # Download synopsis from Wikipedia
-            self.output(f"Fetching Wikipedia synopsis for '{title}' ({year})...")
             synopsis = self.movieData._getWikipediaPlot(title, year)
             
             if synopsis:
@@ -4776,32 +4749,78 @@ class MainWindow(QtWidgets.QMainWindow):
                 try:
                     with open(jsonFile, 'w', encoding='utf-8') as f:
                         ujson.dump(jsonData, f, indent=4)
-                    self.output(f"Successfully added synopsis ({len(synopsis)} characters)")
-                    downloaded_count += 1
+                    return {'status': 'downloaded', 'movie': movieFolderName, 'title': title, 
+                            'year': year, 'length': len(synopsis)}
                 except Exception as e:
-                    self.output(f"Error writing JSON for {movieFolderName}: {e}")
-                    failed_count += 1
+                    return {'status': 'failed', 'movie': movieFolderName, 'error': f"Error writing JSON: {e}"}
             else:
-                # No Wikipedia synopsis found - remove synopsis field to keep data clean
-                self.output(f"No Wikipedia synopsis found for '{title}' ({year})")
-                
-                # Remove synopsis field if it exists
+                # No Wikipedia synopsis found - remove synopsis field
                 if 'synopsis' in jsonData:
                     del jsonData['synopsis']
                     try:
                         with open(jsonFile, 'w', encoding='utf-8') as f:
                             ujson.dump(jsonData, f, indent=4)
-                        self.output(f"Removed invalid/missing synopsis from {movieFolderName}")
                     except Exception as e:
-                        self.output(f"Error writing JSON for {movieFolderName}: {e}")
+                        return {'status': 'failed', 'movie': movieFolderName, 'error': f"Error writing JSON: {e}"}
                 
-                failed_count += 1
+                return {'status': 'failed', 'movie': movieFolderName, 'title': title, 
+                        'year': year, 'error': 'No Wikipedia synopsis found'}
+        
+        # Submit all tasks to thread pool
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all jobs
+            future_to_movie = {executor.submit(process_movie, movie): movie for movie in movies_to_process}
             
-            # Update the view
-            self.moviesTableView.selectRow(proxyIndex.row())
-            self.clickedTable(proxyIndex,
-                              self.moviesTableModel,
-                              self.moviesTableProxyModel)
+            # Process completed tasks as they finish
+            for future in as_completed(future_to_movie):
+                QtCore.QCoreApplication.processEvents()
+                
+                if self.isCanceled:
+                    self.statusBar().showMessage('Cancelled - waiting for active downloads to complete...')
+                    executor.shutdown(wait=False)
+                    self.isCanceled = False
+                    self.progressBar.setValue(0)
+                    return
+                
+                completed += 1
+                self.progressBar.setValue(completed)
+                
+                # Calculate ETA
+                elapsed_time = time.time() - start_time
+                avg_time_per_item = elapsed_time / completed
+                remaining_items = numSelectedItems - completed
+                eta_seconds = avg_time_per_item * remaining_items
+                
+                if eta_seconds < 60:
+                    eta_str = f"{int(eta_seconds)}s"
+                else:
+                    eta_minutes = int(eta_seconds / 60)
+                    eta_secs = int(eta_seconds % 60)
+                    eta_str = f"{eta_minutes}m {eta_secs}s"
+                
+                message = f"Downloading synopsis ({completed}/{numSelectedItems}) - ETA: {eta_str} [{max_workers} threads]"
+                self.statusBar().showMessage(message)
+                
+                # Get result and update counts
+                try:
+                    result = future.result()
+                    status = result['status']
+                    
+                    if status == 'downloaded':
+                        downloaded_count += 1
+                        self.output(f"[{result['movie']}] Successfully added synopsis ({result['length']} characters) for '{result['title']}' ({result['year']})")
+                    elif status == 'skipped':
+                        skipped_count += 1
+                        self.output(f"[{result['movie']}] {result['message']}")
+                    else:  # failed
+                        failed_count += 1
+                        if 'title' in result:
+                            self.output(f"[{result['movie']}] {result.get('error', 'Failed')} for '{result['title']}' ({result['year']})")
+                        else:
+                            self.output(f"[{result['movie']}] {result.get('error', 'Failed')}")
+                except Exception as e:
+                    failed_count += 1
+                    self.output(f"Error processing result: {e}")
         
         self.progressBar.setValue(0)
         
@@ -4809,6 +4828,11 @@ class MainWindow(QtWidgets.QMainWindow):
         summary = f"Synopsis download complete: {downloaded_count} downloaded, {skipped_count} skipped, {failed_count} failed"
         self.statusBar().showMessage(summary)
         self.output(summary)
+        
+        # Refresh the currently selected movie to show updated synopsis
+        currentIndex = self.moviesTableView.currentIndex()
+        if currentIndex.isValid():
+            self.clickedTable(currentIndex, self.moviesTableModel, self.moviesTableProxyModel)
 
     def movie_to_text(self, movie):
         """Convert movie dictionary to text representation for embedding.
