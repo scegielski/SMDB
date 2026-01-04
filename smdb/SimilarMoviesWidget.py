@@ -351,6 +351,9 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         hh = self.tableWidget.horizontalHeader()
         hh.setStyleSheet(f"background: {self.bgColorB}; border-radius: 0px;")
         hh.setStretchLastSection(True)
+        hh.setSectionsMovable(True)
+        hh.setDragEnabled(True)
+        hh.setDragDropMode(QtWidgets.QAbstractItemView.InternalMove)
     
     def showHeaderContextMenu(self, position):
         """Show context menu for column visibility."""

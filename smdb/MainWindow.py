@@ -854,6 +854,13 @@ class MainWindow(QtWidgets.QMainWindow):
                 width = defaultColumnWidths[i]
             columnWidths.append(width)
         self.settings.setValue(f'{saveName}ColumnWidths', columnWidths)
+        
+        # Save column visual order
+        header = tableView.horizontalHeader()
+        visualIndices = []
+        for logical in range(header.count()):
+            visualIndices.append(header.visualIndex(logical))
+        self.settings.setValue(f'{saveName}ColumnOrder', visualIndices)
 
     def initUIFileMenu(self):
         menuBar = self.menuBar()
@@ -1002,12 +1009,18 @@ class MainWindow(QtWidgets.QMainWindow):
                 tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
                 tableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
                 tableView.verticalScrollBar().setSingleStep(10)
+                # Force all rows to update to new height
+                tableView.verticalHeader().resetDefaultSectionSize()
+                tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
         else:
             tableView.hideColumn(c.value)
             if c.value == Columns.Cover.value:
                 tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
                 tableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerItem)
                 tableView.verticalScrollBar().setSingleStep(5)
+                # Force all rows to update to new height
+                tableView.verticalHeader().resetDefaultSectionSize()
+                tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
 
     def showAllColumns(self, tableView, visibleList):
         tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
@@ -1176,6 +1189,8 @@ class MainWindow(QtWidgets.QMainWindow):
         hh.setStyleSheet(f"background: {self.bgColorB};"
                          f"border-radius: 0px;")
         hh.setSectionsMovable(True)
+        hh.setDragEnabled(True)
+        hh.setDragDropMode(QtWidgets.QAbstractItemView.InternalMove)
         hh.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         hh.customContextMenuRequested[QtCore.QPoint].connect(
             lambda: self.headerRightMenuShow(QtCore.QPoint,
@@ -1447,6 +1462,25 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 tableView.showColumn(index)
                 columnsVisible.append(True)
+        
+        # Restore column order from settings
+        # Get the correct settings key based on which table this is
+        saveName = None
+        if tableView == self.moviesTableView:
+            saveName = 'moviesTable'
+        elif hasattr(self, 'watchListWidget') and tableView == self.watchListWidget.listTableView:
+            saveName = 'watchListTable'
+        elif hasattr(self, 'historyListWidget') and tableView == self.historyListWidget.listTableView:
+            saveName = 'historyListTable'
+        elif hasattr(self, 'backupListTableView') and tableView == self.backupListTableView:
+            saveName = 'backupListTable'
+        
+        if saveName:
+            visualIndices = self.settings.value(f'{saveName}ColumnOrder', None)
+            if visualIndices and len(visualIndices) == len(Columns):
+                header = tableView.horizontalHeader()
+                for logical, visual in enumerate(visualIndices):
+                    header.moveSection(header.visualIndex(logical), int(visual))
 
         # TODO this is only for the watchlist
         tableView.horizontalHeader().moveSection(Columns.Rank.value, 0)
