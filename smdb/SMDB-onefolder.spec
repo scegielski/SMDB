@@ -34,7 +34,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=['sentence_transformers', 'transformers', 'torch', 'tensorflow'],
     noarchive=False,
     optimize=0,
 )
