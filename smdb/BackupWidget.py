@@ -1024,6 +1024,30 @@ class BackupWidget(QtWidgets.QFrame):
             runFile(moviePath)
         else:
             self.output("Folder doesn't exist")
+    
+    def openSourceAndDestinationFolders(self):
+        """Open both source and destination folders for selected backup item."""
+        # Open source folder
+        proxyIndex = self.listTableView.selectionModel().selectedRows()[0]
+        sourceIndex = self.listTableProxyModel.mapToSource(proxyIndex)
+        sourceRow = sourceIndex.row()
+        moviePath = self.listTableModel.getPath(sourceRow)
+        folderName = self.listTableModel.getFolderName(sourceRow)
+        
+        if hasattr(self.parent, 'findMovie'):
+            moviePath = self.parent.findMovie(moviePath, folderName)
+        if moviePath and os.path.exists(moviePath):
+            runFile(moviePath)
+        else:
+            self.output("Source folder doesn't exist")
+        
+        # Open destination folder
+        if self.folder:
+            destPath = os.path.join(self.folder, folderName)
+            if os.path.exists(destPath):
+                runFile(destPath)
+            else:
+                self.output("Destination folder doesn't exist")
 
     def listTableRightMenuShow(self, QPos):
         """Show context menu for backup table."""
@@ -1061,6 +1085,10 @@ class BackupWidget(QtWidgets.QFrame):
         openDestinationFolderAction = QtWidgets.QAction("Open Destination Folder", self)
         openDestinationFolderAction.triggered.connect(self.openDestinationFolder)
         rightMenu.addAction(openDestinationFolderAction)
+        
+        openBothFoldersAction = QtWidgets.QAction("Open Source and Destination Folders", self)
+        openBothFoldersAction.triggered.connect(self.openSourceAndDestinationFolders)
+        rightMenu.addAction(openBothFoldersAction)
 
         removeFromBackupListAction = QtWidgets.QAction("Remove From Backup List", self)
         removeFromBackupListAction.triggered.connect(self.listRemove)
