@@ -550,15 +550,37 @@ class MainWindow(QtWidgets.QMainWindow):
         if not self.showLightingControls:
             self.lightingControlsFrame.hide()
 
+        # Similar Movies Section
+        self.similarMoviesSectionWidget = QtWidgets.QFrame()
+        self.similarMoviesSectionWidget.setFrameShape(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
+        self.similarMoviesSectionWidget.setLineWidth(5)
+        self.similarMoviesSectionWidget.setStyleSheet(f"background: {self.bgColorB};"
+                                                       f"border-radius: 10px;")
+        similarMoviesSectionLayout = QtWidgets.QVBoxLayout()
+        self.similarMoviesSectionWidget.setLayout(similarMoviesSectionLayout)
+        
+        # Similar Movies Widget
+        self.similarMoviesWidget = SimilarMoviesWidget(
+            parent=self,
+            bgColorA=self.bgColorA,
+            bgColorB=self.bgColorB,
+            bgColorC=self.bgColorC,
+            bgColorD=self.bgColorD
+        )
+        similarMoviesSectionLayout.addWidget(self.similarMoviesWidget)
+        if not self.showSimilarMovies:
+            self.similarMoviesSectionWidget.hide()
+
         # Add the sub-layouts to the self.mainHSplitter
         self.mainHSplitter.addWidget(self.filtersVSplitter)
         self.mainHSplitter.addWidget(self.moviesWatchListBackupVSplitter)
         self.mainHSplitter.addWidget(self.lightingControlsFrame)  # Lighting controls before movie section
         self.mainHSplitter.addWidget(self.movieSectionWidget)
+        self.mainHSplitter.addWidget(self.similarMoviesSectionWidget)  # Similar movies to the right
         self.mainHSplitter.splitterMoved.connect(self.resizeCoverFile)
 
-        # Main horizontal sizes (added fourth panel for lighting controls, positioned before movie section)
-        sizes = [int(x) for x in self.settings.value('mainHSplitterSizes', [270, 750, 300, 800], type=list)]
+        # Main horizontal sizes (added fifth panel for similar movies, positioned after movie section)
+        sizes = [int(x) for x in self.settings.value('mainHSplitterSizes', [270, 750, 300, 800, 400], type=list)]
         self.mainHSplitter.setSizes(sizes)
 
         # Log Panel
@@ -1249,18 +1271,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.coverSummaryVSplitter.addWidget(self.summary)
         if not self.showSummary:
             self.summary.hide()
-
-        # Similar Movies Widget
-        self.similarMoviesWidget = SimilarMoviesWidget(
-            parent=self,
-            bgColorA=self.bgColorA,
-            bgColorB=self.bgColorB,
-            bgColorC=self.bgColorC,
-            bgColorD=self.bgColorD
-        )
-        self.coverSummaryVSplitter.addWidget(self.similarMoviesWidget)
-        if not self.showSimilarMovies:
-            self.similarMoviesWidget.hide()
 
         sizes = [int(x) for x in self.settings.value('coverSummaryVSplitterSizes', [600, 200], type=list)]
         self.coverSummaryVSplitter.setSizes(sizes)
@@ -2790,9 +2800,9 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.similarMoviesWidget:
             self.showSimilarMovies = not self.showSimilarMovies
             if not self.showSimilarMovies:
-                self.similarMoviesWidget.hide()
+                self.similarMoviesSectionWidget.hide()
             else:
-                self.similarMoviesWidget.show()
+                self.similarMoviesSectionWidget.show()
 
     def selectMovieInMainList(self, title, year):
         """Select a movie in the main movies list by title and year.
