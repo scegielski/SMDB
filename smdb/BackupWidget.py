@@ -10,7 +10,7 @@ import re
 
 from .MoviesTableModel import MoviesTableModel, Columns, defaultColumnWidths
 from .MovieTableView import MovieTableView
-from .utilities import bToGb, bToMb, getFolderSize, getFolderSizes, handleRemoveReadonly, runFile, formatSizeDiff
+from .utilities import bToGb, bToMb, bToKb, getFolderSize, getFolderSizes, handleRemoveReadonly, runFile, formatSizeDiff
 
 
 class BackupSortProxyModel(QtCore.QSortFilterProxyModel):
@@ -455,6 +455,7 @@ class BackupWidget(QtWidgets.QFrame):
             # Track which dest files have been matched for renames
             destFilesMatched = set()
             folderRenames = {}  # Map source filename to dest filename for this folder
+            bytesToCopyThisFolder = 0  # Track actual bytes that will be copied
 
             # Check for missing or different files in destination
             for filename, sourceFileSize in sourceFilesAndSizes.items():
@@ -481,6 +482,7 @@ class BackupWidget(QtWidgets.QFrame):
                     if not renameDetected:
                         self.listTableModel.setBackupStatus(sourceIndex, "Files Missing (Destination)")
                         replaceFolder = True
+                        bytesToCopyThisFolder += sourceFileSize
                         break
                 else:
                     destFileSize = destFilesAndSizes.get(filename, os.path.getsize(fullDestPath))
@@ -489,6 +491,7 @@ class BackupWidget(QtWidgets.QFrame):
                         destMB = bToMb(destFileSize)
                         self.listTableModel.setBackupStatus(sourceIndex, "File Size Difference")
                         replaceFolder = True
+                        bytesToCopyThisFolder += sourceFileSize
                         break
 
             # Check for extra files in destination (that aren't part of renames)
@@ -511,7 +514,19 @@ class BackupWidget(QtWidgets.QFrame):
             # Update bytes to copy
             status_start = time.time()
             if replaceFolder:
-                self.bytesToBeCopied += sourceFolderSize - destFolderSize
+                # If we broke early from the loop, calculate all bytes that need copying
+                if bytesToCopyThisFolder == 0:
+                    # Calculate actual bytes: all missing/different files
+                    for filename, sourceFileSize in sourceFilesAndSizes.items():
+                        fullDestPath = os.path.join(destPath, filename)
+                        if not os.path.exists(fullDestPath):
+                            bytesToCopyThisFolder += sourceFileSize
+                        else:
+                            destFileSize = destFilesAndSizes.get(filename, 0)
+                            if sourceFileSize != destFileSize:
+                                bytesToCopyThisFolder += sourceFileSize
+                
+                self.bytesToBeCopied += bytesToCopyThisFolder
             timing_data['status_updates'] += time.time() - status_start
 
             # Update UI only every 10 items to reduce overhead
@@ -662,6 +677,9 @@ class BackupWidget(QtWidgets.QFrame):
         estimatedHoursRemaining = 0
         estimatedMinutesRemaining = 0
         estimatedSecondsRemaining = 0
+        
+        # Track start time for ETA calculation (matching _updateStatusMessage pattern)
+        operationStartTime = time.time()
 
         numItems = self.listTableProxyModel.rowCount()
         
@@ -679,29 +697,6 @@ class BackupWidget(QtWidgets.QFrame):
             sourceRow = sourceIndex.row()
             title = self.listTableModel.getTitle(sourceRow)
             folderName = self.listTableModel.getFolderName(sourceRow)
-            
-            # Show message AFTER processEvents (after selection change) so it overwrites the selection count
-            if statusBar:
-                # Build detailed status message
-                message = "Backing up" if not moveFiles else "Moving "
-                message += " folder(%05d/%05d):" \
-                        "\t\t\t\t\t ETA: %03d:%02d:%02d" \
-                        "\t\t\t\t\t %s" \
-                        "\t\t\t\t\t %d Mb Remaining" \
-                        "\t\t\t\t\t Average rate = %06d Mb/s" % \
-                        (
-                            row + 1,
-                            numItems,
-                            estimatedHoursRemaining,
-                            estimatedMinutesRemaining,
-                            estimatedSecondsRemaining,
-                            folderName,
-                            bToMb(bytesRemaining),
-                            bToMb(averageBytesPerSecond)
-                        )
-
-                statusBar.showMessage(message)
-                QtCore.QCoreApplication.processEvents()  # Force UI update
             
             if hasattr(self.parent, 'isCanceled') and self.parent.isCanceled:
                 if statusBar:
@@ -815,26 +810,68 @@ class BackupWidget(QtWidgets.QFrame):
                     bytesCopied = 0
 
                 # Update statistics after the copy operation
+                endTime = time.perf_counter()
+                secondsToCopy = endTime - startTime
+                
                 if bytesCopied > 0:
-                    endTime = time.perf_counter()
-                    secondsToCopy = endTime - startTime
                     if secondsToCopy > 0:
                         lastBytesPerSecond = bytesCopied / secondsToCopy
                     totalTimeToCopy += secondsToCopy
                     totalBytesCopied += bytesCopied
-                    bytesRemaining -= bytesCopied
+                    bytesRemaining = max(0, bytesRemaining - bytesCopied)
+                
+                # Calculate ETA and rate (matching _updateStatusMessage pattern)
+                elapsed = time.time() - operationStartTime
+                if progress > 0 and elapsed > 0:
+                    averageBytesPerSecond = totalBytesCopied / elapsed if totalBytesCopied > 0 else 0
+                    avg_time_per_item = elapsed / progress
+                    remaining_items = numItems - progress
+                    eta_seconds = avg_time_per_item * remaining_items
                     
-                    if totalTimeToCopy > 0:
-                        averageBytesPerSecond = totalBytesCopied / totalTimeToCopy
-                        if averageBytesPerSecond > 0:
-                            estimatedSecondsRemaining = bytesRemaining / averageBytesPerSecond
-                            estimatedMinutesRemaining = int((estimatedSecondsRemaining // 60) % 60)
-                            estimatedHoursRemaining = int(estimatedSecondsRemaining // 3600)
+                    estimatedHoursRemaining = int(eta_seconds // 3600)
+                    estimatedMinutesRemaining = int((eta_seconds % 3600) // 60)
+                    estimatedSecondsRemaining = int(eta_seconds % 60)
+                else:
+                    averageBytesPerSecond = 0
 
-                # Update progress and display status AFTER work is done
+                # Update progress
                 progress += 1
                 if progressBar:
                     progressBar.setValue(progress)
+                
+                # Show status message AFTER calculations are done
+                if statusBar:
+                    # Build detailed status message
+                    # Use KB for small amounts, MB for larger
+                    if bytesRemaining < 1024 * 1024:  # Less than 1 MB
+                        remaining_str = f"{bToKb(bytesRemaining):.1f} Kb"
+                    else:
+                        remaining_str = f"{bToMb(bytesRemaining):.1f} Mb"
+                    
+                    if averageBytesPerSecond < 1024 * 1024:  # Less than 1 MB/s
+                        rate_str = f"{bToKb(averageBytesPerSecond):.1f} Kb/s"
+                    else:
+                        rate_str = f"{bToMb(averageBytesPerSecond):.1f} Mb/s"
+                    
+                    message = "Backing up" if not moveFiles else "Moving "
+                    message += " folder(%05d/%05d):" \
+                            "\t\t\t\t\t ETA: %03d:%02d:%02d" \
+                            "\t\t\t\t\t %s" \
+                            "\t\t\t\t\t %s Remaining" \
+                            "\t\t\t\t\t Average rate = %s" % \
+                            (
+                                row + 1,
+                                numItems,
+                                estimatedHoursRemaining,
+                                estimatedMinutesRemaining,
+                                estimatedSecondsRemaining,
+                                folderName,
+                                remaining_str,
+                                rate_str
+                            )
+
+                    statusBar.showMessage(message)
+                    QtCore.QCoreApplication.processEvents()  # Force UI update
 
                 
             except Exception as e:
