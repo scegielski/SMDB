@@ -49,7 +49,7 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         self.countSpinBox.setValue(20)
         self.countSpinBox.setSingleStep(5)
         self.countSpinBox.setToolTip("Number of similar movies to display")
-        self.countSpinBox.valueChanged.connect(self.onCountChanged)
+        self.countSpinBox.editingFinished.connect(self.onCountChanged)
         topBar.addWidget(self.countSpinBox)
         
         vLayout.addLayout(topBar)
@@ -69,7 +69,8 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         self.contentSlider.setTickPosition(QtWidgets.QSlider.TicksBelow)
         self.contentSlider.setTickInterval(10)
         self.contentSlider.setToolTip("Weight for semantic content similarity (0.0 - 1.0)")
-        self.contentSlider.valueChanged.connect(self.onWeightChanged)
+        self.contentSlider.valueChanged.connect(self.onWeightLabelUpdate)
+        self.contentSlider.sliderReleased.connect(self.onWeightSliderReleased)
         weightsBar.addWidget(self.contentSlider)
         
         self.contentValueLabel = QtWidgets.QLabel("0.70")
@@ -90,7 +91,8 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         self.metadataSlider.setTickPosition(QtWidgets.QSlider.TicksBelow)
         self.metadataSlider.setTickInterval(10)
         self.metadataSlider.setToolTip("Weight for metadata similarity (0.0 - 1.0)")
-        self.metadataSlider.valueChanged.connect(self.onWeightChanged)
+        self.metadataSlider.valueChanged.connect(self.onWeightLabelUpdate)
+        self.metadataSlider.sliderReleased.connect(self.onWeightSliderReleased)
         weightsBar.addWidget(self.metadataSlider)
         
         self.metadataValueLabel = QtWidgets.QLabel("0.30")
@@ -206,26 +208,30 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         self.similar_movies = []
         self.current_movie_path = None
     
-    def onCountChanged(self, value):
-        """Handle change in the number of similar movies to display."""
+    def onCountChanged(self):
+        """Handle change in the number of similar movies to display (on Enter or focus loss)."""
         # Recalculate similar movies with new count if we have a current movie
+        value = self.countSpinBox.value()
         if self.current_movie_path:
             content_weight, metadata_weight = self.getWeights()
             self.parent.refreshSimilarMovies(self.current_movie_path, k=value, 
                                             content_weight=content_weight, 
                                             metadata_weight=metadata_weight)
     
-    def onWeightChanged(self, value):
-        """Handle change in weight sliders."""
-        # Update value labels
+    def onWeightLabelUpdate(self, value):
+        """Update weight labels while dragging slider (no recalculation)."""
+        # Update value labels only
         content_weight = self.contentSlider.value() / 100.0
         metadata_weight = self.metadataSlider.value() / 100.0
         
         self.contentValueLabel.setText(f"{content_weight:.2f}")
         self.metadataValueLabel.setText(f"{metadata_weight:.2f}")
-        
+    
+    def onWeightSliderReleased(self):
+        """Handle slider release - recalculate similar movies."""
         # Recalculate similar movies with new weights if we have a current movie
         if self.current_movie_path:
+            content_weight, metadata_weight = self.getWeights()
             k = self.countSpinBox.value()
             self.parent.refreshSimilarMovies(self.current_movie_path, k=k,
                                             content_weight=content_weight,
