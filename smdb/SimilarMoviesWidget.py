@@ -70,6 +70,7 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         # Column configuration
         self.visible_columns = []
         self.column_widths = {}
+        self.master_column_order = []  # Complete order including hidden columns
         
         # Load settings
         self.loadSettings()
@@ -436,6 +437,14 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         else:
             self.visible_columns = SimilarMovieColumns.DEFAULT_VISIBLE.copy()
         
+        # Load master column order (complete order including hidden columns)
+        saved_master_order = settings.value('masterColumnOrder', None)
+        if saved_master_order and isinstance(saved_master_order, list):
+            self.master_column_order = saved_master_order
+        else:
+            # Default order: all columns
+            self.master_column_order = SimilarMovieColumns.ALL_COLUMNS.copy()
+        
         # Load column widths
         self.column_widths = {}
         for col in SimilarMovieColumns.ALL_COLUMNS:
@@ -457,14 +466,79 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         if hasattr(self, 'coverScaleSlider'):
             settings.setValue('coverScale', self.coverScaleSlider.value())
         
-        # Save column visual order as list of column names
+        # Update master column order from visual order
         header = self.tableWidget.horizontalHeader()
         orderedColumns = []
         for visual_idx in range(header.count()):
             logical_idx = header.logicalIndex(visual_idx)
             if logical_idx < len(self.visible_columns):
                 orderedColumns.append(self.visible_columns[logical_idx])
+        
+        # Build new master order: start with visible columns in their visual order,
+        # then insert hidden columns at their appropriate positions
+        hidden_columns = [col for col in self.master_column_order if col not in orderedColumns]
+        new_master_order = orderedColumns.copy()
+        
+        # Insert each hidden column right before the next visible column that comes after it
+        for hidden_col in hidden_columns:
+            # Find where in the OLD master order this hidden column was
+            old_hidden_idx = self.master_column_order.index(hidden_col)
+            
+            # Find the first visible column that came after it in the old master order
+            insert_before = None
+            for i in range(old_hidden_idx + 1, len(self.master_column_order)):
+                if self.master_column_order[i] in new_master_order:
+                    insert_before = self.master_column_order[i]
+                    break
+            
+            if insert_before:
+                # Insert hidden column before this visible column
+                insert_pos = new_master_order.index(insert_before)
+                new_master_order.insert(insert_pos, hidden_col)
+            else:
+                # No visible column after it, append at end
+                new_master_order.append(hidden_col)
+        
+        self.master_column_order = new_master_order
+        settings.setValue('masterColumnOrder', self.master_column_order)
         settings.setValue('columnOrder', orderedColumns)
+    
+    def updateMasterOrderFromVisualOrder(self):
+        """Update master column order based on current visual order in the table."""
+        # Get current visual order of visible columns
+        header = self.tableWidget.horizontalHeader()
+        orderedColumns = []
+        for visual_idx in range(header.count()):
+            logical_idx = header.logicalIndex(visual_idx)
+            if logical_idx < len(self.visible_columns):
+                orderedColumns.append(self.visible_columns[logical_idx])
+        
+        # Build new master order: start with visible columns in their visual order,
+        # then insert hidden columns at their appropriate positions
+        hidden_columns = [col for col in self.master_column_order if col not in orderedColumns]
+        new_master_order = orderedColumns.copy()
+        
+        # Insert each hidden column right before the next visible column that comes after it
+        for hidden_col in hidden_columns:
+            # Find where in the OLD master order this hidden column was
+            old_hidden_idx = self.master_column_order.index(hidden_col)
+            
+            # Find the first visible column that came after it in the old master order
+            insert_before = None
+            for i in range(old_hidden_idx + 1, len(self.master_column_order)):
+                if self.master_column_order[i] in new_master_order:
+                    insert_before = self.master_column_order[i]
+                    break
+            
+            if insert_before:
+                # Insert hidden column before this visible column
+                insert_pos = new_master_order.index(insert_before)
+                new_master_order.insert(insert_pos, hidden_col)
+            else:
+                # No visible column after it, append at end
+                new_master_order.append(hidden_col)
+        
+        self.master_column_order = new_master_order
     
     def setupTable(self):
         """Setup table columns based on visible_columns."""
@@ -558,13 +632,17 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
     def toggleColumn(self, col_name, checked):
         """Toggle column visibility."""
         if checked and col_name not in self.visible_columns:
-            # Add column - insert before Similarity if it exists
-            if SimilarMovieColumns.SIMILARITY in self.visible_columns:
-                idx = self.visible_columns.index(SimilarMovieColumns.SIMILARITY)
-                self.visible_columns.insert(idx, col_name)
-            else:
-                self.visible_columns.append(col_name)
+            # Add column - restore it to its position based on master column order
+            target_index = 0
+            for master_col in self.master_column_order:
+                if master_col == col_name:
+                    break
+                if master_col in self.visible_columns:
+                    target_index += 1
+            self.visible_columns.insert(target_index, col_name)
         elif not checked and col_name in self.visible_columns:
+            # Before removing, update master order to capture current visual positions
+            self.updateMasterOrderFromVisualOrder()
             self.visible_columns.remove(col_name)
         
         # Adjust row height based on cover visibility
