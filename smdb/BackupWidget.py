@@ -687,7 +687,11 @@ class BackupWidget(QtWidgets.QFrame):
                     else:
                         destFileSize = os.path.getsize(destFilePath)
 
-                if sourceFileSize != destFileSize:
+                # For JSON files, always copy (content may differ even with same size)
+                # For other files, only copy if size differs
+                shouldCopy = f.lower().endswith('.json') or sourceFileSize != destFileSize
+                
+                if shouldCopy:
                     bytesCopied += sourceFileSize
                     if isSourceDir:
                         shutil.rmtree(destFilePath,
@@ -861,34 +865,24 @@ class BackupWidget(QtWidgets.QFrame):
                 
                 # Show status message AFTER calculations are done
                 if statusBar:
-                    # Build detailed status message
+                    # Build detailed status message with fixed-width fields for alignment
                     # Use KB for small amounts, MB for larger
                     if bytesRemaining < 1024 * 1024:  # Less than 1 MB
-                        remaining_str = f"{bToKb(bytesRemaining):.1f} Kb"
+                        remaining_str = f"{bToKb(bytesRemaining):>8.1f} Kb"
                     else:
-                        remaining_str = f"{bToMb(bytesRemaining):.1f} Mb"
+                        remaining_str = f"{bToMb(bytesRemaining):>8.1f} Mb"
                     
                     if averageBytesPerSecond < 1024 * 1024:  # Less than 1 MB/s
-                        rate_str = f"{bToKb(averageBytesPerSecond):.1f} Kb/s"
+                        rate_str = f"{bToKb(averageBytesPerSecond):>8.1f} Kb/s"
                     else:
-                        rate_str = f"{bToMb(averageBytesPerSecond):.1f} Mb/s"
+                        rate_str = f"{bToMb(averageBytesPerSecond):>8.1f} Mb/s"
                     
-                    message = "Backing up" if not moveFiles else "Moving "
-                    message += " folder(%05d/%05d):" \
-                            "\t\t\t\t\t ETA: %03d:%02d:%02d" \
-                            "\t\t\t\t\t %s" \
-                            "\t\t\t\t\t %s Remaining" \
-                            "\t\t\t\t\t Average rate = %s" % \
-                            (
-                                row + 1,
-                                numItems,
-                                estimatedHoursRemaining,
-                                estimatedMinutesRemaining,
-                                estimatedSecondsRemaining,
-                                folderName,
-                                remaining_str,
-                                rate_str
-                            )
+                    action = "Backing up" if not moveFiles else "Moving    "
+                    message = f"{action} ({row + 1:5d}/{numItems:5d})  " \
+                              f"ETA: {estimatedHoursRemaining:02d}:{estimatedMinutesRemaining:02d}:{estimatedSecondsRemaining:02d}  " \
+                              f"Remaining: {remaining_str}  " \
+                              f"Rate: {rate_str}  " \
+                              f"{folderName}"
 
                     statusBar.showMessage(message)
                     QtCore.QCoreApplication.processEvents()  # Force UI update
