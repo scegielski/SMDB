@@ -5376,17 +5376,18 @@ class MainWindow(QtWidgets.QMainWindow):
         
         # Save to compressed binary file
         try:
-            # Create a flat structure for numpy savez_compressed
-            save_dict = {}
-            save_dict['_paths'] = np.array(list(embeddings_dict.keys()), dtype=object)
+            # Build complete 2D arrays (much faster than individual entries)
+            paths_list = list(embeddings_dict.keys())
+            content_array = np.array([embeddings_dict[p]['content'] for p in paths_list], dtype=np.float32)
+            metadata_array = np.array([embeddings_dict[p]['metadata'] for p in paths_list], dtype=np.float32)
             
-            for idx, path in enumerate(embeddings_dict.keys()):
-                save_dict[f'content_{idx}'] = embeddings_dict[path]['content']
-                save_dict[f'metadata_{idx}'] = embeddings_dict[path]['metadata']
-            
-            # Save model info separately
-            save_dict['_model'] = np.array([embeddings_dict[list(embeddings_dict.keys())[0]]['model']], dtype=object)
-            save_dict['_dimension'] = np.array([embeddings_dict[list(embeddings_dict.keys())[0]]['dimension']], dtype=np.int32)
+            save_dict = {
+                'paths': np.array(paths_list, dtype=object),
+                'content_embeddings': content_array,
+                'metadata_embeddings': metadata_array,
+                'model': embeddings_dict[paths_list[0]]['model'],
+                'dimension': embeddings_dict[paths_list[0]]['dimension']
+            }
             
             np.savez_compressed(self.moviesEmbeddingsFile, **save_dict)
             
@@ -5423,12 +5424,14 @@ class MainWindow(QtWidgets.QMainWindow):
         start_time = time.perf_counter()
         
         try:
-            # Load the binary file
+            # Load the binary file - complete arrays are loaded at once (fast)
             data = np.load(self.moviesEmbeddingsFile, allow_pickle=True)
             
-            paths = data['_paths']
+            paths = data['paths']
+            content_embeddings = data['content_embeddings']
+            metadata_embeddings = data['metadata_embeddings']
             
-            # Build arrays directly - filter to only movies that exist in current SMDB
+            # Filter to only movies that exist in current SMDB
             valid_indices = []
             valid_paths = []
             movie_ids = []
@@ -5442,18 +5445,11 @@ class MainWindow(QtWidgets.QMainWindow):
             if not valid_indices:
                 return False
             
-            # Load only the valid embeddings into numpy arrays
-            content_embeddings_list = []
-            metadata_embeddings_list = []
-            
-            for idx in valid_indices:
-                content_embeddings_list.append(data[f'content_{idx}'])
-                metadata_embeddings_list.append(data[f'metadata_{idx}'])
-            
-            # Store directly in cache as numpy arrays (no conversion to lists)
+            # Slice arrays to get only valid movies (fast numpy indexing)
+            # Store directly in cache as numpy arrays
             self._embeddings_cache = {
-                'content_embeddings': np.array(content_embeddings_list, dtype=np.float32),
-                'metadata_embeddings': np.array(metadata_embeddings_list, dtype=np.float32),
+                'content_embeddings': content_embeddings[valid_indices],
+                'metadata_embeddings': metadata_embeddings[valid_indices],
                 'movie_paths': valid_paths,
                 'movie_ids': movie_ids,
                 'path_to_idx': {path: idx for idx, path in enumerate(valid_paths)}
