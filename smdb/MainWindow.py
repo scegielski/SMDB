@@ -5666,7 +5666,16 @@ class MainWindow(QtWidgets.QMainWindow):
                 'title': movie_data.get('title', ''),
                 'year': movie_data.get('year', ''),
                 'path': movie_path,
-                'folder': movie_data.get('folder', '')
+                'folder': movie_data.get('folder', ''),
+                'rating': movie_data.get('rating', ''),
+                'mpaa_rating': movie_data.get('mpaa rating', ''),
+                'runtime': movie_data.get('runtime', ''),
+                'directors': movie_data.get('directors', []),
+                'genres': movie_data.get('genres', []),
+                'countries': movie_data.get('countries', []),
+                'companies': movie_data.get('companies', []),
+                'user_tags': movie_data.get('user tags', []),
+                'box_office': movie_data.get('box office', '')
             })
             if len(results) == k:
                 break

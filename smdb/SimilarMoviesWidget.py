@@ -2,6 +2,55 @@ from PyQt5 import QtGui, QtWidgets, QtCore
 import os
 
 
+# Define available columns for similar movies
+class SimilarMovieColumns:
+    """Column definitions for similar movies table."""
+    COVER = 'Cover'
+    YEAR = 'Year'
+    TITLE = 'Title'
+    RATING = 'Rating'
+    MPAA_RATING = 'MPAA Rating'
+    RUNTIME = 'Runtime'
+    DIRECTORS = 'Directors'
+    GENRES = 'Genres'
+    COUNTRIES = 'Countries'
+    COMPANIES = 'Companies'
+    USER_TAGS = 'User Tags'
+    ID = 'ID'
+    FOLDER = 'Folder'
+    BOX_OFFICE = 'Box Office'
+    SIMILARITY = 'Similarity'
+    
+    # Default visible columns
+    DEFAULT_VISIBLE = [COVER, YEAR, TITLE, SIMILARITY]
+    
+    # All available columns
+    ALL_COLUMNS = [
+        COVER, YEAR, TITLE, RATING, MPAA_RATING, RUNTIME,
+        DIRECTORS, GENRES, COUNTRIES, COMPANIES, USER_TAGS,
+        ID, FOLDER, BOX_OFFICE, SIMILARITY
+    ]
+    
+    # Default widths
+    DEFAULT_WIDTHS = {
+        COVER: 120,
+        YEAR: 60,
+        TITLE: 400,
+        RATING: 60,
+        MPAA_RATING: 100,
+        RUNTIME: 60,
+        DIRECTORS: 150,
+        GENRES: 150,
+        COUNTRIES: 150,
+        COMPANIES: 150,
+        USER_TAGS: 150,
+        ID: 60,
+        FOLDER: 200,
+        BOX_OFFICE: 150,
+        SIMILARITY: 100
+    }
+
+
 class SimilarMoviesWidget(QtWidgets.QFrame):
     """Widget that displays similar movies in a table."""
     
@@ -17,6 +66,13 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         # Data
         self.similar_movies = []
         self.current_movie_path = None
+        
+        # Column configuration
+        self.visible_columns = []
+        self.column_widths = {}
+        
+        # Load settings
+        self.loadSettings()
         
         # Initialize UI
         self.initUI()
@@ -103,34 +159,16 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         
         # Create table
         self.tableWidget = QtWidgets.QTableWidget()
-        self.tableWidget.setColumnCount(4)
-        self.tableWidget.setHorizontalHeaderLabels(['Cover', 'Year', 'Title', 'Similarity'])
-        self.tableWidget.setSortingEnabled(True)
-        self.tableWidget.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
-        self.tableWidget.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
-        self.tableWidget.verticalHeader().hide()
-        self.tableWidget.setStyleSheet(f"background: {self.bgColorC};"
-                                       f"alternate-background-color: {self.bgColorD};")
-        self.tableWidget.setAlternatingRowColors(True)
-        self.tableWidget.setShowGrid(False)
-        
-        # Set column widths
-        self.tableWidget.setColumnWidth(0, 120)  # Cover
-        self.tableWidget.setColumnWidth(1, 60)   # Year
-        self.tableWidget.setColumnWidth(2, 400)  # Title
-        self.tableWidget.setColumnWidth(3, 100)  # Similarity
-        
-        # Set row height for covers
-        self.tableWidget.verticalHeader().setDefaultSectionSize(100)
-        
-        # Header styling
-        hh = self.tableWidget.horizontalHeader()
-        hh.setStyleSheet(f"background: {self.bgColorB};"
-                        f"border-radius: 0px;")
-        hh.setStretchLastSection(True)
+        self.setupTable()
         
         # Connect selection signal
         self.tableWidget.itemSelectionChanged.connect(self.onMovieSelected)
+        
+        # Connect header context menu
+        header = self.tableWidget.horizontalHeader()
+        header.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        header.customContextMenuRequested.connect(self.showHeaderContextMenu)
+        header.sectionResized.connect(self.onColumnResized)
         
         vLayout.addWidget(self.tableWidget)
     
@@ -138,69 +176,14 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         """Update the table with similar movies.
         
         Args:
-            similar_movies: List of dicts with 'title', 'year', 'similarity', 'path', 'folder' keys
+            similar_movies: List of dicts with movie data
             movie_path: Path to the currently selected movie
         """
         self.similar_movies = similar_movies or []
         self.current_movie_path = movie_path
         
-        # Clear and populate table
-        self.tableWidget.setRowCount(0)
-        self.tableWidget.setSortingEnabled(False)
-        
-        for movie in self.similar_movies:
-            row = self.tableWidget.rowCount()
-            self.tableWidget.insertRow(row)
-            
-            # Cover column
-            movie_folder = movie.get('folder', '')
-            movie_path_str = movie.get('path', '')
-            coverFile = os.path.join(movie_path_str, f'{movie_folder}.jpg')
-            if not os.path.exists(coverFile):
-                coverFilePng = os.path.join(movie_path_str, f'{movie_folder}.png')
-                if os.path.exists(coverFilePng):
-                    coverFile = coverFilePng
-            
-            coverLabel = QtWidgets.QLabel()
-            if os.path.exists(coverFile):
-                pm = QtGui.QPixmap(coverFile)
-                if not pm.isNull():
-                    scaled_pm = pm.scaled(100, 100, 
-                                         QtCore.Qt.KeepAspectRatio,
-                                         QtCore.Qt.SmoothTransformation)
-                    coverLabel.setPixmap(scaled_pm)
-                    coverLabel.setAlignment(QtCore.Qt.AlignCenter)
-            else:
-                coverLabel.setText("No Cover")
-                coverLabel.setAlignment(QtCore.Qt.AlignCenter)
-            
-            # Store movie data in the label
-            coverLabel.setProperty('movieData', movie)
-            self.tableWidget.setCellWidget(row, 0, coverLabel)
-            
-            # Year column
-            year = str(movie.get('year', ''))
-            yearItem = QtWidgets.QTableWidgetItem(year)
-            yearItem.setData(QtCore.Qt.UserRole, movie)  # Store full movie data
-            self.tableWidget.setItem(row, 1, yearItem)
-            
-            # Title column
-            title = movie.get('title', '')
-            titleItem = QtWidgets.QTableWidgetItem(title)
-            titleItem.setData(QtCore.Qt.UserRole, movie)
-            self.tableWidget.setItem(row, 2, titleItem)
-            
-            # Similarity column
-            similarity = movie.get('similarity', 0.0)
-            similarityItem = QtWidgets.QTableWidgetItem(f"{similarity:.3f}")
-            similarityItem.setData(QtCore.Qt.UserRole, movie)
-            # Make similarity sortable as number
-            similarityItem.setData(QtCore.Qt.UserRole + 1, similarity)
-            self.tableWidget.setItem(row, 3, similarityItem)
-        
-        self.tableWidget.setSortingEnabled(True)
-        # Sort by similarity descending by default
-        self.tableWidget.sortItems(3, QtCore.Qt.DescendingOrder)
+        # Populate table with new data
+        self.populateTable()
     
     def clearSimilarMovies(self):
         """Clear the similar movies table."""
@@ -267,3 +250,225 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         
         # Call parent method to select this movie in the main list
         self.parent.selectMovieInMainList(title, year)
+    
+    def loadSettings(self):
+        """Load column settings from QSettings."""
+        settings = QtCore.QSettings('SMDB', 'SimilarMovies')
+        
+        # Load visible columns
+        saved_columns = settings.value('visibleColumns', SimilarMovieColumns.DEFAULT_VISIBLE)
+        if saved_columns:
+            self.visible_columns = saved_columns
+        else:
+            self.visible_columns = SimilarMovieColumns.DEFAULT_VISIBLE.copy()
+        
+        # Load column widths
+        self.column_widths = {}
+        for col in SimilarMovieColumns.ALL_COLUMNS:
+            width = settings.value(f'columnWidth/{col}', SimilarMovieColumns.DEFAULT_WIDTHS.get(col, 100))
+            self.column_widths[col] = int(width)
+    
+    def saveSettings(self):
+        """Save column settings to QSettings."""
+        settings = QtCore.QSettings('SMDB', 'SimilarMovies')
+        settings.setValue('visibleColumns', self.visible_columns)
+        
+        for col, width in self.column_widths.items():
+            settings.setValue(f'columnWidth/{col}', width)
+    
+    def setupTable(self):
+        """Setup table columns based on visible_columns."""
+        self.tableWidget.clear()
+        self.tableWidget.setColumnCount(len(self.visible_columns))
+        self.tableWidget.setHorizontalHeaderLabels(self.visible_columns)
+        
+        # Configure table
+        self.tableWidget.setSortingEnabled(True)
+        self.tableWidget.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
+        self.tableWidget.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
+        self.tableWidget.verticalHeader().hide()
+        self.tableWidget.setStyleSheet(f"background: {self.bgColorC};"
+                                       f"alternate-background-color: {self.bgColorD};")
+        self.tableWidget.setAlternatingRowColors(True)
+        self.tableWidget.setShowGrid(False)
+        
+        # Set row height
+        self.tableWidget.verticalHeader().setDefaultSectionSize(100)
+        
+        # Set column widths
+        for idx, col_name in enumerate(self.visible_columns):
+            width = self.column_widths.get(col_name, SimilarMovieColumns.DEFAULT_WIDTHS.get(col_name, 100))
+            self.tableWidget.setColumnWidth(idx, width)
+        
+        # Header styling
+        hh = self.tableWidget.horizontalHeader()
+        hh.setStyleSheet(f"background: {self.bgColorB}; border-radius: 0px;")
+        hh.setStretchLastSection(True)
+    
+    def showHeaderContextMenu(self, position):
+        """Show context menu for column visibility."""
+        menu = QtWidgets.QMenu(self)
+        
+        # Add column visibility options
+        for col_name in SimilarMovieColumns.ALL_COLUMNS:
+            action = QtWidgets.QAction(col_name, self)
+            action.setCheckable(True)
+            action.setChecked(col_name in self.visible_columns)
+            # Similarity column is always visible
+            if col_name == SimilarMovieColumns.SIMILARITY:
+                action.setEnabled(False)
+            action.triggered.connect(lambda checked, col=col_name: self.toggleColumn(col, checked))
+            menu.addAction(action)
+        
+        menu.addSeparator()
+        
+        # Reset to defaults
+        resetAction = QtWidgets.QAction("Reset to Defaults", self)
+        resetAction.triggered.connect(self.resetColumnsToDefaults)
+        menu.addAction(resetAction)
+        
+        menu.exec_(self.tableWidget.horizontalHeader().mapToGlobal(position))
+    
+    def toggleColumn(self, col_name, checked):
+        """Toggle column visibility."""
+        if checked and col_name not in self.visible_columns:
+            # Add column - insert before Similarity if it exists
+            if SimilarMovieColumns.SIMILARITY in self.visible_columns:
+                idx = self.visible_columns.index(SimilarMovieColumns.SIMILARITY)
+                self.visible_columns.insert(idx, col_name)
+            else:
+                self.visible_columns.append(col_name)
+        elif not checked and col_name in self.visible_columns:
+            self.visible_columns.remove(col_name)
+        
+        # Rebuild table and refresh data
+        self.setupTable()
+        if self.similar_movies:
+            self.populateTable()
+        
+        self.saveSettings()
+    
+    def resetColumnsToDefaults(self):
+        """Reset columns to default configuration."""
+        self.visible_columns = SimilarMovieColumns.DEFAULT_VISIBLE.copy()
+        self.column_widths = SimilarMovieColumns.DEFAULT_WIDTHS.copy()
+        
+        self.setupTable()
+        if self.similar_movies:
+            self.populateTable()
+        
+        self.saveSettings()
+    
+    def onColumnResized(self, logicalIndex, oldSize, newSize):
+        """Handle column resize event."""
+        if logicalIndex < len(self.visible_columns):
+            col_name = self.visible_columns[logicalIndex]
+            self.column_widths[col_name] = newSize
+            self.saveSettings()
+    
+    def getColumnIndex(self, col_name):
+        """Get the index of a column by name."""
+        try:
+            return self.visible_columns.index(col_name)
+        except ValueError:
+            return -1
+    
+    def populateTable(self):
+        """Populate table with current similar_movies data."""
+        self.tableWidget.setRowCount(0)
+        self.tableWidget.setSortingEnabled(False)
+        
+        for movie in self.similar_movies:
+            self.addMovieRow(movie)
+        
+        self.tableWidget.setSortingEnabled(True)
+        # Sort by similarity if visible
+        sim_idx = self.getColumnIndex(SimilarMovieColumns.SIMILARITY)
+        if sim_idx >= 0:
+            self.tableWidget.sortItems(sim_idx, QtCore.Qt.DescendingOrder)
+    
+    def addMovieRow(self, movie):
+        """Add a movie to the table."""
+        row = self.tableWidget.rowCount()
+        self.tableWidget.insertRow(row)
+        
+        movie_folder = movie.get('folder', '')
+        movie_path_str = movie.get('path', '')
+        
+        for idx, col_name in enumerate(self.visible_columns):
+            if col_name == SimilarMovieColumns.COVER:
+                # Cover column
+                coverFile = os.path.join(movie_path_str, f'{movie_folder}.jpg')
+                if not os.path.exists(coverFile):
+                    coverFilePng = os.path.join(movie_path_str, f'{movie_folder}.png')
+                    if os.path.exists(coverFilePng):
+                        coverFile = coverFilePng
+                
+                coverLabel = QtWidgets.QLabel()
+                if os.path.exists(coverFile):
+                    pm = QtGui.QPixmap(coverFile)
+                    if not pm.isNull():
+                        scaled_pm = pm.scaled(100, 100, 
+                                             QtCore.Qt.KeepAspectRatio,
+                                             QtCore.Qt.SmoothTransformation)
+                        coverLabel.setPixmap(scaled_pm)
+                        coverLabel.setAlignment(QtCore.Qt.AlignCenter)
+                else:
+                    coverLabel.setText("No Cover")
+                    coverLabel.setAlignment(QtCore.Qt.AlignCenter)
+                
+                coverLabel.setProperty('movieData', movie)
+                self.tableWidget.setCellWidget(row, idx, coverLabel)
+            
+            else:
+                # Text columns
+                text = self.getMovieColumnValue(movie, col_name)
+                item = QtWidgets.QTableWidgetItem(text)
+                item.setData(QtCore.Qt.UserRole, movie)
+                
+                # Make similarity column sortable as number
+                if col_name == SimilarMovieColumns.SIMILARITY:
+                    try:
+                        item.setData(QtCore.Qt.UserRole + 1, float(movie.get('similarity', 0.0)))
+                    except (ValueError, TypeError):
+                        pass
+                
+                self.tableWidget.setItem(row, idx, item)
+    
+    def getMovieColumnValue(self, movie, col_name):
+        """Get the display value for a movie column."""
+        if col_name == SimilarMovieColumns.YEAR:
+            return str(movie.get('year', ''))
+        elif col_name == SimilarMovieColumns.TITLE:
+            return movie.get('title', '')
+        elif col_name == SimilarMovieColumns.SIMILARITY:
+            return f"{movie.get('similarity', 0.0):.3f}"
+        elif col_name == SimilarMovieColumns.RATING:
+            return str(movie.get('rating', ''))
+        elif col_name == SimilarMovieColumns.MPAA_RATING:
+            return movie.get('mpaa_rating', '')
+        elif col_name == SimilarMovieColumns.RUNTIME:
+            return str(movie.get('runtime', ''))
+        elif col_name == SimilarMovieColumns.DIRECTORS:
+            directors = movie.get('directors', [])
+            return ', '.join(directors) if isinstance(directors, list) else str(directors)
+        elif col_name == SimilarMovieColumns.GENRES:
+            genres = movie.get('genres', [])
+            return ', '.join(genres) if isinstance(genres, list) else str(genres)
+        elif col_name == SimilarMovieColumns.COUNTRIES:
+            countries = movie.get('countries', [])
+            return ', '.join(countries) if isinstance(countries, list) else str(countries)
+        elif col_name == SimilarMovieColumns.COMPANIES:
+            companies = movie.get('companies', [])
+            return ', '.join(companies) if isinstance(companies, list) else str(companies)
+        elif col_name == SimilarMovieColumns.USER_TAGS:
+            tags = movie.get('user_tags', [])
+            return ', '.join(tags) if isinstance(tags, list) else str(tags)
+        elif col_name == SimilarMovieColumns.ID:
+            return str(movie.get('id', ''))
+        elif col_name == SimilarMovieColumns.FOLDER:
+            return movie.get('folder', '')
+        elif col_name == SimilarMovieColumns.BOX_OFFICE:
+            return movie.get('box_office', '')
+        else:
+            return ''
