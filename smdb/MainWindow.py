@@ -761,26 +761,36 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if len(self.moviesTableColumnsVisible) > 0 and self.moviesTableColumnsVisible[Columns.Cover.value]:
             self.moviesTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
+            self.moviesTableView.verticalScrollBar().setSingleStep(self.rowHeightWithCover)
         else:
             self.moviesTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+            self.moviesTableView.verticalScrollBar().setSingleStep(self.rowHeightWithoutCover)
 
         if len(self.watchListWidget.listColumnsVisible) > 0 and self.watchListWidget.listColumnsVisible[Columns.Cover.value]:
             self.watchListWidget.listTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
+            self.watchListWidget.listTableView.verticalScrollBar().setSingleStep(self.rowHeightWithCover)
         else:
             self.watchListWidget.listTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+            self.watchListWidget.listTableView.verticalScrollBar().setSingleStep(self.rowHeightWithoutCover)
 
         if len(self.backupListColumnsVisible) > 0 and self.backupListColumnsVisible[Columns.Cover.value]:
             self.backupListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
+            self.backupListTableView.verticalScrollBar().setSingleStep(self.rowHeightWithCover)
         else:
             self.backupListTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+            self.backupListTableView.verticalScrollBar().setSingleStep(self.rowHeightWithoutCover)
 
         if len(self.historyListWidget.listColumnsVisible) > 0 and self.historyListWidget.listColumnsVisible[Columns.Cover.value]:
             self.historyListWidget.listTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
+            self.historyListWidget.listTableView.verticalScrollBar().setSingleStep(self.rowHeightWithCover)
         else:
             self.historyListWidget.listTableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+            self.historyListWidget.listTableView.verticalScrollBar().setSingleStep(self.rowHeightWithoutCover)
 
         self.primaryFilterWidget.filterTable.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+        self.primaryFilterWidget.filterTable.verticalScrollBar().setSingleStep(self.rowHeightWithoutCover)
         self.secondaryFilterWidget.filterTable.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
+        self.secondaryFilterWidget.filterTable.verticalScrollBar().setSingleStep(self.rowHeightWithoutCover)
         
         # Update log panel font size if it exists
         if self.logTextWidget is not None:
@@ -1007,8 +1017,7 @@ class MainWindow(QtWidgets.QMainWindow):
             tableView.showColumn(c.value)
             if c.value == Columns.Cover.value:
                 tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
-                tableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
-                tableView.verticalScrollBar().setSingleStep(10)
+                tableView.verticalScrollBar().setSingleStep(self.rowHeightWithCover)
                 # Force all rows to update to new height
                 tableView.verticalHeader().resetDefaultSectionSize()
                 tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
@@ -1016,16 +1025,14 @@ class MainWindow(QtWidgets.QMainWindow):
             tableView.hideColumn(c.value)
             if c.value == Columns.Cover.value:
                 tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
-                tableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerItem)
-                tableView.verticalScrollBar().setSingleStep(5)
+                tableView.verticalScrollBar().setSingleStep(self.rowHeightWithoutCover)
                 # Force all rows to update to new height
                 tableView.verticalHeader().resetDefaultSectionSize()
                 tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithoutCover)
 
     def showAllColumns(self, tableView, visibleList):
         tableView.verticalHeader().setDefaultSectionSize(self.rowHeightWithCover)
-        tableView.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
-        tableView.verticalScrollBar().setSingleStep(10)
+        tableView.verticalScrollBar().setSingleStep(self.rowHeightWithCover)
         for i, c in enumerate(visibleList):
             visibleList[i] = True
             tableView.showColumn(i)
