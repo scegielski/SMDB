@@ -9,6 +9,7 @@ import stat
 import re
 import sys
 import subprocess
+import json
 
 from .MoviesTableModel import MoviesTableModel, Columns, defaultColumnWidths
 from .MovieTableView import MovieTableView
@@ -654,6 +655,10 @@ class BackupWidget(QtWidgets.QFrame):
         """Manual file-by-file copy for when robocopy isn't available or suitable."""
         bytesCopied = 0
         
+        # Ensure destination directory exists
+        if not os.path.exists(destPath):
+            os.makedirs(destPath)
+        
         # Copy/move any files that are missing or have different sizes
         for f in os.listdir(sourcePath):
             sourceFilePath = os.path.join(sourcePath, f)
@@ -672,18 +677,8 @@ class BackupWidget(QtWidgets.QFrame):
                 if isSourceDir:
                     shutil.copytree(sourceFilePath, destFilePath)
                 else:
-                    # For small files, direct read/write is faster than shutil
-                    if sourceFileSize < 1024 * 1024:  # Less than 1MB
-                        try:
-                            with open(sourceFilePath, 'rb') as sf:
-                                data = sf.read()
-                            with open(destFilePath, 'wb') as df:
-                                df.write(data)
-                        except Exception:
-                            # Fall back to shutil if direct copy fails
-                            shutil.copy2(sourceFilePath, destFilePath)
-                    else:
-                        shutil.copy2(sourceFilePath, destFilePath)
+                    # Use regular copy for all files
+                    shutil.copy2(sourceFilePath, destFilePath)
             else:
                 destFileSize = 0
                 if os.path.exists(destFilePath):
@@ -700,18 +695,8 @@ class BackupWidget(QtWidgets.QFrame):
                                       onerror=handleRemoveReadonly)
                         shutil.copytree(sourceFilePath, destFilePath)
                     else:
-                        # For small files, direct read/write is faster than shutil
-                        if sourceFileSize < 1024 * 1024:  # Less than 1MB
-                            try:
-                                with open(sourceFilePath, 'rb') as sf:
-                                    data = sf.read()
-                                with open(destFilePath, 'wb') as df:
-                                    df.write(data)
-                            except Exception:
-                                # Fall back to shutil if direct copy fails
-                                shutil.copy2(sourceFilePath, destFilePath)
-                        else:
-                            shutil.copy2(sourceFilePath, destFilePath)
+                        # Use regular copy for all files
+                        shutil.copy2(sourceFilePath, destFilePath)
 
             if moveFiles:
                 if os.path.isdir(sourceFilePath):
