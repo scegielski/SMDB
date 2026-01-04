@@ -455,6 +455,14 @@ class BackupWidget(QtWidgets.QFrame):
             for filename, fileSize in destFilesAndSizes.items():
                 destFilesBySize.setdefault(fileSize, []).append(filename)
             
+            # Build case-insensitive lookup for Windows (case-sensitive on other platforms)
+            if sys.platform == 'win32':
+                sourceFilesLower = {fname.lower(): fname for fname in sourceFilesAndSizes.keys()}
+                destFilesLower = {fname.lower(): fname for fname in destFilesAndSizes.keys()}
+            else:
+                sourceFilesLower = None
+                destFilesLower = None
+            
             # Track which dest files have been matched for renames
             destFilesMatched = set()
             folderRenames = {}  # Map source filename to dest filename for this folder
@@ -486,7 +494,6 @@ class BackupWidget(QtWidgets.QFrame):
                         self.listTableModel.setBackupStatus(sourceIndex, "Files Missing (Destination)")
                         replaceFolder = True
                         bytesToCopyThisFolder += sourceFileSize
-                        break
                 else:
                     destFileSize = destFilesAndSizes.get(filename, os.path.getsize(fullDestPath))
                     if sourceFileSize != destFileSize:
@@ -495,13 +502,22 @@ class BackupWidget(QtWidgets.QFrame):
                         self.listTableModel.setBackupStatus(sourceIndex, "File Size Difference")
                         replaceFolder = True
                         bytesToCopyThisFolder += sourceFileSize
-                        break
 
             # Check for extra files in destination (that aren't part of renames)
             if not replaceFolder and not hasRenames:
                 for filename in destFilesAndSizes.keys():
-                    if filename not in sourceFilesAndSizes and filename not in destFilesMatched:
+                    # Check if file exists in source (case-insensitive on Windows)
+                    filenameInSource = False
+                    if sys.platform == 'win32':
+                        filenameInSource = filename.lower() in sourceFilesLower
+                    else:
+                        filenameInSource = filename in sourceFilesAndSizes
+                    
+                    if not filenameInSource and filename not in destFilesMatched:
                         fullSourcePath = os.path.join(sourcePath, filename)
+                        self.output(f"[{title}] File in destination but not source: '{filename}'")
+                        self.output(f"  Source files: {list(sourceFilesAndSizes.keys())}")
+                        self.output(f"  Dest files: {list(destFilesAndSizes.keys())}")
                         self.listTableModel.setBackupStatus(sourceIndex, "Files Missing (Source)")
                         replaceFolder = True
                         break
