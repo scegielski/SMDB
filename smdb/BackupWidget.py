@@ -7,6 +7,8 @@ import time
 import fnmatch
 import stat
 import re
+import sys
+import subprocess
 
 from .MoviesTableModel import MoviesTableModel, Columns, defaultColumnWidths
 from .MovieTableView import MovieTableView
@@ -647,6 +649,92 @@ class BackupWidget(QtWidgets.QFrame):
                                          (bToGb(newSize),
                                           bToGb(self.spaceTotal),
                                           bToGb(self.spaceFree)))
+    
+    def _manualFileCopy(self, sourcePath, destPath, moveFiles):
+        """Manual file-by-file copy for when robocopy isn't available or suitable."""
+        bytesCopied = 0
+        
+        # Copy/move any files that are missing or have different sizes
+        for f in os.listdir(sourcePath):
+            sourceFilePath = os.path.join(sourcePath, f)
+            if os.path.isdir(sourceFilePath):
+                sourceFileSize = getFolderSize(sourceFilePath)
+                isSourceDir = True
+            else:
+                sourceFileSize = os.path.getsize(sourceFilePath)
+                isSourceDir = False
+
+            destFilePath = os.path.join(destPath, f)
+
+            if not os.path.exists(destFilePath):
+                # File missing - copy it
+                bytesCopied += sourceFileSize
+                if isSourceDir:
+                    shutil.copytree(sourceFilePath, destFilePath)
+                else:
+                    # For small files, direct read/write is faster than shutil
+                    if sourceFileSize < 1024 * 1024:  # Less than 1MB
+                        try:
+                            with open(sourceFilePath, 'rb') as sf:
+                                data = sf.read()
+                            with open(destFilePath, 'wb') as df:
+                                df.write(data)
+                        except Exception:
+                            # Fall back to shutil if direct copy fails
+                            shutil.copy2(sourceFilePath, destFilePath)
+                    else:
+                        shutil.copy2(sourceFilePath, destFilePath)
+            else:
+                destFileSize = 0
+                if os.path.exists(destFilePath):
+                    if os.path.isdir(destFilePath):
+                        destFileSize = getFolderSize(destFilePath)
+                    else:
+                        destFileSize = os.path.getsize(destFilePath)
+
+                if sourceFileSize != destFileSize:
+                    bytesCopied += sourceFileSize
+                    if isSourceDir:
+                        shutil.rmtree(destFilePath,
+                                      ignore_errors=False,
+                                      onerror=handleRemoveReadonly)
+                        shutil.copytree(sourceFilePath, destFilePath)
+                    else:
+                        # For small files, direct read/write is faster than shutil
+                        if sourceFileSize < 1024 * 1024:  # Less than 1MB
+                            try:
+                                with open(sourceFilePath, 'rb') as sf:
+                                    data = sf.read()
+                                with open(destFilePath, 'wb') as df:
+                                    df.write(data)
+                            except Exception:
+                                # Fall back to shutil if direct copy fails
+                                shutil.copy2(sourceFilePath, destFilePath)
+                        else:
+                            shutil.copy2(sourceFilePath, destFilePath)
+
+            if moveFiles:
+                if os.path.isdir(sourceFilePath):
+                    shutil.rmtree(sourceFilePath,
+                                  ignore_errors=False,
+                                  onerror=handleRemoveReadonly)
+                else:
+                    os.remove(sourceFilePath)
+
+        # Remove any files in the destination dir that are not in the source dir
+        for f in os.listdir(destPath):
+            destFilePath = os.path.join(destPath, f)
+            sourceFilePath = os.path.join(sourcePath, f)
+            if not os.path.exists(sourceFilePath):
+                if os.path.isdir(destFilePath):
+                    shutil.rmtree(destFilePath,
+                                  ignore_errors=False,
+                                  onerror=handleRemoveReadonly)
+                else:
+                    os.chmod(destFilePath, stat.S_IWRITE)
+                    os.remove(destFilePath)
+        
+        return bytesCopied
 
     def run(self, moveFiles=False):
         """Run the backup/move operation."""
@@ -690,7 +778,8 @@ class BackupWidget(QtWidgets.QFrame):
             progressBar.setMaximum(numItems)
             
         for row in range(numItems):
-            self.listTableView.selectRow(row)
+            # Don't select row - causes expensive UI updates (cover loading, etc.)
+            # self.listTableView.selectRow(row)
 
             modelIndex = self.listTableProxyModel.index(row, 0)
             sourceIndex = self.listTableProxyModel.mapToSource(modelIndex)
@@ -745,65 +834,11 @@ class BackupWidget(QtWidgets.QFrame):
                    backupStatus == 'Files Missing (Source)' or \
                    backupStatus == 'Files Missing (Destination)':
 
-                    # Copy/move any files that are missing or have different sizes
-                    for f in os.listdir(sourcePath):
-                        sourceFilePath = os.path.join(sourcePath, f)
-                        if os.path.isdir(sourceFilePath):
-                            sourceFileSize = getFolderSize(sourceFilePath)
-                            isSourceDir = True
-                        else:
-                            sourceFileSize = os.path.getsize(sourceFilePath)
-                            isSourceDir = False
-
-                        destFilePath = os.path.join(destPath, f)
-
-                        if not os.path.exists(destFilePath):
-                            # File missing - copy it
-                            bytesCopied += sourceFileSize
-                            if isSourceDir:
-                                shutil.copytree(sourceFilePath, destFilePath)
-                            else:
-                                shutil.copy(sourceFilePath, destFilePath)
-                        else:
-                            destFileSize = 0
-                            if os.path.exists(destFilePath):
-                                if os.path.isdir(destFilePath):
-                                    destFileSize = getFolderSize(destFilePath)
-                                else:
-                                    destFileSize = os.path.getsize(destFilePath)
-
-                            if sourceFileSize != destFileSize:
-                                bytesCopied += sourceFileSize
-                                if isSourceDir:
-                                    shutil.rmtree(destFilePath,
-                                                  ignore_errors=False,
-                                                  onerror=handleRemoveReadonly)
-                                    shutil.copytree(sourceFilePath, destFilePath)
-                                else:
-                                    shutil.copy(sourceFilePath, destFilePath)
-
-                        if moveFiles:
-                            if os.path.isdir(sourceFilePath):
-                                shutil.rmtree(sourceFilePath,
-                                              ignore_errors=False,
-                                              onerror=handleRemoveReadonly)
-                            else:
-                                os.remove(sourceFilePath)
-
-                    # Remove any files in the destination dir that are not in the source dir
-                    for f in os.listdir(destPath):
-                        destFilePath = os.path.join(destPath, f)
-                        sourceFilePath = os.path.join(sourcePath, f)
-                        if not os.path.exists(sourceFilePath):
-                            if os.path.isdir(destFilePath):
-                                shutil.rmtree(destFilePath,
-                                              ignore_errors=False,
-                                              onerror=handleRemoveReadonly)
-                            else:
-                                os.chmod(destFilePath, stat.S_IWRITE)
-                                os.remove(destFilePath)
+                    # Copy/move files that are missing or have different sizes
+                    bytesCopied = self._manualFileCopy(sourcePath, destPath, moveFiles)
 
                 elif backupStatus == 'Folder Missing':
+                    # Use shutil.copytree - it's efficient for copying entire folders
                     shutil.copytree(sourcePath, destPath)
                     bytesCopied = sourceFolderSize
                 else:
