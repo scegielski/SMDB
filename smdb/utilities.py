@@ -4,6 +4,7 @@ import sys
 import json
 import subprocess
 import urllib.request
+import urllib.parse
 from urllib.error import URLError
 from unidecode import unidecode
 import platform
@@ -270,31 +271,15 @@ def open_url(url, new=2):
 
 
 def openYearImdbPage(year):
-    open_url('https://www.imdb.com/search/title/?release_date=%s-01-01,%s-12-31' % (year, year), new=2)
+    # Open Wikipedia search for movies from that year
+    search_query = urllib.parse.quote(f'{year} in film')
+    open_url(f'https://en.wikipedia.org/wiki/{search_query}', new=2)
 
 
 def openPersonImdbPage(personName, db=None):
-    # Create a static IMDb instance if needed (cached across calls)
-    if not hasattr(openPersonImdbPage, '_imdb_instance'):
-        openPersonImdbPage._imdb_instance = imdb.IMDb()
-    
-    db = openPersonImdbPage._imdb_instance
-    
-    personId = db.name2imdbID(personName)
-    if not personId:
-        try:
-            results = db.search_person(personName)
-            if not results:
-                output('No matches for: %s' % personName)
-                return
-            person = results[0]
-            if isinstance(person, imdb.Person.Person):
-                personId = person.getID()
-        except imdb._exceptions.IMDbDataAccessError as err:
-            output(f"Error: {err}")
-
-    if personId:
-        open_url('http://imdb.com/name/nm%s' % personId, new=2)
+    # Open Wikipedia search for the person
+    search_query = urllib.parse.quote(personName)
+    open_url(f'https://en.wikipedia.org/wiki/{search_query}', new=2)
 
 
 def getFolderSize(startPath='.'):

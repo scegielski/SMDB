@@ -182,7 +182,7 @@ class FilterWidget(QtWidgets.QFrame):
         rightMenu = QtWidgets.QMenu(self.filterTable)
         selectedItem = self.filterTable.itemAt(self.filterTable.mouseLocation)
         row = selectedItem.row()
-        openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
+        openImdbAction = QtWidgets.QAction("Open Wikipedia Page", self)
         itemText = self.filterTable.item(row, 0).text()
         filterByText = self.filterByComboBox.currentText()
         if filterByText == 'Director' or filterByText == 'Actor':

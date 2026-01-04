@@ -3830,10 +3830,15 @@ class MainWindow(QtWidgets.QMainWindow):
     def movieInfoRightMenu(self):
         rightMenu = QtWidgets.QMenu(self.movieInfoListView)
         selectedItem = self.movieInfoListView.itemAt(self.movieInfoListView.mouseLocation)
-        category = selectedItem.data(QtCore.Qt.UserRole)[0]
+        if selectedItem is None:
+            return
+        userData = selectedItem.data(QtCore.Qt.UserRole)
+        if userData is None:
+            return
+        category = userData[0]
         if category == 'director' or category == 'actor' or category == 'year':
-            openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
-            itemText = selectedItem.text()
+            openImdbAction = QtWidgets.QAction("Open Wikipedia Page", self)
+            itemText = userData[1]  # Get the actual name/year without the count
             if category == 'director' or category == 'actor':
                 openImdbAction.triggered.connect(lambda: openPersonImdbPage(itemText))
             elif category == 'year':
