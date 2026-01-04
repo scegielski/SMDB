@@ -383,7 +383,8 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         self.tableWidget.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
         self.tableWidget.verticalHeader().hide()
         self.tableWidget.setStyleSheet(f"background: {self.bgColorC};"
-                                       f"alternate-background-color: {self.bgColorD};")
+                                       f"alternate-background-color: {self.bgColorD};"
+                                       f"border-radius: 0px;")
         self.tableWidget.setAlternatingRowColors(True)
         self.tableWidget.setShowGrid(False)
         
