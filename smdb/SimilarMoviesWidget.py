@@ -95,6 +95,27 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         
         topBar.addStretch()
         
+        # Cover scale slider
+        coverScaleLabel = QtWidgets.QLabel("Cover Scale:")
+        topBar.addWidget(coverScaleLabel)
+        
+        self.coverScaleSlider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.coverScaleSlider.setMinimum(50)
+        self.coverScaleSlider.setMaximum(300)
+        self.coverScaleSlider.setValue(self.saved_cover_scale)  # Use saved value
+        self.coverScaleSlider.setTickInterval(50)
+        self.coverScaleSlider.setTickPosition(QtWidgets.QSlider.TicksBelow)
+        self.coverScaleSlider.setMaximumWidth(150)
+        self.coverScaleSlider.setToolTip("Adjust cover image size")
+        self.coverScaleSlider.valueChanged.connect(self.onCoverScaleChanged)
+        topBar.addWidget(self.coverScaleSlider)
+        
+        self.coverScaleValueLabel = QtWidgets.QLabel(str(self.saved_cover_scale))  # Use saved value
+        self.coverScaleValueLabel.setMinimumWidth(30)
+        topBar.addWidget(self.coverScaleValueLabel)
+        
+        topBar.addSpacing(20)
+        
         # Add spinbox for controlling number of movies shown
         countLabel = QtWidgets.QLabel("Show:")
         topBar.addWidget(countLabel)
@@ -240,6 +261,17 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
                                             content_weight=content_weight, 
                                             metadata_weight=metadata_weight)
     
+    def onCoverScaleChanged(self, value):
+        """Handle cover scale slider change."""
+        self.coverScaleValueLabel.setText(str(value))
+        # Update row height and repopulate to resize covers
+        if SimilarMovieColumns.COVER in self.visible_columns:
+            new_row_height = value + 10  # Add some padding
+            self.tableWidget.verticalHeader().setDefaultSectionSize(new_row_height)
+            # Repopulate to resize covers
+            if self.similar_movies:
+                self.populateTable()
+    
     def onWeightLabelUpdate(self, value):
         """Update weight labels while dragging slider (no recalculation)."""
         # Update value labels only
@@ -314,6 +346,9 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         for col in SimilarMovieColumns.ALL_COLUMNS:
             width = settings.value(f'columnWidth/{col}', SimilarMovieColumns.DEFAULT_WIDTHS.get(col, 100))
             self.column_widths[col] = int(width)
+        
+        # Load cover scale (will be applied after UI is created)
+        self.saved_cover_scale = settings.value('coverScale', 150, type=int)
     
     def saveSettings(self):
         """Save column settings to QSettings."""
@@ -322,6 +357,19 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         
         for col, width in self.column_widths.items():
             settings.setValue(f'columnWidth/{col}', width)
+        
+        # Save cover scale
+        if hasattr(self, 'coverScaleSlider'):
+            settings.setValue('coverScale', self.coverScaleSlider.value())
+        
+        # Save column visual order as list of column names
+        header = self.tableWidget.horizontalHeader()
+        orderedColumns = []
+        for visual_idx in range(header.count()):
+            logical_idx = header.logicalIndex(visual_idx)
+            if logical_idx < len(self.visible_columns):
+                orderedColumns.append(self.visible_columns[logical_idx])
+        settings.setValue('columnOrder', orderedColumns)
     
     def setupTable(self):
         """Setup table columns based on visible_columns."""
@@ -339,8 +387,17 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         self.tableWidget.setAlternatingRowColors(True)
         self.tableWidget.setShowGrid(False)
         
-        # Set row height
-        self.tableWidget.verticalHeader().setDefaultSectionSize(100)
+        # Set row height based on cover visibility
+        if SimilarMovieColumns.COVER in self.visible_columns:
+            # Use cover scale slider value
+            cover_scale = self.coverScaleSlider.value()
+            self.tableWidget.verticalHeader().setDefaultSectionSize(cover_scale + 10)
+        else:
+            self.tableWidget.verticalHeader().setDefaultSectionSize(self.parent.rowHeightWithoutCover)
+        
+        # Use uniform row heights to prevent auto-resizing
+        self.tableWidget.verticalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Fixed)
+        self.tableWidget.verticalHeader().setMinimumSectionSize(10)
         
         # Set column widths
         for idx, col_name in enumerate(self.visible_columns):
@@ -354,6 +411,29 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         hh.setSectionsMovable(True)
         hh.setDragEnabled(True)
         hh.setDragDropMode(QtWidgets.QAbstractItemView.InternalMove)
+        
+        # Restore column visual order from settings (by column names)
+        settings = QtCore.QSettings('SMDB', 'SimilarMovies')
+        savedOrder = settings.value('columnOrder', None)
+        if savedOrder and isinstance(savedOrder, list):
+            # Reorder visible_columns to match saved order (for columns that still exist)
+            new_order = []
+            for col_name in savedOrder:
+                if col_name in self.visible_columns:
+                    new_order.append(col_name)
+            # Add any new columns that weren't in the saved order
+            for col_name in self.visible_columns:
+                if col_name not in new_order:
+                    new_order.append(col_name)
+            # Only apply if we have a meaningful reorder
+            if len(new_order) == len(self.visible_columns):
+                self.visible_columns = new_order
+                # Rebuild the table with new order
+                self.tableWidget.setHorizontalHeaderLabels(self.visible_columns)
+                # Reset column widths after reordering
+                for idx, col_name in enumerate(self.visible_columns):
+                    width = self.column_widths.get(col_name, SimilarMovieColumns.DEFAULT_WIDTHS.get(col_name, 100))
+                    self.tableWidget.setColumnWidth(idx, width)
     
     def showHeaderContextMenu(self, position):
         """Show context menu for column visibility."""
@@ -390,6 +470,21 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
                 self.visible_columns.append(col_name)
         elif not checked and col_name in self.visible_columns:
             self.visible_columns.remove(col_name)
+        
+        # Adjust row height based on cover visibility
+        if col_name == SimilarMovieColumns.COVER:
+            if checked:
+                # Cover is now visible - use tall rows
+                self.tableWidget.verticalHeader().setDefaultSectionSize(self.parent.rowHeightWithCover)
+            else:
+                # Cover is now hidden - use short rows
+                self.tableWidget.verticalHeader().setDefaultSectionSize(self.parent.rowHeightWithoutCover)
+            # Force rows to update
+            self.tableWidget.verticalHeader().resetDefaultSectionSize()
+            if checked:
+                self.tableWidget.verticalHeader().setDefaultSectionSize(self.parent.rowHeightWithCover)
+            else:
+                self.tableWidget.verticalHeader().setDefaultSectionSize(self.parent.rowHeightWithoutCover)
         
         # Rebuild table and refresh data
         self.setupTable()
@@ -458,7 +553,9 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
                 if os.path.exists(coverFile):
                     pm = QtGui.QPixmap(coverFile)
                     if not pm.isNull():
-                        scaled_pm = pm.scaled(100, 100, 
+                        # Scale based on slider value
+                        scale_size = self.coverScaleSlider.value()
+                        scaled_pm = pm.scaled(scale_size, scale_size, 
                                              QtCore.Qt.KeepAspectRatio,
                                              QtCore.Qt.SmoothTransformation)
                         coverLabel.setPixmap(scaled_pm)
