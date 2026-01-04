@@ -142,28 +142,24 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         self.coverScaleSlider.setTickInterval(50)
         self.coverScaleSlider.setTickPosition(QtWidgets.QSlider.TicksBelow)
         self.coverScaleSlider.setToolTip("Adjust cover image size")
-        self.coverScaleSlider.valueChanged.connect(self.onCoverScaleChanged)
+        self.coverScaleSlider.valueChanged.connect(self.onCoverScaleSliderChanged)
+        self.coverScaleSlider.sliderReleased.connect(self.onCoverScaleSliderReleased)
         coverScaleRow.addWidget(self.coverScaleSlider)
         
-        self.coverScaleValueLabel = QtWidgets.QLabel(str(self.saved_cover_scale))  # Use saved value
-        self.coverScaleValueLabel.setMinimumWidth(35)
-        coverScaleRow.addWidget(self.coverScaleValueLabel)
+        self.coverScaleSpinBox = QtWidgets.QSpinBox()
+        self.coverScaleSpinBox.setMinimum(50)
+        self.coverScaleSpinBox.setMaximum(300)
+        self.coverScaleSpinBox.setValue(self.saved_cover_scale)
+        self.coverScaleSpinBox.setToolTip("Adjust cover image size")
+        self.coverScaleSpinBox.valueChanged.connect(self.onCoverScaleSpinBoxChanged)
+        coverScaleRow.addWidget(self.coverScaleSpinBox)
         
         optionsContainerLayout.addLayout(coverScaleRow)
         
         # Results count slider row
         resultsRow = QtWidgets.QHBoxLayout()
-        countLabel = QtWidgets.QLabel("Results:")
+        countLabel = QtWidgets.QLabel("Results returned:")
         resultsRow.addWidget(countLabel)
-        
-        self.countSpinBox = QtWidgets.QSpinBox()
-        self.countSpinBox.setMinimum(1)
-        self.countSpinBox.setMaximum(100)
-        self.countSpinBox.setValue(20)
-        self.countSpinBox.setToolTip("Number of similar movies to display")
-        self.countSpinBox.valueChanged.connect(self.onSpinBoxChanged)
-        self.countSpinBox.editingFinished.connect(self.onCountChanged)
-        resultsRow.addWidget(self.countSpinBox)
         
         self.resultsSlider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.resultsSlider.setMinimum(1)
@@ -172,9 +168,18 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         self.resultsSlider.setTickInterval(10)
         self.resultsSlider.setTickPosition(QtWidgets.QSlider.TicksBelow)
         self.resultsSlider.setToolTip("Number of similar movies to display")
-        self.resultsSlider.valueChanged.connect(self.onSliderChanged)
+        self.resultsSlider.valueChanged.connect(self.onResultsSliderChanged)
         self.resultsSlider.sliderReleased.connect(self.onCountChanged)
         resultsRow.addWidget(self.resultsSlider)
+        
+        self.countSpinBox = QtWidgets.QSpinBox()
+        self.countSpinBox.setMinimum(1)
+        self.countSpinBox.setMaximum(100)
+        self.countSpinBox.setValue(20)
+        self.countSpinBox.setToolTip("Number of similar movies to display")
+        self.countSpinBox.valueChanged.connect(self.onResultsSpinBoxChanged)
+        self.countSpinBox.editingFinished.connect(self.onCountChanged)
+        resultsRow.addWidget(self.countSpinBox)
         
         optionsContainerLayout.addLayout(resultsRow)
         
@@ -312,21 +317,40 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
                                             content_weight=content_weight, 
                                             metadata_weight=metadata_weight)
     
-    def onSliderChanged(self, value):
-        """Update the spinbox when slider changes."""
+    def onResultsSliderChanged(self, value):
+        """Update the spinbox when results slider changes."""
         self.countSpinBox.blockSignals(True)
         self.countSpinBox.setValue(value)
         self.countSpinBox.blockSignals(False)
     
-    def onSpinBoxChanged(self, value):
-        """Update the slider when spinbox changes."""
+    def onResultsSpinBoxChanged(self, value):
+        """Update the slider when results spinbox changes."""
         self.resultsSlider.blockSignals(True)
         self.resultsSlider.setValue(value)
         self.resultsSlider.blockSignals(False)
     
-    def onCoverScaleChanged(self, value):
-        """Handle cover scale slider change."""
-        self.coverScaleValueLabel.setText(str(value))
+    def onCoverScaleSliderChanged(self, value):
+        """Handle cover scale slider change - only sync spinbox."""
+        self.coverScaleSpinBox.blockSignals(True)
+        self.coverScaleSpinBox.setValue(value)
+        self.coverScaleSpinBox.blockSignals(False)
+    
+    def onCoverScaleSliderReleased(self):
+        """Handle cover scale slider release - apply the resize."""
+        value = self.coverScaleSlider.value()
+        # Update row height and repopulate to resize covers
+        if SimilarMovieColumns.COVER in self.visible_columns:
+            new_row_height = value + 10  # Add some padding
+            self.tableWidget.verticalHeader().setDefaultSectionSize(new_row_height)
+            # Repopulate to resize covers
+            if self.similar_movies:
+                self.populateTable()
+    
+    def onCoverScaleSpinBoxChanged(self, value):
+        """Handle cover scale spinbox change."""
+        self.coverScaleSlider.blockSignals(True)
+        self.coverScaleSlider.setValue(value)
+        self.coverScaleSlider.blockSignals(False)
         # Update row height and repopulate to resize covers
         if SimilarMovieColumns.COVER in self.visible_columns:
             new_row_height = value + 10  # Add some padding
