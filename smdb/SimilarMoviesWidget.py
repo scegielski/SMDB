@@ -51,6 +51,37 @@ class SimilarMovieColumns:
     }
 
 
+class SimilarMoviesTableWidget(QtWidgets.QTableWidget):
+    """Custom table widget with controlled wheel scrolling."""
+    
+    def wheelEvent(self, event):
+        """Override wheel event to scroll exactly one row per wheel click."""
+        # Get the wheel delta (typically ±120 per notch)
+        delta = event.angleDelta().y()
+        
+        if delta != 0:
+            # Get the vertical scrollbar
+            scrollBar = self.verticalScrollBar()
+            
+            # Calculate number of steps (typically 120 units per notch)
+            # Most mice send ±120 per click
+            steps = delta / 120
+            
+            # Use the singleStep value which should be set to row height
+            step_size = scrollBar.singleStep()
+            
+            # Calculate the scroll amount (negative steps for scrolling down)
+            scroll_amount = -int(steps * step_size)
+            
+            # Apply the scroll
+            new_value = scrollBar.value() + scroll_amount
+            scrollBar.setValue(new_value)
+            
+            event.accept()
+        else:
+            super().wheelEvent(event)
+
+
 class SimilarMoviesWidget(QtWidgets.QFrame):
     """Widget that displays similar movies in a table."""
     
@@ -275,7 +306,7 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         vLayout.addWidget(weightsSection)
         
         # Create table
-        self.tableWidget = QtWidgets.QTableWidget()
+        self.tableWidget = SimilarMoviesTableWidget()
         self.setupTable()
         
         # Connect selection signal
@@ -343,6 +374,8 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         if SimilarMovieColumns.COVER in self.visible_columns:
             new_row_height = value + 10  # Add some padding
             self.tableWidget.verticalHeader().setDefaultSectionSize(new_row_height)
+            # Set scroll step to match row height
+            self.tableWidget.verticalScrollBar().setSingleStep(new_row_height)
             # Repopulate to resize covers
             if self.similar_movies:
                 self.populateTable()
@@ -356,6 +389,8 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         if SimilarMovieColumns.COVER in self.visible_columns:
             new_row_height = value + 10  # Add some padding
             self.tableWidget.verticalHeader().setDefaultSectionSize(new_row_height)
+            # Set scroll step to match row height
+            self.tableWidget.verticalScrollBar().setSingleStep(new_row_height)
             # Repopulate to resize covers
             if self.similar_movies:
                 self.populateTable()
@@ -561,9 +596,14 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         if SimilarMovieColumns.COVER in self.visible_columns:
             # Use cover scale slider value
             cover_scale = self.coverScaleSlider.value()
-            self.tableWidget.verticalHeader().setDefaultSectionSize(cover_scale + 10)
+            row_height = cover_scale + 10
+            self.tableWidget.verticalHeader().setDefaultSectionSize(row_height)
         else:
-            self.tableWidget.verticalHeader().setDefaultSectionSize(self.parent.rowHeightWithoutCover)
+            row_height = self.parent.rowHeightWithoutCover
+            self.tableWidget.verticalHeader().setDefaultSectionSize(row_height)
+        
+        # Set vertical scroll to move one row per wheel click
+        self.tableWidget.verticalScrollBar().setSingleStep(row_height)
         
         # Use uniform row heights to prevent auto-resizing
         self.tableWidget.verticalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Fixed)
