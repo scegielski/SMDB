@@ -110,13 +110,47 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         
         vLayout.addLayout(topBar)
         
-        # Second bar with weight controls for hybrid embeddings
-        weightsBar = QtWidgets.QHBoxLayout()
+        # Collapsible weight controls section
+        weightsSection = QtWidgets.QWidget()
+        weightsSectionLayout = QtWidgets.QVBoxLayout()
+        weightsSectionLayout.setContentsMargins(0, 0, 0, 0)
+        weightsSectionLayout.setSpacing(2)
+        weightsSection.setLayout(weightsSectionLayout)
         
-        # Content weight slider
+        # Header with toggle button
+        weightsHeader = QtWidgets.QWidget()
+        weightsHeaderLayout = QtWidgets.QHBoxLayout()
+        weightsHeaderLayout.setContentsMargins(5, 2, 5, 2)
+        weightsHeader.setLayout(weightsHeaderLayout)
+        
+        self.weightsToggleButton = QtWidgets.QToolButton()
+        self.weightsToggleButton.setArrowType(QtCore.Qt.RightArrow)
+        self.weightsToggleButton.setCheckable(True)
+        self.weightsToggleButton.setChecked(False)
+        self.weightsToggleButton.setStyleSheet("QToolButton { border: none; }")
+        self.weightsToggleButton.toggled.connect(self.onWeightsToggled)
+        weightsHeaderLayout.addWidget(self.weightsToggleButton)
+        
+        weightsLabel = QtWidgets.QLabel("Embedding Weights")
+        weightsLabel.setToolTip("Adjust weights for content vs metadata similarity")
+        weightsHeaderLayout.addWidget(weightsLabel)
+        weightsHeaderLayout.addStretch()
+        
+        weightsSectionLayout.addWidget(weightsHeader)
+        
+        # Container for the sliders (collapsible content)
+        self.weightsContainer = QtWidgets.QFrame()
+        self.weightsContainer.setFrameShape(QtWidgets.QFrame.StyledPanel)
+        self.weightsContainer.setVisible(False)  # Hidden by default
+        weightsContainerLayout = QtWidgets.QVBoxLayout()
+        weightsContainerLayout.setContentsMargins(10, 5, 10, 5)
+        self.weightsContainer.setLayout(weightsContainerLayout)
+        
+        # Content weight slider row
+        contentRow = QtWidgets.QHBoxLayout()
         contentLabel = QtWidgets.QLabel("Content:")
         contentLabel.setToolTip("Weight for semantic content (plot, synopsis)")
-        weightsBar.addWidget(contentLabel)
+        contentRow.addWidget(contentLabel)
         
         self.contentSlider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.contentSlider.setMinimum(0)
@@ -127,18 +161,19 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         self.contentSlider.setToolTip("Weight for semantic content similarity (0.0 - 1.0)")
         self.contentSlider.valueChanged.connect(self.onWeightLabelUpdate)
         self.contentSlider.sliderReleased.connect(self.onWeightSliderReleased)
-        weightsBar.addWidget(self.contentSlider)
+        contentRow.addWidget(self.contentSlider)
         
         self.contentValueLabel = QtWidgets.QLabel("0.70")
         self.contentValueLabel.setMinimumWidth(35)
-        weightsBar.addWidget(self.contentValueLabel)
+        contentRow.addWidget(self.contentValueLabel)
         
-        weightsBar.addSpacing(15)
+        weightsContainerLayout.addLayout(contentRow)
         
-        # Metadata weight slider
+        # Metadata weight slider row
+        metadataRow = QtWidgets.QHBoxLayout()
         metadataLabel = QtWidgets.QLabel("Metadata:")
         metadataLabel.setToolTip("Weight for structured metadata (title, year, genres)")
-        weightsBar.addWidget(metadataLabel)
+        metadataRow.addWidget(metadataLabel)
         
         self.metadataSlider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.metadataSlider.setMinimum(0)
@@ -149,13 +184,17 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         self.metadataSlider.setToolTip("Weight for metadata similarity (0.0 - 1.0)")
         self.metadataSlider.valueChanged.connect(self.onWeightLabelUpdate)
         self.metadataSlider.sliderReleased.connect(self.onWeightSliderReleased)
-        weightsBar.addWidget(self.metadataSlider)
+        metadataRow.addWidget(self.metadataSlider)
         
         self.metadataValueLabel = QtWidgets.QLabel("0.30")
         self.metadataValueLabel.setMinimumWidth(35)
-        weightsBar.addWidget(self.metadataValueLabel)
+        metadataRow.addWidget(self.metadataValueLabel)
         
-        vLayout.addLayout(weightsBar)
+        weightsContainerLayout.addLayout(metadataRow)
+        
+        weightsSectionLayout.addWidget(self.weightsContainer)
+        
+        vLayout.addWidget(weightsSection)
         
         # Create table
         self.tableWidget = QtWidgets.QTableWidget()
@@ -250,6 +289,14 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         
         # Call parent method to select this movie in the main list
         self.parent.selectMovieInMainList(title, year)
+    
+    def onWeightsToggled(self, checked):
+        """Handle expanding/collapsing the weights section."""
+        self.weightsContainer.setVisible(checked)
+        if checked:
+            self.weightsToggleButton.setArrowType(QtCore.Qt.DownArrow)
+        else:
+            self.weightsToggleButton.setArrowType(QtCore.Qt.RightArrow)
     
     def loadSettings(self):
         """Load column settings from QSettings."""
