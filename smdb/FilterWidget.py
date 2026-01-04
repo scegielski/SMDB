@@ -14,6 +14,32 @@ class FilterTable(QtWidgets.QTableWidget):
                 return
             else:
                 super(FilterTable, self).mousePressEvent(event)
+    
+    def wheelEvent(self, event):
+        """Override wheel event to scroll exactly one row per wheel click."""
+        # Get the wheel delta (typically ±120 per notch)
+        delta = event.angleDelta().y()
+        
+        if delta != 0:
+            # Get the vertical scrollbar
+            scrollBar = self.verticalScrollBar()
+            
+            # Calculate number of steps (typically 120 units per notch)
+            steps = delta / 120
+            
+            # Use the singleStep value which should be set to row height
+            step_size = scrollBar.singleStep()
+            
+            # Calculate the scroll amount (negative steps for scrolling down)
+            scroll_amount = -int(steps * step_size)
+            
+            # Apply the scroll
+            new_value = scrollBar.value() + scroll_amount
+            scrollBar.setValue(new_value)
+            
+            event.accept()
+        else:
+            super().wheelEvent(event)
 
 
 class FilterWidget(QtWidgets.QFrame):
