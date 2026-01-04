@@ -87,17 +87,53 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         vLayout = QtWidgets.QVBoxLayout()
         self.setLayout(vLayout)
         
-        # Top bar with label and count control
-        topBar = QtWidgets.QHBoxLayout()
-        
+        # Title bar
+        titleBar = QtWidgets.QHBoxLayout()
         label = QtWidgets.QLabel("Similar Movies")
-        topBar.addWidget(label)
+        titleBar.addWidget(label)
+        titleBar.addStretch()
+        vLayout.addLayout(titleBar)
         
-        topBar.addStretch()
+        # Collapsible options section
+        optionsSection = QtWidgets.QWidget()
+        optionsSectionLayout = QtWidgets.QVBoxLayout()
+        optionsSectionLayout.setContentsMargins(0, 0, 0, 0)
+        optionsSectionLayout.setSpacing(2)
+        optionsSection.setLayout(optionsSectionLayout)
         
-        # Cover scale slider
+        # Header with toggle button
+        optionsHeader = QtWidgets.QWidget()
+        optionsHeaderLayout = QtWidgets.QHBoxLayout()
+        optionsHeaderLayout.setContentsMargins(5, 2, 5, 2)
+        optionsHeader.setLayout(optionsHeaderLayout)
+        
+        self.optionsToggleButton = QtWidgets.QToolButton()
+        self.optionsToggleButton.setArrowType(QtCore.Qt.RightArrow)
+        self.optionsToggleButton.setCheckable(True)
+        self.optionsToggleButton.setChecked(False)
+        self.optionsToggleButton.setStyleSheet("QToolButton { border: none; }")
+        self.optionsToggleButton.toggled.connect(self.onOptionsToggled)
+        optionsHeaderLayout.addWidget(self.optionsToggleButton)
+        
+        optionsLabel = QtWidgets.QLabel("Display Options")
+        optionsLabel.setToolTip("Adjust cover scale and results count")
+        optionsHeaderLayout.addWidget(optionsLabel)
+        optionsHeaderLayout.addStretch()
+        
+        optionsSectionLayout.addWidget(optionsHeader)
+        
+        # Container for the controls (collapsible content)
+        self.optionsContainer = QtWidgets.QFrame()
+        self.optionsContainer.setFrameShape(QtWidgets.QFrame.StyledPanel)
+        self.optionsContainer.setVisible(False)  # Hidden by default
+        optionsContainerLayout = QtWidgets.QVBoxLayout()
+        optionsContainerLayout.setContentsMargins(10, 5, 10, 5)
+        self.optionsContainer.setLayout(optionsContainerLayout)
+        
+        # Cover scale slider row
+        coverScaleRow = QtWidgets.QHBoxLayout()
         coverScaleLabel = QtWidgets.QLabel("Cover Scale:")
-        topBar.addWidget(coverScaleLabel)
+        coverScaleRow.addWidget(coverScaleLabel)
         
         self.coverScaleSlider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.coverScaleSlider.setMinimum(50)
@@ -105,31 +141,46 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         self.coverScaleSlider.setValue(self.saved_cover_scale)  # Use saved value
         self.coverScaleSlider.setTickInterval(50)
         self.coverScaleSlider.setTickPosition(QtWidgets.QSlider.TicksBelow)
-        self.coverScaleSlider.setMaximumWidth(150)
         self.coverScaleSlider.setToolTip("Adjust cover image size")
         self.coverScaleSlider.valueChanged.connect(self.onCoverScaleChanged)
-        topBar.addWidget(self.coverScaleSlider)
+        coverScaleRow.addWidget(self.coverScaleSlider)
         
         self.coverScaleValueLabel = QtWidgets.QLabel(str(self.saved_cover_scale))  # Use saved value
-        self.coverScaleValueLabel.setMinimumWidth(30)
-        topBar.addWidget(self.coverScaleValueLabel)
+        self.coverScaleValueLabel.setMinimumWidth(35)
+        coverScaleRow.addWidget(self.coverScaleValueLabel)
         
-        topBar.addSpacing(20)
+        optionsContainerLayout.addLayout(coverScaleRow)
         
-        # Add spinbox for controlling number of movies shown
-        countLabel = QtWidgets.QLabel("Show:")
-        topBar.addWidget(countLabel)
+        # Results count slider row
+        resultsRow = QtWidgets.QHBoxLayout()
+        countLabel = QtWidgets.QLabel("Results:")
+        resultsRow.addWidget(countLabel)
         
         self.countSpinBox = QtWidgets.QSpinBox()
-        self.countSpinBox.setMinimum(5)
+        self.countSpinBox.setMinimum(1)
         self.countSpinBox.setMaximum(100)
         self.countSpinBox.setValue(20)
-        self.countSpinBox.setSingleStep(5)
         self.countSpinBox.setToolTip("Number of similar movies to display")
+        self.countSpinBox.valueChanged.connect(self.onSpinBoxChanged)
         self.countSpinBox.editingFinished.connect(self.onCountChanged)
-        topBar.addWidget(self.countSpinBox)
+        resultsRow.addWidget(self.countSpinBox)
         
-        vLayout.addLayout(topBar)
+        self.resultsSlider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.resultsSlider.setMinimum(1)
+        self.resultsSlider.setMaximum(100)
+        self.resultsSlider.setValue(20)
+        self.resultsSlider.setTickInterval(10)
+        self.resultsSlider.setTickPosition(QtWidgets.QSlider.TicksBelow)
+        self.resultsSlider.setToolTip("Number of similar movies to display")
+        self.resultsSlider.valueChanged.connect(self.onSliderChanged)
+        self.resultsSlider.sliderReleased.connect(self.onCountChanged)
+        resultsRow.addWidget(self.resultsSlider)
+        
+        optionsContainerLayout.addLayout(resultsRow)
+        
+        optionsSectionLayout.addWidget(self.optionsContainer)
+        
+        vLayout.addWidget(optionsSection)
         
         # Collapsible weight controls section
         weightsSection = QtWidgets.QWidget()
@@ -152,7 +203,7 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         self.weightsToggleButton.toggled.connect(self.onWeightsToggled)
         weightsHeaderLayout.addWidget(self.weightsToggleButton)
         
-        weightsLabel = QtWidgets.QLabel("Embedding Weights")
+        weightsLabel = QtWidgets.QLabel("Criteria Weights")
         weightsLabel.setToolTip("Adjust weights for content vs metadata similarity")
         weightsHeaderLayout.addWidget(weightsLabel)
         weightsHeaderLayout.addStretch()
@@ -252,7 +303,7 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
         self.current_movie_path = None
     
     def onCountChanged(self):
-        """Handle change in the number of similar movies to display (on Enter or focus loss)."""
+        """Handle change in the number of similar movies to display (when slider is released or spinbox editing finished)."""
         # Recalculate similar movies with new count if we have a current movie
         value = self.countSpinBox.value()
         if self.current_movie_path:
@@ -260,6 +311,18 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
             self.parent.refreshSimilarMovies(self.current_movie_path, k=value, 
                                             content_weight=content_weight, 
                                             metadata_weight=metadata_weight)
+    
+    def onSliderChanged(self, value):
+        """Update the spinbox when slider changes."""
+        self.countSpinBox.blockSignals(True)
+        self.countSpinBox.setValue(value)
+        self.countSpinBox.blockSignals(False)
+    
+    def onSpinBoxChanged(self, value):
+        """Update the slider when spinbox changes."""
+        self.resultsSlider.blockSignals(True)
+        self.resultsSlider.setValue(value)
+        self.resultsSlider.blockSignals(False)
     
     def onCoverScaleChanged(self, value):
         """Handle cover scale slider change."""
@@ -329,6 +392,14 @@ class SimilarMoviesWidget(QtWidgets.QFrame):
             self.weightsToggleButton.setArrowType(QtCore.Qt.DownArrow)
         else:
             self.weightsToggleButton.setArrowType(QtCore.Qt.RightArrow)
+    
+    def onOptionsToggled(self, checked):
+        """Handle expanding/collapsing the options section."""
+        self.optionsContainer.setVisible(checked)
+        if checked:
+            self.optionsToggleButton.setArrowType(QtCore.Qt.DownArrow)
+        else:
+            self.optionsToggleButton.setArrowType(QtCore.Qt.RightArrow)
     
     def loadSettings(self):
         """Load column settings from QSettings."""
