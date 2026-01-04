@@ -617,6 +617,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.show()
 
         self.moviesSmdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
+        self.moviesEmbeddingsFile = os.path.join(self.moviesFolder, "smdb_embeddings.npz")
         self.moviesSmdbData = None
         self.moviesTableModel = None
         self.moviesTableProxyModel = None
@@ -1302,6 +1303,17 @@ class MainWindow(QtWidgets.QMainWindow):
                 smdbData.setdefault('writers', {})
                 smdbData.setdefault('producers', {})
                 smdbData.setdefault('composers', {})
+            
+            # Load embeddings from separate binary file if this is the main movies SMDB
+            if smdbFile == self.moviesSmdbFile and smdbData:
+                # Temporarily set moviesSmdbData so loadEmbeddingsFromBinaryFile can access it
+                old_smdb_data = getattr(self, 'moviesSmdbData', None)
+                self.moviesSmdbData = smdbData
+                self.loadEmbeddingsFromBinaryFile()
+                # Restore if needed (though it will be overwritten later anyway)
+                if old_smdb_data is None and not hasattr(self, 'moviesSmdbData'):
+                    delattr(self, 'moviesSmdbData')
+            
             # Capture and log read time for the main movies SMDB at startup
             try:
                 if smdbFile == self.moviesSmdbFile and not getattr(self, "_readMoviesSmdbLogged", False):
@@ -3622,34 +3634,8 @@ class MainWindow(QtWidgets.QMainWindow):
                     if jsonSynopsis:
                         jsonSynopsis = jsonSynopsis.split('::')[0]
 
-                # Extract embedding data - prefer from memory (moviesSmdbData) if available
-                jsonEmbedding = None
-                jsonEmbeddingContent = None
-                jsonEmbeddingMetadata = None
-                jsonEmbeddingModel = None
-                jsonEmbeddingDimension = None
-                
-                # Check if embeddings exist in memory first
-                if hasattr(self, 'moviesSmdbData') and self.moviesSmdbData and 'titles' in self.moviesSmdbData:
-                    if moviePath in self.moviesSmdbData['titles']:
-                        memory_movie = self.moviesSmdbData['titles'][moviePath]
-                        # Try hybrid embeddings first (new format)
-                        jsonEmbeddingContent = memory_movie.get('embedding_content')
-                        jsonEmbeddingMetadata = memory_movie.get('embedding_metadata')
-                        # Fall back to single embedding (old format)
-                        if not jsonEmbeddingContent:
-                            jsonEmbedding = memory_movie.get('embedding')
-                        jsonEmbeddingModel = memory_movie.get('embedding_model')
-                        jsonEmbeddingDimension = memory_movie.get('embedding_dimension')
-                
-                # Fall back to JSON file if not in memory
-                if jsonEmbeddingContent is None and jsonEmbedding is None:
-                    jsonEmbeddingContent = jsonData.get('embedding_content') or None
-                    jsonEmbeddingMetadata = jsonData.get('embedding_metadata') or None
-                    if not jsonEmbeddingContent:
-                        jsonEmbedding = jsonData.get('embedding') or None
-                    jsonEmbeddingModel = jsonData.get('embedding_model') or None
-                    jsonEmbeddingDimension = jsonData.get('embedding_dimension') or None
+                # NOTE: Embeddings are now stored in a separate binary file (smdb_embeddings.npz)
+                # and are no longer written to or read from the SMDB file for better performance
 
                 # Subtitles exist status comes from current model value if present
                 try:
@@ -3693,20 +3679,8 @@ class MainWindow(QtWidgets.QMainWindow):
                     'synopsis': jsonSynopsis,
                 }
                 
-                # Add embedding data (hybrid or single format)
-                if jsonEmbeddingContent and jsonEmbeddingMetadata:
-                    # New hybrid format
-                    titles[moviePath]['embedding_content'] = jsonEmbeddingContent
-                    titles[moviePath]['embedding_metadata'] = jsonEmbeddingMetadata
-                elif jsonEmbedding:
-                    # Old single embedding format
-                    titles[moviePath]['embedding'] = jsonEmbedding
-                
-                # Add embedding metadata if present
-                if jsonEmbeddingModel:
-                    titles[moviePath]['embedding_model'] = jsonEmbeddingModel
-                if jsonEmbeddingDimension:
-                    titles[moviePath]['embedding_dimension'] = jsonEmbeddingDimension
+                # NOTE: Embeddings are no longer written to SMDB file
+                # They are stored separately in smdb_embeddings.npz
 
         self.progressBar.setValue(0)
 
@@ -5117,7 +5091,14 @@ class MainWindow(QtWidgets.QMainWindow):
             self.output(f"Overall throughput: {created_count/total_elapsed:.1f} movies/sec")
             self.output(f"Average per movie: {(total_elapsed/created_count*1000):.1f}ms")
         self.output(f"Total embeddings in memory: {created_count}")
-        self.output("Embeddings stored in memory - rebuild SMDB file to persist")
+        
+        # Save embeddings to binary file
+        if created_count > 0:
+            self.output("Saving embeddings to binary file...")
+            if self.saveEmbeddingsToBinaryFile():
+                self.output("Embeddings saved successfully")
+            else:
+                self.output("Failed to save embeddings to binary file")
         
         # Clear embeddings cache so new embeddings will be used
         if created_count > 0:
@@ -5342,11 +5323,151 @@ class MainWindow(QtWidgets.QMainWindow):
             self.output(f"Overall throughput: {created_count/total_elapsed:.1f} movies/sec")
             self.output(f"Average per movie: {(total_elapsed/created_count*1000):.1f}ms")
         self.output(f"Total embeddings in memory: {created_count}")
-        self.output("Embeddings stored in memory - rebuild SMDB file to persist")
+        
+        # Save embeddings to binary file
+        if created_count > 0:
+            self.output("Saving embeddings to binary file...")
+            if self.saveEmbeddingsToBinaryFile():
+                self.output("Embeddings saved successfully")
+            else:
+                self.output("Failed to save embeddings to binary file")
         
         # Clear embeddings cache so new embeddings will be used
         if created_count > 0:
             self._embeddings_cache = None
+
+    def saveEmbeddingsToBinaryFile(self):
+        """Save embeddings from memory to a binary .npz file for fast loading.
+        
+        Stores embeddings in a compressed numpy archive with the following structure:
+        - Keys are movie paths
+        - Values are dictionaries with 'content', 'metadata', 'model', 'dimension'
+        """
+        if not hasattr(self, 'moviesSmdbData') or not self.moviesSmdbData or 'titles' not in self.moviesSmdbData:
+            self.output("No movie data in memory")
+            return False
+        
+        try:
+            import numpy as np
+        except ImportError:
+            self.output("numpy not available")
+            return False
+        
+        import time
+        start_time = time.perf_counter()
+        
+        # Collect all embeddings from memory
+        embeddings_dict = {}
+        for path, data in self.moviesSmdbData['titles'].items():
+            content_emb = data.get('embedding_content')
+            metadata_emb = data.get('embedding_metadata')
+            
+            if content_emb and metadata_emb:
+                embeddings_dict[path] = {
+                    'content': np.array(content_emb, dtype=np.float32),
+                    'metadata': np.array(metadata_emb, dtype=np.float32),
+                    'model': data.get('embedding_model', ''),
+                    'dimension': data.get('embedding_dimension', 768)
+                }
+        
+        if not embeddings_dict:
+            self.output("No embeddings found in memory to save")
+            return False
+        
+        # Save to compressed binary file
+        try:
+            # Create a flat structure for numpy savez_compressed
+            save_dict = {}
+            save_dict['_paths'] = np.array(list(embeddings_dict.keys()), dtype=object)
+            
+            for idx, path in enumerate(embeddings_dict.keys()):
+                save_dict[f'content_{idx}'] = embeddings_dict[path]['content']
+                save_dict[f'metadata_{idx}'] = embeddings_dict[path]['metadata']
+            
+            # Save model info separately
+            save_dict['_model'] = np.array([embeddings_dict[list(embeddings_dict.keys())[0]]['model']], dtype=object)
+            save_dict['_dimension'] = np.array([embeddings_dict[list(embeddings_dict.keys())[0]]['dimension']], dtype=np.int32)
+            
+            np.savez_compressed(self.moviesEmbeddingsFile, **save_dict)
+            
+            elapsed = time.perf_counter() - start_time
+            file_size_mb = os.path.getsize(self.moviesEmbeddingsFile) / (1024 * 1024)
+            self.output(f"Saved {len(embeddings_dict)} embeddings to binary file in {elapsed:.3f}s ({file_size_mb:.2f} MB)")
+            return True
+            
+        except Exception as e:
+            self.output(f"Error saving embeddings to binary file: {e}")
+            return False
+
+    def loadEmbeddingsFromBinaryFile(self):
+        """Load embeddings from binary .npz file directly into cache.
+        
+        Loads embeddings directly into _embeddings_cache as numpy arrays,
+        avoiding slow conversion to Python lists. This is much faster and
+        uses less memory than storing in moviesSmdbData.
+        
+        Returns True if embeddings were loaded, False otherwise.
+        """
+        if not os.path.exists(self.moviesEmbeddingsFile):
+            return False
+        
+        if not hasattr(self, 'moviesSmdbData') or not self.moviesSmdbData or 'titles' not in self.moviesSmdbData:
+            return False
+        
+        try:
+            import numpy as np
+        except ImportError:
+            return False
+        
+        import time
+        start_time = time.perf_counter()
+        
+        try:
+            # Load the binary file
+            data = np.load(self.moviesEmbeddingsFile, allow_pickle=True)
+            
+            paths = data['_paths']
+            
+            # Build arrays directly - filter to only movies that exist in current SMDB
+            valid_indices = []
+            valid_paths = []
+            movie_ids = []
+            
+            for idx, path in enumerate(paths):
+                if path in self.moviesSmdbData['titles']:
+                    valid_indices.append(idx)
+                    valid_paths.append(path)
+                    movie_ids.append(self.moviesSmdbData['titles'][path].get('id', ''))
+            
+            if not valid_indices:
+                return False
+            
+            # Load only the valid embeddings into numpy arrays
+            content_embeddings_list = []
+            metadata_embeddings_list = []
+            
+            for idx in valid_indices:
+                content_embeddings_list.append(data[f'content_{idx}'])
+                metadata_embeddings_list.append(data[f'metadata_{idx}'])
+            
+            # Store directly in cache as numpy arrays (no conversion to lists)
+            self._embeddings_cache = {
+                'content_embeddings': np.array(content_embeddings_list, dtype=np.float32),
+                'metadata_embeddings': np.array(metadata_embeddings_list, dtype=np.float32),
+                'movie_paths': valid_paths,
+                'movie_ids': movie_ids,
+                'path_to_idx': {path: idx for idx, path in enumerate(valid_paths)}
+            }
+            
+            elapsed = time.perf_counter() - start_time
+            file_size_mb = os.path.getsize(self.moviesEmbeddingsFile) / (1024 * 1024)
+            self.output(f"Loaded {len(valid_paths)} embeddings from binary file in {elapsed:.3f}s ({file_size_mb:.2f} MB)")
+            
+            return True
+            
+        except Exception as e:
+            self.output(f"Error loading embeddings from binary file: {e}")
+            return False
 
     def saveEmbeddingsToJsonFiles(self):
         """Save embeddings from memory to individual JSON files."""
@@ -5559,35 +5680,12 @@ class MainWindow(QtWidgets.QMainWindow):
         if not hasattr(self, 'moviesSmdbData') or not self.moviesSmdbData or 'titles' not in self.moviesSmdbData:
             return None
         
-        # Check if this movie has embeddings
+        # Check if this movie exists in the database
         if moviePath not in self.moviesSmdbData['titles']:
             return None
         
-        movie_data = self.moviesSmdbData['titles'][moviePath]
-        
-        # Check for hybrid embeddings (new format)
-        has_content = 'embedding_content' in movie_data and movie_data['embedding_content']
-        has_metadata = 'embedding_metadata' in movie_data and movie_data['embedding_metadata']
-        
-        # Fall back to single embedding (old format) if hybrid not available
-        if not has_content and not has_metadata:
-            if 'embedding' not in movie_data or not movie_data['embedding']:
-                return None
-            # Use single embedding as both content and metadata with equal weights
-            target_content = movie_data['embedding']
-            target_metadata = movie_data['embedding']
-            if not isinstance(target_content, (list, tuple)) or len(target_content) != 768:
-                return None
-        else:
-            # Use hybrid embeddings
-            target_content = movie_data.get('embedding_content', [])
-            target_metadata = movie_data.get('embedding_metadata', [])
-            if not isinstance(target_content, (list, tuple)) or len(target_content) != 768:
-                return None
-            if not isinstance(target_metadata, (list, tuple)) or len(target_metadata) != 768:
-                return None
-        
         # Build embeddings matrix from all movies (cached if possible)
+        # Note: Cache may already be populated from binary file load
         if not hasattr(self, '_embeddings_cache') or self._embeddings_cache is None:
             movie_paths = []
             movie_ids = []
