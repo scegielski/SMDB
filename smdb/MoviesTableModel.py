@@ -489,6 +489,37 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
     def getDataSize(self):
         return len(self._data)
 
+    def getMovieData(self, row):
+        """Get movie data dictionary for tooltip display.
+        
+        Args:
+            row: Row index in the model
+            
+        Returns:
+            Dictionary with movie information for tooltip
+        """
+        if row < 0 or row >= len(self._data):
+            return None
+        
+        moviePath = self.getPath(row)
+        folderName = self.getFolderName(row)
+        
+        if not moviePath or not folderName:
+            return None
+        
+        # Read JSON file to get full movie data
+        jsonFile = os.path.join(moviePath, f'{folderName}.json')
+        if not os.path.exists(jsonFile):
+            return None
+        
+        try:
+            with open(jsonFile, 'r', encoding='utf-8') as f:
+                import json
+                movie_data = json.load(f)
+                return movie_data
+        except Exception:
+            return None
+
     def aboutToChangeLayout(self):
         self.layoutAboutToBeChanged.emit()
 
