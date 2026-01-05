@@ -52,7 +52,7 @@ class SimilarMovieColumns:
 
 
 class SimilarMoviesTableWidget(QtWidgets.QTableWidget):
-    """Custom table widget with controlled wheel scrolling."""
+    """Custom table widget with controlled wheel scrolling and tooltips."""
     
     def wheelEvent(self, event):
         """Override wheel event to scroll exactly one row per wheel click."""
@@ -80,6 +80,133 @@ class SimilarMoviesTableWidget(QtWidgets.QTableWidget):
             event.accept()
         else:
             super().wheelEvent(event)
+    
+    def viewportEvent(self, event):
+        """Override viewport event to handle custom tooltips."""
+        if event.type() == QtCore.QEvent.ToolTip:
+            # Get the position where the tooltip should appear
+            help_event = event
+            pos = help_event.pos()
+            
+            # Try to get movie data from either item or widget
+            movie_data = None
+            
+            # First, try to get the item at this position
+            item = self.itemAt(pos)
+            if item:
+                movie_data = item.data(QtCore.Qt.UserRole)
+            
+            # If no item, check if there's a widget (like the cover column)
+            if not movie_data:
+                row = self.rowAt(pos.y())
+                col = self.columnAt(pos.x())
+                if row >= 0 and col >= 0:
+                    widget = self.cellWidget(row, col)
+                    if widget:
+                        movie_data = widget.property('movieData')
+                    # If still no data from widget, try to get from any other column in the same row
+                    if not movie_data:
+                        for c in range(self.columnCount()):
+                            item = self.item(row, c)
+                            if item:
+                                movie_data = item.data(QtCore.Qt.UserRole)
+                                if movie_data:
+                                    break
+            
+            if movie_data:
+                # Generate and show the tooltip
+                tooltip = self.generateMovieTooltip(movie_data)
+                QtWidgets.QToolTip.showText(help_event.globalPos(), tooltip, self)
+                return True
+            
+            # If we get here, hide any existing tooltip
+            QtWidgets.QToolTip.hideText()
+            return True
+        
+        return super().viewportEvent(event)
+    
+    def generateMovieTooltip(self, movie_data):
+        """Generate a formatted tooltip for a movie.
+        
+        Args:
+            movie_data: Dictionary containing movie information
+            
+        Returns:
+            Formatted string with movie details
+        """
+        title = movie_data.get('title', 'Unknown')
+        year = movie_data.get('year', '')
+        
+        # Debug: Print available keys and cast value to see what data we have
+        print(f"Movie data keys: {list(movie_data.keys())}")
+        print(f"Cast value: {movie_data.get('cast')} (type: {type(movie_data.get('cast'))})")
+        print(f"Plot value length: {len(movie_data.get('plot', ''))} chars")
+        print(f"Synopsis value length: {len(movie_data.get('synopsis', ''))} chars")
+        
+        # Build tooltip parts
+        parts = []
+        
+        # Title and year
+        if year:
+            parts.append(f"<b>{title} ({year})</b>")
+        else:
+            parts.append(f"<b>{title}</b>")
+        
+        # Genres
+        genres = movie_data.get('genres', [])
+        if genres:
+            if isinstance(genres, list):
+                genre_str = ', '.join(genres)
+            else:
+                genre_str = str(genres)
+            parts.append(f"<b>Genre:</b> {genre_str}")
+        
+        # Directors
+        directors = movie_data.get('directors', [])
+        if directors:
+            if isinstance(directors, list):
+                director_str = ', '.join(directors)
+            else:
+                director_str = str(directors)
+            parts.append(f"<b>Director:</b> {director_str}")
+        
+        # Actors (cast)
+        cast = movie_data.get('cast', [])
+        print(f"Cast after get: {cast}, bool: {bool(cast)}")
+        if cast:
+            if isinstance(cast, list):
+                # Limit to first 5 actors
+                actor_list = cast[:5]
+                actor_str = ', '.join(actor_list)
+                if len(cast) > 5:
+                    actor_str += ', ...'
+            else:
+                actor_str = str(cast)
+            parts.append(f"<b>Actors:</b> {actor_str}")
+        
+        # Plot
+        plot = movie_data.get('plot', '') or movie_data.get('synopsis', '')
+        if plot:
+            # Limit plot length for tooltip
+            max_plot_length = 500
+            if len(plot) > max_plot_length:
+                plot = plot[:max_plot_length] + '...'
+            parts.append(f"<b>Plot:</b> {plot}")
+        
+        # Wrap in styled div for better visibility
+        content = '<br>'.join(parts)
+        styled_tooltip = f'''
+        <div style="
+            background-color: #2b2b2b;
+            border: 2px solid #888888;
+            border-radius: 5px;
+            padding: 10px;
+            color: #ffffff;
+        ">
+            {content}
+        </div>
+        '''
+        return styled_tooltip
 
 
 class SimilarMoviesWidget(QtWidgets.QFrame):

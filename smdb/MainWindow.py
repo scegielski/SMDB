@@ -5846,7 +5846,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 'countries': movie_data.get('countries', []),
                 'companies': movie_data.get('companies', []),
                 'user_tags': movie_data.get('user tags', []),
-                'box_office': movie_data.get('box office', '')
+                'box_office': movie_data.get('box office', ''),
+                'cast': movie_data.get('actors', []),  # SMDB data uses 'actors' key
+                'plot': movie_data.get('plot', ''),
+                'synopsis': movie_data.get('synopsis', '')
             })
             if len(results) == k:
                 break
