@@ -913,6 +913,10 @@ class MainWindow(QtWidgets.QMainWindow):
         conformMoviesAction.triggered.connect(self.conformMovies)
         fileMenu.addAction(conformMoviesAction)
 
+        createEmbeddingsAction = QtWidgets.QAction("Create Embeddings", self)
+        createEmbeddingsAction.triggered.connect(self.createAllEmbeddingsMenu)
+        fileMenu.addAction(createEmbeddingsAction)
+
         preferencesAction = QtWidgets.QAction("Preferences", self)
         preferencesAction.triggered.connect(self.preferences)
         fileMenu.addAction(preferencesAction)
@@ -3928,154 +3932,69 @@ class MainWindow(QtWidgets.QMainWindow):
 
         moviesTableRightMenu.setStyleSheet("""QMenu::separator { background: white; }""")
 
+        # Play
         playAction = QtWidgets.QAction("Play")
         playAction.triggered.connect(lambda: self.playMovie(self.moviesTableView,
                                                             self.moviesTableProxyModel))
         moviesTableRightMenu.addAction(playAction)
 
+        # Open Folder
         openFolderAction = QtWidgets.QAction("Open Folder", self)
         openFolderAction.triggered.connect(self.openMovieFolder)
         moviesTableRightMenu.addAction(openFolderAction)
 
-        selectAllAction = QtWidgets.QAction("Select All", self)
-        selectAllAction.triggered.connect(lambda: self.tableSelectAll(self.moviesTableView))
-        moviesTableRightMenu.addAction(selectAllAction)
-
+        # Open Json File
         openJsonAction = QtWidgets.QAction("Open Json File", self)
         openJsonAction.triggered.connect(self.openMovieJson)
         moviesTableRightMenu.addAction(openJsonAction)
 
-        removeJsonFilesAction = QtWidgets.QAction("Remove .json files", self)
-        removeJsonFilesAction.triggered.connect(self.removeJsonFilesMenu)
-        moviesTableRightMenu.addAction(removeJsonFilesAction)
-
-        removeCoversAction = QtWidgets.QAction("Remove cover files", self)
-        removeCoversAction.triggered.connect(self.removeCoverFilesMenu)
-        moviesTableRightMenu.addAction(removeCoversAction)
-
-        removeMovieAction = QtWidgets.QAction("Remove movie", self)
-        removeMovieAction.triggered.connect(self.removeMovieMenu)
-        moviesTableRightMenu.addAction(removeMovieAction)
-
-        moviesTableRightMenu.addSeparator()
-
-        openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
-        openImdbAction.triggered.connect(self.openMovieImdbPage)
-        moviesTableRightMenu.addAction(openImdbAction)
-
-        overrideImdbAction = QtWidgets.QAction("Override IMDB ID", self)
-        overrideImdbAction.triggered.connect(self.overrideID)
-        moviesTableRightMenu.addAction(overrideImdbAction)
-
-        moviesTableRightMenu.addSeparator()
-
-        addToWatchListAction = QtWidgets.QAction("Add To Watch List", self)
-        addToWatchListAction.triggered.connect(self.watchListAdd)
-        moviesTableRightMenu.addAction(addToWatchListAction)
-
-        addToBackupListAction = QtWidgets.QAction("Add To Backup List", self)
-        addToBackupListAction.triggered.connect(self.backupListAdd)
-        moviesTableRightMenu.addAction(addToBackupListAction)
-
-        moviesTableRightMenu.addSeparator()
-
-        findDuplicatesAction = QtWidgets.QAction("Find Duplicates", self)
-        findDuplicatesAction.triggered.connect(self.findDuplicates)
-        moviesTableRightMenu.addAction(findDuplicatesAction)
-
-        markKnownDuplicateAction = QtWidgets.QAction("Mark as Known Duplicate", self)
-        markKnownDuplicateAction.triggered.connect(self.markAsKnownDuplicate)
-        moviesTableRightMenu.addAction(markKnownDuplicateAction)
-
-        unmarkKnownDuplicateAction = QtWidgets.QAction("Unmark as Known Duplicate", self)
-        unmarkKnownDuplicateAction.triggered.connect(self.unmarkAsKnownDuplicate)
-        moviesTableRightMenu.addAction(unmarkKnownDuplicateAction)
-
-        findMovieInMovieAction = QtWidgets.QAction("Find Movie in Movie", self)
-        findMovieInMovieAction.triggered.connect(self.findMovieInMovie)
-        moviesTableRightMenu.addAction(findMovieInMovieAction)
-
-        searchForOtherVersionsAction = QtWidgets.QAction("Search for other versions", self)
-        searchForOtherVersionsAction.triggered.connect(self.searchForOtherVersions)
-        moviesTableRightMenu.addAction(searchForOtherVersionsAction)
-
-        moviesTableRightMenu.addSeparator()
-
-        addNewUserTagAction = QtWidgets.QAction("Add New User Tag", self)
-        addNewUserTagAction.triggered.connect(self.addNewUserTag)
-        moviesTableRightMenu.addAction(addNewUserTagAction)
-
-        addExistingUserTagAction = QtWidgets.QAction("Add Existing User Tag", self)
-        addExistingUserTagAction.triggered.connect(self.addExistingUserTag)
-        moviesTableRightMenu.addAction(addExistingUserTagAction)
-
-        clearUserTagsAction = QtWidgets.QAction("Clear User Tags", self)
-        clearUserTagsAction.triggered.connect(self.clearUserTags)
-        moviesTableRightMenu.addAction(clearUserTagsAction)
-
-        moviesTableRightMenu.addSeparator()
-
-        downloadDataAction = QtWidgets.QAction("Download Data", self)
-        downloadDataAction.triggered.connect(self.downloadDataMenu)
-        moviesTableRightMenu.addAction(downloadDataAction)
-
-        downloadMissingDataAction = QtWidgets.QAction("Download Missing Data", self)
-        downloadMissingDataAction.triggered.connect(self.downloadMissingDataMenu)
-        moviesTableRightMenu.addAction(downloadMissingDataAction)
-
-        downloadDataAction = QtWidgets.QAction("Force Download Data", self)
-        downloadDataAction.triggered.connect(lambda: self.downloadDataMenu(force=True))
-        moviesTableRightMenu.addAction(downloadDataAction)
-
-        downloadDataAction = QtWidgets.QAction("Force Download Json only", self)
-        downloadDataAction.triggered.connect(lambda: self.downloadDataMenu(force=True,
-                                                                           doJson=True,
-                                                                           doCover=False))
-        moviesTableRightMenu.addAction(downloadDataAction)
-
-        downloadDataAction = QtWidgets.QAction("Force Download Cover only", self)
-        downloadDataAction.triggered.connect(lambda: self.downloadDataMenu(force=True,
-                                                                           doJson=False,
-                                                                           doCover=True))
-        moviesTableRightMenu.addAction(downloadDataAction)
-
-        downloadSynopsisAction = QtWidgets.QAction("Download Synopsis", self)
-        downloadSynopsisAction.triggered.connect(lambda: self.downloadSynopsisMenu(force=False))
-        moviesTableRightMenu.addAction(downloadSynopsisAction)
-
-        forceDownloadSynopsisAction = QtWidgets.QAction("Force Download Synopsis", self)
-        forceDownloadSynopsisAction.triggered.connect(lambda: self.downloadSynopsisMenu(force=True))
-        moviesTableRightMenu.addAction(forceDownloadSynopsisAction)
-
-        moviesTableRightMenu.addSeparator()
-
-        # Embedding creation actions
-        createEmbeddingsAction = QtWidgets.QAction("Create embeddings", self)
-        createEmbeddingsAction.triggered.connect(self.createAllEmbeddingsMenu)
-        moviesTableRightMenu.addAction(createEmbeddingsAction)
-
-        cleanJsonFilesAction = QtWidgets.QAction("Clean json files", self)
-        cleanJsonFilesAction.triggered.connect(self.cleanJsonFilesMenu)
-        moviesTableRightMenu.addAction(cleanJsonFilesAction)
-
-        moviesTableRightMenu.addSeparator()
-
-        # OpenSubtitles download actions
-        downloadOpenSubtitlesSelectAction = QtWidgets.QAction("Download Subtitles", self)
+        # Subtitles submenu
+        subtitlesSubmenu = QtWidgets.QMenu("Subtitles", self)
+        subtitlesSubmenu.setStyle(moviesTableRightMenu.style())
+        
+        downloadOpenSubtitlesSelectAction = QtWidgets.QAction("Download Subtitles (Select Language)", self)
         downloadOpenSubtitlesSelectAction.triggered.connect(lambda: self.downloadSubtitles('select'))
-        moviesTableRightMenu.addAction(downloadOpenSubtitlesSelectAction)
+        subtitlesSubmenu.addAction(downloadOpenSubtitlesSelectAction)
 
         downloadOpenSubtitlesAction = QtWidgets.QAction("Download English Subtitles", self)
         downloadOpenSubtitlesAction.triggered.connect(lambda: self.downloadSubtitles('en'))
-        moviesTableRightMenu.addAction(downloadOpenSubtitlesAction)
+        subtitlesSubmenu.addAction(downloadOpenSubtitlesAction)
 
         downloadSubtitlesAction = QtWidgets.QAction("Download Subtitles from YIFY", self)
         downloadSubtitlesAction.triggered.connect(self.downloadSubtitlesYify)
-        moviesTableRightMenu.addAction(downloadSubtitlesAction)
+        subtitlesSubmenu.addAction(downloadSubtitlesAction)
 
+        moviesTableRightMenu.addMenu(subtitlesSubmenu)
 
-        moviesTableRightMenu.addSeparator()
+        # IMDB submenu
+        imdbSubmenu = QtWidgets.QMenu("IMDB", self)
+        imdbSubmenu.setStyle(moviesTableRightMenu.style())
+        
+        openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
+        openImdbAction.triggered.connect(self.openMovieImdbPage)
+        imdbSubmenu.addAction(openImdbAction)
 
+        overrideImdbAction = QtWidgets.QAction("Override IMDB ID", self)
+        overrideImdbAction.triggered.connect(self.overrideID)
+        imdbSubmenu.addAction(overrideImdbAction)
+
+        moviesTableRightMenu.addMenu(imdbSubmenu)
+
+        # Add to List submenu
+        listsSubmenu = QtWidgets.QMenu("Add to List", self)
+        listsSubmenu.setStyle(moviesTableRightMenu.style())
+        
+        addToWatchListAction = QtWidgets.QAction("Add To Watch List", self)
+        addToWatchListAction.triggered.connect(self.watchListAdd)
+        listsSubmenu.addAction(addToWatchListAction)
+
+        addToBackupListAction = QtWidgets.QAction("Add To Backup List", self)
+        addToBackupListAction.triggered.connect(self.backupListAdd)
+        listsSubmenu.addAction(addToBackupListAction)
+
+        moviesTableRightMenu.addMenu(listsSubmenu)
+
+        # Filter By submenu
         filterBySubmenu = QtWidgets.QMenu("Filter by:")
         filterBySubmenu.setStyle(moviesTableRightMenu.style())
         moviesTableRightMenu.addMenu(filterBySubmenu)
@@ -4085,6 +4004,108 @@ class MainWindow(QtWidgets.QMainWindow):
             action = QtWidgets.QAction(f"Filter by {label} Collection", self)
             action.triggered.connect(lambda checked, collection=c: self.filterCollection(collection))
             filterBySubmenu.addAction(action)
+
+        moviesTableRightMenu.addSeparator()
+
+        # Download Data submenu
+        downloadSubmenu = QtWidgets.QMenu("Download Data", self)
+        downloadSubmenu.setStyle(moviesTableRightMenu.style())
+        
+        downloadDataAction = QtWidgets.QAction("Download Data", self)
+        downloadDataAction.triggered.connect(self.downloadDataMenu)
+        downloadSubmenu.addAction(downloadDataAction)
+
+        downloadMissingDataAction = QtWidgets.QAction("Download Missing Data", self)
+        downloadMissingDataAction.triggered.connect(self.downloadMissingDataMenu)
+        downloadSubmenu.addAction(downloadMissingDataAction)
+
+        downloadSubmenu.addSeparator()
+
+        forceDownloadDataAction = QtWidgets.QAction("Force Download Data", self)
+        forceDownloadDataAction.triggered.connect(lambda: self.downloadDataMenu(force=True))
+        downloadSubmenu.addAction(forceDownloadDataAction)
+
+        forceDownloadJsonAction = QtWidgets.QAction("Force Download Json only", self)
+        forceDownloadJsonAction.triggered.connect(lambda: self.downloadDataMenu(force=True,
+                                                                           doJson=True,
+                                                                           doCover=False))
+        downloadSubmenu.addAction(forceDownloadJsonAction)
+
+        forceDownloadCoverAction = QtWidgets.QAction("Force Download Cover only", self)
+        forceDownloadCoverAction.triggered.connect(lambda: self.downloadDataMenu(force=True,
+                                                                           doJson=False,
+                                                                           doCover=True))
+        downloadSubmenu.addAction(forceDownloadCoverAction)
+
+        downloadSubmenu.addSeparator()
+
+        downloadSynopsisAction = QtWidgets.QAction("Download Synopsis", self)
+        downloadSynopsisAction.triggered.connect(lambda: self.downloadSynopsisMenu(force=False))
+        downloadSubmenu.addAction(downloadSynopsisAction)
+
+        forceDownloadSynopsisAction = QtWidgets.QAction("Force Download Synopsis", self)
+        forceDownloadSynopsisAction.triggered.connect(lambda: self.downloadSynopsisMenu(force=True))
+        downloadSubmenu.addAction(forceDownloadSynopsisAction)
+
+        moviesTableRightMenu.addMenu(downloadSubmenu)
+
+        # Duplicates & Search submenu
+        duplicatesSubmenu = QtWidgets.QMenu("Duplicates & Search", self)
+        duplicatesSubmenu.setStyle(moviesTableRightMenu.style())
+        
+        findDuplicatesAction = QtWidgets.QAction("Find Duplicates", self)
+        findDuplicatesAction.triggered.connect(self.findDuplicates)
+        duplicatesSubmenu.addAction(findDuplicatesAction)
+
+        markKnownDuplicateAction = QtWidgets.QAction("Mark as Known Duplicate", self)
+        markKnownDuplicateAction.triggered.connect(self.markAsKnownDuplicate)
+        duplicatesSubmenu.addAction(markKnownDuplicateAction)
+
+        unmarkKnownDuplicateAction = QtWidgets.QAction("Unmark as Known Duplicate", self)
+        unmarkKnownDuplicateAction.triggered.connect(self.unmarkAsKnownDuplicate)
+        duplicatesSubmenu.addAction(unmarkKnownDuplicateAction)
+
+        duplicatesSubmenu.addSeparator()
+
+        findMovieInMovieAction = QtWidgets.QAction("Find Movie in Movie", self)
+        findMovieInMovieAction.triggered.connect(self.findMovieInMovie)
+        duplicatesSubmenu.addAction(findMovieInMovieAction)
+
+        searchForOtherVersionsAction = QtWidgets.QAction("Search for other versions", self)
+        searchForOtherVersionsAction.triggered.connect(self.searchForOtherVersions)
+        duplicatesSubmenu.addAction(searchForOtherVersionsAction)
+
+        moviesTableRightMenu.addMenu(duplicatesSubmenu)
+
+        # User Tags submenu
+        userTagsSubmenu = QtWidgets.QMenu("User Tags", self)
+        userTagsSubmenu.setStyle(moviesTableRightMenu.style())
+        
+        addNewUserTagAction = QtWidgets.QAction("Add New Tag", self)
+        addNewUserTagAction.triggered.connect(self.addNewUserTag)
+        userTagsSubmenu.addAction(addNewUserTagAction)
+
+        addExistingUserTagAction = QtWidgets.QAction("Add Existing Tag", self)
+        addExistingUserTagAction.triggered.connect(self.addExistingUserTag)
+        userTagsSubmenu.addAction(addExistingUserTagAction)
+
+        clearUserTagsAction = QtWidgets.QAction("Clear Tags", self)
+        clearUserTagsAction.triggered.connect(self.clearUserTags)
+        userTagsSubmenu.addAction(clearUserTagsAction)
+
+        moviesTableRightMenu.addMenu(userTagsSubmenu)
+
+        moviesTableRightMenu.addSeparator()
+
+        # Select All
+        selectAllAction = QtWidgets.QAction("Select All", self)
+        selectAllAction.triggered.connect(lambda: self.tableSelectAll(self.moviesTableView))
+        moviesTableRightMenu.addAction(selectAllAction)
+
+        # Remove Movie
+        removeMovieAction = QtWidgets.QAction("Remove Movie", self)
+        removeMovieAction.triggered.connect(self.removeMovieMenu)
+        moviesTableRightMenu.addAction(removeMovieAction)
 
         selectionModel = self.moviesTableView.selectionModel()
         if selectionModel and selectionModel.selectedRows():
