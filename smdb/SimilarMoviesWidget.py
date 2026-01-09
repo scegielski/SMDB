@@ -134,14 +134,22 @@ class SimilarMoviesTableWidget(QtWidgets.QTableWidget):
         Returns:
             Formatted string with movie details
         """
+        # Handle None movie_data
+        if movie_data is None:
+            return "No movie data available"
+        
         title = movie_data.get('title', 'Unknown')
         year = movie_data.get('year', '')
         
         # Debug: Print available keys and cast value to see what data we have
         print(f"Movie data keys: {list(movie_data.keys())}")
         print(f"Cast value: {movie_data.get('cast')} (type: {type(movie_data.get('cast'))})")
-        print(f"Plot value length: {len(movie_data.get('plot', ''))} chars")
-        print(f"Synopsis value length: {len(movie_data.get('synopsis', ''))} chars")
+        
+        # Safely get plot and synopsis with proper None handling
+        plot_value = movie_data.get('plot') or ''
+        synopsis_value = movie_data.get('synopsis') or ''
+        print(f"Plot value length: {len(plot_value)} chars")
+        print(f"Synopsis value length: {len(synopsis_value)} chars")
         
         # Build tooltip parts
         parts = []
@@ -183,6 +191,32 @@ class SimilarMoviesTableWidget(QtWidgets.QTableWidget):
             else:
                 actor_str = str(cast)
             parts.append(f"<b>Actors:</b> {actor_str}")
+        
+        # Rating
+        rating = movie_data.get('rating', '')
+        if rating:
+            parts.append(f"<b>Rating:</b> {rating}")
+        
+        # Runtime
+        runtime = movie_data.get('runtime', '')
+        if runtime:
+            parts.append(f"<b>Runtime:</b> {runtime} min")
+        
+        # Box Office
+        box_office = movie_data.get('box_office', '')
+        if box_office:
+            parts.append(f"<b>Box Office:</b> {box_office}")
+        
+        # Companies
+        companies = movie_data.get('companies', [])
+        if companies:
+            if isinstance(companies, list):
+                company_str = ', '.join(companies[:3])  # Limit to 3 companies
+                if len(companies) > 3:
+                    company_str += ', ...'
+            else:
+                company_str = str(companies)
+            parts.append(f"<b>Companies:</b> {company_str}")
         
         # Plot
         plot = movie_data.get('plot', '') or movie_data.get('synopsis', '')

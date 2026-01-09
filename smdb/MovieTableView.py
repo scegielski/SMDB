@@ -120,6 +120,32 @@ class MovieTableView(QtWidgets.QTableView):
                 actor_str = str(actors)
             parts.append(f"<b>Actors:</b> {actor_str}")
         
+        # Rating
+        rating = movie_data.get('rating', '')
+        if rating:
+            parts.append(f"<b>Rating:</b> {rating}")
+        
+        # Runtime
+        runtime = movie_data.get('runtime', '')
+        if runtime:
+            parts.append(f"<b>Runtime:</b> {runtime} min")
+        
+        # Box Office
+        box_office = movie_data.get('box office', '')
+        if box_office:
+            parts.append(f"<b>Box Office:</b> {box_office}")
+        
+        # Companies
+        companies = movie_data.get('companies', [])
+        if companies:
+            if isinstance(companies, list):
+                company_str = ', '.join(companies[:3])  # Limit to 3 companies
+                if len(companies) > 3:
+                    company_str += ', ...'
+            else:
+                company_str = str(companies)
+            parts.append(f"<b>Companies:</b> {company_str}")
+        
         # Plot
         plot = movie_data.get('plot', '') or movie_data.get('synopsis', '')
         if plot:
