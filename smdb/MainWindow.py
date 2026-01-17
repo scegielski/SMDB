@@ -2494,6 +2494,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.moviesTableView.selectRow(randomRow)
 
     def showAllMoviesTableView(self):
+        # Store currently selected movie before clearing filters
+        selectedFolderName = None
+        selectedRows = self.moviesTableView.selectionModel().selectedRows()
+        if selectedRows:
+            proxyIndex = selectedRows[0]
+            sourceIndex = self.moviesTableProxyModel.mapToSource(proxyIndex)
+            selectedFolderName = self.moviesTableModel.getFolderName(sourceIndex.row())
+        
         self.moviesTableTitleFilterBox.clear()
         # Clear the movie list filter to show all movies
         self.moviesTableProxyModel.clearMovieListFilter()
@@ -2501,15 +2509,35 @@ class MainWindow(QtWidgets.QMainWindow):
         self.showMoviesTableSelectionStatus()
         self.moviesTableProxyModel.sort(0)
         
-        # Update to first row and trigger cover flow update
-        if self.moviesTableProxyModel.rowCount() > 0:
-            # Clear selection first to ensure selection change is triggered
-            self.moviesTableView.clearSelection()
-            # Select first row which will trigger tableSelectionChanged -> clickedTable
-            self.moviesTableView.selectRow(0)
-            # Also directly update cover flow to ensure it updates
-            modelIndex = self.moviesTableProxyModel.index(0, 0)
-            self.clickedTable(modelIndex, self.moviesTableModel, self.moviesTableProxyModel)
+        # Use a timer to restore selection after sort completes
+        def restoreSelection():
+            # Try to restore selection to the previously selected movie
+            rowToSelect = 0  # Default to first row
+            if selectedFolderName:
+                # Search for the movie in the source model
+                for row in range(self.moviesTableModel.rowCount()):
+                    if self.moviesTableModel.getFolderName(row) == selectedFolderName:
+                        # Map source row to proxy row
+                        sourceIndex = self.moviesTableModel.index(row, 0)
+                        proxyIndex = self.moviesTableProxyModel.mapFromSource(sourceIndex)
+                        if proxyIndex.isValid():
+                            rowToSelect = proxyIndex.row()
+                            break
+            
+            # Update to selected row and trigger cover flow update
+            if self.moviesTableProxyModel.rowCount() > 0:
+                modelIndex = self.moviesTableProxyModel.index(rowToSelect, 0)
+                # Clear selection first to ensure selection change is triggered
+                self.moviesTableView.clearSelection()
+                # Select the row which will trigger tableSelectionChanged -> clickedTable
+                self.moviesTableView.selectRow(rowToSelect)
+                # Also directly update cover flow to ensure it updates
+                self.clickedTable(modelIndex, self.moviesTableModel, self.moviesTableProxyModel)
+                # Scroll to make the selected row visible
+                self.moviesTableView.scrollTo(modelIndex, QtWidgets.QAbstractItemView.PositionAtCenter)
+        
+        # Delay to allow sort to complete
+        QtCore.QTimer.singleShot(100, restoreSelection)
 
     def searchPlots(self):
         self.moviesTableTitleFilterBox.clear()
