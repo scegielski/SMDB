@@ -295,7 +295,7 @@ class StatisticsWidget(QtWidgets.QWidget):
         
         spinner = QtWidgets.QSpinBox()
         spinner.setMinimum(1)
-        spinner.setMaximum(20)
+        spinner.setMaximum(99999)
         spinner.setValue(default_value)
         spinner.setStyleSheet(f"""
             QSpinBox {{
