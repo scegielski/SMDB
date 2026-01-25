@@ -419,8 +419,13 @@ class StatisticsWidget(QtWidgets.QWidget):
                 except (ValueError, IndexError):
                     pass
                     
+        # Calculate years, days, hours, minutes
         total_hours = total_minutes // 60
         remaining_mins = total_minutes % 60
+        total_days = total_hours // 24
+        remaining_hours = total_hours % 24
+        total_years = total_days // 365
+        remaining_days = total_days % 365
         avg_runtime = total_minutes // valid_runtimes if valid_runtimes > 0 else 0
         
         # Average rating
@@ -464,7 +469,9 @@ class StatisticsWidget(QtWidgets.QWidget):
                 
         # Update labels
         self.totalMoviesLabel.valueLabel.setText(str(total_movies))
-        self.totalRuntimeLabel.valueLabel.setText(f"{total_hours}h {remaining_mins}m")
+        # Show as Yy Dd Hh Mm
+        runtime_str = f"{total_years}y {remaining_days}d {remaining_hours}h {remaining_mins}m"
+        self.totalRuntimeLabel.valueLabel.setText(runtime_str)
         self.avgRatingLabel.valueLabel.setText(f"{avg_rating:.1f}")
         self.avgRuntimeLabel.valueLabel.setText(f"{avg_runtime}m")
         self.uniqueDirectorsLabel.valueLabel.setText(str(len(all_directors)))
