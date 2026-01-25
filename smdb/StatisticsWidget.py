@@ -82,6 +82,10 @@ class StatisticsWidget(QtWidgets.QWidget):
             spinner_label="Top N:"
         )
         chartsLayout.addWidget(genreByDecadeGroup)
+
+        # MPAA rating distribution by decade chart
+        self.mpaaByDecadeCanvas = self.createChartCanvas(height=8)
+        chartsLayout.addWidget(self.createChartGroup("MPAA Rating Distribution by Decade", self.mpaaByDecadeCanvas))
         
         # Genre distribution chart
         self.genreCanvas = self.createChartCanvas()
@@ -389,6 +393,7 @@ class StatisticsWidget(QtWidgets.QWidget):
         self.calculateMetrics(movies_data)
         self.plotDecadeDistribution(movies_data)
         self.plotGenreByDecade(movies_data)
+        self.plotMpaaByDecade(movies_data)
         self.plotGenreDistribution(movies_data)
         self.plotRatingDistribution(movies_data)
         self.plotTopDirectors(movies_data)
@@ -1258,3 +1263,89 @@ class StatisticsWidget(QtWidgets.QWidget):
         
         fig.tight_layout()
         self.composersRatingCanvas.draw()
+        
+    def plotMpaaByDecade(self, movies_data):
+        """Plot the distribution of MPAA ratings per decade as a stacked bar chart."""
+        # Collect MPAA ratings by decade
+        decade_ratings = defaultdict(lambda: Counter())
+        for movie in movies_data:
+            year = movie.get('year')
+            mpaa = movie.get('mpaa rating')
+            if not year or not mpaa:
+                continue
+            try:
+                year_int = int(year)
+                decade = (year_int // 10) * 10
+            except (ValueError, TypeError):
+                continue
+            # Normalize MPAA rating (strip spaces, uppercase, only first part if comma)
+            if isinstance(mpaa, str):
+                mpaa = mpaa.split(',')[0].strip().upper()
+                if mpaa in ('NOT RATED', 'UNRATED'):
+                    mpaa = 'NR'
+            decade_ratings[decade][mpaa] += 1
+
+        if not decade_ratings:
+            return
+
+        # Sort decades and restrict to common ratings
+        sorted_decades = sorted(decade_ratings.keys())
+        common_ratings = ['G', 'PG', 'PG-13', 'R', 'NC-17', 'X', 'APPROVED', 'PASSED', 'NR']
+        # Only include ratings present in data
+        present_ratings = [r for r in common_ratings if any(r in c for c in decade_ratings.values())]
+        sorted_ratings = present_ratings
+
+        # Prepare data for stacked bar
+        labels = [f"{d}s" for d in sorted_decades]
+        data = {rating: [] for rating in sorted_ratings}
+        for decade in sorted_decades:
+            counter = decade_ratings[decade]
+            for rating in sorted_ratings:
+                data[rating].append(counter.get(rating, 0))
+
+        # Plot
+        fig = self.mpaaByDecadeCanvas.figure
+        fig.clear()
+        ax = fig.add_subplot(111)
+
+        x = range(len(labels))
+        width = 0.7
+        bottoms = [0] * len(labels)
+        color_map = {
+            'G': '#2ecc71',
+            'PG': '#3498db',
+            'PG-13': '#f1c40f',
+            'R': '#e74c3c',
+            'NC-17': '#8e44ad',
+            'NR': '#7f8c8d',
+            'UNRATED': '#95a5a6',
+            'X': '#d35400',
+        }
+        bars = []
+        for rating in sorted_ratings:
+            color = color_map.get(rating, None)
+            bar = ax.bar(x, data[rating], width, bottom=bottoms, label=rating, color=color, edgecolor='white', linewidth=0.7)
+            bars.append(bar)
+            bottoms = [bottoms[i] + data[rating][i] for i in range(len(labels))]
+
+        ax.set_xlabel('Decade', color='white')
+        ax.set_ylabel('Number of Movies', color='white')
+        ax.set_xticks(x)
+        ax.set_xticklabels(labels)
+        ax.tick_params(colors='white')
+        ax.spines['bottom'].set_color('white')
+        ax.spines['left'].set_color('white')
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+
+        # Add legend
+        ax.legend(title='MPAA', facecolor='#191919', edgecolor='white', labelcolor='white', title_fontsize=10)
+
+        # Add value labels on top of each stack
+        for i, decade in enumerate(sorted_decades):
+            total = sum(data[rating][i] for rating in sorted_ratings)
+            if total > 0:
+                ax.text(i, total + 1, str(total), ha='center', va='bottom', color='white', fontsize=9)
+
+        fig.tight_layout()
+        self.mpaaByDecadeCanvas.draw()
