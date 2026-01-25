@@ -9,3 +9,4 @@ PyOpenGL
 numpy
 msgpack
 sentence-transformers
+matplotlib

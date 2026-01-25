@@ -59,6 +59,7 @@ from .SimilarMoviesWidget import SimilarMoviesWidget
 from .MovieData import MovieData
 from .MovieFilterProxyModel import MovieFilterProxyModel
 from .LightingControlsWidget import LightingControlsWidget
+from .StatisticsWidget import StatisticsWidget
 
 
 def _default_collections_folder():
@@ -177,6 +178,11 @@ class MainWindow(QtWidgets.QMainWindow):
                             self._pending_proxy_model)
             
             # Clean up pending attributes (only if they exist)
+            
+    def onMoviesTabChanged(self, index):
+        """Save the selected tab index when changed."""
+        if hasattr(self, 'settings'):
+            self.settings.setValue('moviesTabIndex', index)
             if hasattr(self, '_pending_selection_row'):
                 delattr(self, '_pending_selection_row')
             if hasattr(self, '_pending_model_index'):
@@ -282,6 +288,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.showWatchList = self.settings.value('showWatchList', False, type=bool)
         self.showBackupList = self.settings.value('showBackupList', False, type=bool)
         self.showHistoryList = self.settings.value('showHistoryList', False, type=bool)
+        self.showStatistics = self.settings.value('showStatistics', False, type=bool)
         self.showLog = self.settings.value('showLog', True, type=bool)
         self.showLightingControls = self.settings.value('showLightingControls', False, type=bool)
 
@@ -392,7 +399,20 @@ class MainWindow(QtWidgets.QMainWindow):
         # Load saved camera settings
         self.coverFlowWidget.loadCameraSettings(self.settings)
         
-        # Restore saved tab index (0=List, 1=Cover Flow)
+        # Statistics Tab
+        self.statisticsWidget = StatisticsWidget(
+            parent=self,
+            bgColorA=self.bgColorA,
+            bgColorB=self.bgColorB,
+            bgColorC=self.bgColorC,
+            fgColor=self.fgColor
+        )
+        self.moviesTabWidget.addTab(self.statisticsWidget, "Statistics")
+        
+        # Connect tab change to save setting
+        self.moviesTabWidget.currentChanged.connect(self.onMoviesTabChanged)
+        
+        # Restore saved tab index (0=List, 1=Cover Flow, 2=Statistics)
         savedTabIndex = self.settings.value('moviesTabIndex', 0, type=int)
         self.moviesTabWidget.setCurrentIndex(savedTabIndex)
         
@@ -579,7 +599,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.mainHSplitter.addWidget(self.similarMoviesSectionWidget)  # Similar movies to the right
         self.mainHSplitter.splitterMoved.connect(self.resizeCoverFile)
 
-        # Main horizontal sizes (added fifth panel for similar movies, positioned after movie section)
+        # Main horizontal sizes (five panels)
         sizes = [int(x) for x in self.settings.value('mainHSplitterSizes', [270, 750, 300, 800, 400], type=list)]
         self.mainHSplitter.setSizes(sizes)
 
@@ -822,6 +842,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings.setValue('showWatchList', self.showWatchList)
         self.settings.setValue('showHistoryList', self.showHistoryList)
         self.settings.setValue('showBackupList', self.showBackupList)
+        self.settings.setValue('showStatistics', self.showStatistics)
         self.settings.setValue('showLog', self.showLog)
         self.settings.setValue('showLightingControls', self.showLightingControls)
         self.settings.setValue('fontSize', self.fontSize)
@@ -1010,6 +1031,10 @@ class MainWindow(QtWidgets.QMainWindow):
         showLightingControlsAction.setChecked(self.showLightingControls)
         showLightingControlsAction.triggered.connect(self.showLightingControlsMenu)
         viewMenu.addAction(showLightingControlsAction)
+
+        showStatisticsAction = QtWidgets.QAction("Show Statistics Tab", self)
+        showStatisticsAction.triggered.connect(self.showStatisticsMenu)
+        viewMenu.addAction(showStatisticsAction)
 
         restoreDefaultWindowsAction = QtWidgets.QAction("Restore default window configuration", self)
         restoreDefaultWindowsAction.triggered.connect(self.restoreDefaultWindows)
@@ -1554,6 +1579,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.numVisibleMovies = self.moviesTableProxyModel.rowCount()
         self.showMoviesTableSelectionStatus()
         self.pickRandomMovie()
+        
+        # Auto-refresh statistics when movies list is loaded
+        if hasattr(self, 'statisticsWidget') and self.statisticsWidget:
+            self.statisticsWidget.refresh()
 
     def refreshWatchList(self):
         """Delegate to WatchListWidget."""
@@ -1629,6 +1658,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.backupListWidget.hide()
         self.showMovieSection = True
         self.movieSectionWidget.show()
+        # Reset to List tab
+        self.moviesTabWidget.setCurrentIndex(0)
         self.showMovieInfo = True
         self.movieInfoWidget.show()
         self.showCover = True
@@ -2868,6 +2899,13 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.summary.hide()
             else:
                 self.summary.show()
+
+    def showStatisticsMenu(self):
+        if self.statisticsWidget and self.moviesTabWidget:
+            # Switch to statistics tab (index 2)
+            self.moviesTabWidget.setCurrentIndex(2)
+            # Refresh statistics when shown
+            self.statisticsWidget.refresh()
 
     def showSimilarMoviesMenu(self):
         if self.similarMoviesWidget:
