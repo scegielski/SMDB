@@ -3173,7 +3173,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             self.drag_history = []
 
     def saveCameraSettings(self, settings: QSettings):
-        """Save camera settings (pan, dolly/zoom, orbit) to QSettings."""
+        """Save camera settings (pan, dolly/zoom, orbit, FOV, pivot) to QSettings."""
         settings.beginGroup('CameraSettings')
         
         settings.setValue('camera_pan_x', self.camera_pan_x)
@@ -3181,11 +3181,15 @@ class CoverFlowGLWidget(QOpenGLWidget):
         settings.setValue('camera_z', self.camera_z)
         settings.setValue('camera_orbit_x', self.camera_orbit_x)
         settings.setValue('camera_orbit_y', self.camera_orbit_y)
+        settings.setValue('current_fov', getattr(self, 'current_fov', self.INITIAL_FOV))
+        settings.setValue('orbit_pivot_x', float(self.orbit_pivot[0]))
+        settings.setValue('orbit_pivot_y', float(self.orbit_pivot[1]))
+        settings.setValue('orbit_pivot_z', float(self.orbit_pivot[2]))
         
         settings.endGroup()
     
     def loadCameraSettings(self, settings: QSettings):
-        """Load camera settings (pan, dolly/zoom, orbit) from QSettings."""
+        """Load camera settings (pan, dolly/zoom, orbit, FOV, pivot) from QSettings."""
         settings.beginGroup('CameraSettings')
         
         self.camera_pan_x = settings.value('camera_pan_x', 0.0, type=float)
@@ -3193,6 +3197,11 @@ class CoverFlowGLWidget(QOpenGLWidget):
         self.camera_z = settings.value('camera_z', self.INITIAL_CAMERA_Z, type=float)
         self.camera_orbit_x = settings.value('camera_orbit_x', 0.0, type=float)
         self.camera_orbit_y = settings.value('camera_orbit_y', 0.0, type=float)
+        self.current_fov = settings.value('current_fov', self.INITIAL_FOV, type=float)
+        pivot_x = settings.value('orbit_pivot_x', 0.0, type=float)
+        pivot_y = settings.value('orbit_pivot_y', 0.0, type=float)
+        pivot_z = settings.value('orbit_pivot_z', -3.0, type=float)
+        self.orbit_pivot = np.array([pivot_x, pivot_y, pivot_z])
         
         # Also update zoom target to match loaded camera_z
         self.zoom_target = self.camera_z
