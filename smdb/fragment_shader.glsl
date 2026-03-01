@@ -257,24 +257,43 @@ void main() {
             // Only apply shadows if within shadow map bounds
             if (inShadowMapBounds) {
                 
-                // Sample shadow map with PCF (Percentage Closer Filtering) for soft shadows
-                float shadowSum = 0.0;
+                // Poisson disk PCF with smooth depth comparison to eliminate banding
+                // smoothstep around the depth boundary gives continuous shadow values
+                // instead of hard 0/1 per sample, removing visible quantization bands
                 float texelSize = 1.0 / shadowMapSize;
-                int pcfSamples = 0;
+                float currentDepth = abs(projCoords.z) - shadowBias;
+                float shadowSum = 0.0;
                 
-                // 3x3 PCF kernel with manual depth comparison
-                for (int x = -1; x <= 1; x++) {
-                    for (int y = -1; y <= 1; y++) {
-                        vec2 offset = vec2(float(x), float(y)) * texelSize;
-                        float shadowDepth = texture2D(shadowMap, projCoords.xy + offset).r;
-                        // Use absolute Z since it might be negative depending on projection
-                        float currentDepth = abs(projCoords.z) - shadowBias;
-                        shadowSum += (currentDepth <= shadowDepth) ? 1.0 : 0.0;
-                        pcfSamples++;
-                    }
+                // Smoothing range: depth values within this range get a gradient
+                // instead of a hard edge. Tuned relative to scene scale.
+                float smoothRange = 3.0 * texelSize;
+                
+                // Helper macro-style: smoothstep gives 0.0 when fully in shadow,
+                // 1.0 when fully lit, smooth transition in between
+                #define SHADOW_SAMPLE(offset) { \
+                    float d = texture2D(shadowMap, projCoords.xy + (offset) * texelSize * 2.5).r; \
+                    shadowSum += smoothstep(currentDepth - smoothRange, currentDepth + smoothRange, d); \
                 }
                 
-                shadow = shadowSum / float(pcfSamples);
+                // 16-sample Poisson disk offsets (well-distributed, low discrepancy)
+                SHADOW_SAMPLE(vec2(-0.94201624, -0.39906216))
+                SHADOW_SAMPLE(vec2( 0.94558609, -0.76890725))
+                SHADOW_SAMPLE(vec2(-0.09418410, -0.92938870))
+                SHADOW_SAMPLE(vec2( 0.34495938,  0.29387760))
+                SHADOW_SAMPLE(vec2(-0.91588581,  0.45771432))
+                SHADOW_SAMPLE(vec2(-0.81544232, -0.87912464))
+                SHADOW_SAMPLE(vec2(-0.38277543,  0.27676845))
+                SHADOW_SAMPLE(vec2( 0.97484398,  0.75648379))
+                SHADOW_SAMPLE(vec2( 0.44323325, -0.97511554))
+                SHADOW_SAMPLE(vec2( 0.53742981, -0.47373420))
+                SHADOW_SAMPLE(vec2(-0.26496911, -0.41893023))
+                SHADOW_SAMPLE(vec2( 0.79197514,  0.19090188))
+                SHADOW_SAMPLE(vec2(-0.24188840,  0.99706507))
+                SHADOW_SAMPLE(vec2(-0.81409955,  0.91437590))
+                SHADOW_SAMPLE(vec2( 0.19984126,  0.78641367))
+                SHADOW_SAMPLE(vec2( 0.14383161, -0.14100790))
+                
+                shadow = shadowSum / 16.0;
                 // Apply shadow darkness
                 shadow = mix(1.0 - shadowDarkness, 1.0, shadow);
             } else {

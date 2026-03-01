@@ -2143,6 +2143,10 @@ class CoverFlowGLWidget(QOpenGLWidget):
         glRotatef(self.camera_orbit_y, 0.0, 1.0, 0.0)  # Yaw
         glTranslatef(-self.orbit_pivot[0], -self.orbit_pivot[1], -self.orbit_pivot[2])
         
+        # Capture the camera's view matrix (before any model transforms)
+        # This is needed to compute the shadow matrix that maps from eye space to light clip space
+        self._camera_view_matrix = glGetFloatv(GL_MODELVIEW_MATRIX)
+        
         # Activate shader program for per-pixel lighting
         if self.shader_program:
             glUseProgram(self.shader_program)
@@ -2349,11 +2353,18 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     if self.uniform_shadow_map >= 0:
                         glUniform1i(self.uniform_shadow_map, 1)
                     
-                    # Set light matrices for shader
-                    if hasattr(self, 'uniform_light_view_matrix') and self.uniform_light_view_matrix >= 0:
-                        glUniformMatrix4fv(self.uniform_light_view_matrix, 1, GL_FALSE, light_view)
-                    if hasattr(self, 'uniform_light_proj_matrix') and self.uniform_light_proj_matrix >= 0:
-                        glUniformMatrix4fv(self.uniform_light_proj_matrix, 1, GL_FALSE, light_proj)
+                    # Compute combined shadow matrix: lightProj * lightView * inverse(cameraView)
+                    # This transforms from eye space (gl_ModelViewMatrix * gl_Vertex) to light clip space
+                    # PyOpenGL glGetFloatv returns column-major matrices (arr[col][row]),
+                    # so we transpose to row-major for numpy math, then transpose back.
+                    camera_view = getattr(self, '_camera_view_matrix', np.identity(4, dtype=np.float32))
+                    P = np.array(light_proj, dtype=np.float64).T   # Row-major projection
+                    V = np.array(light_view, dtype=np.float64).T   # Row-major light view
+                    C_inv = np.linalg.inv(np.array(camera_view, dtype=np.float64).T)  # Row-major camera view inverse
+                    shadow_matrix = (P @ V @ C_inv).T.astype(np.float32)  # Back to column-major
+                    
+                    if hasattr(self, 'uniform_shadow_matrix') and self.uniform_shadow_matrix >= 0:
+                        glUniformMatrix4fv(self.uniform_shadow_matrix, 1, GL_FALSE, shadow_matrix)
                     
                     # Set shadow parameters
                     if self.uniform_use_shadows >= 0:
@@ -2374,12 +2385,9 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     glActiveTexture(GL_TEXTURE0)
                 else:
                     # Shadows disabled - set identity matrix and disable shadow flag
-                    if hasattr(self, 'uniform_light_view_matrix') and self.uniform_light_view_matrix >= 0:
+                    if hasattr(self, 'uniform_shadow_matrix') and self.uniform_shadow_matrix >= 0:
                         identity = np.identity(4, dtype=np.float32)
-                        glUniformMatrix4fv(self.uniform_light_view_matrix, 1, GL_FALSE, identity)
-                    if hasattr(self, 'uniform_light_proj_matrix') and self.uniform_light_proj_matrix >= 0:
-                        identity = np.identity(4, dtype=np.float32)
-                        glUniformMatrix4fv(self.uniform_light_proj_matrix, 1, GL_FALSE, identity)
+                        glUniformMatrix4fv(self.uniform_shadow_matrix, 1, GL_FALSE, identity)
                     if hasattr(self, 'uniform_use_shadows') and self.uniform_use_shadows >= 0:
                         glUniform1i(self.uniform_use_shadows, 0)
             except Exception as e:

@@ -36,9 +36,14 @@ void main() {
     // Pass through vertex color
     fragColor = gl_Color;
     
-    // Calculate shadow coordinates directly in light space
-    vec4 worldPos = gl_Vertex;
-    vec4 lightSpacePos = lightProjMatrix * lightViewMatrix * worldPos;
+    // Calculate shadow coordinates in light clip space
+    // gl_Vertex is in object space; gl_ModelViewMatrix includes model + camera view transforms.
+    // shadowMatrix = lightProj * lightView * inverse(cameraView), so:
+    //   shadowMatrix * (gl_ModelViewMatrix * gl_Vertex)
+    //   = lightProj * lightView * inv(cameraView) * cameraView * model * vertex
+    //   = lightProj * lightView * model * vertex  (correct light-space position)
+    vec4 eyeSpacePos = gl_ModelViewMatrix * gl_Vertex;
+    vec4 lightSpacePos = shadowMatrix * eyeSpacePos;
     // Apply bias to transform from [-1,1] to [0,1]
     fragShadowCoord.x = lightSpacePos.x * 0.5 + lightSpacePos.w * 0.5;
     fragShadowCoord.y = lightSpacePos.y * 0.5 + lightSpacePos.w * 0.5;
