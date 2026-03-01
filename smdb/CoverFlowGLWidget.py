@@ -936,6 +936,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             self.uniform_shadow_bias = glGetUniformLocation(self.shader_program, "shadowBias")
             self.uniform_shadow_darkness = glGetUniformLocation(self.shader_program, "shadowDarkness")
             self.uniform_shadow_map_size = glGetUniformLocation(self.shader_program, "shadowMapSize")
+            self.uniform_shadow_light_size = glGetUniformLocation(self.shader_program, "shadowLightSize")
             
             # Debug: Print uniform locations
             print(f"Shadow uniform locations: shadowMap={self.uniform_shadow_map}, "
@@ -950,6 +951,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             self.uniform_use_shadows = -1
             self.uniform_shadow_bias = -1
             self.uniform_shadow_darkness = -1
+            self.uniform_shadow_light_size = -1
         
         # Initialize shadow mapping
         self._initShadowMap()
@@ -1425,6 +1427,36 @@ class CoverFlowGLWidget(QOpenGLWidget):
         glVertex3f(light_pos[0], light_pos[1], light_pos[2] - marker_size)
         glVertex3f(light_pos[0], light_pos[1], light_pos[2] + marker_size)
         glEnd()
+        
+        # Draw area light disc at the light position
+        # SHADOW_LIGHT_SIZE is in texel-scale units; map to a visible world-space radius
+        light_size = getattr(lighting_config, 'SHADOW_LIGHT_SIZE', 15.0)
+        disc_radius = light_size * 0.005  # Scale factor for visibility
+        disc_color = (1.0, 0.9, 0.3, 0.5)  # Soft yellow, semi-transparent
+        disc_outline_color = (1.0, 0.9, 0.3, 0.9)
+        disc_segments = 32
+        
+        # Filled disc (semi-transparent area light representation)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glColor4f(*disc_color)
+        glBegin(GL_TRIANGLE_FAN)
+        glVertex3f(light_pos[0], light_pos[1], light_pos[2])  # Center
+        for i in range(disc_segments + 1):
+            angle = 2.0 * math.pi * i / disc_segments
+            point = light_pos + right * (disc_radius * math.cos(angle)) + up * (disc_radius * math.sin(angle))
+            glVertex3f(point[0], point[1], point[2])
+        glEnd()
+        
+        # Disc outline for crisp edge
+        glColor4f(*disc_outline_color)
+        glBegin(GL_LINE_LOOP)
+        for i in range(disc_segments):
+            angle = 2.0 * math.pi * i / disc_segments
+            point = light_pos + right * (disc_radius * math.cos(angle)) + up * (disc_radius * math.sin(angle))
+            glVertex3f(point[0], point[1], point[2])
+        glEnd()
+        glDisable(GL_BLEND)
         
         # Draw central direction line (from light to target)
         glBegin(GL_LINES)
@@ -2377,6 +2409,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
                         glUniform1f(self.uniform_shadow_darkness, lighting_config.SHADOW_DARKNESS)
                     if hasattr(self, 'uniform_shadow_map_size') and self.uniform_shadow_map_size >= 0:
                         glUniform1f(self.uniform_shadow_map_size, lighting_config.SHADOW_MAP_SIZE)
+                    if hasattr(self, 'uniform_shadow_light_size') and self.uniform_shadow_light_size >= 0:
+                        glUniform1f(self.uniform_shadow_light_size, lighting_config.SHADOW_LIGHT_SIZE)
                     
                     if self._shadow_setup_count <= 1:
                         print(f"Shadow bias: {lighting_config.SHADOW_BIAS}, darkness: {lighting_config.SHADOW_DARKNESS}")

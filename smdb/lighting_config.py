@@ -46,6 +46,7 @@ SPOTLIGHT_WIREFRAME_ENABLED = False
 
 # Shadow configuration - Real shadow mapping from spotlight
 SHADOW_ENABLED = True
+SHADOW_LIGHT_SIZE = 15.0
 SHADOW_MAP_SIZE = 2048.0
 SHADOW_BIAS = 0.0003
 SHADOW_DARKNESS = 0.700

@@ -17,6 +17,7 @@ uniform bool useShadows;
 uniform float shadowBias;
 uniform float shadowDarkness;
 uniform float shadowMapSize;
+uniform float shadowLightSize;
 
 // Light properties
 uniform vec3 lightPosition;
@@ -256,44 +257,90 @@ void main() {
             
             // Only apply shadows if within shadow map bounds
             if (inShadowMapBounds) {
-                
-                // Poisson disk PCF with smooth depth comparison to eliminate banding
-                // smoothstep around the depth boundary gives continuous shadow values
-                // instead of hard 0/1 per sample, removing visible quantization bands
                 float texelSize = 1.0 / shadowMapSize;
                 float currentDepth = abs(projCoords.z) - shadowBias;
-                float shadowSum = 0.0;
                 
-                // Smoothing range: depth values within this range get a gradient
-                // instead of a hard edge. Tuned relative to scene scale.
-                float smoothRange = 3.0 * texelSize;
-                
-                // Helper macro-style: smoothstep gives 0.0 when fully in shadow,
-                // 1.0 when fully lit, smooth transition in between
-                #define SHADOW_SAMPLE(offset) { \
-                    float d = texture2D(shadowMap, projCoords.xy + (offset) * texelSize * 2.5).r; \
-                    shadowSum += smoothstep(currentDepth - smoothRange, currentDepth + smoothRange, d); \
+                {
+                    // ============================================================
+                    // PCSS (Percentage Closer Soft Shadows) - contact hardening
+                    // Per-pixel rotated Poisson disk eliminates coherent banding.
+                    // ============================================================
+                    
+                    // --- Per-pixel random rotation angle ---
+                    // Hash screen position to get a unique angle per pixel
+                    // This converts banding artifacts into imperceptible noise
+                    float rnd = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
+                    float cosR = cos(rnd * 6.2831853);
+                    float sinR = sin(rnd * 6.2831853);
+                    mat2 rotation = mat2(cosR, sinR, -sinR, cosR);
+                    
+                    // --- Step 1: Blocker search ---
+                    float searchRadius = shadowLightSize * texelSize;
+                    float blockerSum = 0.0;
+                    float blockerCount = 0.0;
+                    
+                    // 16-sample Poisson disk for blocker search
+                    vec2 pd[16];
+                    pd[ 0] = vec2(-0.94201624, -0.39906216);
+                    pd[ 1] = vec2( 0.94558609, -0.76890725);
+                    pd[ 2] = vec2(-0.09418410, -0.92938870);
+                    pd[ 3] = vec2( 0.34495938,  0.29387760);
+                    pd[ 4] = vec2(-0.91588581,  0.45771432);
+                    pd[ 5] = vec2(-0.81544232, -0.87912464);
+                    pd[ 6] = vec2(-0.38277543,  0.27676845);
+                    pd[ 7] = vec2( 0.97484398,  0.75648379);
+                    pd[ 8] = vec2( 0.44323325, -0.97511554);
+                    pd[ 9] = vec2( 0.53742981, -0.47373420);
+                    pd[10] = vec2(-0.26496911, -0.41893023);
+                    pd[11] = vec2( 0.79197514,  0.19090188);
+                    pd[12] = vec2(-0.24188840,  0.99706507);
+                    pd[13] = vec2(-0.81409955,  0.91437590);
+                    pd[14] = vec2( 0.19984126,  0.78641367);
+                    pd[15] = vec2( 0.14383161, -0.14100790);
+                    
+                    for (int i = 0; i < 16; i++) {
+                        vec2 offset = rotation * pd[i] * searchRadius;
+                        float d = texture2D(shadowMap, projCoords.xy + offset).r;
+                        if (d < currentDepth) {
+                            blockerSum += d;
+                            blockerCount += 1.0;
+                        }
+                    }
+                    
+                    if (blockerCount > 0.0) {
+                        // --- Step 2: Estimate penumbra width ---
+                        float avgBlockerDepth = blockerSum / blockerCount;
+                        float penumbraWidth = (currentDepth - avgBlockerDepth) * shadowLightSize / avgBlockerDepth;
+                        // Minimum of 2.5 gives a few texels of AA even at contact
+                        penumbraWidth = clamp(penumbraWidth, 2.5, 60.0);
+                        
+                        // --- Step 3: Filtering pass with variable kernel ---
+                        float filterRadius = penumbraWidth * texelSize;
+                        // Scale smooth range with filter radius to prevent banding in wide penumbras
+                        float smoothRange = max(3.0 * texelSize, filterRadius * 0.3);
+                        float shadowSum = 0.0;
+                        
+                        // 64-sample Poisson disk for high-quality filtering
+                        // Using Vogel spiral (golden angle) for optimal stratification
+                        float goldenAngle = 2.39996323;
+                        for (int i = 0; i < 64; i++) {
+                            // Vogel disk: sqrt for uniform area distribution
+                            float r = sqrt((float(i) + 0.5) / 64.0);
+                            float theta = float(i) * goldenAngle;
+                            vec2 sampleOffset = vec2(cos(theta), sin(theta)) * r;
+                            // Apply per-pixel rotation
+                            sampleOffset = rotation * sampleOffset * filterRadius;
+                            
+                            float d = texture2D(shadowMap, projCoords.xy + sampleOffset).r;
+                            shadowSum += smoothstep(currentDepth - smoothRange, currentDepth + smoothRange, d);
+                        }
+                        
+                        shadow = shadowSum / 64.0;
+                    } else {
+                        // No blockers found - fully lit
+                        shadow = 1.0;
+                    }
                 }
-                
-                // 16-sample Poisson disk offsets (well-distributed, low discrepancy)
-                SHADOW_SAMPLE(vec2(-0.94201624, -0.39906216))
-                SHADOW_SAMPLE(vec2( 0.94558609, -0.76890725))
-                SHADOW_SAMPLE(vec2(-0.09418410, -0.92938870))
-                SHADOW_SAMPLE(vec2( 0.34495938,  0.29387760))
-                SHADOW_SAMPLE(vec2(-0.91588581,  0.45771432))
-                SHADOW_SAMPLE(vec2(-0.81544232, -0.87912464))
-                SHADOW_SAMPLE(vec2(-0.38277543,  0.27676845))
-                SHADOW_SAMPLE(vec2( 0.97484398,  0.75648379))
-                SHADOW_SAMPLE(vec2( 0.44323325, -0.97511554))
-                SHADOW_SAMPLE(vec2( 0.53742981, -0.47373420))
-                SHADOW_SAMPLE(vec2(-0.26496911, -0.41893023))
-                SHADOW_SAMPLE(vec2( 0.79197514,  0.19090188))
-                SHADOW_SAMPLE(vec2(-0.24188840,  0.99706507))
-                SHADOW_SAMPLE(vec2(-0.81409955,  0.91437590))
-                SHADOW_SAMPLE(vec2( 0.19984126,  0.78641367))
-                SHADOW_SAMPLE(vec2( 0.14383161, -0.14100790))
-                
-                shadow = shadowSum / 16.0;
                 // Apply shadow darkness
                 shadow = mix(1.0 - shadowDarkness, 1.0, shadow);
             } else {
