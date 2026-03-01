@@ -438,13 +438,13 @@ class LightingControlsWidget(QWidget):
         lightingSection.addWidget(self.shadowEnabledCheckbox)
         
         self.controls['SHADOW_LIGHT_SIZE'] = ControlRow(
-            "Shadow Light Size", 1.0, 100.0, lighting_config.SHADOW_LIGHT_SIZE, 0.5, 1
+            "Shadow Light Size", 1.0, 1000.0, lighting_config.SHADOW_LIGHT_SIZE, 1.0, 1
         )
         self.controls['SHADOW_LIGHT_SIZE'].valueChanged.connect(self._updateConfig)
         lightingSection.addWidget(self.controls['SHADOW_LIGHT_SIZE'])
         
         self.controls['SHADOW_MAP_SIZE'] = ControlRow(
-            "Shadow Map Size", 512, 4096, lighting_config.SHADOW_MAP_SIZE, 128, 0
+            "Shadow Map Size", 512, 10240, lighting_config.SHADOW_MAP_SIZE, 128, 0
         )
         self.controls['SHADOW_MAP_SIZE'].valueChanged.connect(self._updateConfig)
         lightingSection.addWidget(self.controls['SHADOW_MAP_SIZE'])

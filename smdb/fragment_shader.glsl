@@ -18,6 +18,8 @@ uniform float shadowBias;
 uniform float shadowDarkness;
 uniform float shadowMapSize;
 uniform float shadowLightSize;
+uniform float shadowNear;
+uniform float shadowFar;
 
 // Light properties
 uniform vec3 lightPosition;
@@ -258,12 +260,14 @@ void main() {
             // Only apply shadows if within shadow map bounds
             if (inShadowMapBounds) {
                 float texelSize = 1.0 / shadowMapSize;
-                float currentDepth = abs(projCoords.z) - shadowBias;
+                float currentDepth = projCoords.z - shadowBias;
                 
                 {
                     // ============================================================
                     // PCSS (Percentage Closer Soft Shadows) - contact hardening
                     // Per-pixel rotated Poisson disk eliminates coherent banding.
+                    // Depths are linearized for correct penumbra estimation with
+                    // perspective shadow projection.
                     // ============================================================
                     
                     // --- Per-pixel random rotation angle ---
@@ -309,10 +313,14 @@ void main() {
                     
                     if (blockerCount > 0.0) {
                         // --- Step 2: Estimate penumbra width ---
-                        float avgBlockerDepth = blockerSum / blockerCount;
-                        float penumbraWidth = (currentDepth - avgBlockerDepth) * shadowLightSize / avgBlockerDepth;
+                        // Linearize depths for correct penumbra math with perspective projection
+                        // depth buffer [0,1] -> linear eye-space distance
+                        float avgBlockerDepth01 = blockerSum / blockerCount;
+                        float linBlocker = shadowNear * shadowFar / (shadowFar - avgBlockerDepth01 * (shadowFar - shadowNear));
+                        float linReceiver = shadowNear * shadowFar / (shadowFar - currentDepth * (shadowFar - shadowNear));
+                        float penumbraWidth = (linReceiver - linBlocker) * shadowLightSize / linBlocker;
                         // Minimum of 2.5 gives a few texels of AA even at contact
-                        penumbraWidth = clamp(penumbraWidth, 2.5, 60.0);
+                        penumbraWidth = clamp(penumbraWidth, 2.5, 500.0);
                         
                         // --- Step 3: Filtering pass with variable kernel ---
                         float filterRadius = penumbraWidth * texelSize;

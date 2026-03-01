@@ -937,6 +937,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
             self.uniform_shadow_darkness = glGetUniformLocation(self.shader_program, "shadowDarkness")
             self.uniform_shadow_map_size = glGetUniformLocation(self.shader_program, "shadowMapSize")
             self.uniform_shadow_light_size = glGetUniformLocation(self.shader_program, "shadowLightSize")
+            self.uniform_shadow_near = glGetUniformLocation(self.shader_program, "shadowNear")
+            self.uniform_shadow_far = glGetUniformLocation(self.shader_program, "shadowFar")
             
             # Debug: Print uniform locations
             print(f"Shadow uniform locations: shadowMap={self.uniform_shadow_map}, "
@@ -952,6 +954,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
             self.uniform_shadow_bias = -1
             self.uniform_shadow_darkness = -1
             self.uniform_shadow_light_size = -1
+            self.uniform_shadow_near = -1
+            self.uniform_shadow_far = -1
         
         # Initialize shadow mapping
         self._initShadowMap()
@@ -1596,10 +1600,13 @@ class CoverFlowGLWidget(QOpenGLWidget):
             glMatrixMode(GL_PROJECTION)
             glLoadIdentity()
             
-            # Use ORTHOGRAPHIC projection for shadow map - much simpler and more robust
-            # This covers a fixed world-space region around the target
-            shadow_size = 5.0  # Size of the shadow capture area
-            glOrtho(-shadow_size, shadow_size, -shadow_size, shadow_size, 0.1, 50.0)
+            # Use perspective projection matched to the spotlight cone angle
+            # This ensures the full shadow map resolution covers exactly the lit area
+            import math
+            cone_angle = lighting_config.SPOTLIGHT_CONE_ANGLE
+            # FOV = 2x cone angle to cover the full cone; add small margin to avoid edge clipping
+            shadow_fov = min(cone_angle * 2.0 + 2.0, 179.0)
+            gluPerspective(shadow_fov, 1.0, 0.1, 50.0)
             
             glMatrixMode(GL_MODELVIEW)
             glLoadIdentity()
@@ -1620,7 +1627,7 @@ class CoverFlowGLWidget(QOpenGLWidget):
             
             if not hasattr(self, '_shadow_debug_fov'):
                 self._shadow_debug_fov = True
-                print(f"Shadow using orthographic projection, size: {shadow_size}")
+                print(f"Shadow using perspective projection, FOV: {shadow_fov:.1f} (cone: {cone_angle:.1f})")
                 print(f"Light position: {light_pos}")
                 print(f"Light target: {target}")
             
@@ -2411,6 +2418,10 @@ class CoverFlowGLWidget(QOpenGLWidget):
                         glUniform1f(self.uniform_shadow_map_size, lighting_config.SHADOW_MAP_SIZE)
                     if hasattr(self, 'uniform_shadow_light_size') and self.uniform_shadow_light_size >= 0:
                         glUniform1f(self.uniform_shadow_light_size, lighting_config.SHADOW_LIGHT_SIZE)
+                    if hasattr(self, 'uniform_shadow_near') and self.uniform_shadow_near >= 0:
+                        glUniform1f(self.uniform_shadow_near, 0.1)
+                    if hasattr(self, 'uniform_shadow_far') and self.uniform_shadow_far >= 0:
+                        glUniform1f(self.uniform_shadow_far, 50.0)
                     
                     if self._shadow_setup_count <= 1:
                         print(f"Shadow bias: {lighting_config.SHADOW_BIAS}, darkness: {lighting_config.SHADOW_DARKNESS}")
