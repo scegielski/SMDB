@@ -41,15 +41,17 @@ uniform float ambientLight;  // Ambient lighting constant
 
 // Material properties (PBR-like)
 uniform vec3 baseColor;
-uniform vec3 groundBaseColor;
+uniform vec3 checkerColorLight;
+uniform vec3 checkerColorDark;
 uniform float metallic;
 uniform float roughness;
 uniform float ao;  // Ambient occlusion
 
 // Reflection properties
-uniform float reflectionAlpha;   // 0 = normal rendering, >0 = reflection pass
-uniform float reflectionHalfH;   // Half-height of box for vertical fade
-uniform float groundAlpha;       // Ground plane transparency (1.0 = opaque)
+uniform float reflectionAlpha;        // 0 = normal rendering, >0 = reflection pass
+uniform float reflectionHalfH;        // Half-height of box for vertical fade
+uniform float reflectionCheckerLight; // Reflection amount for light checkerboard tiles (0=opaque, 1=transparent)
+uniform float reflectionCheckerDark;  // Reflection amount for dark checkerboard tiles (0=opaque, 1=transparent)
 
 const float PI = 3.14159265359;
 
@@ -73,18 +75,22 @@ vec3 getMaterialBaseColor() {
         float checkX = floor(fragWorldPosition.x / checkerboardScale);
         float checkZ = floor(fragWorldPosition.z / checkerboardScale);
         float pattern = mod(checkX + checkZ, 2.0);
-        float checkerFactor = mix(0.6, 0.9, pattern);
-        texColor.rgb *= checkerFactor;
-        return texColor.rgb * groundBaseColor;
+        vec3 tileColor = mix(checkerColorDark, checkerColorLight, pattern);
+        return texColor.rgb * tileColor;
     }
     
     return texColor.rgb * baseColor;
 }
 
 float getMaterialAlpha() {
-    // For ground plane (checkerboard), use groundAlpha to allow reflections to show through
+    // For ground plane (checkerboard), use per-tile reflection values to control transparency
+    // reflectionCheckerLight/Dark: 0 = fully opaque (no reflection), 1 = fully transparent (full reflection)
     if (useCheckerboard) {
-        return groundAlpha;
+        float checkX = floor(fragWorldPosition.x / checkerboardScale);
+        float checkZ = floor(fragWorldPosition.z / checkerboardScale);
+        float pattern = mod(checkX + checkZ, 2.0);
+        float reflectAmount = mix(reflectionCheckerDark, reflectionCheckerLight, pattern);
+        return 1.0 - reflectAmount;
     }
     return 1.0;
 }

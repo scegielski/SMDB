@@ -36,7 +36,8 @@ MATERIAL_ROUGHNESS = 0.100
 MATERIAL_AO = 1.0
 
 # Ground/checkerboard material properties
-GROUND_BASE_COLOR = (0.300, 0.286, 0.300)
+CHECKER_COLOR_LIGHT = (0.270, 0.258, 0.270)
+CHECKER_COLOR_DARK = (0.180, 0.172, 0.180)
 
 # VHS box surface color (RGB 0-1) - used for all non-textured surfaces
 BOX_COLOR = (0.029, 0.000, 0.000)
@@ -54,3 +55,5 @@ SHADOW_DARKNESS = 0.700
 # Reflection configuration - Mirror reflections on the ground plane
 REFLECTION_ENABLED = True
 REFLECTION_ALPHA = 0.350     # Overall reflection opacity (0 = invisible, 1 = full mirror)
+REFLECTION_CHECKER_LIGHT = 0.350  # Reflection opacity for light checkerboard tiles
+REFLECTION_CHECKER_DARK = 0.350   # Reflection opacity for dark checkerboard tiles

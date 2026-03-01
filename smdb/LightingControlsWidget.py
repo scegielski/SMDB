@@ -462,7 +462,7 @@ class LightingControlsWidget(QWidget):
         lightingSection.addWidget(self.controls['SHADOW_DARKNESS'])
         
         # Reflection enabled checkbox
-        self.reflectionEnabledCheckbox = QCheckBox("Enable Reflections")
+        self.reflectionEnabledCheckbox = QCheckBox("Ground Reflections")
         self.reflectionEnabledCheckbox.setChecked(lighting_config.REFLECTION_ENABLED)
         self.reflectionEnabledCheckbox.stateChanged.connect(self._updateConfig)
         lightingSection.addWidget(self.reflectionEnabledCheckbox)
@@ -513,11 +513,29 @@ class LightingControlsWidget(QWidget):
         groundMaterialSection.setExpanded(False)  # Start collapsed
         containerLayout.addWidget(groundMaterialSection)
         
-        self.controls['GROUND_BASE_COLOR'] = ColorControlRow(
-            "Ground Base Color", lighting_config.GROUND_BASE_COLOR, max_value=2.0
+        self.controls['CHECKER_COLOR_LIGHT'] = ColorControlRow(
+            "Checker Light Color", lighting_config.CHECKER_COLOR_LIGHT, max_value=2.0
         )
-        self.controls['GROUND_BASE_COLOR'].valueChanged.connect(self._updateConfig)
-        groundMaterialSection.addWidget(self.controls['GROUND_BASE_COLOR'])
+        self.controls['CHECKER_COLOR_LIGHT'].valueChanged.connect(self._updateConfig)
+        groundMaterialSection.addWidget(self.controls['CHECKER_COLOR_LIGHT'])
+        
+        self.controls['CHECKER_COLOR_DARK'] = ColorControlRow(
+            "Checker Dark Color", lighting_config.CHECKER_COLOR_DARK, max_value=2.0
+        )
+        self.controls['CHECKER_COLOR_DARK'].valueChanged.connect(self._updateConfig)
+        groundMaterialSection.addWidget(self.controls['CHECKER_COLOR_DARK'])
+        
+        self.controls['REFLECTION_CHECKER_LIGHT'] = ControlRow(
+            "Checker Light Reflect", 0.0, 1.0, lighting_config.REFLECTION_CHECKER_LIGHT, 0.01, 2
+        )
+        self.controls['REFLECTION_CHECKER_LIGHT'].valueChanged.connect(self._updateConfig)
+        groundMaterialSection.addWidget(self.controls['REFLECTION_CHECKER_LIGHT'])
+        
+        self.controls['REFLECTION_CHECKER_DARK'] = ControlRow(
+            "Checker Dark Reflect", 0.0, 1.0, lighting_config.REFLECTION_CHECKER_DARK, 0.01, 2
+        )
+        self.controls['REFLECTION_CHECKER_DARK'].valueChanged.connect(self._updateConfig)
+        groundMaterialSection.addWidget(self.controls['REFLECTION_CHECKER_DARK'])
         
         # Reset button
         resetButton = QPushButton("Reset to Defaults")

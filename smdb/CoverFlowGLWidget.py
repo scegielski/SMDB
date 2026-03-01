@@ -15,9 +15,10 @@ from .lighting_config import (
     SPOTLIGHT_CONE_ANGLE, SPOTLIGHT_INNER_CONE_ANGLE,
     SPOTLIGHT_INTENSITY, AMBIENT_LIGHT,
     MATERIAL_BASE_COLOR, MATERIAL_METALLIC, MATERIAL_ROUGHNESS, MATERIAL_AO,
-    GROUND_BASE_COLOR,
+    CHECKER_COLOR_LIGHT, CHECKER_COLOR_DARK,
     BOX_COLOR, SHADOW_ENABLED, SHADOW_MAP_SIZE, SHADOW_BIAS, SHADOW_DARKNESS,
-    REFLECTION_ENABLED, REFLECTION_ALPHA
+    REFLECTION_ENABLED, REFLECTION_ALPHA,
+    REFLECTION_CHECKER_LIGHT, REFLECTION_CHECKER_DARK
 )
 
 # Anisotropic filtering extension constants
@@ -923,7 +924,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
             
             # PBR Material uniforms
             self.uniform_base_color = glGetUniformLocation(self.shader_program, "baseColor")
-            self.uniform_ground_base_color = glGetUniformLocation(self.shader_program, "groundBaseColor")
+            self.uniform_checker_color_light = glGetUniformLocation(self.shader_program, "checkerColorLight")
+            self.uniform_checker_color_dark = glGetUniformLocation(self.shader_program, "checkerColorDark")
             self.uniform_metallic = glGetUniformLocation(self.shader_program, "metallic")
             self.uniform_roughness = glGetUniformLocation(self.shader_program, "roughness")
             self.uniform_ao = glGetUniformLocation(self.shader_program, "ao")
@@ -944,7 +946,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
             # Reflection uniforms
             self.uniform_reflection_alpha = glGetUniformLocation(self.shader_program, "reflectionAlpha")
             self.uniform_reflection_half_h = glGetUniformLocation(self.shader_program, "reflectionHalfH")
-            self.uniform_ground_alpha = glGetUniformLocation(self.shader_program, "groundAlpha")
+            self.uniform_reflection_checker_light = glGetUniformLocation(self.shader_program, "reflectionCheckerLight")
+            self.uniform_reflection_checker_dark = glGetUniformLocation(self.shader_program, "reflectionCheckerDark")
             
             # Debug: Print uniform locations
             print(f"Shadow uniform locations: shadowMap={self.uniform_shadow_map}, "
@@ -964,7 +967,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
             self.uniform_shadow_far = -1
             self.uniform_reflection_alpha = -1
             self.uniform_reflection_half_h = -1
-            self.uniform_ground_alpha = -1
+            self.uniform_reflection_checker_light = -1
+            self.uniform_reflection_checker_dark = -1
         
         # Initialize shadow mapping
         self._initShadowMap()
@@ -2415,7 +2419,8 @@ class CoverFlowGLWidget(QOpenGLWidget):
             
             # Set PBR material uniforms
             glUniform3f(self.uniform_base_color, *lighting_config.MATERIAL_BASE_COLOR)
-            glUniform3f(self.uniform_ground_base_color, *lighting_config.GROUND_BASE_COLOR)
+            glUniform3f(self.uniform_checker_color_light, *lighting_config.CHECKER_COLOR_LIGHT)
+            glUniform3f(self.uniform_checker_color_dark, *lighting_config.CHECKER_COLOR_DARK)
             glUniform1f(self.uniform_metallic, lighting_config.MATERIAL_METALLIC)
             glUniform1f(self.uniform_roughness, lighting_config.MATERIAL_ROUGHNESS)
             glUniform1f(self.uniform_ao, lighting_config.MATERIAL_AO)
@@ -2616,31 +2621,10 @@ class CoverFlowGLWidget(QOpenGLWidget):
                 glUniform1f(self.uniform_reflection_alpha, 0.0)
             if hasattr(self, 'uniform_reflection_half_h') and self.uniform_reflection_half_h >= 0:
                 glUniform1f(self.uniform_reflection_half_h, 0.4)
-            if hasattr(self, 'uniform_ground_alpha') and self.uniform_ground_alpha >= 0:
-                glUniform1f(self.uniform_ground_alpha, 1.0)
-        
-        # Calculate quad_h for ground plane positioning
-        max_quad_h = 1.0
-        quad_h_for_ground = max_quad_h * 0.8  # Match the scaling used for boxes in multi-cover mode
-        
-        # Draw reflected boxes BEFORE ground plane (reflections are behind the ground)
-        if lighting_config.REFLECTION_ENABLED and lighting_config.REFLECTION_ALPHA > 0:
-            self._drawReflectedBoxes(quad_h_for_ground)
-        
-        # Draw ground plane (semi-transparent if reflections are enabled so they show through)
-        if self.shader_program and lighting_config.REFLECTION_ENABLED and lighting_config.REFLECTION_ALPHA > 0:
-            if hasattr(self, 'uniform_ground_alpha') and self.uniform_ground_alpha >= 0:
-                # Ground transparency scales with reflection alpha
-                ground_alpha = max(0.3, 1.0 - lighting_config.REFLECTION_ALPHA * 0.8)
-                glUniform1f(self.uniform_ground_alpha, ground_alpha)
-        
-        glPushMatrix()
-        self.drawGroundPlane(quad_h_for_ground)
-        glPopMatrix()
-        
-        # Reset ground alpha back to opaque for normal box rendering
-        if self.shader_program and hasattr(self, 'uniform_ground_alpha') and self.uniform_ground_alpha >= 0:
-            glUniform1f(self.uniform_ground_alpha, 1.0)
+            if hasattr(self, 'uniform_reflection_checker_light') and self.uniform_reflection_checker_light >= 0:
+                glUniform1f(self.uniform_reflection_checker_light, 0.0)
+            if hasattr(self, 'uniform_reflection_checker_dark') and self.uniform_reflection_checker_dark >= 0:
+                glUniform1f(self.uniform_reflection_checker_dark, 0.0)
         
         # Determine how many surrounding covers to show
         # Reduced for better performance with chamfered boxes
@@ -2995,6 +2979,32 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     self.drawVHSBox(quad_w, quad_h, texture_id, back_texture_id, img_aspect)
                     
                     glPopMatrix()
+        
+        # --- Draw ground plane and reflections AFTER boxes (so texture cache is populated) ---
+        max_quad_h = 1.0
+        quad_h_for_ground = max_quad_h * 0.8  # Match the scaling used for boxes in multi-cover mode
+        
+        # Draw reflected boxes first (below ground plane, depth mask off)
+        if lighting_config.REFLECTION_ENABLED and lighting_config.REFLECTION_ALPHA > 0:
+            self._drawReflectedBoxes(quad_h_for_ground)
+        
+        # Draw ground plane (per-tile transparency controlled by checker reflection values)
+        if self.shader_program and lighting_config.REFLECTION_ENABLED and lighting_config.REFLECTION_ALPHA > 0:
+            if hasattr(self, 'uniform_reflection_checker_light') and self.uniform_reflection_checker_light >= 0:
+                glUniform1f(self.uniform_reflection_checker_light, lighting_config.REFLECTION_CHECKER_LIGHT)
+            if hasattr(self, 'uniform_reflection_checker_dark') and self.uniform_reflection_checker_dark >= 0:
+                glUniform1f(self.uniform_reflection_checker_dark, lighting_config.REFLECTION_CHECKER_DARK)
+        
+        glPushMatrix()
+        self.drawGroundPlane(quad_h_for_ground)
+        glPopMatrix()
+        
+        # Reset checker reflection values back to 0 (opaque)
+        if self.shader_program:
+            if hasattr(self, 'uniform_reflection_checker_light') and self.uniform_reflection_checker_light >= 0:
+                glUniform1f(self.uniform_reflection_checker_light, 0.0)
+            if hasattr(self, 'uniform_reflection_checker_dark') and self.uniform_reflection_checker_dark >= 0:
+                glUniform1f(self.uniform_reflection_checker_dark, 0.0)
         
         # Draw spotlight wireframe visualization if enabled
         if lighting_config.SPOTLIGHT_WIREFRAME_ENABLED:
