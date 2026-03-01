@@ -7,6 +7,7 @@ varying vec4 fragColor;
 varying vec3 fragTangent;
 varying vec3 fragBitangent;
 varying vec4 fragShadowCoord;
+varying float vObjectY;
 
 uniform mat4 shadowMatrix;
 uniform mat4 lightViewMatrix;
@@ -18,6 +19,9 @@ void main() {
     
     // Pass world position for procedural texturing
     fragWorldPosition = gl_Vertex.xyz;
+    
+    // Pass object-space Y for reflection fade
+    vObjectY = gl_Vertex.y;
     
     // Transform normal to view space
     fragNormal = normalize(gl_NormalMatrix * gl_Normal);

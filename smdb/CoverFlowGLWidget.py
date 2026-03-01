@@ -16,7 +16,8 @@ from .lighting_config import (
     SPOTLIGHT_INTENSITY, AMBIENT_LIGHT,
     MATERIAL_BASE_COLOR, MATERIAL_METALLIC, MATERIAL_ROUGHNESS, MATERIAL_AO,
     GROUND_BASE_COLOR,
-    BOX_COLOR, SHADOW_ENABLED, SHADOW_MAP_SIZE, SHADOW_BIAS, SHADOW_DARKNESS
+    BOX_COLOR, SHADOW_ENABLED, SHADOW_MAP_SIZE, SHADOW_BIAS, SHADOW_DARKNESS,
+    REFLECTION_ENABLED, REFLECTION_ALPHA
 )
 
 # Anisotropic filtering extension constants
@@ -940,6 +941,11 @@ class CoverFlowGLWidget(QOpenGLWidget):
             self.uniform_shadow_near = glGetUniformLocation(self.shader_program, "shadowNear")
             self.uniform_shadow_far = glGetUniformLocation(self.shader_program, "shadowFar")
             
+            # Reflection uniforms
+            self.uniform_reflection_alpha = glGetUniformLocation(self.shader_program, "reflectionAlpha")
+            self.uniform_reflection_half_h = glGetUniformLocation(self.shader_program, "reflectionHalfH")
+            self.uniform_ground_alpha = glGetUniformLocation(self.shader_program, "groundAlpha")
+            
             # Debug: Print uniform locations
             print(f"Shadow uniform locations: shadowMap={self.uniform_shadow_map}, "
                   f"shadowMatrix={self.uniform_shadow_matrix}, useShadows={self.uniform_use_shadows}, "
@@ -956,6 +962,9 @@ class CoverFlowGLWidget(QOpenGLWidget):
             self.uniform_shadow_light_size = -1
             self.uniform_shadow_near = -1
             self.uniform_shadow_far = -1
+            self.uniform_reflection_alpha = -1
+            self.uniform_reflection_half_h = -1
+            self.uniform_ground_alpha = -1
         
         # Initialize shadow mapping
         self._initShadowMap()
@@ -1319,6 +1328,163 @@ class CoverFlowGLWidget(QOpenGLWidget):
         glEnd()
         
         glEndList()
+
+    def _drawReflectedBoxes(self, quad_h_for_ground):
+        """Render mirrored reflections of all visible boxes below the ground plane.
+        
+        Uses the same cover cache as the normal rendering pass to avoid
+        duplicate texture loads. Only renders boxes that already have cached textures.
+        
+        Args:
+            quad_h_for_ground: Height of the VHS box quad (for ground plane positioning)
+        """
+        import math
+        
+        if not hasattr(self, '_current_index') or not hasattr(self, '_model'):
+            return
+        if not self.shader_program:
+            return
+        
+        num_surrounding = 10
+        max_quad_h = 1.0
+        widget_w = self.width()
+        widget_h = self.height()
+        if widget_h == 0:
+            widget_h = 1
+        window_aspect = widget_w / widget_h
+        max_quad_w = window_aspect
+        vertical_spacing = 0.65
+        
+        # Calculate scroll offset (same logic as main render)
+        scroll_offset = 0.0
+        if getattr(self, '_scrolling', False):
+            progress = self._scroll_progress
+            smooth_progress = progress * progress * (3 - 2 * progress)
+            index_delta = self._scroll_to - self._scroll_from
+            scroll_offset = index_delta * smooth_progress
+        if hasattr(self, 'drag_offset'):
+            scroll_offset += self.drag_offset
+        
+        extra_range = 0
+        if getattr(self, '_scrolling', False):
+            extra_range = abs(self._scroll_to - self._scroll_from)
+        
+        # Build visible rows list (same logic as main render)
+        visible_rows = []
+        if hasattr(self, '_table_view') and self._table_view:
+            all_visible_rows = []
+            for idx in range(self._model.rowCount()):
+                if not self._table_view.isRowHidden(idx):
+                    all_visible_rows.append(idx)
+            try:
+                current_pos = all_visible_rows.index(self._current_index)
+            except ValueError:
+                return
+            start_pos = max(0, current_pos - num_surrounding - extra_range)
+            end_pos = min(len(all_visible_rows), current_pos + num_surrounding + extra_range + 1)
+            visible_rows = all_visible_rows[start_pos:end_pos]
+        else:
+            for offset in range(-num_surrounding - extra_range, num_surrounding + extra_range + 1):
+                idx = self._current_index + offset
+                if idx >= 0 and idx < self._model.rowCount():
+                    visible_rows.append(idx)
+        
+        if not visible_rows or self._current_index not in visible_rows:
+            return
+        
+        current_row_pos = visible_rows.index(self._current_index)
+        ground_y = -quad_h_for_ground / 2
+        
+        # Calculate box dimensions (same as main render)
+        quad_h = max_quad_h * 0.8
+        quad_w = self.STANDARD_ASPECT_RATIO * quad_h
+        if quad_w > max_quad_w * 0.8:
+            quad_w = max_quad_w * 0.8
+            quad_h = quad_w / self.STANDARD_ASPECT_RATIO
+        half_h = quad_h / 2
+        
+        # --- Setup reflection rendering state ---
+        glDepthMask(GL_FALSE)  # Don't write to depth buffer
+        
+        # Set reflection uniforms
+        if hasattr(self, 'uniform_reflection_alpha') and self.uniform_reflection_alpha >= 0:
+            glUniform1f(self.uniform_reflection_alpha, lighting_config.REFLECTION_ALPHA)
+        if hasattr(self, 'uniform_reflection_half_h') and self.uniform_reflection_half_h >= 0:
+            glUniform1f(self.uniform_reflection_half_h, half_h)
+        
+        # Disable shadows for reflection pass (shadow map is for normal scene only)
+        if hasattr(self, 'uniform_use_shadows') and self.uniform_use_shadows >= 0:
+            glUniform1i(self.uniform_use_shadows, 0)
+        
+        # Apply mirror transform: reflect around ground_y
+        glPushMatrix()
+        glTranslatef(0.0, 2.0 * ground_y, 0.0)
+        glScalef(1.0, -1.0, 1.0)
+        glFrontFace(GL_CW)  # Flip winding due to Y mirror
+        
+        # --- Render each visible box as a reflection ---
+        for i, idx in enumerate(visible_rows):
+            offset_from_current = i - current_row_pos
+            
+            # Only use cached textures - don't load new ones for reflections
+            cover_img, texture_id, back_texture_id, quad_geom = self.getCachedCover(idx)
+            if texture_id is None:
+                continue
+            
+            img_aspect = None
+            if quad_geom:
+                img_aspect, _, _ = quad_geom
+            
+            # Calculate position (same parabolic arc as main render)
+            effective_offset = offset_from_current - scroll_offset
+            x_offset = effective_offset * vertical_spacing
+            
+            parabola_range = 3.0
+            parabola_coef = 0.3
+            abs_offset = abs(effective_offset)
+            if abs_offset <= parabola_range:
+                z_curve = (effective_offset * effective_offset) * parabola_coef
+                curve_slope = 2 * parabola_coef * effective_offset
+                curve_angle = math.atan(curve_slope) * (180.0 / math.pi) * 1.1
+            else:
+                z_at_boundary = parabola_coef * parabola_range * parabola_range
+                slope_at_boundary = 2 * parabola_coef * parabola_range
+                sign = 1 if effective_offset >= 0 else -1
+                distance_beyond = abs_offset - parabola_range
+                z_curve = z_at_boundary + slope_at_boundary * distance_beyond
+                curve_angle = math.atan(slope_at_boundary) * (180.0 / math.pi) * sign * 1.1
+            
+            # Calculate rotation (same as main render)
+            movie_rotation = self.movie_rotations.get(idx, 0.0) if hasattr(self, 'movie_rotations') else 0.0
+            rotation_factor = max(0.0, 1.0 - abs(effective_offset))
+            if movie_rotation > 90:
+                if effective_offset > 0:
+                    normalized_rotation = movie_rotation - 360
+                    current_rotation = normalized_rotation * rotation_factor
+                else:
+                    current_rotation = movie_rotation * rotation_factor
+            else:
+                current_rotation = movie_rotation * rotation_factor
+            
+            glPushMatrix()
+            glTranslatef(x_offset, 0.0, -z_curve)
+            glRotatef(current_rotation + curve_angle, 0.0, 1.0, 0.0)
+            glColor4f(1.0, 1.0, 1.0, 1.0)
+            self.drawVHSBox(quad_w, quad_h, texture_id, back_texture_id, img_aspect)
+            glPopMatrix()
+        
+        # --- Restore rendering state ---
+        glFrontFace(GL_CCW)
+        glPopMatrix()
+        glDepthMask(GL_TRUE)
+        
+        # Reset reflection uniforms
+        if hasattr(self, 'uniform_reflection_alpha') and self.uniform_reflection_alpha >= 0:
+            glUniform1f(self.uniform_reflection_alpha, 0.0)
+        
+        # Re-enable shadows if they were on
+        if lighting_config.SHADOW_ENABLED and hasattr(self, 'uniform_use_shadows') and self.uniform_use_shadows >= 0:
+            glUniform1i(self.uniform_use_shadows, 1)
 
     def drawGroundPlane(self, quad_h):
         """Draw a large ground plane that the VHS boxes sit on.
@@ -2444,16 +2610,37 @@ class CoverFlowGLWidget(QOpenGLWidget):
                     glUniform1i(self.uniform_use_shadows, 0)
             
             glUniform1i(self.uniform_texture, 0)  # Texture unit 0
+            
+            # Initialize reflection uniforms to default (no reflection)
+            if hasattr(self, 'uniform_reflection_alpha') and self.uniform_reflection_alpha >= 0:
+                glUniform1f(self.uniform_reflection_alpha, 0.0)
+            if hasattr(self, 'uniform_reflection_half_h') and self.uniform_reflection_half_h >= 0:
+                glUniform1f(self.uniform_reflection_half_h, 0.4)
+            if hasattr(self, 'uniform_ground_alpha') and self.uniform_ground_alpha >= 0:
+                glUniform1f(self.uniform_ground_alpha, 1.0)
         
-        # Draw ground plane first (so boxes render on top)
         # Calculate quad_h for ground plane positioning
         max_quad_h = 1.0
         quad_h_for_ground = max_quad_h * 0.8  # Match the scaling used for boxes in multi-cover mode
         
-        # Draw ground plane at origin
+        # Draw reflected boxes BEFORE ground plane (reflections are behind the ground)
+        if lighting_config.REFLECTION_ENABLED and lighting_config.REFLECTION_ALPHA > 0:
+            self._drawReflectedBoxes(quad_h_for_ground)
+        
+        # Draw ground plane (semi-transparent if reflections are enabled so they show through)
+        if self.shader_program and lighting_config.REFLECTION_ENABLED and lighting_config.REFLECTION_ALPHA > 0:
+            if hasattr(self, 'uniform_ground_alpha') and self.uniform_ground_alpha >= 0:
+                # Ground transparency scales with reflection alpha
+                ground_alpha = max(0.3, 1.0 - lighting_config.REFLECTION_ALPHA * 0.8)
+                glUniform1f(self.uniform_ground_alpha, ground_alpha)
+        
         glPushMatrix()
         self.drawGroundPlane(quad_h_for_ground)
         glPopMatrix()
+        
+        # Reset ground alpha back to opaque for normal box rendering
+        if self.shader_program and hasattr(self, 'uniform_ground_alpha') and self.uniform_ground_alpha >= 0:
+            glUniform1f(self.uniform_ground_alpha, 1.0)
         
         # Determine how many surrounding covers to show
         # Reduced for better performance with chamfered boxes

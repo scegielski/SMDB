@@ -461,6 +461,18 @@ class LightingControlsWidget(QWidget):
         self.controls['SHADOW_DARKNESS'].valueChanged.connect(self._updateConfig)
         lightingSection.addWidget(self.controls['SHADOW_DARKNESS'])
         
+        # Reflection enabled checkbox
+        self.reflectionEnabledCheckbox = QCheckBox("Enable Reflections")
+        self.reflectionEnabledCheckbox.setChecked(lighting_config.REFLECTION_ENABLED)
+        self.reflectionEnabledCheckbox.stateChanged.connect(self._updateConfig)
+        lightingSection.addWidget(self.reflectionEnabledCheckbox)
+        
+        self.controls['REFLECTION_ALPHA'] = ControlRow(
+            "Reflection Intensity", 0.0, 1.0, lighting_config.REFLECTION_ALPHA, 0.01, 2
+        )
+        self.controls['REFLECTION_ALPHA'].valueChanged.connect(self._updateConfig)
+        lightingSection.addWidget(self.controls['REFLECTION_ALPHA'])
+        
         # ========== BOX MATERIAL SECTION (Collapsible) ==========
         boxMaterialSection = CollapsibleBox("Box Material")
         boxMaterialSection.setExpanded(False)  # Start collapsed
@@ -536,6 +548,9 @@ class LightingControlsWidget(QWidget):
         # Update shadow enabled checkbox
         lighting_config.SHADOW_ENABLED = self.shadowEnabledCheckbox.isChecked()
         
+        # Update reflection enabled checkbox
+        lighting_config.REFLECTION_ENABLED = self.reflectionEnabledCheckbox.isChecked()
+        
         # Emit signal to notify that controls changed
         self.controlsChanged.emit()
     
@@ -563,6 +578,7 @@ class LightingControlsWidget(QWidget):
         
         self.spotlightWireframeCheckbox.setChecked(lighting_config.SPOTLIGHT_WIREFRAME_ENABLED)
         self.shadowEnabledCheckbox.setChecked(lighting_config.SHADOW_ENABLED)
+        self.reflectionEnabledCheckbox.setChecked(lighting_config.REFLECTION_ENABLED)
         
         # Trigger update
         self._updateConfig()
@@ -624,6 +640,10 @@ class LightingControlsWidget(QWidget):
                     is_checked = self.shadowEnabledCheckbox.isChecked()
                     new_lines.append(f'SHADOW_ENABLED = {is_checked}\n')
                     updated = True
+                elif line.strip().startswith('REFLECTION_ENABLED ='):
+                    is_checked = self.reflectionEnabledCheckbox.isChecked()
+                    new_lines.append(f'REFLECTION_ENABLED = {is_checked}\n')
+                    updated = True
             
             # If not updated, keep the original line
             if not updated:
@@ -644,6 +664,7 @@ class LightingControlsWidget(QWidget):
         
         self.spotlightWireframeCheckbox.setChecked(lighting_config.SPOTLIGHT_WIREFRAME_ENABLED)
         self.shadowEnabledCheckbox.setChecked(lighting_config.SHADOW_ENABLED)
+        self.reflectionEnabledCheckbox.setChecked(lighting_config.REFLECTION_ENABLED)
     
     def saveSettings(self, settings: QSettings):
         """Save all lighting control values to QSettings."""
@@ -661,6 +682,7 @@ class LightingControlsWidget(QWidget):
         # Save checkbox states
         settings.setValue('SPOTLIGHT_WIREFRAME_ENABLED', self.spotlightWireframeCheckbox.isChecked())
         settings.setValue('SHADOW_ENABLED', self.shadowEnabledCheckbox.isChecked())
+        settings.setValue('REFLECTION_ENABLED', self.reflectionEnabledCheckbox.isChecked())
         
         settings.endGroup()
     
@@ -694,5 +716,10 @@ class LightingControlsWidget(QWidget):
                                         lighting_config.SHADOW_ENABLED, type=bool)
         self.shadowEnabledCheckbox.setChecked(shadow_enabled)
         lighting_config.SHADOW_ENABLED = shadow_enabled
+        
+        reflection_enabled = settings.value('REFLECTION_ENABLED', 
+                                           lighting_config.REFLECTION_ENABLED, type=bool)
+        self.reflectionEnabledCheckbox.setChecked(reflection_enabled)
+        lighting_config.REFLECTION_ENABLED = reflection_enabled
         
         settings.endGroup()

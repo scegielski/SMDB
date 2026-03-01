@@ -7,6 +7,7 @@ varying vec4 fragColor;
 varying vec3 fragTangent;
 varying vec3 fragBitangent;
 varying vec4 fragShadowCoord;
+varying float vObjectY;
 
 uniform sampler2D textureSampler;
 uniform sampler2D shadowMap;
@@ -45,6 +46,11 @@ uniform float metallic;
 uniform float roughness;
 uniform float ao;  // Ambient occlusion
 
+// Reflection properties
+uniform float reflectionAlpha;   // 0 = normal rendering, >0 = reflection pass
+uniform float reflectionHalfH;   // Half-height of box for vertical fade
+uniform float groundAlpha;       // Ground plane transparency (1.0 = opaque)
+
 const float PI = 3.14159265359;
 
 // ===== MATERIAL FUNCTIONS =====
@@ -76,7 +82,10 @@ vec3 getMaterialBaseColor() {
 }
 
 float getMaterialAlpha() {
-    // Always return 1.0 for opaque rendering after compositing
+    // For ground plane (checkerboard), use groundAlpha to allow reflections to show through
+    if (useCheckerboard) {
+        return groundAlpha;
+    }
     return 1.0;
 }
 
@@ -378,6 +387,16 @@ void main() {
     
     // Gamma correction (approximate)
     //color = pow(color, vec3(1.0 / 2.2));
+    
+    // Apply reflection fade if in reflection pass
+    if (reflectionAlpha > 0.0) {
+        // Fade based on distance from ground plane (bottom of box)
+        // vObjectY ranges from -reflectionHalfH (ground contact) to +reflectionHalfH (far from ground)
+        float normalizedY = clamp((vObjectY + reflectionHalfH) / (2.0 * reflectionHalfH), 0.0, 1.0);
+        float fade = 1.0 - normalizedY;
+        fade = fade * fade;  // Quadratic falloff for natural look
+        alpha *= reflectionAlpha * fade;
+    }
     
     gl_FragColor = vec4(color, alpha);
 }

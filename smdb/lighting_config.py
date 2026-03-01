@@ -50,3 +50,7 @@ SHADOW_LIGHT_SIZE = 15.0
 SHADOW_MAP_SIZE = 2048.0
 SHADOW_BIAS = 0.0003
 SHADOW_DARKNESS = 0.700
+
+# Reflection configuration - Mirror reflections on the ground plane
+REFLECTION_ENABLED = True
+REFLECTION_ALPHA = 0.350     # Overall reflection opacity (0 = invisible, 1 = full mirror)
