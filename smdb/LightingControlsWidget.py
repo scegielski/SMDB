@@ -438,7 +438,7 @@ class LightingControlsWidget(QWidget):
         lightingSection.addWidget(self.shadowEnabledCheckbox)
         
         self.controls['SHADOW_LIGHT_SIZE'] = ControlRow(
-            "Shadow Light Size", 1.0, 1000.0, lighting_config.SHADOW_LIGHT_SIZE, 1.0, 1
+            "Shadow Light Size", 1.0, 1500.0, lighting_config.SHADOW_LIGHT_SIZE, 1.0, 1
         )
         self.controls['SHADOW_LIGHT_SIZE'].valueChanged.connect(self._updateConfig)
         lightingSection.addWidget(self.controls['SHADOW_LIGHT_SIZE'])

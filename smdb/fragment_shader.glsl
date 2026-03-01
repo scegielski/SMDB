@@ -260,7 +260,9 @@ void main() {
             // Only apply shadows if within shadow map bounds
             if (inShadowMapBounds) {
                 float texelSize = 1.0 / shadowMapSize;
-                float currentDepth = projCoords.z - shadowBias;
+                // Scale bias with light size to prevent acne at large penumbra widths
+                float scaledBias = shadowBias * (1.0 + shadowLightSize * 0.005);
+                float currentDepth = projCoords.z - scaledBias;
                 
                 {
                     // ============================================================
