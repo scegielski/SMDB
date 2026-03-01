@@ -90,6 +90,10 @@ class StatisticsWidget(QtWidgets.QWidget):
         # Genre distribution chart
         self.genreCanvas = self.createChartCanvas()
         chartsLayout.addWidget(self.createChartGroup("Genre Distribution", self.genreCanvas))
+
+        # Top genres by country chart
+        self.genreByCountryCanvas = self.createChartCanvas(height=8)
+        chartsLayout.addWidget(self.createChartGroup("Top Genres by Country", self.genreByCountryCanvas))
         
         # Rating distribution chart
         self.ratingCanvas = self.createChartCanvas()
@@ -406,6 +410,102 @@ class StatisticsWidget(QtWidgets.QWidget):
         self.plotTopWritersByRating(movies_data)
         self.plotTopProducersByRating(movies_data)
         self.plotTopComposersByRating(movies_data)
+
+        # Precompute genre-by-country data for fast plotting
+        self._genre_by_country_data = self.computeGenreByCountryData(movies_data)
+        self.plotGenreByCountry(self._genre_by_country_data)
+
+    def computeGenreByCountryData(self, movies_data, top_n_genres=5, top_n_countries=10):
+        """Aggregate data for the top genres by country chart. Returns a dict with keys: top_countries, genre_list, data."""
+        from collections import Counter, defaultdict
+        country_genre_counts = defaultdict(Counter)
+        for movie in movies_data:
+            countries = movie.get('countries')
+            genres = movie.get('genres')
+            # Ensure both are always lists
+            if not countries:
+                countries = []
+            elif isinstance(countries, str):
+                countries = [c.strip() for c in countries.split(',') if c.strip()]
+            # else: already a list
+            if not genres:
+                genres = []
+            elif isinstance(genres, str):
+                genres = [g.strip() for g in genres.split(',') if g.strip()]
+            # else: already a list
+            for country in countries:
+                for genre in genres:
+                    if country and genre:
+                        country_genre_counts[country][genre] += 1
+
+        country_totals = {country: sum(genre_counts.values()) for country, genre_counts in country_genre_counts.items()}
+        top_countries = sorted(country_totals, key=country_totals.get, reverse=True)[:top_n_countries]
+
+        genre_set = set()
+        for country in top_countries:
+            top_genres = [g for g, _ in country_genre_counts[country].most_common(top_n_genres)]
+            genre_set.update(top_genres)
+        genre_list = sorted(genre_set)
+
+        # Normalize genre counts to percentages per country
+        data = {genre: [] for genre in genre_list}
+        for country in top_countries:
+            genre_counts = country_genre_counts[country]
+            total = sum(genre_counts.get(g, 0) for g in genre_list)
+            for genre in genre_list:
+                count = genre_counts.get(genre, 0)
+                percent = (count / total * 100) if total > 0 else 0
+                data[genre].append(percent)
+
+        return {
+            'top_countries': top_countries,
+            'genre_list': genre_list,
+            'data': data
+        }
+
+    def plotGenreByCountry(self, agg_data):
+        """Plot a bar chart of the top genres for each country using precomputed data."""
+        top_countries = agg_data['top_countries']
+        genre_list = list(reversed(agg_data['genre_list']))
+        data = agg_data['data']
+        import matplotlib.cm as cm
+        fig = self.genreByCountryCanvas.figure
+        fig.clear()
+        ax = fig.add_subplot(111)
+
+        x = range(len(top_countries))
+        width = 0.7
+        bottoms = [0] * len(top_countries)
+        color_map = cm.get_cmap('tab20', len(genre_list))
+        bars = []
+        for i, genre in enumerate(genre_list):
+            color = color_map(i)
+            bar = ax.bar(x, data[genre], width, bottom=bottoms, label=genre, color=color, edgecolor='white', linewidth=0.7)
+            bars.append(bar)
+            bottoms = [bottoms[j] + data[genre][j] for j in range(len(top_countries))]
+
+        ax.set_xlabel('Country', color='white')
+        ax.set_ylabel('Percent of Movies', color='white')
+        ax.set_xticks(x)
+        ax.set_xticklabels(top_countries, rotation=30, ha='right')
+        ax.tick_params(colors='white')
+        ax.spines['bottom'].set_color('white')
+        ax.spines['left'].set_color('white')
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+
+        # Add legend
+        ax.legend(title='Genre', facecolor='#191919', edgecolor='white', labelcolor='white', title_fontsize=10, fontsize=8, loc='upper right')
+
+        # Add percentage labels on top of each stack
+        for i, country in enumerate(top_countries):
+            total = sum(data[genre][i] for genre in genre_list)
+            if total > 0:
+                ax.text(i, 100.5, f"{total:.0f}%", ha='center', va='bottom', color='white', fontsize=9)
+
+        ax.set_ylim(0, 105)
+        fig.tight_layout()
+        self.genreByCountryCanvas.draw()
         
     def calculateMetrics(self, movies_data):
         """Calculate and display top-level metrics."""
