@@ -15,6 +15,7 @@ guide's small preview window continues to hop between random clips on the
 fly while you're browsing.
 """
 
+import html
 import math
 import os
 import random
@@ -621,6 +622,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         super().__init__(parent)
         self.mainWindow = parent
         self._videoPathCache = {}
+        self._descriptionCache = {}
         self.channels = []
         self.engines = {}
         self.currentIndex = 0
@@ -784,7 +786,14 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.guideCaption.setWordWrap(True)
         self.guideCaption.setStyleSheet("color: white; font-size: 26px; font-weight: bold;")
         captionLayout.addWidget(self.guideCaption)
-        captionLayout.addStretch(1)
+
+        self.guideDescription = QtWidgets.QTextEdit()
+        self.guideDescription.setReadOnly(True)
+        self.guideDescription.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.guideDescription.setStyleSheet(
+            "QTextEdit { background: transparent; color: #ccccff; font-size: 14px; border: none; }"
+        )
+        captionLayout.addWidget(self.guideDescription, 1)
 
         self.guideTable = QtWidgets.QTableWidget(0, 4)
         self.guideTable.setHorizontalHeaderLabels(["CH", "CHANNEL", "NOW", "NEXT"])
@@ -846,6 +855,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
 
         self._teardownAllEngines()
         self._videoPathCache = {}
+        self._descriptionCache = {}
         self.channels = newChannels
         if self.channels:
             self.currentIndex = min(self.currentIndex, len(self.channels) - 1)
@@ -879,6 +889,24 @@ class RetroChannelWidget(QtWidgets.QWidget):
             return f"{title} ({year})" if year else title
         except Exception:
             return ''
+
+    def _descriptionForRow(self, row):
+        """Plot text for a movie row (cached - the data lives in a per-movie JSON file)."""
+        if row in self._descriptionCache:
+            return self._descriptionCache[row]
+        text = ''
+        model = getattr(self.mainWindow, 'moviesTableModel', None)
+        try:
+            data = model.getMovieData(row) if model is not None else None
+        except Exception:
+            data = None
+        if data:
+            plot = data.get('plot') or data.get('synopsis') or data.get('summary') or ''
+            if isinstance(plot, list):
+                plot = ' '.join(str(p) for p in plot if p)
+            text = str(plot).strip()
+        self._descriptionCache[row] = text
+        return text
 
     def _updateEmptyState(self):
         hasChannels = bool(self.channels)
@@ -1194,6 +1222,17 @@ class RetroChannelWidget(QtWidgets.QWidget):
 
         chan = self.channels[self.guideHighlightIndex]
         self.guideCaption.setText(f"CH {self.guideHighlightIndex + 1:02d} \u2014 {chan['genre'].upper()}")
+
+        engine = self.engines.get(self.guideHighlightIndex)
+        if engine and engine.currentRow is not None:
+            nowRow = engine.currentRow
+        else:
+            nowRow = chan['clock'].whatsOnNow()[1]
+        description = self._descriptionForRow(nowRow) or "No description available."
+        self.guideDescription.setHtml(
+            f"<p style='color:#ffcc00;font-weight:bold;'>{html.escape(self._titleForRow(nowRow))}</p>"
+            f"<p>{html.escape(description)}</p>"
+        )
 
     # ------------------------------------------------------------------
     # Qt event overrides
