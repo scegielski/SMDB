@@ -59,12 +59,53 @@ class ChannelSetupTests(unittest.TestCase):
             dialog = _ChannelSetupDialog([], set(), tv)
             with patch('smdb.RetroChannelWidget._ChannelSetupDialog', return_value=dialog), \
                     patch.object(dialog, 'exec_', return_value=QtWidgets.QDialog.Rejected), \
-                    patch.object(tv, 'setExcludedChannels') as apply:
+                    patch.object(tv, 'setChannelPreferences') as apply:
                 tv.setupButton.click()
                 apply.assert_not_called()
             dialog.close()
         finally:
             tv.close()
+
+    def test_rating_filter_persists_and_keeps_single_movie_channels(self):
+        with tempfile.TemporaryDirectory() as directory:
+            parent = QtWidgets.QWidget()
+            parent.settings = QtCore.QSettings(os.path.join(directory, 'settings.ini'), QtCore.QSettings.IniFormat)
+            model = parent.moviesTableModel = Mock()
+            model.rowCount.return_value = 4
+            model.getGenres.side_effect = lambda row: ['Action'] if row < 3 else ['Comedy']
+            model.getRuntime.return_value = '120'
+            model.getMpaaRating.side_effect = lambda row: ['PG', 'Rated R for violence', '', 'NR'][row]
+            tv = RetroChannelWidget(parent)
+            restored = None
+            try:
+                tv.refreshChannels()
+                self.assertEqual(len(tv.channels), 2)
+                dialog = _ChannelSetupDialog(tv._availableChannels, set(), tv, tv._ratingCounts, set())
+                self.assertEqual(set(dialog.ratingChecks), {'PG', 'R', 'Unknown', 'Unrated'})
+                dialog.pages.setCurrentIndex(1)
+                dialog.selectAll(False)
+                self.assertTrue(all(check.isChecked() for check in dialog.channelChecks.values()))
+                dialog.ratingChecks['PG'].setChecked(True)
+                with patch('smdb.RetroChannelWidget._ChannelSetupDialog', return_value=dialog), \
+                        patch.object(dialog, 'exec_', return_value=QtWidgets.QDialog.Accepted):
+                    tv.setupButton.click()
+                self.assertEqual([(channel['genre'], channel['rows']) for channel in tv.channels], [('Action', [0])])
+                self.assertEqual(tv.channels[0]['clock']._rotation, [0])
+                restored = RetroChannelWidget(parent)
+                restored.refreshChannels()
+                self.assertEqual(restored.channels[0]['rows'], [0])
+                restored.setChannelPreferences([], ['PG', 'R', 'Unknown', 'Unrated'])
+                self.assertEqual(restored.channels, [])
+                self.assertTrue(restored.setupButton.isEnabled())
+                self.assertEqual(len(restored._availableChannels), 2)
+                restored.setChannelPreferences([], [])
+                self.assertEqual(len(restored.channels), 2)
+                dialog.close()
+            finally:
+                tv.close()
+                if restored:
+                    restored.close()
+                parent.close()
 
 
 if __name__ == '__main__':

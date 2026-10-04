@@ -869,12 +869,12 @@ class _OverlayArea(QtWidgets.QWidget):
 
 
 class _ChannelSetupDialog(QtWidgets.QDialog):
-    def __init__(self, channels, excludedGenres, parent=None):
+    def __init__(self, channels, excludedGenres, parent=None, ratingCounts=None, excludedRatings=None):
         super().__init__(parent)
         self.setWindowTitle('SMTV channel setup')
         self.resize(600, 650)
         layout = QtWidgets.QVBoxLayout(self)
-        layout.addWidget(QtWidgets.QLabel('Choose the channels to include in SMTV.'))
+        layout.addWidget(QtWidgets.QLabel('Choose the channels and MPAA ratings to include in SMTV.'))
         scroll = QtWidgets.QScrollArea()
         scroll.setWidgetResizable(True)
         contents = QtWidgets.QWidget()
@@ -887,21 +887,42 @@ class _ChannelSetupDialog(QtWidgets.QDialog):
             self.channelChecks[genre] = checkbox
             checks.addWidget(checkbox)
         if not channels:
-            checks.addWidget(QtWidgets.QLabel('No channels with enough movies are available.'))
+            checks.addWidget(QtWidgets.QLabel('No channels are available.'))
         checks.addStretch()
         scroll.setWidget(contents)
-        layout.addWidget(scroll, 1)
+        self.pages = QtWidgets.QTabWidget()
+        self.pages.addTab(scroll, 'Channels')
+        ratingsScroll = QtWidgets.QScrollArea()
+        ratingsScroll.setWidgetResizable(True)
+        ratingsContents = QtWidgets.QWidget()
+        ratingsLayout = QtWidgets.QVBoxLayout(ratingsContents)
+        self.ratingChecks = {}
+        for rating, count in sorted((ratingCounts or {}).items()):
+            checkbox = QtWidgets.QCheckBox(f'{rating} ({count} movies)')
+            checkbox.setChecked(rating not in (excludedRatings or set()))
+            self.ratingChecks[rating] = checkbox
+            ratingsLayout.addWidget(checkbox)
+        if not self.ratingChecks:
+            ratingsLayout.addWidget(QtWidgets.QLabel('No rating information is available.'))
+        ratingsLayout.addStretch()
+        ratingsScroll.setWidget(ratingsContents)
+        self.pages.addTab(ratingsScroll, 'MPAA Ratings')
+        layout.addWidget(self.pages, 1)
         selection = QtWidgets.QHBoxLayout()
         for label, checked in (('Select all', True), ('Clear all', False)):
             button = QtWidgets.QPushButton(label)
-            button.clicked.connect(lambda _clicked=False, value=checked:
-                                   [checkbox.setChecked(value) for checkbox in self.channelChecks.values()])
+            button.clicked.connect(lambda _clicked=False, value=checked: self.selectAll(value))
             selection.addWidget(button)
         layout.addLayout(selection)
         buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+    def selectAll(self, checked):
+        checks = self.channelChecks if self.pages.currentIndex() == 0 else self.ratingChecks
+        for checkbox in checks.values():
+            checkbox.setChecked(checked)
 
 
 class RetroChannelWidget(QtWidgets.QWidget):
@@ -911,7 +932,6 @@ class RetroChannelWidget(QtWidgets.QWidget):
     """
 
     fontScaleChanged = QtCore.pyqtSignal(float)
-    MIN_MOVIES_PER_CHANNEL = 10
     NEIGHBOR_WARM_COUNT = 1  # warm this many channels on either side for instant surfing
     DEFAULT_FONT_SCALE = 2.0
     RETRO_FONT_FAMILIES = (
@@ -926,8 +946,12 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._descriptionCache = {}
         self.channels = []
         self._availableChannels = []
+        self._ratingByRow = {}
+        self._ratingCounts = {}
+        self._filteredClocks = {}
         self._settings = getattr(parent, 'settings', None)
         self._excludedGenres = set(self._settings.value('smtvExcludedGenres', [], type=list)) if self._settings else set()
+        self._excludedRatings = set(self._settings.value('smtvExcludedMpaaRatings', [], type=list)) if self._settings else set()
         self.engines = {}
         self.currentIndex = 0
         self.isActive = False
@@ -1314,7 +1338,13 @@ class RetroChannelWidget(QtWidgets.QWidget):
             return
 
         genreRows = {}
+        self._ratingByRow = {}
+        self._ratingCounts = {}
+        self._filteredClocks = {}
         for row in range(model.rowCount()):
+            rating = self._mpaaForRow(model, row)
+            self._ratingByRow[row] = rating
+            self._ratingCounts[rating] = self._ratingCounts.get(rating, 0) + 1
             try:
                 genres = model.getGenres(row)
             except Exception:
@@ -1325,7 +1355,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         newChannels = [
             {'genre': genre, 'rows': rows, 'clock': ChannelClock(rows, self._durationForRow)}
             for genre, rows in sorted(genreRows.items())
-            if len(rows) >= self.MIN_MOVIES_PER_CHANNEL
+            if rows
         ]
 
         self._videoPathCache = {}
@@ -1334,28 +1364,51 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._applyChannelSelection()
 
     def openChannelSetup(self):
-        dialog = _ChannelSetupDialog(self._availableChannels, self._excludedGenres, self)
+        dialog = _ChannelSetupDialog(self._availableChannels, self._excludedGenres, self,
+                                     self._ratingCounts, self._excludedRatings)
         if dialog.exec_() == QtWidgets.QDialog.Accepted:
             available = set(dialog.channelChecks)
             excluded = (self._excludedGenres - available) | {
                 genre for genre, checkbox in dialog.channelChecks.items() if not checkbox.isChecked()}
-            self.setExcludedChannels(excluded)
+            availableRatings = set(dialog.ratingChecks)
+            excludedRatings = (self._excludedRatings - availableRatings) | {
+                rating for rating, checkbox in dialog.ratingChecks.items() if not checkbox.isChecked()}
+            self.setChannelPreferences(excluded, excludedRatings)
 
     def setExcludedChannels(self, genres):
+        self.setChannelPreferences(genres, self._excludedRatings)
+
+    def setChannelPreferences(self, genres, ratings):
         excluded = set(genres)
-        if excluded == self._excludedGenres:
+        excludedRatings = set(ratings)
+        if excluded == self._excludedGenres and excludedRatings == self._excludedRatings:
             return
         self._excludedGenres = excluded
+        self._excludedRatings = excludedRatings
         if self._settings:
             self._settings.setValue('smtvExcludedGenres', sorted(excluded))
+            self._settings.setValue('smtvExcludedMpaaRatings', sorted(excludedRatings))
         self._applyChannelSelection()
 
     def _applyChannelSelection(self):
         currentGenre = self.channels[self.currentIndex]['genre'] if self.channels else None
         self._teardownAllEngines()
         self._stopGuidePreview()
-        self.channels = [channel for channel in self._availableChannels
-                         if channel['genre'] not in self._excludedGenres]
+        self.channels = []
+        for channel in self._availableChannels:
+            if channel['genre'] in self._excludedGenres:
+                continue
+            rows = [row for row in channel['rows']
+                    if self._ratingByRow.get(row, 'Unknown') not in self._excludedRatings]
+            if not rows:
+                continue
+            if rows == channel['rows']:
+                self.channels.append(channel)
+            else:
+                key = (channel['genre'], tuple(rows))
+                if key not in self._filteredClocks:
+                    self._filteredClocks[key] = ChannelClock(rows, self._durationForRow)
+                self.channels.append({'genre': channel['genre'], 'rows': rows, 'clock': self._filteredClocks[key]})
         self.currentIndex = next((i for i, channel in enumerate(self.channels)
                                   if channel['genre'] == currentGenre), 0)
         self.guideHighlightIndex = self.currentIndex
@@ -1369,6 +1422,21 @@ class RetroChannelWidget(QtWidgets.QWidget):
         elif self.isActive:
             self._tuneTo(self.currentIndex)
             self._openStartupGuide()
+
+    def _mpaaForRow(self, model, row):
+        try:
+            value = model.getMpaaRating(row)
+        except (AttributeError, IndexError, TypeError):
+            value = None
+        if not isinstance(value, str) or not value.strip():
+            return 'Unknown'
+        rating = value.split(',')[0].strip().upper()
+        if rating in ('NR', 'N/R', 'NOT RATED', 'UNRATED', 'NOT-RATED'):
+            return 'Unrated'
+        if rating in ('UNKNOWN', 'N/A', 'NONE'):
+            return 'Unknown'
+        match = re.match(r'^(?:RATED\s+)?(NC-17|PG-13|PG|G|R)(?:\b|$)', rating)
+        return match.group(1) if match else rating
 
     def _durationForRow(self, row):
         model = getattr(self.mainWindow, 'moviesTableModel', None)
