@@ -66,6 +66,51 @@ class ChannelSetupTests(unittest.TestCase):
         finally:
             tv.close()
 
+    def test_quality_range_filters_catalogue_scores_and_persists(self):
+        with tempfile.TemporaryDirectory() as directory:
+            parent = QtWidgets.QWidget()
+            parent.settings = QtCore.QSettings(os.path.join(directory, 'settings.ini'), QtCore.QSettings.IniFormat)
+            model = parent.moviesTableModel = Mock()
+            model.rowCount.return_value = 7
+            model.getGenres.return_value = ['Action']
+            model.getRuntime.return_value = '120'
+            model.getMpaaRating.side_effect = lambda row: 'R' if row == 2 else 'PG'
+            model.getRating.side_effect = lambda row: ['6.093', '7.667', '8.6', '3.3', '0.0', '', 'bad'][row]
+            tv = RetroChannelWidget(parent)
+            restored = None
+            try:
+                tv.refreshChannels()
+                self.assertEqual(len(tv.channels[0]['rows']), 7)
+                dialog = _ChannelSetupDialog(tv._availableChannels, set(), tv, tv._ratingCounts, set())
+                dialog.pages.setCurrentIndex(2)
+                dialog.minimumRating.setValue(6.093)
+                dialog.maximumRating.setValue(7.667)
+                dialog.includeUnrated.setChecked(False)
+                with patch('smdb.RetroChannelWidget._ChannelSetupDialog', return_value=dialog), \
+                        patch.object(dialog, 'exec_', return_value=QtWidgets.QDialog.Accepted):
+                    tv.setupButton.click()
+                self.assertEqual(tv.channels[0]['rows'], [0, 1])
+                self.assertEqual(set(tv.channels[0]['clock']._rotation), {0, 1})
+                restored = RetroChannelWidget(parent)
+                restored.refreshChannels()
+                self.assertEqual(restored.channels[0]['rows'], [0, 1])
+                restored.setChannelPreferences([], [], (6.093, 8.6), True)
+                self.assertEqual(restored.channels[0]['rows'], [0, 1, 2, 4, 5, 6])
+                restored.setChannelPreferences([], ['R'], (6.093, 8.6), False)
+                self.assertEqual(restored.channels[0]['rows'], [0, 1])
+                restored.setChannelPreferences([], [], (9.0, 10.0), False)
+                self.assertEqual(restored.channels, [])
+                self.assertTrue(restored.setupButton.isEnabled())
+                self.assertLessEqual(dialog.minimumRating.value(), dialog.maximumRating.value())
+                dialog.minimumRating.setValue(10.0)
+                self.assertEqual(dialog.minimumRating.value(), dialog.maximumRating.value())
+                dialog.close()
+            finally:
+                tv.close()
+                if restored:
+                    restored.close()
+                parent.close()
+
     def test_rating_filter_persists_and_keeps_single_movie_channels(self):
         with tempfile.TemporaryDirectory() as directory:
             parent = QtWidgets.QWidget()

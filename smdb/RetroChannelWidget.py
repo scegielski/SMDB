@@ -869,12 +869,13 @@ class _OverlayArea(QtWidgets.QWidget):
 
 
 class _ChannelSetupDialog(QtWidgets.QDialog):
-    def __init__(self, channels, excludedGenres, parent=None, ratingCounts=None, excludedRatings=None):
+    def __init__(self, channels, excludedGenres, parent=None, ratingCounts=None, excludedRatings=None,
+                 qualityRange=(0.0, 10.0), includeUnrated=True):
         super().__init__(parent)
         self.setWindowTitle('SMTV channel setup')
         self.resize(600, 650)
         layout = QtWidgets.QVBoxLayout(self)
-        layout.addWidget(QtWidgets.QLabel('Choose the channels and MPAA ratings to include in SMTV.'))
+        layout.addWidget(QtWidgets.QLabel('Choose channels, MPAA ratings, and quality ratings for SMTV.'))
         scroll = QtWidgets.QScrollArea()
         scroll.setWidgetResizable(True)
         contents = QtWidgets.QWidget()
@@ -907,11 +908,37 @@ class _ChannelSetupDialog(QtWidgets.QDialog):
         ratingsLayout.addStretch()
         ratingsScroll.setWidget(ratingsContents)
         self.pages.addTab(ratingsScroll, 'MPAA Ratings')
+        qualityPage = QtWidgets.QWidget()
+        qualityLayout = QtWidgets.QVBoxLayout(qualityPage)
+        description = QtWidgets.QLabel('Include films whose catalogue rating falls within this range (0–10).')
+        description.setWordWrap(True)
+        qualityLayout.addWidget(description)
+        form = QtWidgets.QFormLayout()
+        self.minimumRating = QtWidgets.QDoubleSpinBox()
+        self.maximumRating = QtWidgets.QDoubleSpinBox()
+        for spin, value in zip((self.minimumRating, self.maximumRating), qualityRange):
+            spin.setRange(0.0, 10.0)
+            spin.setDecimals(3)
+            spin.setSingleStep(0.1)
+            spin.setValue(value)
+        self.minimumRating.setMaximum(self.maximumRating.value())
+        self.maximumRating.setMinimum(self.minimumRating.value())
+        self.minimumRating.valueChanged.connect(self.maximumRating.setMinimum)
+        self.maximumRating.valueChanged.connect(self.minimumRating.setMaximum)
+        form.addRow('Minimum rating', self.minimumRating)
+        form.addRow('Maximum rating', self.maximumRating)
+        qualityLayout.addLayout(form)
+        self.includeUnrated = QtWidgets.QCheckBox('Include films without a quality rating')
+        self.includeUnrated.setChecked(includeUnrated)
+        qualityLayout.addWidget(self.includeUnrated)
+        qualityLayout.addStretch()
+        self.pages.addTab(qualityPage, 'Quality Rating')
         layout.addWidget(self.pages, 1)
         selection = QtWidgets.QHBoxLayout()
         for label, checked in (('Select all', True), ('Clear all', False)):
             button = QtWidgets.QPushButton(label)
             button.clicked.connect(lambda _clicked=False, value=checked: self.selectAll(value))
+            self.pages.currentChanged.connect(lambda index, target=button: target.setEnabled(index < 2))
             selection.addWidget(button)
         layout.addLayout(selection)
         buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
@@ -920,6 +947,8 @@ class _ChannelSetupDialog(QtWidgets.QDialog):
         layout.addWidget(buttons)
 
     def selectAll(self, checked):
+        if self.pages.currentIndex() > 1:
+            return
         checks = self.channelChecks if self.pages.currentIndex() == 0 else self.ratingChecks
         for checkbox in checks.values():
             checkbox.setChecked(checked)
@@ -948,10 +977,16 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._availableChannels = []
         self._ratingByRow = {}
         self._ratingCounts = {}
+        self._qualityByRow = {}
         self._filteredClocks = {}
         self._settings = getattr(parent, 'settings', None)
         self._excludedGenres = set(self._settings.value('smtvExcludedGenres', [], type=list)) if self._settings else set()
         self._excludedRatings = set(self._settings.value('smtvExcludedMpaaRatings', [], type=list)) if self._settings else set()
+        self._minimumQuality = self._settings.value('smtvMinimumQuality', 0.0, type=float) if self._settings else 0.0
+        self._maximumQuality = self._settings.value('smtvMaximumQuality', 10.0, type=float) if self._settings else 10.0
+        self._minimumQuality = max(0.0, min(10.0, self._minimumQuality))
+        self._maximumQuality = max(self._minimumQuality, min(10.0, self._maximumQuality))
+        self._includeUnratedQuality = self._settings.value('smtvIncludeUnratedQuality', True, type=bool) if self._settings else True
         self.engines = {}
         self.currentIndex = 0
         self.isActive = False
@@ -1340,8 +1375,10 @@ class RetroChannelWidget(QtWidgets.QWidget):
         genreRows = {}
         self._ratingByRow = {}
         self._ratingCounts = {}
+        self._qualityByRow = {}
         self._filteredClocks = {}
         for row in range(model.rowCount()):
+            self._qualityByRow[row] = self._qualityForRow(model, row)
             rating = self._mpaaForRow(model, row)
             self._ratingByRow[row] = rating
             self._ratingCounts[rating] = self._ratingCounts.get(rating, 0) + 1
@@ -1365,7 +1402,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
 
     def openChannelSetup(self):
         dialog = _ChannelSetupDialog(self._availableChannels, self._excludedGenres, self,
-                                     self._ratingCounts, self._excludedRatings)
+                                     self._ratingCounts, self._excludedRatings,
+                                     (self._minimumQuality, self._maximumQuality), self._includeUnratedQuality)
         if dialog.exec_() == QtWidgets.QDialog.Accepted:
             available = set(dialog.channelChecks)
             excluded = (self._excludedGenres - available) | {
@@ -1373,21 +1411,34 @@ class RetroChannelWidget(QtWidgets.QWidget):
             availableRatings = set(dialog.ratingChecks)
             excludedRatings = (self._excludedRatings - availableRatings) | {
                 rating for rating, checkbox in dialog.ratingChecks.items() if not checkbox.isChecked()}
-            self.setChannelPreferences(excluded, excludedRatings)
+            self.setChannelPreferences(excluded, excludedRatings,
+                                       (dialog.minimumRating.value(), dialog.maximumRating.value()),
+                                       dialog.includeUnrated.isChecked())
 
     def setExcludedChannels(self, genres):
         self.setChannelPreferences(genres, self._excludedRatings)
 
-    def setChannelPreferences(self, genres, ratings):
+    def setChannelPreferences(self, genres, ratings, qualityRange=None, includeUnrated=None):
         excluded = set(genres)
         excludedRatings = set(ratings)
-        if excluded == self._excludedGenres and excludedRatings == self._excludedRatings:
+        minimum, maximum = qualityRange if qualityRange is not None else (self._minimumQuality, self._maximumQuality)
+        minimum = max(0.0, min(10.0, minimum))
+        maximum = max(minimum, min(10.0, maximum))
+        includeUnrated = self._includeUnratedQuality if includeUnrated is None else bool(includeUnrated)
+        if (excluded == self._excludedGenres and excludedRatings == self._excludedRatings
+                and (minimum, maximum, includeUnrated) ==
+                (self._minimumQuality, self._maximumQuality, self._includeUnratedQuality)):
             return
         self._excludedGenres = excluded
         self._excludedRatings = excludedRatings
+        self._minimumQuality, self._maximumQuality = minimum, maximum
+        self._includeUnratedQuality = includeUnrated
         if self._settings:
             self._settings.setValue('smtvExcludedGenres', sorted(excluded))
             self._settings.setValue('smtvExcludedMpaaRatings', sorted(excludedRatings))
+            self._settings.setValue('smtvMinimumQuality', minimum)
+            self._settings.setValue('smtvMaximumQuality', maximum)
+            self._settings.setValue('smtvIncludeUnratedQuality', includeUnrated)
         self._applyChannelSelection()
 
     def _applyChannelSelection(self):
@@ -1399,7 +1450,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
             if channel['genre'] in self._excludedGenres:
                 continue
             rows = [row for row in channel['rows']
-                    if self._ratingByRow.get(row, 'Unknown') not in self._excludedRatings]
+                    if self._ratingByRow.get(row, 'Unknown') not in self._excludedRatings
+                    and self._includesQuality(row)]
             if not rows:
                 continue
             if rows == channel['rows']:
@@ -1422,6 +1474,21 @@ class RetroChannelWidget(QtWidgets.QWidget):
         elif self.isActive:
             self._tuneTo(self.currentIndex)
             self._openStartupGuide()
+
+    def _qualityForRow(self, model, row):
+        try:
+            value = model.getRating(row)
+            if not isinstance(value, (str, int, float)):
+                return None
+            rating = float(value)
+            return rating if math.isfinite(rating) and 0 < rating <= 10 else None
+        except (AttributeError, IndexError, TypeError, ValueError):
+            return None
+
+    def _includesQuality(self, row):
+        rating = self._qualityByRow.get(row)
+        return (self._includeUnratedQuality if rating is None else
+                self._minimumQuality <= rating <= self._maximumQuality)
 
     def _mpaaForRow(self, model, row):
         try:

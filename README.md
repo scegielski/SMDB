@@ -39,6 +39,7 @@ Application settings (window layout, filters, last-selected folders, etc.) are s
 
 SMTV channels are available for any genre with at least one included movie. Each channel loops a shuffled lineup of 25 movies (or all available movies in smaller categories), starting each movie at a random position and playing to its end. Open the guide's SCHEDULE tab to see the highlighted channel's lineup and estimated start times.
 Use SETUP's Channels and MPAA Ratings tabs to include or exclude channels and movie ratings with checkboxes. Unrated and Unknown ratings have separate choices. Selections are saved for future launches; Setup remains available when all channels are excluded or rating filters leave no eligible movies.
+SETUP's Quality Rating tab filters the numeric Rating column shown in SMDB using inclusive minimum and maximum scores from 0 to 10, with three decimal places. Choose whether to include films without a score. These preferences are saved and apply together with channel and MPAA selections.
 Use View → Font Size → Increase/Decrease in either mode to adjust the active mode's text size.
 Use the clicker's NEXT and PREV buttons to move between programs on the current channel. These jumps retain the programs' random starting positions and update that channel's schedule.
 NEXT and PREV resume the position where you left a previously visited film; an unvisited program uses its assigned random start. Pressing PREV again after returning to a film goes to its beginning; NEXT then restores its saved position.
