@@ -13,6 +13,10 @@ class FullMovieScheduleTests(unittest.TestCase):
     def setUpClass(cls):
         cls.app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
+    def enableControls(self, tv):
+        for button in tv.sideControls.findChildren(QtWidgets.QPushButton):
+            button.setEnabled(True)
+
     def test_schedule_uses_movie_lengths_and_rejoins_in_progress(self):
         with patch('smdb.RetroChannelWidget.time.monotonic', return_value=0) as now:
             clock = ChannelClock([0, 1], lambda row: [120000, 300000][row])
@@ -68,7 +72,7 @@ class FullMovieScheduleTests(unittest.TestCase):
             tv = RetroChannelWidget()
             neighbor = Mock()
             tv.engines = {0: engine, 1: neighbor}
-            tv.sideControls.setEnabled(True)
+            self.enableControls(tv)
             engine.currentSlotIndex = 0
             engine._tuneRequestId = 10
             engine._prefetchRequestId = 11
@@ -158,7 +162,7 @@ class FullMovieScheduleTests(unittest.TestCase):
             tv = RetroChannelWidget()
             neighbor = Mock()
             tv.engines = {0: engine, 1: neighbor}
-            tv.sideControls.setEnabled(True)
+            self.enableControls(tv)
             try:
                 with patch.object(engine, '_maybeSchedulePrefetch'):
                     tv.forwardTenButton.click()
@@ -193,7 +197,7 @@ class FullMovieScheduleTests(unittest.TestCase):
         engine.currentSlotIndex = 0
         tv = RetroChannelWidget()
         tv.engines = {0: engine}
-        tv.sideControls.setEnabled(True)
+        self.enableControls(tv)
         try:
             with patch.object(engine, '_tuneIn') as tune:
                 tv.nextBeginningButton.click()
@@ -218,7 +222,7 @@ class FullMovieScheduleTests(unittest.TestCase):
         realPlayer = slot.player
         tv = RetroChannelWidget()
         tv.engines = {0: engine}
-        tv.sideControls.setEnabled(True)
+        self.enableControls(tv)
         try:
             with patch.object(engine, '_tuneIn') as tune, patch.object(engine, '_maybeSchedulePrefetch'):
                 tv.beginningButton.click()

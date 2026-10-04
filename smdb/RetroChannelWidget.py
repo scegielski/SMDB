@@ -868,6 +868,42 @@ class _OverlayArea(QtWidgets.QWidget):
             widget.setGeometry((rect.width() - w) // 2, (rect.height() - h) // 2, w, h)
 
 
+class _ChannelSetupDialog(QtWidgets.QDialog):
+    def __init__(self, channels, excludedGenres, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle('SMTV channel setup')
+        self.resize(600, 650)
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.addWidget(QtWidgets.QLabel('Choose the channels to include in SMTV.'))
+        scroll = QtWidgets.QScrollArea()
+        scroll.setWidgetResizable(True)
+        contents = QtWidgets.QWidget()
+        checks = QtWidgets.QVBoxLayout(contents)
+        self.channelChecks = {}
+        for channel in channels:
+            genre = channel['genre']
+            checkbox = QtWidgets.QCheckBox(f"{genre.upper()} ({len(channel['rows'])} movies)")
+            checkbox.setChecked(genre not in excludedGenres)
+            self.channelChecks[genre] = checkbox
+            checks.addWidget(checkbox)
+        if not channels:
+            checks.addWidget(QtWidgets.QLabel('No channels with enough movies are available.'))
+        checks.addStretch()
+        scroll.setWidget(contents)
+        layout.addWidget(scroll, 1)
+        selection = QtWidgets.QHBoxLayout()
+        for label, checked in (('Select all', True), ('Clear all', False)):
+            button = QtWidgets.QPushButton(label)
+            button.clicked.connect(lambda _clicked=False, value=checked:
+                                   [checkbox.setChecked(value) for checkbox in self.channelChecks.values()])
+            selection.addWidget(button)
+        layout.addLayout(selection)
+        buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+
 class RetroChannelWidget(QtWidgets.QWidget):
     """
     Prototype "Retro TV" tab: genre channels with a clicker (channel up/down)
@@ -888,6 +924,9 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._videoPathCache = {}
         self._descriptionCache = {}
         self.channels = []
+        self._availableChannels = []
+        self._settings = getattr(parent, 'settings', None)
+        self._excludedGenres = set(self._settings.value('smtvExcludedGenres', [], type=list)) if self._settings else set()
         self.engines = {}
         self.currentIndex = 0
         self.isActive = False
@@ -1013,8 +1052,10 @@ class RetroChannelWidget(QtWidgets.QWidget):
         sideLayout.addWidget(self.genreLabel)
 
         upButton = QtWidgets.QPushButton("CH \u25B2")
+        self.channelUpButton = upButton
         upButton.clicked.connect(self.channelUp)
         downButton = QtWidgets.QPushButton("CH \u25BC")
+        self.channelDownButton = downButton
         downButton.clicked.connect(self.channelDown)
         for b in (upButton, downButton):
             b.setStyleSheet(
@@ -1069,6 +1110,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         sideLayout.addLayout(filmControls)
 
         guideButton = QtWidgets.QPushButton("GUIDE")
+        self.guideButton = guideButton
         guideButton.clicked.connect(self.toggleGuide)
         self.muteButton = QtWidgets.QPushButton("Mute")
         self.muteButton.clicked.connect(self.toggleMute)
@@ -1078,6 +1120,11 @@ class RetroChannelWidget(QtWidgets.QWidget):
             b.setStyleSheet("background: #333; color: white; font-size: 14px; border-radius: 6px; padding: 8px;")
             b.setFocusPolicy(QtCore.Qt.NoFocus)
         sideLayout.addWidget(guideButton)
+        self.setupButton = QtWidgets.QPushButton('SETUP')
+        self.setupButton.setStyleSheet(guideButton.styleSheet())
+        self.setupButton.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.setupButton.clicked.connect(self.openChannelSetup)
+        sideLayout.addWidget(self.setupButton)
 
         self.volumeLabel = QtWidgets.QLabel(f"VOLUME {self.masterVolume}%")
         self.volumeLabel.setAlignment(QtCore.Qt.AlignCenter)
@@ -1296,18 +1343,45 @@ class RetroChannelWidget(QtWidgets.QWidget):
             if len(rows) >= self.MIN_MOVIES_PER_CHANNEL
         ]
 
-        self._teardownAllEngines()
         self._videoPathCache = {}
         self._descriptionCache = {}
-        self.channels = newChannels
-        if self.channels:
-            self.currentIndex = min(self.currentIndex, len(self.channels) - 1)
-        else:
-            self.currentIndex = 0
+        self._availableChannels = newChannels
+        self._applyChannelSelection()
 
+    def openChannelSetup(self):
+        dialog = _ChannelSetupDialog(self._availableChannels, self._excludedGenres, self)
+        if dialog.exec_() == QtWidgets.QDialog.Accepted:
+            available = set(dialog.channelChecks)
+            excluded = (self._excludedGenres - available) | {
+                genre for genre, checkbox in dialog.channelChecks.items() if not checkbox.isChecked()}
+            self.setExcludedChannels(excluded)
+
+    def setExcludedChannels(self, genres):
+        excluded = set(genres)
+        if excluded == self._excludedGenres:
+            return
+        self._excludedGenres = excluded
+        if self._settings:
+            self._settings.setValue('smtvExcludedGenres', sorted(excluded))
+        self._applyChannelSelection()
+
+    def _applyChannelSelection(self):
+        currentGenre = self.channels[self.currentIndex]['genre'] if self.channels else None
+        self._teardownAllEngines()
+        self._stopGuidePreview()
+        self.channels = [channel for channel in self._availableChannels
+                         if channel['genre'] not in self._excludedGenres]
+        self.currentIndex = next((i for i, channel in enumerate(self.channels)
+                                  if channel['genre'] == currentGenre), 0)
+        self.guideHighlightIndex = self.currentIndex
         self._updateEmptyState()
-
-        if self.isActive and self.channels:
+        if not self.channels:
+            self.guideVisible = False
+            self.guideOverlay.hide()
+            self.guideTable.setRowCount(0)
+            self.scheduleTable.setRowCount(0)
+            self._updateChannelLabel()
+        elif self.isActive:
             self._tuneTo(self.currentIndex)
             self._openStartupGuide()
 
@@ -1362,7 +1436,11 @@ class RetroChannelWidget(QtWidgets.QWidget):
 
     def _updateEmptyState(self):
         hasChannels = bool(self.channels)
-        self.sideControls.setEnabled(hasChannels)
+        for button in (self.channelUpButton, self.channelDownButton,
+                       self.nextProgramButton, self.previousProgramButton,
+                       self.backTenButton, self.forwardTenButton,
+                       self.beginningButton, self.nextBeginningButton, self.guideButton):
+            button.setEnabled(hasChannels)
         if not hasChannels:
             self.nowPlayingLabel.setText("")
             self.displayStack.setCurrentWidget(self.globalStandby)

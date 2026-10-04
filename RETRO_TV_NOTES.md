@@ -1,5 +1,7 @@
 # Retro TV (smdb/RetroChannelWidget.py) - Status and Open Issues
 
+- Channel setup (2026-10-04): SETUP opens a scrollable checkbox dialog listing every qualifying genre and its movie count, with Select all, Clear all, OK, and Cancel. Excluded genres persist in application settings. Applying changes keeps the available channel clocks/lineups, removes excluded channels from surfing and the guide, and preserves the current genre if included. Setup remains enabled when all channels are excluded so users can restore them. Twenty-three regressions pass, including persistence, all-disabled recovery, cancellation, and unchanged lineup clocks.
+
 - Barred arrow wiring correction (2026-10-04): the bottom back arrow now navigates/resumes the previous film, then seeks to its beginning on a second press. The bottom forward arrow restores that saved spot, or opens the next film at its saved position (zero if unvisited). Previously the resume behavior was attached only to the text PREV/NEXT controls, leaving the barred back arrow repeatedly restarting the current film. The resume regression now exercises the actual barred buttons; all twenty-one tests pass.
 
 - Film resume navigation (2026-10-04): per-film positions are remembered for manual program navigation in either direction. PREV returns to the previous film's saved spot; pressing PREV again seeks to its beginning, and NEXT then restores the saved spot within that same film. Explicit barred controls continue to request a film beginning. Twenty-one regressions pass.
