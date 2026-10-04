@@ -178,7 +178,8 @@ class StandByScreen(QtWidgets.QWidget):
             painter.drawLine(QtCore.QPointF(dx - 18, dy), QtCore.QPointF(dx + 18, dy))
             painter.drawLine(QtCore.QPointF(dx, dy - 18), QtCore.QPointF(dx, dy + 18))
 
-        font = QtGui.QFont(self.font().family(), max(14, rect.width() // 24), QtGui.QFont.Black)
+        font = QtGui.QFont(self.font())
+        font.setWeight(QtGui.QFont.Black)
         painter.setFont(font)
         textRect = rect.adjusted(10, 0, -10, 0)
         painter.setPen(QtGui.QColor('black'))
@@ -753,11 +754,12 @@ class RetroChannelWidget(QtWidgets.QWidget):
         font.setFamily(family)
         font.setStyleHint(QtGui.QFont.TypeWriter)
         font.setFixedPitch(True)
+        font.setPixelSize(14)
         self.setFont(font)
         # Qt style sheets with font-size can override ordinary QFont inheritance.
         self.setStyleSheet(f'QWidget {{ font-family: "{family}"; }}')
         self._buildUI()
-        self._baseFont = QtGui.QFont(self.font())
+        self._baseFont = QtGui.QFont(font)
         self._fontStyles = [
             (widget, widget.styleSheet())
             for widget in self.findChildren(QtWidgets.QWidget)
@@ -816,7 +818,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.banner = QtWidgets.QLabel()
         self.banner.setWordWrap(True)
         self.banner.setStyleSheet(
-            "color: white; background: rgba(0,0,0,175); font-size: 16px; font-weight: bold;"
+            "color: white; background: rgba(0,0,0,175); font-size: 14px; font-weight: bold;"
             "padding: 10px; border-radius: 6px;"
         )
         self.banner._overlayAnchor = 'bottom'
@@ -870,7 +872,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.fullScreenButton = QtWidgets.QPushButton("FULL")
         self.fullScreenButton.clicked.connect(self.toggleFullScreen)
         for b in (guideButton, self.muteButton, self.fullScreenButton):
-            b.setStyleSheet("background: #333; color: white; border-radius: 6px; padding: 8px;")
+            b.setStyleSheet("background: #333; color: white; font-size: 14px; border-radius: 6px; padding: 8px;")
             b.setFocusPolicy(QtCore.Qt.NoFocus)
         sideLayout.addWidget(guideButton)
 
@@ -930,10 +932,14 @@ class RetroChannelWidget(QtWidgets.QWidget):
         else:
             font.setPointSizeF(font.pointSizeF() * self.fontScale)
         self.setFont(font)
+        self.setStyleSheet(
+            f'QWidget {{ font-family: "{font.family()}"; font-size: {font.pixelSize()}px; }}'
+        )
         for widget, style in self._fontStyles:
             widget.setStyleSheet(re.sub(
-                r'(font-size:\s*)(\d+)px',
-                lambda match: f'{match[1]}{round(int(match[2]) * self.fontScale)}px',
+                r'font-size:\s*(\d+)px;',
+                lambda match: f'font-size: {round(int(match[1]) * self.fontScale)}px; '
+                              f'font-family: "{font.family()}";',
                 style,
             ))
         self.fontSizeLabel.setText(f"FONT SIZE {round(self.fontScale * 100)}%")
@@ -988,7 +994,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
 
         self.guideCaption = QtWidgets.QLabel("")
         self.guideCaption.setWordWrap(True)
-        self.guideCaption.setStyleSheet("color: white; font-size: 26px; font-weight: bold;")
+        self.guideCaption.setStyleSheet("color: white; font-size: 22px; font-weight: bold;")
         captionLayout.addWidget(self.guideCaption)
 
         self.guideDescription = QtWidgets.QTextEdit()
@@ -1017,8 +1023,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.guideTable.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
         self.guideTable.setFocusPolicy(QtCore.Qt.NoFocus)
         self.guideTable.setStyleSheet(
-            "QTableWidget { background: #0a0a6e; color: white; gridline-color: #3333aa; font-size: 13px; }"
-            "QHeaderView::section { background: #1a1aae; color: white; padding: 4px; border: 1px solid #3333aa; }"
+            "QTableWidget { background: #0a0a6e; color: white; gridline-color: #3333aa; font-size: 14px; }"
+            "QHeaderView::section { background: #1a1aae; color: white; font-size: 14px; padding: 4px; border: 1px solid #3333aa; }"
         )
         self.guideTable.setColumnWidth(0, 50)
         self.guideTable.setColumnWidth(1, 160)
