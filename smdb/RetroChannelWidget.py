@@ -314,7 +314,6 @@ class ChannelEngine(QtCore.QObject):
     """
 
     programChanged = QtCore.pyqtSignal()
-    showingStandby = QtCore.pyqtSignal(bool)
 
     def __init__(self, channelNumber, genreName, clock, resolver, titleGetter, parent=None):
         super().__init__(parent)
@@ -402,7 +401,6 @@ class ChannelEngine(QtCore.QObject):
         """Sync playback to wherever the channel clock says we should be right now."""
         slotIndex, _, offsetFraction, positionInSlotMs, remainingMs = self.clock.whatsOnNow()
         self._stack.setCurrentWidget(self.standbyScreen)
-        self.showingStandby.emit(True)
 
         def onResolved(row, path):
             if path is None:
@@ -446,7 +444,6 @@ class ChannelEngine(QtCore.QObject):
     def _onSlotReady(self, slot):
         if slot is self.activeSlot:
             self._stack.setCurrentWidget(slot.videoWidget)
-            self.showingStandby.emit(False)
 
     def _checkForFrozenPlayback(self):
         slot = self.activeSlot
@@ -549,7 +546,6 @@ class ChannelEngine(QtCore.QObject):
         """Standby wasn't buffered in time (long gap or slow load) - load directly, showing stand-by until ready."""
         self.standbySlot.stop()
         self._stack.setCurrentWidget(self.standbyScreen)
-        self.showingStandby.emit(True)
 
         def onResolved(row, path):
             if path is None:
@@ -630,7 +626,6 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._fsTabIndex = None
         self._fsTabLabel = None
         self.standbyTone = StandbyTone(self)
-        self._standbyConnectedEngine = None
 
         self.setFocusPolicy(QtCore.Qt.StrongFocus)
         self._buildUI()
@@ -642,6 +637,15 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.guidePreviewTimer = QtCore.QTimer(self)
         self.guidePreviewTimer.setInterval(1000)
         self.guidePreviewTimer.timeout.connect(self._onGuidePreviewTick)
+
+        # Standby tone/screen is a continuous fallback, not an event triggered once: every tick
+        # we just ask "is the current channel's stand-by screen actually on screen right now?"
+        # and make the tone match - no connect/disconnect ordering or missed-signal windows to
+        # get wrong (a past event-driven version of this was unreliable around engine
+        # creation/teardown races).
+        self.standbyPollTimer = QtCore.QTimer(self)
+        self.standbyPollTimer.setInterval(150)
+        self.standbyPollTimer.timeout.connect(self._syncStandbyTone)
 
         self._updateEmptyState()
 
@@ -859,24 +863,16 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if not hasChannels:
             self.nowPlayingLabel.setText("")
             self.displayStack.setCurrentWidget(self.globalStandby)
-            self._setStandbyConnection(None)
 
-    def _setStandbyConnection(self, engine):
-        """Follow whichever stand-by screen is actually visible (global or a channel's own) with the tone."""
-        if self._standbyConnectedEngine is not None:
-            try:
-                self._standbyConnectedEngine.showingStandby.disconnect(self._onStandbyChanged)
-            except TypeError:
-                pass
-        self._standbyConnectedEngine = engine
-        if engine is not None:
-            engine.showingStandby.connect(self._onStandbyChanged)
-            self._onStandbyChanged(engine.isShowingStandby())
-        else:
-            self._onStandbyChanged(True)
-
-    def _onStandbyChanged(self, isStandby):
-        if isStandby and self.isActive:
+    def _syncStandbyTone(self):
+        """Continuous fallback: match the tone to whatever stand-by state is actually on
+        screen right now for the tuned-in channel, instead of reacting to one-shot events."""
+        if not self.isActive:
+            self.standbyTone.stop()
+            return
+        engine = self.engines.get(self.currentIndex) if self.channels else None
+        isStandby = engine.isShowingStandby() if engine is not None else True
+        if isStandby:
             self.standbyTone.start()
         else:
             self.standbyTone.stop()
@@ -926,13 +922,23 @@ class RetroChannelWidget(QtWidgets.QWidget):
                 self.displayStack.removeWidget(engine.container)
                 engine.container.setParent(None)
 
-        # Create/start engines for everything we need warmed.
+        # Wire up the current channel's engine and get it tuning/buffering immediately.
+        if index not in self.engines:
+            engine = self._createEngine(index)
+            self.engines[index] = engine
+            self.displayStack.addWidget(engine.container)
+        self.engines[index].setDesiredVolume(self.masterVolume)
+        self.engines[index].start()
+
+        # Create/start everything else we need warmed (muted neighbors).
         for idx in needed:
+            if idx == index:
+                continue
             if idx not in self.engines:
                 engine = self._createEngine(idx)
                 self.engines[idx] = engine
                 self.displayStack.addWidget(engine.container)
-            self.engines[idx].setDesiredVolume(self.masterVolume if idx == index else 0)
+            self.engines[idx].setDesiredVolume(0)
             self.engines[idx].start()
 
         self.currentIndex = index
@@ -946,7 +952,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if self.guideVisible:
             self._refreshGuideTable()
             self._updateGuidePreview()
-        self._setStandbyConnection(engine)
+        self._syncStandbyTone()
 
     def _updateChannelLabel(self):
         if not self.channels:
@@ -1172,16 +1178,17 @@ class RetroChannelWidget(QtWidgets.QWidget):
     def showEvent(self, event):
         super().showEvent(event)
         self.isActive = True
+        self.standbyPollTimer.start()
         if self.channels:
             self._tuneTo(self.currentIndex)
         else:
-            self._setStandbyConnection(None)
+            self._syncStandbyTone()
         self.setFocus()
 
     def hideEvent(self, event):
         super().hideEvent(event)
         self.isActive = False
-        self._setStandbyConnection(None)
+        self.standbyPollTimer.stop()
         self.standbyTone.stop()
         self._teardownAllEngines()
         self._stopGuidePreview()
