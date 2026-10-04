@@ -1,5 +1,7 @@
 # Retro TV (smdb/RetroChannelWidget.py) - Status and Open Issues
 
+- Program navigation (2026-10-04): NEXT ▶ and PREV ◀ buttons navigate the selected channel's repeating lineup. Each jump starts at that program's assigned random offset, rebases only that channel's clock so the guide agrees, and invalidates pending loads from the previous program. Previous wraps to the lineup's last movie at the beginning; next wraps to its first at the end. Sixteen regression checks pass.
+
 - Extended schedule (2026-10-04): each channel chooses a fixed shuffled lineup of 25 movies, or every movie if fewer than 25 are available. The lineup and random start offsets repeat when its end is reached. The guide retains the CHANNELS overview and adds a SCHEDULE tab listing the highlighted channel's full upcoming cycle with estimated local start times. Fifteen regressions pass, including cycle repetition, smaller categories, and the schedule view.
 
 - Random starts retained (2026-10-04): each program again receives a stable random starting fraction up to 85% through the movie, then plays uninterrupted to its end. Schedule lengths use the remaining portion, and tuning back preserves the same random start plus elapsed broadcast time. Thirteen regressions pass.

@@ -38,6 +38,7 @@ SMDB is a PyQt5 desktop application for browsing and maintaining a local movie l
 Application settings (window layout, filters, last-selected folders, etc.) are saved through Qt's `QSettings` and reused on subsequent launches.
 
 SMTV channels require at least ten movies. Each channel loops a shuffled lineup of 25 movies (or all available movies in smaller categories), starting each movie at a random position and playing to its end. Open the guide's SCHEDULE tab to see the highlighted channel's lineup and estimated start times.
+Use the clicker's NEXT and PREV buttons to move between programs on the current channel. These jumps retain the programs' random starting positions and update that channel's schedule.
 
 ## Collections and Metadata
 - Text files inside `smdb/collections/` define curated sets such as Noir or Criterion; drop your own lists in the same format to extend the filter menu.

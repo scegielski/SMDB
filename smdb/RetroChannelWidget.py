@@ -373,6 +373,9 @@ class ChannelClock:
         elapsed = (time.monotonic() - self.epoch) * 1000.0
         self._durations[slotIndex] = max(1, elapsed - self.slotStartMs(slotIndex) - 1)
 
+    def jumpToSlot(self, slotIndex):
+        self.epoch = time.monotonic() - (self.slotStartMs(slotIndex) + 1) / 1000.0
+
     def candidateRows(self, slotIndex, count=5):
         """Rows for `slotIndex` and the following slots, used as fallbacks
         when a scheduled movie has no resolvable video file."""
@@ -719,6 +722,30 @@ class ChannelEngine(QtCore.QObject):
 
         self._startResolve(slotIndex, '_hardCutRequestId', onResolved)
 
+    def skipProgram(self, step):
+        current = self.currentSlotIndex
+        if current is None:
+            current = self.clock.whatsOnNow()[0]
+        target = current + step
+        if target < 0:
+            target = len(self.clock._rotation) - 1
+        self.advanceTimer.stop()
+        self.prefetchTimer.stop()
+        self._resolveSeq += 1
+        for attr in ('_tuneRequestId', '_prefetchRequestId', '_hardCutRequestId'):
+            setattr(self, attr, self._resolveSeq)
+        self.slotA.stop()
+        self.slotB.stop()
+        self.currentRow = None
+        self.currentTitle = ''
+        self.nextRow = None
+        self.nextTitle = ''
+        self.currentSlotIndex = target
+        self._prefetchStarted = False
+        self._prefetchedSlotIndex = None
+        self.clock.jumpToSlot(target)
+        self._tuneIn()
+
 
 class _GuideTopBar(QtWidgets.QWidget):
     """Guide header row whose preview frame scales (3:2) with the row's height."""
@@ -919,6 +946,17 @@ class RetroChannelWidget(QtWidgets.QWidget):
             b.setFocusPolicy(QtCore.Qt.NoFocus)
         sideLayout.addWidget(upButton)
         sideLayout.addWidget(downButton)
+
+        self.nextProgramButton = QtWidgets.QPushButton('NEXT ▶')
+        self.previousProgramButton = QtWidgets.QPushButton('PREV ◀')
+        for button, step, name in ((self.nextProgramButton, 1, 'Next program'),
+                                   (self.previousProgramButton, -1, 'Previous program')):
+            button.setStyleSheet(upButton.styleSheet())
+            button.setFocusPolicy(QtCore.Qt.NoFocus)
+            button.setAccessibleName(name)
+            button.setToolTip(name + ' on this channel')
+            button.clicked.connect(lambda _checked=False, direction=step: self.skipProgram(direction))
+            sideLayout.addWidget(button)
 
         guideButton = QtWidgets.QPushButton("GUIDE")
         guideButton.clicked.connect(self.toggleGuide)
@@ -1350,6 +1388,16 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if not self.channels:
             return
         self._tuneTo(self.currentIndex - 1)
+
+    def skipProgram(self, step):
+        engine = self.engines.get(self.currentIndex)
+        if engine is None:
+            return
+        engine.skipProgram(step)
+        self._updateNowPlayingLabel(engine)
+        if self.guideVisible:
+            self._refreshGuideTable()
+        self._syncStandbyTone()
 
     def toggleMute(self):
         self.setVolume(0 if self.masterVolume else self._lastVolume)

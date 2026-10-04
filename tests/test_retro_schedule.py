@@ -59,6 +59,35 @@ class FullMovieScheduleTests(unittest.TestCase):
         finally:
             tv.close()
 
+    def test_program_buttons_jump_selected_channel_and_previous_wraps(self):
+        with patch('smdb.RetroChannelWidget.time.monotonic', return_value=0):
+            clock = ChannelClock([0, 1, 2], lambda row: 120000)
+            clock._rotation = [0, 1, 2]
+            clock._offsetFractions = {0: 0.25, 1: 0.5, 2: 0.75}
+            engine = ChannelEngine(1, 'Action', clock, lambda row: None, str)
+            tv = RetroChannelWidget()
+            neighbor = Mock()
+            tv.engines = {0: engine, 1: neighbor}
+            tv.sideControls.setEnabled(True)
+            engine.currentSlotIndex = 0
+            engine._tuneRequestId = 10
+            engine._prefetchRequestId = 11
+            try:
+                with patch.object(engine, '_tuneIn') as tune:
+                    tv.previousProgramButton.click()
+                    self.assertEqual(clock.whatsOnNow()[:3], (2, 2, 0.75))
+                    self.assertNotEqual(engine._tuneRequestId, 10)
+                    self.assertNotEqual(engine._prefetchRequestId, 11)
+                    tv.nextProgramButton.click()
+                    self.assertEqual(clock.whatsOnNow()[:3], (3, 0, 0.25))
+                    self.assertEqual(tune.call_count, 2)
+                    neighbor.skipProgram.assert_not_called()
+            finally:
+                tv.engines.clear()
+                engine.shutdown()
+                engine.container.close()
+                tv.close()
+
     def test_estimated_boundary_never_cuts_active_movie_and_end_advances(self):
         with patch('smdb.RetroChannelWidget.time.monotonic', return_value=0) as now:
             clock = ChannelClock([0, 1], lambda row: 120000)
