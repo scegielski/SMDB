@@ -15,15 +15,15 @@ class FullScreenLifecycleTests(unittest.TestCase):
         cls.app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
     def test_fullscreen_preserves_engines_and_guide_but_tab_exit_stops_them(self):
-        tabs = QtWidgets.QTabWidget()
-        tabs.addTab(QtWidgets.QWidget(), 'Other')
+        tabs = QtWidgets.QStackedWidget()
+        tabs.addWidget(QtWidgets.QWidget())
         tv = RetroChannelWidget()
         tv.channels = [
             {'genre': genre, 'rows': [0, 1, 2], 'clock': ChannelClock([0, 1, 2])}
             for genre in ('Action', 'Comedy', 'Drama')
         ]
         tv._updateEmptyState()
-        tabs.addTab(tv, 'Retro TV')
+        tabs.addWidget(tv)
         tabs.setCurrentWidget(tv)
         tabs.resize(800, 600)
         tabs.show()
@@ -47,12 +47,17 @@ class FullScreenLifecycleTests(unittest.TestCase):
                         self.assertTrue(tv.standbyPollTimer.isActive())
                         self.assertEqual(tv.engines, engines)
                         self.assertEqual({i: e.activeSlot.player for i, e in tv.engines.items()}, players)
-                        self.assertTrue(tv.guideVisible)
-                        self.assertIs(tv._guidePreviewHostedEngine, preview_engine)
+                        self.assertEqual(tv.guideVisible, not fullscreen)
+                        self.assertEqual(tv.sideScroll.isHidden(), fullscreen)
+                        self.assertEqual(tv.nowPlayingLabel.isHidden(), fullscreen)
+                        if fullscreen:
+                            self.assertIsNone(tv._guidePreviewHostedEngine)
+                        else:
+                            self.assertIs(tv._guidePreviewHostedEngine, preview_engine)
                 teardown.assert_not_called()
                 tune.assert_not_called()
                 self.assertIs(tabs.currentWidget(), tv)
-                self.assertEqual(tabs.tabText(tabs.indexOf(tv)), 'Retro TV')
+                self.assertIs(tv.parentWidget(), tabs)
 
                 tabs.setCurrentIndex(0)
                 self.app.processEvents()

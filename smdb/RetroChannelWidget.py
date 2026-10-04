@@ -739,9 +739,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._lastVolume = 70
         self.isFullScreenActive = False
         self._fullScreenTransition = False
-        self._fsTabWidget = None
-        self._fsTabIndex = None
-        self._fsTabLabel = None
+        self._fsWindow = None
         self.standbyTone = StandbyTone(self)
 
         self.setFocusPolicy(QtCore.Qt.StrongFocus)
@@ -801,6 +799,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.overlayArea = _OverlayArea(self.displayStack)
 
         leftColumn = QtWidgets.QVBoxLayout()
+        self.leftColumn = leftColumn
         leftColumn.setSpacing(4)
         leftColumn.addWidget(self.overlayArea, 1)
 
@@ -1237,6 +1236,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.genreLabel.setText(chan['genre'].upper())
 
     def _showBanner(self, engine):
+        if self.isFullScreenActive:
+            return
         text = f"CH {engine.channelNumber:02d}  {engine.genreName.upper()}\n{engine.currentTitle}"
         self.banner.setText(text)
         self.banner.show()
@@ -1306,48 +1307,53 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self._enterFullScreen()
 
     def _enterFullScreen(self):
-        tabWidget = self.parentWidget()
-        while tabWidget is not None and not isinstance(tabWidget, QtWidgets.QTabWidget):
-            tabWidget = tabWidget.parentWidget()
-        if tabWidget is None:
-            return
-        index = tabWidget.indexOf(self)
-        if index == -1:
-            return
-        self._fsTabWidget = tabWidget
-        self._fsTabIndex = index
-        self._fsTabLabel = tabWidget.tabText(index)
-        # Reparenting generates hide/show events. Keep the live players and guide
-        # intact while moving the widget instead of tearing down and retuning.
+        host = self.window()
+        self._fsWindow = host
+        self._fsWindowState = host.windowState()
+        self._fsGuideVisible = self.guideVisible
+        self._fsMargins = self.layout().contentsMargins()
+        self._fsSpacing = self.layout().spacing()
+        self._fsLeftSpacing = self.leftColumn.spacing()
+        self._fsChrome = [(widget, not widget.isHidden())
+                          for widget in (self.sideScroll, self.nowPlayingLabel)]
+        if isinstance(host, QtWidgets.QMainWindow):
+            self._fsChrome += [(widget, not widget.isHidden())
+                               for widget in (host.menuBar(), host.statusBar())]
         self._fullScreenTransition = True
         try:
-            tabWidget.removeTab(index)
-            self.setParent(None)
-            self.setWindowFlags(QtCore.Qt.Window)
             self.isFullScreenActive = True
+            if self.guideVisible:
+                self.toggleGuide()
+            self.banner.hide()
+            for widget, _visible in self._fsChrome:
+                widget.hide()
+            self.layout().setContentsMargins(0, 0, 0, 0)
+            self.layout().setSpacing(0)
+            self.leftColumn.setSpacing(0)
             self.fullScreenButton.setText("EXIT FULL")
-            self.showFullScreen()
+            host.showFullScreen()
         finally:
             self._fullScreenTransition = False
         self.setFocus()
 
     def _exitFullScreen(self):
-        if self._fsTabWidget is None:
+        if self._fsWindow is None:
             return
-        tabWidget = self._fsTabWidget
-        index = self._fsTabIndex
-        label = self._fsTabLabel
-        self._fsTabWidget = None
-        self._fsTabIndex = None
-        self._fsTabLabel = None
+        host = self._fsWindow
+        self._fsWindow = None
         self._fullScreenTransition = True
         try:
-            self.setWindowFlags(QtCore.Qt.Widget)
-            tabWidget.insertTab(index, self, label)
-            tabWidget.setCurrentIndex(index)
             self.isFullScreenActive = False
+            self.layout().setContentsMargins(self._fsMargins)
+            self.layout().setSpacing(self._fsSpacing)
+            self.leftColumn.setSpacing(self._fsLeftSpacing)
+            for widget, visible in self._fsChrome:
+                widget.setVisible(visible)
             self.fullScreenButton.setText("FULL")
-            self.show()
+            host.setWindowState(self._fsWindowState)
+            host.show()
+            if self.guideVisible != self._fsGuideVisible:
+                self.toggleGuide()
         finally:
             self._fullScreenTransition = False
         self.setFocus()

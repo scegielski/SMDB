@@ -1,5 +1,9 @@
 # Retro TV (smdb/RetroChannelWidget.py) - Status and Open Issues
 
+- Mode names (2026-10-04): the menu labels are SMDB for the database and SMTV for television. Internal settings retain their existing values so previously selected modes still restore.
+
+- Application modes (2026-10-04): the Mode menu selects Database or TV; TV has its own central view without database panes or tabs. The selected mode persists, and the former TV tab setting migrates to TV mode. FULL/F/F11 uses the main window for video-only fullscreen, hiding the clicker, title, menu, and status bar without reparenting or restarting players. Escape restores the controls and prior guide state. Switching to Database exits fullscreen and stops TV playback. Ten regressions pass, including mode migration, mode switching, video geometry, font consistency, player lifecycle, and startup tone.
+
 ## Open issues (as of last session)
 1. **Stand-by screen/tone is inconsistent.** The "PLEASE STAND BY" screen and its tone do not reliably accompany every visible delay when tuning or switching channels. Requirement: the tone should always play whenever stand-by is shown.
 2. **Channel content is inconsistent when switching.** What the guide shows, what plays, and what the banner/label says sometimes disagree after channel up/down.

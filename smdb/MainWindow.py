@@ -298,12 +298,16 @@ class MainWindow(QtWidgets.QMainWindow):
         # Main Menus
         self.initUIFileMenu()
         self.initUIViewMenu()
+        self.initUIModeMenu()
 
         # Add the central widget
         centralWidget = QtWidgets.QWidget()
         centralWidget.setStyleSheet(f"background: {self.bgColorB};"
                                     f"border-radius: 0px;")
-        self.setCentralWidget(centralWidget)
+        self.databaseWidget = centralWidget
+        self.modeStack = QtWidgets.QStackedWidget()
+        self.modeStack.addWidget(centralWidget)
+        self.setCentralWidget(self.modeStack)
 
         # Divides top h splitter and bottom progress bar
         # Do not parent layouts to QMainWindow; set on central widget instead
@@ -399,10 +403,10 @@ class MainWindow(QtWidgets.QMainWindow):
         # Load saved camera settings
         self.coverFlowWidget.loadCameraSettings(self.settings)
 
-        # Retro TV Tab (genre channels with live-switching promo clips)
+        # TV is a separate application mode, outside the database panes.
         from .RetroChannelWidget import RetroChannelWidget
         self.retroChannelWidget = RetroChannelWidget(parent=self)
-        self.moviesTabWidget.addTab(self.retroChannelWidget, "Retro TV")
+        self.modeStack.addWidget(self.retroChannelWidget)
 
         # Statistics Tab
         self.statisticsWidget = StatisticsWidget(
@@ -417,9 +421,14 @@ class MainWindow(QtWidgets.QMainWindow):
         # Connect tab change to save setting
         self.moviesTabWidget.currentChanged.connect(self.onMoviesTabChanged)
         
-        # Restore saved tab index (0=List, 1=Cover Flow, 2=Retro TV, 3=Statistics)
+        # Migrate the former TV tab to TV mode and Statistics to index 2.
         savedTabIndex = self.settings.value('moviesTabIndex', 0, type=int)
-        self.moviesTabWidget.setCurrentIndex(savedTabIndex)
+        if not self.settings.contains('applicationMode'):
+            self._startupMode = 'TV' if savedTabIndex == 2 else 'Database'
+            savedTabIndex = 2 if savedTabIndex == 3 else min(savedTabIndex, 1)
+        else:
+            self._startupMode = self.settings.value('applicationMode', 'Database', type=str)
+        self.moviesTabWidget.setCurrentIndex(max(0, min(2, savedTabIndex)))
         
         self.moviesTableDefaultColumns = [Columns.Year.value,
                                           Columns.Title.value,
@@ -661,6 +670,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setFontSize(self.fontSize)
 
         # Show the window
+        self.setApplicationMode(self._startupMode)
         self.show()
 
         self.moviesSmdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
@@ -828,6 +838,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings.clear()
 
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
+        if self.retroChannelWidget.isFullScreenActive:
+            self.retroChannelWidget._exitFullScreen()
         self.settings.setValue('geometry', self.geometry())
         self.settings.setValue('moviesTabIndex', self.moviesTabWidget.currentIndex())
         self.settings.setValue('mainHSplitterSizes', self.mainHSplitter.sizes())
@@ -897,6 +909,30 @@ class MainWindow(QtWidgets.QMainWindow):
         for logical in range(header.count()):
             visualIndices.append(header.visualIndex(logical))
         self.settings.setValue(f'{saveName}ColumnOrder', visualIndices)
+
+    def initUIModeMenu(self):
+        menu = self.menuBar().addMenu('Mode')
+        self.modeActionGroup = QtWidgets.QActionGroup(self)
+        self.modeActionGroup.setExclusive(True)
+        self.modeActions = {}
+        for mode, label in (('Database', 'SMDB'), ('TV', 'SMTV')):
+            action = QtWidgets.QAction(label, self, checkable=True)
+            action.triggered.connect(lambda _checked=False, selected=mode: self.setApplicationMode(selected))
+            self.modeActionGroup.addAction(action)
+            menu.addAction(action)
+            self.modeActions[mode] = action
+
+    def setApplicationMode(self, mode):
+        mode = 'TV' if mode == 'TV' else 'Database'
+        if self.retroChannelWidget.isFullScreenActive:
+            self.retroChannelWidget._exitFullScreen()
+        self.applicationMode = mode
+        self.modeStack.setCurrentWidget(self.retroChannelWidget if mode == 'TV' else self.databaseWidget)
+        self.modeActions[mode].setChecked(True)
+        self.statusBar().setVisible(mode == 'Database')
+        self.settings.setValue('applicationMode', mode)
+        if mode == 'TV':
+            self.retroChannelWidget.setFocus()
 
     def initUIFileMenu(self):
         menuBar = self.menuBar()

@@ -33,6 +33,7 @@ SMDB is a PyQt5 desktop application for browsing and maintaining a local movie l
    - Windows: `SMDB.bat`
    - Alternatively, activate `.venv` and run `python -m smdb`.
 4. On first launch, use `File → Set movies folder` to point SMDB at the directory containing your movie files.
+5. Use `Mode → SMTV` for the TV picture and clicker controls, or `Mode → SMDB` to return to the catalogue. In SMTV mode, `FULL`, `F`, or `F11` fills the screen with the video; `Esc` returns to the controls. Press `G` to open the channel guide.
 
 Application settings (window layout, filters, last-selected folders, etc.) are saved through Qt's `QSettings` and reused on subsequent launches.
 
