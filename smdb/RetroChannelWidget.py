@@ -1090,7 +1090,6 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if engine is self.engines.get(self.currentIndex):
             self.displayStack.setCurrentWidget(engine.container)
         engine.container.show()
-        engine.refreshVideoOutputs()
 
     def _updateGuidePreview(self):
         if not self.channels:
@@ -1109,7 +1108,6 @@ class RetroChannelWidget(QtWidgets.QWidget):
                 self.displayStack.removeWidget(engine.container)
             self._setPreviewContent(engine.container)
             self._guidePreviewHostedEngine = engine
-            engine.refreshVideoOutputs()
             return
 
         # No live engine for this channel (outside the warmed neighbor range) - fall back to a
