@@ -445,6 +445,18 @@ class ChannelEngine(QtCore.QObject):
         self.desiredVolume = volume
         self.activeSlot.setVolume(volume)
 
+    def refreshVideoOutputs(self):
+        """Re-bind each slot's video surface to its widget - some backends lose this binding
+        when the widget is reparented (e.g. into/out of the guide preview frame)."""
+        for slot in (self.slotA, self.slotB):
+            slot.player.setVideoOutput(slot.videoWidget)
+            slot.videoWidget.show()
+            if slot.player.state() == QMediaPlayer.PlayingState:
+                # Nudge the backend to actually paint a frame into the freshly (re-)bound
+                # surface - some Qt Multimedia backends don't repaint on their own after the
+                # video output changes mid-playback.
+                slot.player.play()
+
     # -- scheduling -----------------------------------------------------------
     def _scheduleAdvance(self, remainingMs):
         self.advanceTimer.start(max(50, int(remainingMs)))
@@ -591,6 +603,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.guideVisible = False
         self.guideHighlightIndex = 0
         self.guidePreviewSlot = None
+        self._guidePreviewHostedEngine = None
         self.masterVolume = 70
         self.isFullScreenActive = False
         self._fsTabWidget = None
@@ -865,6 +878,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         return engine
 
     def _teardownAllEngines(self):
+        self._releasePreviewHost()
         for engine in list(self.engines.values()):
             engine.shutdown()
             self.displayStack.removeWidget(engine.container)
@@ -876,6 +890,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if not self.channels:
             return
         index = index % len(self.channels)
+        self._releasePreviewHost()
 
         needed = {index}
         if len(self.channels) > 1:
@@ -1029,38 +1044,74 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.setFocus()
 
     def _startGuidePreview(self):
-        if self.guidePreviewSlot is None:
-            self.guidePreviewSlot = ClipSlot(self)
-            self.guidePreviewSlot.setVolume(0)
-            self.guidePreviewContainer.layout().addWidget(self.guidePreviewSlot.videoWidget)
         self._updateGuidePreview()
         # Note: periodic random-reseek ("cutting") is disabled for now - see _onGuidePreviewTick -
         # so self.guidePreviewTimer is intentionally not started here.
 
     def _stopGuidePreview(self):
         self.guidePreviewTimer.stop()
+        self._releasePreviewHost()
         if self.guidePreviewSlot:
             self.guidePreviewSlot.stop()
 
+    def _setPreviewContent(self, widget):
+        """Show exactly `widget` in the guide's small preview frame, parking anything else."""
+        layout = self.guidePreviewContainer.layout()
+        for i in reversed(range(layout.count())):
+            item = layout.takeAt(i)
+            other = item.widget()
+            if other is not None and other is not widget:
+                other.setParent(None)
+        if layout.indexOf(widget) == -1:
+            layout.addWidget(widget)
+        widget.show()
+
+    def _releasePreviewHost(self):
+        """Return a live engine's video widget (parked in the guide preview) to the main display."""
+        engine = self._guidePreviewHostedEngine
+        self._guidePreviewHostedEngine = None
+        if engine is None:
+            return
+        self.guidePreviewContainer.layout().removeWidget(engine.container)
+        if self.displayStack.indexOf(engine.container) == -1:
+            self.displayStack.addWidget(engine.container)
+        if engine is self.engines.get(self.currentIndex):
+            self.displayStack.setCurrentWidget(engine.container)
+        engine.container.show()
+        engine.refreshVideoOutputs()
+
     def _updateGuidePreview(self):
-        if not self.channels or self.guidePreviewSlot is None:
+        if not self.channels:
             return
         idx = self.guideHighlightIndex
         engine = self.engines.get(idx)
-        if engine and engine.currentRow is not None:
-            row = engine.currentRow
-            # Mirror the live engine's exact playback position so opening the guide
-            # doesn't visibly jump to a different point in the movie.
-            livePositionMs = engine.activeSlot.player.position()
-        else:
-            row = random.choice(self.channels[idx]['rows'])
-            livePositionMs = None
+
+        if engine is not None:
+            # Same rendering target as the main view - just reparented into the small frame
+            # and scaled down, so there's no reload/seek/interruption of any kind.
+            if self.guidePreviewSlot:
+                self.guidePreviewSlot.stop()
+            if self._guidePreviewHostedEngine is not None and self._guidePreviewHostedEngine is not engine:
+                self._releasePreviewHost()
+            if self.displayStack.indexOf(engine.container) != -1:
+                self.displayStack.removeWidget(engine.container)
+            self._setPreviewContent(engine.container)
+            self._guidePreviewHostedEngine = engine
+            engine.refreshVideoOutputs()
+            return
+
+        # No live engine for this channel (outside the warmed neighbor range) - fall back to a
+        # throwaway preview clip.
+        if self._guidePreviewHostedEngine is not None:
+            self._releasePreviewHost()
+        if self.guidePreviewSlot is None:
+            self.guidePreviewSlot = ClipSlot(self)
+            self.guidePreviewSlot.setVolume(0)
+        self._setPreviewContent(self.guidePreviewSlot.videoWidget)
+        row = random.choice(self.channels[idx]['rows'])
         path = self._resolveVideoPath(row)
         if path:
-            if livePositionMs is not None:
-                self.guidePreviewSlot.load(path, autoplay=True, seekFraction=0.0, extraMs=livePositionMs)
-            else:
-                self.guidePreviewSlot.load(path, autoplay=True)
+            self.guidePreviewSlot.load(path, autoplay=True)
 
     def _onGuidePreviewTick(self):
         # Kept for future use (periodic random-reseek "cutting" effect); not currently invoked.
