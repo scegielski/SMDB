@@ -19,14 +19,21 @@ import html
 import math
 import os
 import random
+import re
 import struct
+import sys
 import tempfile
 import time
 import wave
 
 from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer, QSoundEffect
+from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer, QSoundEffect, QVideoProbe
 from PyQt5.QtMultimediaWidgets import QVideoWidget
+
+if sys.platform == 'win32':
+    import winsound as _winsound
+else:
+    _winsound = None
 
 PROGRAM_DURATION_MS = 60000  # how long each movie airs before the channel cuts to the next one
 PREFETCH_LEAD_MS = 8000  # start buffering the next movie this far before the slot ends
@@ -34,21 +41,23 @@ MAX_START_FRACTION = 0.85  # never start a slot in the last 15% of a movie
 MIN_SEEK_RUNWAY_MS = 1500  # never seek closer than this to the end of a movie
 
 
-def _ensureStandbyToneFile():
+def _ensureStandbyToneFile(native=False):
     """Generate (once) a short looping sine-wave test tone, returning its WAV path."""
-    path = os.path.join(tempfile.gettempdir(), 'smdb_standby_tone.wav')
+    filename = 'smdb_standby_tone_native_v3.wav' if native else 'smdb_standby_tone_v2.wav'
+    path = os.path.join(tempfile.gettempdir(), filename)
     if os.path.exists(path):
         return path
     sampleRate = 44100
     freqHz = 1000.0
     durationS = 1.0
-    amplitude = 0.25
-    fadeSamples = 200
+    # PlaySound has no volume control; bake in the same gain as QSoundEffect.
+    amplitude = 0.25 * 0.15 if native else 0.25
     sampleCount = int(sampleRate * durationS)
     frames = bytearray()
     for i in range(sampleCount):
-        fade = min(1.0, i / fadeSamples, (sampleCount - i) / fadeSamples)
-        value = amplitude * fade * math.sin(2 * math.pi * freqHz * i / sampleRate)
+        # A whole number of cycles joins seamlessly; fading each repeat makes
+        # the supposedly continuous tone dip once a second.
+        value = amplitude * math.sin(2 * math.pi * freqHz * i / sampleRate)
         frames += struct.pack('<h', int(value * 32767))
     with wave.open(path, 'w') as wf:
         wf.setnchannels(1)
@@ -64,24 +73,57 @@ class StandbyTone(QtCore.QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._effect = QSoundEffect(self)
-        self._effect.setSource(QtCore.QUrl.fromLocalFile(_ensureStandbyToneFile()))
-        self._effect.setLoopCount(QSoundEffect.Infinite)
+        self._requested = False
         self._muted = False
+        self._nativeAvailable = _winsound is not None
+        self._nativePlaying = False
+        self._tonePath = _ensureStandbyToneFile(native=True) if self._nativeAvailable else None
         self._volume = 0.15
+        self._effect.statusChanged.connect(self._syncPlayback)
+        self._effect.setLoopCount(QSoundEffect.Infinite)
         self._effect.setVolume(self._volume)
+        self._effect.setSource(QtCore.QUrl.fromLocalFile(_ensureStandbyToneFile()))
+        app = QtWidgets.QApplication.instance()
+        if app is not None:
+            app.aboutToQuit.connect(self.stop)
 
     def start(self):
-        if not self._muted and not self._effect.isPlaying():
+        self._requested = True
+        self._syncPlayback()
+
+    def _syncPlayback(self):
+        if self._nativeAvailable:
+            # Qt's loading callbacks cannot run while the main window loads the
+            # catalogue. Windows owns this async loop, so startup cannot starve it.
+            if self._requested and not self._muted:
+                if not self._nativePlaying:
+                    try:
+                        _winsound.PlaySound(self._tonePath, _winsound.SND_FILENAME
+                                            | _winsound.SND_ASYNC | _winsound.SND_LOOP
+                                            | _winsound.SND_NODEFAULT)
+                        self._nativePlaying = True
+                    except RuntimeError:
+                        self._nativeAvailable = False
+                if self._nativeAvailable:
+                    return
+            else:
+                if self._nativePlaying:
+                    _winsound.PlaySound(None, 0)
+                    self._nativePlaying = False
+                return
+        if not self._requested or self._muted:
+            # Also cancel a pending play while the WAV is still loading.
+            self._effect.stop()
+        elif self._effect.status() == QSoundEffect.Ready and not self._effect.isPlaying():
             self._effect.play()
 
     def stop(self):
-        if self._effect.isPlaying():
-            self._effect.stop()
+        self._requested = False
+        self._syncPlayback()
 
     def setMuted(self, muted):
         self._muted = muted
-        if muted:
-            self._effect.stop()
+        self._syncPlayback()
 
 
 class StandByScreen(QtWidgets.QWidget):
@@ -121,7 +163,7 @@ class StandByScreen(QtWidgets.QWidget):
             painter.drawLine(QtCore.QPointF(dx - 18, dy), QtCore.QPointF(dx + 18, dy))
             painter.drawLine(QtCore.QPointF(dx, dy - 18), QtCore.QPointF(dx, dy + 18))
 
-        font = QtGui.QFont("Arial", max(14, rect.width() // 24), QtGui.QFont.Black)
+        font = QtGui.QFont(self.font().family(), max(14, rect.width() // 24), QtGui.QFont.Black)
         painter.setFont(font)
         textRect = rect.adjusted(10, 0, -10, 0)
         painter.setPen(QtGui.QColor('black'))
@@ -134,6 +176,7 @@ class ClipSlot(QtCore.QObject):
     """A single QMediaPlayer/QVideoWidget pair used as a playback buffer."""
 
     becameReady = QtCore.pyqtSignal()
+    playbackStarted = QtCore.pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -150,8 +193,35 @@ class ClipSlot(QtCore.QObject):
         self._pendingSeekFraction = None
         self._pendingSeekExtraMs = 0
         self._autoplayAfterLoad = False
+        self._hasPlayingFrame = False
+        self._lastPlaybackPosition = None
 
         self.player.durationChanged.connect(self._onDurationChanged)
+        self.videoProbe = QVideoProbe(self)
+        self._probeSupported = self.videoProbe.setSource(self.player)
+        self.videoProbe.videoFrameProbed.connect(self._onVideoFrame)
+        self.player.positionChanged.connect(self._onPlaybackPosition)
+
+    def _onVideoFrame(self, frame):
+        if (frame.isValid() and self.isReady()
+                and self.player.state() == QMediaPlayer.PlayingState):
+            self._markPlaybackStarted()
+
+    def _onPlaybackPosition(self, position):
+        # Some platforms lack frame probes. Require actual progress, not the
+        # position jump caused by the initial seek, before dismissing stand-by.
+        previous = self._lastPlaybackPosition
+        self._lastPlaybackPosition = position
+        if (not self._probeSupported and self.isReady() and previous is not None
+                and 0 < position - previous < 2000
+                and self.player.state() == QMediaPlayer.PlayingState
+                and self.player.mediaStatus() == QMediaPlayer.BufferedMedia):
+            self._markPlaybackStarted()
+
+    def _markPlaybackStarted(self):
+        if not self._hasPlayingFrame:
+            self._hasPlayingFrame = True
+            self.playbackStarted.emit()
 
     def isReady(self):
         return self._ready and self.path is not None
@@ -167,6 +237,8 @@ class ClipSlot(QtCore.QObject):
         self.path = path
         self.duration = 0
         self._ready = False
+        self._hasPlayingFrame = False
+        self._lastPlaybackPosition = None
         self._autoplayAfterLoad = autoplay
         self._pendingSeekFraction = seekFraction
         self._pendingSeekExtraMs = extraMs
@@ -217,6 +289,10 @@ class ClipSlot(QtCore.QObject):
         self.player.pause()
 
     def stop(self):
+        self._hasPlayingFrame = False
+        self._lastPlaybackPosition = None
+        self._ready = False
+        self.path = None
         self.player.stop()
         self.player.setMedia(QMediaContent())
         self.path = None
@@ -338,6 +414,11 @@ class ChannelEngine(QtCore.QObject):
 
         self.slotA.becameReady.connect(lambda: self._onSlotReady(self.slotA))
         self.slotB.becameReady.connect(lambda: self._onSlotReady(self.slotB))
+        self.slotA.playbackStarted.connect(lambda: self._onSlotReady(self.slotA))
+        self.slotB.playbackStarted.connect(lambda: self._onSlotReady(self.slotB))
+        for slot in (self.slotA, self.slotB):
+            slot.player.mediaStatusChanged.connect(lambda _status, s=slot: self._onSlotReady(s))
+            slot.player.stateChanged.connect(lambda _state, s=slot: self._onSlotReady(s))
 
         self.activeSlot = self.slotA
         self.standbySlot = self.slotB
@@ -443,7 +524,9 @@ class ChannelEngine(QtCore.QObject):
         self._stack.setCurrentWidget(self.standbyScreen)
 
     def _onSlotReady(self, slot):
-        if slot is self.activeSlot:
+        # PlayingState/BufferedMedia can both precede the first video frame.
+        if (slot is self.activeSlot and slot.isReady() and slot._hasPlayingFrame
+                and slot.player.state() == QMediaPlayer.PlayingState):
             self._stack.setCurrentWidget(slot.videoWidget)
 
     def _checkForFrozenPlayback(self):
@@ -617,6 +700,11 @@ class RetroChannelWidget(QtWidgets.QWidget):
 
     MIN_MOVIES_PER_CHANNEL = 3
     NEIGHBOR_WARM_COUNT = 1  # warm this many channels on either side for instant surfing
+    DEFAULT_FONT_SCALE = 2.0
+    RETRO_FONT_FAMILIES = (
+        'VT323', 'PxPlus IBM VGA8', 'Perfect DOS VGA 437',
+        'Lucida Console', 'Courier New', 'Liberation Mono', 'DejaVu Sans Mono',
+    )
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -640,7 +728,26 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.standbyTone = StandbyTone(self)
 
         self.setFocusPolicy(QtCore.Qt.StrongFocus)
+        font = QtGui.QFont(self.font())
+        installed = {family.casefold(): family for family in QtGui.QFontDatabase().families()}
+        family = next(
+            (installed[name.casefold()] for name in self.RETRO_FONT_FAMILIES if name.casefold() in installed),
+            QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.FixedFont).family(),
+        )
+        font.setFamily(family)
+        font.setStyleHint(QtGui.QFont.TypeWriter)
+        font.setFixedPitch(True)
+        self.setFont(font)
+        # Qt style sheets with font-size can override ordinary QFont inheritance.
+        self.setStyleSheet(f'QWidget {{ font-family: "{family}"; }}')
         self._buildUI()
+        self._baseFont = QtGui.QFont(self.font())
+        self._fontStyles = [
+            (widget, widget.styleSheet())
+            for widget in self.findChildren(QtWidgets.QWidget)
+            if re.search(r'font-size:\s*\d+px', widget.styleSheet())
+        ]
+        self.setFontScale(self.DEFAULT_FONT_SCALE)
 
         self.bannerTimer = QtCore.QTimer(self)
         self.bannerTimer.setSingleShot(True)
@@ -681,6 +788,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
 
         self.nowPlayingLabel = QtWidgets.QLabel("")
         self.nowPlayingLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.nowPlayingLabel.setWordWrap(True)
         self.nowPlayingLabel.setStyleSheet(
             "color: white; background: #111; font-size: 14px; font-weight: bold;"
             "padding: 6px; border: 1px solid #444; border-radius: 4px;"
@@ -706,7 +814,6 @@ class RetroChannelWidget(QtWidgets.QWidget):
 
         # -- side "clicker" panel --
         self.sideControls = QtWidgets.QFrame()
-        self.sideControls.setFixedWidth(130)
         self.sideControls.setStyleSheet(
             "background: #222; border: 2px solid #555; border-radius: 10px;"
         )
@@ -716,7 +823,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.channelLcd = QtWidgets.QLabel("--")
         self.channelLcd.setAlignment(QtCore.Qt.AlignCenter)
         self.channelLcd.setStyleSheet(
-            "background: black; color: #3fff6b; font-size: 22px; font-family: Consolas;"
+            "background: black; color: #3fff6b; font-size: 22px;"
             "border: 2px inset #555; padding: 6px;"
         )
         sideLayout.addWidget(self.channelLcd)
@@ -752,9 +859,54 @@ class RetroChannelWidget(QtWidgets.QWidget):
         sideLayout.addWidget(guideButton)
         sideLayout.addWidget(self.muteButton)
         sideLayout.addWidget(self.fullScreenButton)
+
+        fontLabel = QtWidgets.QLabel("FONT SIZE")
+        fontLabel.setAlignment(QtCore.Qt.AlignCenter)
+        fontLabel.setStyleSheet("color: #ccc; font-size: 11px;")
+        sideLayout.addWidget(fontLabel)
+        self.fontSizeControl = QtWidgets.QSpinBox()
+        self.fontSizeControl.setRange(50, 400)
+        self.fontSizeControl.setSingleStep(25)
+        self.fontSizeControl.setSuffix("%")
+        self.fontSizeControl.setValue(round(self.DEFAULT_FONT_SCALE * 100))
+        self.fontSizeControl.setAccessibleName("TV font size")
+        self.fontSizeControl.setToolTip("Text size relative to the original TV fonts")
+        self.fontSizeControl.setStyleSheet("background: #333; color: white; padding: 4px;")
+        self.fontSizeControl.valueChanged.connect(lambda value: self.setFontScale(value / 100))
+        sideLayout.addWidget(self.fontSizeControl)
         sideLayout.addStretch(1)
 
-        rootLayout.addWidget(self.sideControls)
+        # Large text must remain usable in shorter windows.
+        self.sideScroll = QtWidgets.QScrollArea()
+        self.sideScroll.setWidgetResizable(True)
+        self.sideScroll.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.sideScroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.sideScroll.setWidget(self.sideControls)
+        rootLayout.addWidget(self.sideScroll)
+
+    def setFontScale(self, scale):
+        """Scale from the original fonts so repeated adjustments never compound."""
+        self.fontScale = max(0.5, min(4.0, scale))
+        font = QtGui.QFont(self._baseFont)
+        if font.pixelSize() > 0:
+            font.setPixelSize(round(font.pixelSize() * self.fontScale))
+        else:
+            font.setPointSizeF(font.pointSizeF() * self.fontScale)
+        self.setFont(font)
+        for widget, style in self._fontStyles:
+            widget.setStyleSheet(re.sub(
+                r'(font-size:\s*)(\d+)px',
+                lambda match: f'{match[1]}{round(int(match[2]) * self.fontScale)}px',
+                style,
+            ))
+        self.fontSizeControl.blockSignals(True)
+        self.fontSizeControl.setValue(round(self.fontScale * 100))
+        self.fontSizeControl.blockSignals(False)
+        self.sideScroll.setFixedWidth(max(130, self.sideControls.sizeHint().width() + 24))
+        self.guideTable.setColumnWidth(0, round(50 * self.fontScale))
+        self.guideTable.setColumnWidth(1, round(160 * self.fontScale))
+        self.guideTable.resizeRowsToContents()
+        self.overlayArea._layoutOverlay(self.banner)
 
     def _buildGuideOverlay(self):
         guide = QtWidgets.QFrame()
@@ -825,6 +977,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
 
         hint = QtWidgets.QLabel("\u25B2/\u25BC Browse channels     Enter Tune     G/Esc Close Guide")
         hint.setAlignment(QtCore.Qt.AlignCenter)
+        hint.setWordWrap(True)
         hint.setStyleSheet("color: #8888cc; font-size: 11px;")
         layout.addWidget(hint)
 
@@ -943,6 +1096,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
             parent=self,
         )
         engine.programChanged.connect(lambda idx=index: self._onProgramChanged(idx))
+        engine._stack.currentChanged.connect(lambda _index: self._syncStandbyTone())
         return engine
 
     def _teardownAllEngines(self):
@@ -1227,6 +1381,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
                     item.setForeground(QtGui.QColor('white'))
                 table.setItem(i, col, item)
 
+        table.resizeRowsToContents()
         highlightedItem = table.item(self.guideHighlightIndex, 0)
         if highlightedItem:
             table.scrollToItem(highlightedItem)
@@ -1253,6 +1408,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if self._fullScreenTransition:
             return
         self.isActive = True
+        # Start before engine creation or any catalogue/tuning work can block Qt.
+        self.standbyTone.start()
         self.standbyPollTimer.start()
         if self.channels:
             self._tuneTo(self.currentIndex)
