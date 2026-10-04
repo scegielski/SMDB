@@ -1,5 +1,9 @@
 # Retro TV (smdb/RetroChannelWidget.py) - Status and Open Issues
 
+- Random starts retained (2026-10-04): each program again receives a stable random starting fraction up to 85% through the movie, then plays uninterrupted to its end. Schedule lengths use the remaining portion, and tuning back preserves the same random start plus elapsed broadcast time. Thirteen regressions pass.
+
+- Full movie playback (2026-10-04): removed the one-minute program cutoff and random program starting offsets. Channels schedule full movies using catalogue runtimes, corrected by loaded media durations. Active playback advances only on EndOfMedia, so inaccurate runtime estimates and buffering cannot cut off a movie. Returning to a channel still joins its broadcast in progress. Completion adjusts the broadcast timeline, and the guide shows the next scheduled title before prebuffering begins. Twelve regression checks pass, including variable durations, joining in progress, late completion, and ignoring inactive-buffer end signals.
+
 - Channel minimum (2026-10-04): SMTV now requires at least ten movies in a genre before creating its channel, excluding small collections such as the four-title Adult genre.
 
 - Mode names (2026-10-04): the menu labels are SMDB for the database and SMTV for television. Internal settings retain their existing values so previously selected modes still restore.
