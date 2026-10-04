@@ -398,7 +398,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.moviesTabWidget.addTab(self.coverFlowWidget, "Cover Flow")
         # Load saved camera settings
         self.coverFlowWidget.loadCameraSettings(self.settings)
-        
+
+        # Retro TV Tab (genre channels with live-switching promo clips)
+        from .RetroChannelWidget import RetroChannelWidget
+        self.retroChannelWidget = RetroChannelWidget(parent=self)
+        self.moviesTabWidget.addTab(self.retroChannelWidget, "Retro TV")
+
         # Statistics Tab
         self.statisticsWidget = StatisticsWidget(
             parent=self,
@@ -412,7 +417,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Connect tab change to save setting
         self.moviesTabWidget.currentChanged.connect(self.onMoviesTabChanged)
         
-        # Restore saved tab index (0=List, 1=Cover Flow, 2=Statistics)
+        # Restore saved tab index (0=List, 1=Cover Flow, 2=Retro TV, 3=Statistics)
         savedTabIndex = self.settings.value('moviesTabIndex', 0, type=int)
         self.moviesTabWidget.setCurrentIndex(savedTabIndex)
         
@@ -1583,6 +1588,10 @@ class MainWindow(QtWidgets.QMainWindow):
         # Auto-refresh statistics when movies list is loaded
         if hasattr(self, 'statisticsWidget') and self.statisticsWidget:
             self.statisticsWidget.refresh()
+
+        # Rebuild Retro TV genre channels when movies list is loaded
+        if hasattr(self, 'retroChannelWidget') and self.retroChannelWidget:
+            self.retroChannelWidget.refreshChannels()
 
     def refreshWatchList(self):
         """Delegate to WatchListWidget."""
@@ -4238,6 +4247,34 @@ class MainWindow(QtWidgets.QMainWindow):
                 return selectedPath
             else:
                 return None
+
+    def resolveMovieVideoFile(self, row, model=None):
+        """
+        Find a playable video file for the given source model row.
+        Used by the Retro TV channel feature to queue up promo clips.
+
+        Returns the full path to a video file, or None if none can be found.
+        """
+        model = model or self.moviesTableModel
+        if model is None or row is None or row < 0 or row >= model.rowCount():
+            return None
+
+        moviePath = model.getPath(row)
+        folderName = model.getFolderName(row)
+        moviePath = self.findMovie(moviePath, folderName)
+        if not moviePath:
+            return None
+
+        validExtentions = ['.mkv', '.mpg', '.mp4', '.avi', '.flv', '.wmv', '.m4v', '.divx', '.ogm']
+        try:
+            for file in sorted(os.listdir(moviePath)):
+                if os.path.splitext(file)[1].lower() in validExtentions:
+                    candidate = os.path.join(moviePath, file)
+                    if os.path.exists(candidate):
+                        return candidate
+        except OSError:
+            return None
+        return None
 
     def playMovie(self, tableView, proxy):
         proxyIndex = tableView.selectionModel().selectedRows()[0]

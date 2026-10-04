@@ -420,6 +420,13 @@ class MoviesTableModel(QtCore.QAbstractTableModel):
     def getTitle(self, row):
         return self._data[row][Columns.Title.value]
 
+    def getGenres(self, row):
+        """Return the list of genre strings for a movie row."""
+        genres = self._data[row][Columns.Genres.value]
+        if not genres:
+            return []
+        return [g.strip() for g in genres.split(',') if g.strip()]
+
     def getDateWatched(self, row):
         return self._data[row][Columns.DateWatched.value]
 
