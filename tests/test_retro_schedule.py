@@ -97,7 +97,7 @@ class FullMovieScheduleTests(unittest.TestCase):
                     patch.object(tv, '_tuneTo'), patch.object(tv, '_updateGuidePreview'):
                 tv.resize(1200, 700)
                 tv.show()
-                tv.toggleGuide()
+                self.assertTrue(tv.guideVisible)
                 self.app.processEvents()
                 self.app.processEvents()
                 item = tv.guideTable.item(29, 0)
@@ -111,6 +111,33 @@ class FullMovieScheduleTests(unittest.TestCase):
                 self.assertTrue(tv.guideTable.viewport().rect().contains(tv.guideTable.visualItemRect(item)))
         finally:
             tv.close()
+
+    def test_startup_guide_waits_for_catalogue_and_opens_once(self):
+        parent = QtWidgets.QWidget()
+        parent.moviesTableModel = Mock()
+        model = parent.moviesTableModel
+        model.rowCount.return_value = 10
+        model.getGenres.return_value = ['Action']
+        model.getRuntime.return_value = '120'
+        model.getTitle.return_value = 'Movie'
+        model.getYear.return_value = '1963'
+        model.getMovieData.return_value = {}
+        tv = RetroChannelWidget(parent)
+        try:
+            with patch.object(tv.standbyTone, '_syncPlayback'), \
+                    patch.object(tv, '_tuneTo'), patch.object(tv, '_updateGuidePreview'):
+                parent.show()
+                tv.show()
+                self.assertFalse(tv.guideVisible)
+                tv.refreshChannels()
+                self.assertTrue(tv.guideVisible)
+                self.assertEqual(tv.guidePages.currentIndex(), 0)
+                tv.toggleGuide()
+                tv.refreshChannels()
+                self.assertFalse(tv.guideVisible)
+        finally:
+            tv.close()
+            parent.close()
 
     def test_estimated_boundary_never_cuts_active_movie_and_end_advances(self):
         with patch('smdb.RetroChannelWidget.time.monotonic', return_value=0) as now:

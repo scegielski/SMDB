@@ -32,7 +32,8 @@ class FullScreenLifecycleTests(unittest.TestCase):
         self.app.processEvents()
         engines = dict(tv.engines)
         players = {i: e.activeSlot.player for i, e in engines.items()}
-        tv.toggleGuide()
+        if not tv.guideVisible:
+            tv.toggleGuide()
         preview_engine = tv._guidePreviewHostedEngine
 
         try:

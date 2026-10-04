@@ -815,6 +815,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.currentIndex = 0
         self.isActive = False
         self.guideVisible = False
+        self._showGuideOnStart = True
         self.guideHighlightIndex = 0
         self.guidePreviewSlot = None
         self._guidePreviewHostedEngine = None
@@ -1199,6 +1200,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
 
         if self.isActive and self.channels:
             self._tuneTo(self.currentIndex)
+            self._openStartupGuide()
 
     def _durationForRow(self, row):
         model = getattr(self.mainWindow, 'moviesTableModel', None)
@@ -1284,6 +1286,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
         )
         engine.programChanged.connect(lambda idx=index: self._onProgramChanged(idx))
         engine._stack.currentChanged.connect(lambda _index: self._syncStandbyTone())
+        engine._stack.currentChanged.connect(
+            lambda _index: self._refreshGuideTable() if self.guideVisible else None)
         return engine
 
     def _teardownAllEngines(self):
@@ -1417,6 +1421,13 @@ class RetroChannelWidget(QtWidgets.QWidget):
         engine = self.engines.get(self.currentIndex)
         if engine:
             engine.setDesiredVolume(self.masterVolume)
+
+    def _openStartupGuide(self):
+        if self._showGuideOnStart and self.channels:
+            self._showGuideOnStart = False
+            self.guidePages.setCurrentIndex(0)
+            if not self.guideVisible:
+                self.toggleGuide()
 
     def toggleGuide(self):
         if not self.channels:
@@ -1583,10 +1594,15 @@ class RetroChannelWidget(QtWidgets.QWidget):
 
             values = [f"{i + 1:02d}", chan['genre'].upper(), nowText, nextText]
             highlighted = (i == self.guideHighlightIndex)
+            playing = (i == self.currentIndex and engine is not None
+                       and engine.currentRow is not None and not engine.isShowingStandby())
             for col, value in enumerate(values):
                 item = QtWidgets.QTableWidgetItem(value)
                 item.setFlags(QtCore.Qt.ItemIsEnabled)
-                if highlighted:
+                if playing and col == 2:
+                    item.setBackground(QtGui.QColor('#00ff00'))
+                    item.setForeground(QtGui.QColor('black'))
+                elif highlighted:
                     item.setBackground(QtGui.QColor('#ffcc00'))
                     item.setForeground(QtGui.QColor('black'))
                 else:
@@ -1648,7 +1664,9 @@ class RetroChannelWidget(QtWidgets.QWidget):
                 item = QtWidgets.QTableWidgetItem(value)
                 item.setFlags(QtCore.Qt.ItemIsEnabled)
                 if index == 0:
-                    item.setBackground(QtGui.QColor('#ffcc00'))
+                    playing = (self.guideHighlightIndex == self.currentIndex and engine is not None
+                               and engine.currentRow is not None and not engine.isShowingStandby())
+                    item.setBackground(QtGui.QColor('#00ff00' if playing else '#ffcc00'))
                     item.setForeground(QtGui.QColor('black'))
                 self.scheduleTable.setItem(index, column, item)
             startMs += clock.durationForSlot(slot)
@@ -1663,11 +1681,13 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if self._fullScreenTransition:
             return
         self.isActive = True
+        self._showGuideOnStart = True
         # Start before engine creation or any catalogue/tuning work can block Qt.
         self.standbyTone.start()
         self.standbyPollTimer.start()
         if self.channels:
             self._tuneTo(self.currentIndex)
+            self._openStartupGuide()
         else:
             self._syncStandbyTone()
         self.setFocus()

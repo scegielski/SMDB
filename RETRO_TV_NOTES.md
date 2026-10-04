@@ -1,5 +1,9 @@
 # Retro TV (smdb/RetroChannelWidget.py) - Status and Open Issues
 
+- Startup guide (2026-10-04): SMTV opens directly in the Channels guide when entered, including startup where catalogue loading finishes after the window appears. Playing content now uses pure bright green (#00ff00).
+
+- Playing program color (2026-10-04): the tuned channel's NOW title is bright lime green (#00ff00) while its video is visible, and its current Schedule row uses the same green. Yellow continues to identify the guide selection. Guide colors refresh when an engine switches between stand-by and video.
+
 - Highlight visibility (2026-10-04): the descending channel guide scrolls to the highlighted row after layout, including opening, viewport resizing, and returning from the Schedule tab. Vertical centering preserves the current horizontal scroll position. Seventeen regressions pass, including a thirty-channel guide with the selected channel at its bottom.
 
 - Guide channel order (2026-10-04): the channel overview displays descending channel numbers. CH Up and the up-arrow key move toward the top of the guide; CH Down and the down-arrow key move toward the bottom. Channel numbering, lineup contents, highlighting, and wrapping retain their existing behavior.
