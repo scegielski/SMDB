@@ -1037,9 +1037,9 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.guideTable.setMinimumHeight(80)
         splitter.addWidget(topWidget)
         splitter.addWidget(self.guideTable)
-        splitter.setStretchFactor(0, 0)
+        splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 1)
-        splitter.setSizes([180, 600])
+        splitter.setSizes([600, 300])
         layout.addWidget(splitter, 1)
 
         hint = QtWidgets.QLabel("\u25B2/\u25BC Browse channels     Enter Tune     G/Esc Close Guide")
