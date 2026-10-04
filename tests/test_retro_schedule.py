@@ -139,6 +139,114 @@ class FullMovieScheduleTests(unittest.TestCase):
             tv.close()
             parent.close()
 
+    def test_current_film_seek_buttons_adjust_position_and_schedule(self):
+        with patch('smdb.RetroChannelWidget.time.monotonic', return_value=0):
+            clock = ChannelClock([0], lambda row: 100000)
+            clock._offsetFractions = {0: 0.5}
+            engine = ChannelEngine(1, 'Action', clock, lambda row: None, str)
+            engine.currentRow = 0
+            engine.currentSlotIndex = 0
+            slot = engine.activeSlot
+            realPlayer = slot.player
+            slot.player = Mock()
+            slot.duration = 100000
+            slot.path = 'movie.mp4'
+            slot._ready = True
+            position = [50000]
+            slot.player.position.side_effect = lambda: position[0]
+            slot.player.setPosition.side_effect = lambda value: position.__setitem__(0, value)
+            tv = RetroChannelWidget()
+            neighbor = Mock()
+            tv.engines = {0: engine, 1: neighbor}
+            tv.sideControls.setEnabled(True)
+            try:
+                with patch.object(engine, '_maybeSchedulePrefetch'):
+                    tv.forwardTenButton.click()
+                    self.assertEqual(position[0], 60000)
+                    self.assertEqual(engine.advanceTimer.interval(), 40000)
+                    tv.backTenButton.click()
+                    self.assertEqual(position[0], 50000)
+                    engine.seekCurrentFilm(beginning=True)
+                    self.assertEqual(position[0], 0)
+                    self.assertEqual(engine.advanceTimer.interval(), 100000)
+                    tv.backTenButton.click()
+                    self.assertEqual(position[0], 0)
+                    position[0] = 95000
+                    tv.forwardTenButton.click()
+                    self.assertEqual(position[0], 99999)
+                    self.assertEqual(engine.currentRow, 0)
+                    self.assertEqual(clock.slotInfo(1)[1], 0.5)
+                    neighbor.seekCurrentFilm.assert_not_called()
+                    slot.player.setMedia.assert_not_called()
+            finally:
+                tv.engines.clear()
+                slot.player = realPlayer
+                engine.shutdown()
+                engine.container.close()
+                tv.close()
+
+    def test_next_start_opens_next_movie_at_zero_and_preserves_future_random_start(self):
+        clock = ChannelClock([0, 1], lambda row: 120000)
+        clock._rotation = [0, 1]
+        clock._offsetFractions = {0: 0.25, 1: 0.5}
+        engine = ChannelEngine(1, 'Action', clock, lambda row: None, str)
+        engine.currentSlotIndex = 0
+        tv = RetroChannelWidget()
+        tv.engines = {0: engine}
+        tv.sideControls.setEnabled(True)
+        try:
+            with patch.object(engine, '_tuneIn') as tune:
+                tv.nextBeginningButton.click()
+                self.assertEqual(clock.whatsOnNow()[:3], (1, 1, 0.0))
+                self.assertEqual(clock.durationForSlot(1), 120000)
+                self.assertEqual(clock.slotInfo(3)[1], 0.5)
+                tune.assert_called_once()
+        finally:
+            tv.engines.clear()
+            engine.shutdown()
+            engine.container.close()
+            tv.close()
+
+    def test_previous_resume_then_beginning_and_forward_restores_saved_position(self):
+        clock = ChannelClock([0, 1], lambda row: 100000)
+        clock._rotation = [0, 1]
+        clock._offsetFractions = {0: 0.25, 1: 0.5}
+        clock.rememberPosition(0, 0, 100000, 42000)
+        engine = ChannelEngine(1, 'Action', clock, lambda row: None, str)
+        engine.currentSlotIndex = 1
+        slot = engine.activeSlot
+        realPlayer = slot.player
+        tv = RetroChannelWidget()
+        tv.engines = {0: engine}
+        tv.sideControls.setEnabled(True)
+        try:
+            with patch.object(engine, '_tuneIn') as tune, patch.object(engine, '_maybeSchedulePrefetch'):
+                tv.beginningButton.click()
+                self.assertEqual(clock.slotInfo(0)[1], 0.42)
+                self.assertEqual(engine.currentSlotIndex, 0)
+                slot.player = Mock()
+                position = [42000]
+                slot.player.position.side_effect = lambda: position[0]
+                slot.player.setPosition.side_effect = lambda value: position.__setitem__(0, value)
+                slot.path = 'movie.mp4'
+                slot._ready = True
+                slot.duration = 100000
+                engine.currentRow = 0
+                tv.beginningButton.click()
+                self.assertEqual(position[0], 0)
+                self.assertEqual(engine.currentSlotIndex, 0)
+                tv.nextBeginningButton.click()
+                self.assertEqual(position[0], 42000)
+                self.assertEqual(engine.currentSlotIndex, 0)
+                tune.assert_called_once()
+                self.assertEqual(clock.resumeInfoForSlot(2)[2], 42000)
+        finally:
+            tv.engines.clear()
+            slot.player = realPlayer
+            engine.shutdown()
+            engine.container.close()
+            tv.close()
+
     def test_estimated_boundary_never_cuts_active_movie_and_end_advances(self):
         with patch('smdb.RetroChannelWidget.time.monotonic', return_value=0) as now:
             clock = ChannelClock([0, 1], lambda row: 120000)

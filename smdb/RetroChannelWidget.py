@@ -334,6 +334,8 @@ class ChannelClock:
         self.epoch = time.monotonic()
         self._rotation = []
         self._offsetFractions = {}
+        self._startOverrides = {}
+        self._resumePositions = {}
         self._durations = {}
         self._resolvedRows = {}
         self.durationGetter = durationGetter
@@ -346,6 +348,8 @@ class ChannelClock:
         return self._rotation[slotIndex % len(self._rotation)]
 
     def _offsetFractionForSlot(self, slotIndex):
+        if slotIndex in self._startOverrides:
+            return self._startOverrides[slotIndex]
         slotIndex %= len(self._rotation)
         if slotIndex not in self._offsetFractions:
             self._offsetFractions[slotIndex] = random.uniform(0.0, MAX_START_FRACTION)
@@ -376,10 +380,37 @@ class ChannelClock:
     def jumpToSlot(self, slotIndex):
         self.epoch = time.monotonic() - (self.slotStartMs(slotIndex) + 1) / 1000.0
 
+    def repositionSlot(self, slotIndex, row, duration, position):
+        # Manual seeking affects this airing only, keeping the loop's assigned
+        # random starting position for future airings.
+        self._startOverrides[slotIndex] = position / duration
+        self.recordMedia(slotIndex, row, duration)
+        self.jumpToSlot(slotIndex)
+
+    def startSlotAtBeginning(self, slotIndex):
+        self._startOverrides[slotIndex] = 0.0
+        self._durations.pop(slotIndex, None)
+
+    def rememberPosition(self, slotIndex, row, duration, position):
+        self._resumePositions[row] = (row, duration, position)
+
+    def resumeInfoForSlot(self, slotIndex):
+        row = self._resolvedRows.get(slotIndex, self._rowForSlot(slotIndex))
+        return self._resumePositions.get(row)
+
+    def resumeSlot(self, slotIndex):
+        saved = self.resumeInfoForSlot(slotIndex)
+        if saved is None:
+            return False
+        row, duration, position = saved
+        self.repositionSlot(slotIndex, row, duration, position)
+        return True
+
     def candidateRows(self, slotIndex, count=5):
         """Rows for `slotIndex` and the following slots, used as fallbacks
         when a scheduled movie has no resolvable video file."""
-        return [self._rowForSlot(slotIndex + i) for i in range(count)]
+        return [self._resolvedRows.get(slotIndex + i, self._rowForSlot(slotIndex + i))
+                for i in range(count)]
 
     def whatsOnNow(self):
         """Return (slotIndex, row, offsetFraction, positionInSlotMs, remainingMs)."""
@@ -478,6 +509,8 @@ class ChannelEngine(QtCore.QObject):
         self._tuneRequestId = None
         self._prefetchRequestId = None
         self._hardCutRequestId = None
+        self._previousNavigationSlot = None
+        self._beginningResume = None
 
         self.advanceTimer = QtCore.QTimer(self)
         self.advanceTimer.setSingleShot(True)
@@ -722,13 +755,33 @@ class ChannelEngine(QtCore.QObject):
 
         self._startResolve(slotIndex, '_hardCutRequestId', onResolved)
 
-    def skipProgram(self, step):
+    def skipProgram(self, step, beginning=False, startUnvisited=False):
         current = self.currentSlotIndex
         if current is None:
             current = self.clock.whatsOnNow()[0]
+        if not beginning and current == self._previousNavigationSlot:
+            if step < 0 and self._beginningResume is None:
+                saved = self.clock.resumeInfoForSlot(current)
+                slot = self.activeSlot
+                if saved is None and self.currentRow is not None and slot.isReady() and slot.duration > 0:
+                    saved = (self.currentRow, slot.duration, slot.player.position())
+                if saved is not None and self.seekCurrentFilm(beginning=True):
+                    self._beginningResume = saved
+                return
+            if step > 0 and self._beginningResume is not None:
+                _row, _duration, position = self._beginningResume
+                if self._seekFilmPosition(position):
+                    self._beginningResume = None
+                    self._previousNavigationSlot = None
+                return
         target = current + step
         if target < 0:
             target = len(self.clock._rotation) - 1
+        if startUnvisited and self.clock.resumeInfoForSlot(target) is None:
+            beginning = True
+        slot = self.activeSlot
+        if self.currentRow is not None and slot.isReady() and slot.duration > 0:
+            self.clock.rememberPosition(current, self.currentRow, slot.duration, slot.player.position())
         self.advanceTimer.stop()
         self.prefetchTimer.stop()
         self._resolveSeq += 1
@@ -743,8 +796,32 @@ class ChannelEngine(QtCore.QObject):
         self.currentSlotIndex = target
         self._prefetchStarted = False
         self._prefetchedSlotIndex = None
+        self._previousNavigationSlot = target if step < 0 and not beginning else None
+        self._beginningResume = None
+        if beginning:
+            self.clock.startSlotAtBeginning(target)
+        else:
+            self.clock.resumeSlot(target)
         self.clock.jumpToSlot(target)
         self._tuneIn()
+
+    def seekCurrentFilm(self, offsetMs=0, beginning=False):
+        target = 0 if beginning else self.activeSlot.player.position() + offsetMs
+        return self._seekFilmPosition(target)
+
+    def _seekFilmPosition(self, target):
+        slot = self.activeSlot
+        if self.currentRow is None or self.currentSlotIndex is None or not slot.isReady() or slot.duration <= 0:
+            return False
+        target = max(0, min(slot.duration - 1, int(target)))
+        slot.player.setPosition(target)
+        self.clock.repositionSlot(self.currentSlotIndex, self.currentRow, slot.duration, target)
+        self.advanceTimer.stop()
+        self.prefetchTimer.stop()
+        remaining = max(50, slot.duration - target)
+        self._scheduleAdvance(remaining)
+        self._maybeSchedulePrefetch(remaining)
+        return True
 
 
 class _GuideTopBar(QtWidgets.QWidget):
@@ -958,6 +1035,38 @@ class RetroChannelWidget(QtWidgets.QWidget):
             button.setToolTip(name + ' on this channel')
             button.clicked.connect(lambda _checked=False, direction=step: self.skipProgram(direction))
             sideLayout.addWidget(button)
+
+        self.backTenButton = QtWidgets.QPushButton('◀')
+        self.forwardTenButton = QtWidgets.QPushButton('▶')
+        self.beginningButton = QtWidgets.QPushButton('|◀')
+        for button, offset, beginning, name in (
+                (self.backTenButton, -10000, False, 'Back ten seconds'),
+                (self.forwardTenButton, 10000, False, 'Forward ten seconds')):
+            button.setStyleSheet(upButton.styleSheet())
+            button.setFocusPolicy(QtCore.Qt.NoFocus)
+            button.setAccessibleName(name)
+            button.setToolTip(name)
+            button.clicked.connect(lambda _checked=False, delta=offset, start=beginning:
+                                   self.seekCurrentFilm(delta, start))
+
+        self.beginningButton.setStyleSheet(upButton.styleSheet())
+        self.beginningButton.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.beginningButton.setAccessibleName('Previous film, then beginning')
+        self.beginningButton.setToolTip('Resume previous film; press again for its beginning')
+        self.beginningButton.clicked.connect(lambda: self.skipProgram(-1))
+
+        self.nextBeginningButton = QtWidgets.QPushButton('▶|')
+        self.nextBeginningButton.setStyleSheet(upButton.styleSheet())
+        self.nextBeginningButton.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.nextBeginningButton.setAccessibleName('Next film or restore resume position')
+        self.nextBeginningButton.setToolTip('Restore saved position, or open the next film from its beginning')
+        self.nextBeginningButton.clicked.connect(lambda: self.skipProgram(1, startUnvisited=True))
+        filmControls = QtWidgets.QGridLayout()
+        filmControls.addWidget(self.backTenButton, 0, 0)
+        filmControls.addWidget(self.forwardTenButton, 0, 1)
+        filmControls.addWidget(self.beginningButton, 1, 0)
+        filmControls.addWidget(self.nextBeginningButton, 1, 1)
+        sideLayout.addLayout(filmControls)
 
         guideButton = QtWidgets.QPushButton("GUIDE")
         guideButton.clicked.connect(self.toggleGuide)
@@ -1396,15 +1505,20 @@ class RetroChannelWidget(QtWidgets.QWidget):
             return
         self._tuneTo(self.currentIndex - 1)
 
-    def skipProgram(self, step):
+    def skipProgram(self, step, beginning=False, startUnvisited=False):
         engine = self.engines.get(self.currentIndex)
         if engine is None:
             return
-        engine.skipProgram(step)
+        engine.skipProgram(step, beginning, startUnvisited)
         self._updateNowPlayingLabel(engine)
         if self.guideVisible:
             self._refreshGuideTable()
         self._syncStandbyTone()
+
+    def seekCurrentFilm(self, offsetMs=0, beginning=False):
+        engine = self.engines.get(self.currentIndex)
+        if engine and engine.seekCurrentFilm(offsetMs, beginning) and self.guideVisible:
+            self._refreshGuideTable()
 
     def toggleMute(self):
         self.setVolume(0 if self.masterVolume else self._lastVolume)

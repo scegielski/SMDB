@@ -1,5 +1,17 @@
 # Retro TV (smdb/RetroChannelWidget.py) - Status and Open Issues
 
+- Barred arrow wiring correction (2026-10-04): the bottom back arrow now navigates/resumes the previous film, then seeks to its beginning on a second press. The bottom forward arrow restores that saved spot, or opens the next film at its saved position (zero if unvisited). Previously the resume behavior was attached only to the text PREV/NEXT controls, leaving the barred back arrow repeatedly restarting the current film. The resume regression now exercises the actual barred buttons; all twenty-one tests pass.
+
+- Film resume navigation (2026-10-04): per-film positions are remembered for manual program navigation in either direction. PREV returns to the previous film's saved spot; pressing PREV again seeks to its beginning, and NEXT then restores the saved spot within that same film. Explicit barred controls continue to request a film beginning. Twenty-one regressions pass.
+
+- Previous film resume (2026-10-04): leaving a program manually saves its row and playback position in the channel clock. PREV resumes that airing from its saved position when available; otherwise it uses the assigned random start. Seeking and schedule timing remain aligned, and fallback movie resolution honors the remembered row.
+
+- Film control layout (2026-10-04): four compact controls use a two-by-two grid, with ◀ / ▶ for ten-second seeking above |◀ / ▶| for current/next film beginnings. Tooltips and accessible names explain each action.
+
+- Next film beginning (2026-10-04): NEXT START jumps to the next scheduled film at zero, independently of NEXT's random starting position. The override applies only to that airing; future loops retain their random offsets. Twenty regression checks pass.
+
+- Film seeking (2026-10-04): the clicker adds back ten seconds, forward ten seconds, and BEGINNING for the current film. Positions clamp to its bounds and update only that channel's current airing and remaining schedule; future loops retain their assigned random starts. Seeking keeps the existing player/media. Nineteen regressions pass.
+
 - Startup guide (2026-10-04): SMTV opens directly in the Channels guide when entered, including startup where catalogue loading finishes after the window appears. Playing content now uses pure bright green (#00ff00).
 
 - Playing program color (2026-10-04): the tuned channel's NOW title is bright lime green (#00ff00) while its video is visible, and its current Schedule row uses the same green. Yellow continues to identify the guide selection. Guide colors refresh when an engine switches between stand-by and video.
