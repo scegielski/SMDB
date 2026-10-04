@@ -916,6 +916,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self.engines[idx].start()
 
         self.currentIndex = index
+        self.guideHighlightIndex = index
         engine = self.engines.get(index)
         if engine:
             self.displayStack.setCurrentWidget(engine.container)
@@ -924,6 +925,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._updateNowPlayingLabel(engine)
         if self.guideVisible:
             self._refreshGuideTable()
+            self._updateGuidePreview()
         self._setStandbyConnection(engine)
 
     def _updateChannelLabel(self):
@@ -962,22 +964,12 @@ class RetroChannelWidget(QtWidgets.QWidget):
     def channelUp(self):
         if not self.channels:
             return
-        if self.guideVisible:
-            self.guideHighlightIndex = (self.guideHighlightIndex + 1) % len(self.channels)
-            self._refreshGuideTable()
-            self._updateGuidePreview()
-        else:
-            self._tuneTo(self.currentIndex + 1)
+        self._tuneTo(self.currentIndex + 1)
 
     def channelDown(self):
         if not self.channels:
             return
-        if self.guideVisible:
-            self.guideHighlightIndex = (self.guideHighlightIndex - 1) % len(self.channels)
-            self._refreshGuideTable()
-            self._updateGuidePreview()
-        else:
-            self._tuneTo(self.currentIndex - 1)
+        self._tuneTo(self.currentIndex - 1)
 
     def toggleMute(self):
         self.masterVolume = 0 if self.masterVolume else 70
