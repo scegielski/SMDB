@@ -1138,10 +1138,13 @@ class RetroChannelWidget(QtWidgets.QWidget):
                 nowText = engine.currentTitle
                 nextText = engine.nextTitle
             else:
-                rows = chan['rows']
-                sample = rows[:2] if len(rows) >= 2 else (rows * 2)[:2]
-                nowText = self._titleForRow(sample[0]) if sample else ''
-                nextText = self._titleForRow(sample[1]) if len(sample) > 1 else ''
+                # No live engine warmed for this channel - preview "now"/"next" straight from
+                # its schedule clock, the same source tuning in will actually use, so the guide
+                # never promises content that switching to the channel won't deliver.
+                slotIndex, row, _, _, _ = chan['clock'].whatsOnNow()
+                nextRow, _ = chan['clock'].slotInfo(slotIndex + 1)
+                nowText = self._titleForRow(row)
+                nextText = self._titleForRow(nextRow)
 
             values = [f"{i + 1:02d}", chan['genre'].upper(), nowText, nextText]
             highlighted = (i == self.guideHighlightIndex)
