@@ -910,6 +910,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
     and a teletext-style channel guide, all built from the movie collection.
     """
 
+    fontScaleChanged = QtCore.pyqtSignal(float)
     MIN_MOVIES_PER_CHANNEL = 10
     NEIGHBOR_WARM_COUNT = 1  # warm this many channels on either side for instant surfing
     DEFAULT_FONT_SCALE = 2.0
@@ -1149,20 +1150,6 @@ class RetroChannelWidget(QtWidgets.QWidget):
         sideLayout.addWidget(self.muteButton)
         sideLayout.addWidget(self.fullScreenButton)
 
-        self.fontSizeLabel = QtWidgets.QLabel("FONT SIZE")
-        self.fontSizeLabel.setAlignment(QtCore.Qt.AlignCenter)
-        self.fontSizeLabel.setStyleSheet("color: #ccc; font-size: 11px;")
-        sideLayout.addWidget(self.fontSizeLabel)
-        self.fontUpButton = QtWidgets.QPushButton("FONT ▲")
-        self.fontDownButton = QtWidgets.QPushButton("FONT ▼")
-        self.fontUpButton.setAccessibleName("Increase TV font size")
-        self.fontDownButton.setAccessibleName("Decrease TV font size")
-        for button, step in ((self.fontUpButton, 0.25), (self.fontDownButton, -0.25)):
-            button.setStyleSheet(self.volumeUpButton.styleSheet())
-            button.setFocusPolicy(QtCore.Qt.NoFocus)
-            button.setAutoRepeat(True)
-            button.clicked.connect(lambda _checked=False, delta=step: self.setFontScale(self.fontScale + delta))
-            sideLayout.addWidget(button)
         sideLayout.addStretch(1)
 
         # Large text must remain usable in shorter windows.
@@ -1192,15 +1179,13 @@ class RetroChannelWidget(QtWidgets.QWidget):
                               f'font-family: "{font.family()}";',
                 style,
             ))
-        self.fontSizeLabel.setText(f"FONT SIZE {round(self.fontScale * 100)}%")
-        self.fontUpButton.setEnabled(self.fontScale < 4.0)
-        self.fontDownButton.setEnabled(self.fontScale > 0.5)
         self.sideScroll.setFixedWidth(max(130, self.sideControls.sizeHint().width() + 24))
         self.guideTable.setColumnWidth(0, round(50 * self.fontScale))
         self.guideTable.setColumnWidth(1, round(160 * self.fontScale))
         self._sizeGuideColumns()
         self.guideTable.resizeRowsToContents()
         self.overlayArea._layoutOverlay(self.banner)
+        self.fontScaleChanged.emit(self.fontScale)
 
     def _onGuideColumnResized(self, column, oldWidth, newWidth):
         if column in (2, 3) and not self._sizingGuideColumns:

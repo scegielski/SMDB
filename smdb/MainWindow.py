@@ -406,6 +406,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # TV is a separate application mode, outside the database panes.
         from .RetroChannelWidget import RetroChannelWidget
         self.retroChannelWidget = RetroChannelWidget(parent=self)
+        self.retroChannelWidget.fontScaleChanged.connect(lambda _scale: self._syncFontMenu())
         self.modeStack.addWidget(self.retroChannelWidget)
 
         # Statistics Tab
@@ -931,6 +932,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.modeActions[mode].setChecked(True)
         self.statusBar().setVisible(mode == 'Database')
         self.settings.setValue('applicationMode', mode)
+        self._syncFontMenu()
         if mode == 'TV':
             self.retroChannelWidget.setFocus()
 
@@ -991,9 +993,37 @@ class MainWindow(QtWidgets.QMainWindow):
         quitAction.triggered.connect(QtCore.QCoreApplication.quit)
         fileMenu.addAction(quitAction)
 
+    def changeModeFontSize(self, delta):
+        if self.applicationMode == 'TV':
+            self.retroChannelWidget.setFontScale(self.retroChannelWidget.fontScale + delta * 0.25)
+        else:
+            self.setFontSize(self.fontSize + delta)
+        self._syncFontMenu()
+
+    def _syncFontMenu(self):
+        if getattr(self, 'applicationMode', 'Database') == 'TV':
+            size = self.retroChannelWidget.fontScale
+            minimum, maximum = 0.5, 4.0
+            label = f'{round(size * 100)}%'
+        else:
+            size = self.fontSize
+            minimum, maximum = 6, 29
+            label = str(size)
+        self.fontMenu.setTitle(f'Font Size ({label})')
+        self.increaseFontAction.setEnabled(size < maximum)
+        self.decreaseFontAction.setEnabled(size > minimum)
+
     def initUIViewMenu(self):
         menuBar = self.menuBar()
         viewMenu = menuBar.addMenu('View')
+        self.fontMenu = viewMenu.addMenu('Font Size')
+        self.increaseFontAction = self.fontMenu.addAction('Increase')
+        self.decreaseFontAction = self.fontMenu.addAction('Decrease')
+        self.increaseFontAction.triggered.connect(lambda: self.changeModeFontSize(1))
+        self.decreaseFontAction.triggered.connect(lambda: self.changeModeFontSize(-1))
+        self.fontMenu.aboutToShow.connect(self._syncFontMenu)
+        viewMenu.aboutToShow.connect(self._syncFontMenu)
+        viewMenu.addSeparator()
 
         showPrimaryFilterAction = QtWidgets.QAction("Show Primary Filter", self)
         showPrimaryFilterAction.setCheckable(True)

@@ -24,8 +24,8 @@ class RetroFontTests(unittest.TestCase):
         window.resize(1000, 800)
         window.show()
         self.app.processEvents()
-        widgets = [tv, tv.volumeUpButton, tv.volumeDownButton, tv.fontUpButton,
-                   tv.fontDownButton, tv.muteButton, tv.fullScreenButton,
+        widgets = [tv, tv.volumeUpButton, tv.volumeDownButton,
+                   tv.muteButton, tv.fullScreenButton,
                    tv.nowPlayingLabel, tv.guideTable, tv.guideTable.horizontalHeader()]
 
         def snapshot():
