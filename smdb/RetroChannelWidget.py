@@ -905,8 +905,22 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.sideScroll.setFixedWidth(max(130, self.sideControls.sizeHint().width() + 24))
         self.guideTable.setColumnWidth(0, round(50 * self.fontScale))
         self.guideTable.setColumnWidth(1, round(160 * self.fontScale))
+        self._sizeGuideColumns()
         self.guideTable.resizeRowsToContents()
         self.overlayArea._layoutOverlay(self.banner)
+
+    def _onGuideColumnResized(self, column, oldWidth, newWidth):
+        if column in (2, 3) and not self._sizingGuideColumns:
+            self._manualGuideColumns.add(column)
+
+    def _sizeGuideColumns(self):
+        self._sizingGuideColumns = True
+        try:
+            for column in (2, 3):
+                if column not in self._manualGuideColumns:
+                    self.guideTable.resizeColumnToContents(column)
+        finally:
+            self._sizingGuideColumns = False
 
     def _buildGuideOverlay(self):
         guide = QtWidgets.QFrame()
@@ -950,7 +964,17 @@ class RetroChannelWidget(QtWidgets.QWidget):
 
         self.guideTable = QtWidgets.QTableWidget(0, 4)
         self.guideTable.setHorizontalHeaderLabels(["CH", "CHANNEL", "NOW", "NEXT"])
-        self.guideTable.horizontalHeader().setStretchLastSection(True)
+        self.guideTable.setWordWrap(False)
+        self.guideTable.setTextElideMode(QtCore.Qt.ElideNone)
+        self.guideTable.setHorizontalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
+        header = self.guideTable.horizontalHeader()
+        header.setStretchLastSection(False)
+        header.setResizeContentsPrecision(-1)
+        header.setSectionResizeMode(2, QtWidgets.QHeaderView.Interactive)
+        header.setSectionResizeMode(3, QtWidgets.QHeaderView.Interactive)
+        self._manualGuideColumns = set()
+        self._sizingGuideColumns = False
+        header.sectionResized.connect(self._onGuideColumnResized)
         self.guideTable.verticalHeader().hide()
         self.guideTable.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self.guideTable.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
@@ -1381,6 +1405,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
                     item.setForeground(QtGui.QColor('white'))
                 table.setItem(i, col, item)
 
+        self._sizeGuideColumns()
         table.resizeRowsToContents()
         highlightedItem = table.item(self.guideHighlightIndex, 0)
         if highlightedItem:
