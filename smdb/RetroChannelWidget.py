@@ -633,6 +633,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._guidePreviewHostedEngine = None
         self.masterVolume = 70
         self.isFullScreenActive = False
+        self._fullScreenTransition = False
         self._fsTabWidget = None
         self._fsTabIndex = None
         self._fsTabLabel = None
@@ -1087,12 +1088,18 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._fsTabWidget = tabWidget
         self._fsTabIndex = index
         self._fsTabLabel = tabWidget.tabText(index)
-        tabWidget.removeTab(index)
-        self.setParent(None)
-        self.setWindowFlags(QtCore.Qt.Window)
-        self.isFullScreenActive = True
-        self.fullScreenButton.setText("EXIT FULL")
-        self.showFullScreen()
+        # Reparenting generates hide/show events. Keep the live players and guide
+        # intact while moving the widget instead of tearing down and retuning.
+        self._fullScreenTransition = True
+        try:
+            tabWidget.removeTab(index)
+            self.setParent(None)
+            self.setWindowFlags(QtCore.Qt.Window)
+            self.isFullScreenActive = True
+            self.fullScreenButton.setText("EXIT FULL")
+            self.showFullScreen()
+        finally:
+            self._fullScreenTransition = False
         self.setFocus()
 
     def _exitFullScreen(self):
@@ -1104,12 +1111,16 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._fsTabWidget = None
         self._fsTabIndex = None
         self._fsTabLabel = None
-        self.setWindowFlags(QtCore.Qt.Widget)
-        tabWidget.insertTab(index, self, label)
-        tabWidget.setCurrentIndex(index)
-        self.isFullScreenActive = False
-        self.fullScreenButton.setText("FULL")
-        self.show()
+        self._fullScreenTransition = True
+        try:
+            self.setWindowFlags(QtCore.Qt.Widget)
+            tabWidget.insertTab(index, self, label)
+            tabWidget.setCurrentIndex(index)
+            self.isFullScreenActive = False
+            self.fullScreenButton.setText("FULL")
+            self.show()
+        finally:
+            self._fullScreenTransition = False
         self.setFocus()
 
     def _startGuidePreview(self):
@@ -1239,6 +1250,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
     # ------------------------------------------------------------------
     def showEvent(self, event):
         super().showEvent(event)
+        if self._fullScreenTransition:
+            return
         self.isActive = True
         self.standbyPollTimer.start()
         if self.channels:
@@ -1249,6 +1262,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
 
     def hideEvent(self, event):
         super().hideEvent(event)
+        if self._fullScreenTransition:
+            return
         self.isActive = False
         self.standbyPollTimer.stop()
         self.standbyTone.stop()

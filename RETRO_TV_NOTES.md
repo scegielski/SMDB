@@ -29,6 +29,7 @@
 - Rapid channel switching: neighbour engines are torn down and recreated per tune, so freshly created engines always start in stand-by and re-resolve; reuse of warmed engines has not been checked for stale `currentRow`/slot state.
 
 ## Testing notes
+- Fullscreen transition fix (2026-10-04): `_fullScreenTransition` suppresses lifecycle teardown/retuning during enter/exit reparenting. Previously the temporary hide stopped every player, and showing the widget reloaded the channels. The live engines and guide now survive both transitions; normal tab hiding still shuts them down. Regression: `.venv\Scripts\python.exe -m unittest discover -s tests -v` (offscreen Qt, three enter/exit cycles plus tab-exit cleanup). Desktop video rendering still needs real-world confirmation.
 - `QVideoWidget.grab()` always returns black; verify via state, not screenshots.
 - Headless smoke tests: use `.venv\Scripts\python.exe`, an ffmpeg-generated clip (`ffmpeg -y -f lavfi -i "testsrc=size=320x240:rate=15:duration=5" -pix_fmt yuv420p clip.mp4`), and fake model/main window objects. A `RuntimeError: wrapped C/C++ object of type QMediaPlayer has been deleted` at interpreter exit is a benign artifact.
 - Real-world behaviour (audio, frame rendering) must be confirmed by launching `.venv\Scripts\python.exe -m smdb`.
