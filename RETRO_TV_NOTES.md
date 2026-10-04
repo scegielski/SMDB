@@ -1,5 +1,7 @@
 # Retro TV (smdb/RetroChannelWidget.py) - Status and Open Issues
 
+- Extended schedule (2026-10-04): each channel chooses a fixed shuffled lineup of 25 movies, or every movie if fewer than 25 are available. The lineup and random start offsets repeat when its end is reached. The guide retains the CHANNELS overview and adds a SCHEDULE tab listing the highlighted channel's full upcoming cycle with estimated local start times. Fifteen regressions pass, including cycle repetition, smaller categories, and the schedule view.
+
 - Random starts retained (2026-10-04): each program again receives a stable random starting fraction up to 85% through the movie, then plays uninterrupted to its end. Schedule lengths use the remaining portion, and tuning back preserves the same random start plus elapsed broadcast time. Thirteen regressions pass.
 
 - Full movie playback (2026-10-04): removed the one-minute program cutoff and random program starting offsets. Channels schedule full movies using catalogue runtimes, corrected by loaded media durations. Active playback advances only on EndOfMedia, so inaccurate runtime estimates and buffering cannot cut off a movie. Returning to a channel still joins its broadcast in progress. Completion adjusts the broadcast timeline, and the guide shows the next scheduled title before prebuffering begins. Twelve regression checks pass, including variable durations, joining in progress, late completion, and ignoring inactive-buffer end signals.

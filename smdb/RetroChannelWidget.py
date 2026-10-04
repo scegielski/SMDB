@@ -37,6 +37,7 @@ else:
 DEFAULT_PROGRAM_DURATION_MS = 2 * 60 * 60 * 1000  # schedule estimate until media duration is known
 MAX_START_FRACTION = 0.85  # leave at least the final 15% to play
 PREFETCH_LEAD_MS = 8000  # start buffering the next movie this far before the slot ends
+SCHEDULE_MOVIE_COUNT = 25
 MIN_SEEK_RUNWAY_MS = 1500  # never seek closer than this to the end of a movie
 
 
@@ -339,18 +340,13 @@ class ChannelClock:
         self._extendRotation()
 
     def _extendRotation(self):
-        pool = list(self.rows)
-        random.shuffle(pool)
-        if self._rotation and pool and pool[0] == self._rotation[-1]:
-            pool.append(pool.pop(0))
-        self._rotation.extend(pool)
+        self._rotation = random.sample(self.rows, min(SCHEDULE_MOVIE_COUNT, len(self.rows)))
 
     def _rowForSlot(self, slotIndex):
-        while slotIndex >= len(self._rotation):
-            self._extendRotation()
-        return self._rotation[slotIndex]
+        return self._rotation[slotIndex % len(self._rotation)]
 
     def _offsetFractionForSlot(self, slotIndex):
+        slotIndex %= len(self._rotation)
         if slotIndex not in self._offsetFractions:
             self._offsetFractions[slotIndex] = random.uniform(0.0, MAX_START_FRACTION)
         return self._offsetFractions[slotIndex]
@@ -1088,14 +1084,30 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.guideTable.setColumnWidth(0, 50)
         self.guideTable.setColumnWidth(1, 160)
 
+        self.scheduleTable = QtWidgets.QTableWidget(0, 3)
+        self.scheduleTable.setHorizontalHeaderLabels(['#', 'START (EST.)', 'MOVIE'])
+        self.scheduleTable.setWordWrap(False)
+        self.scheduleTable.setTextElideMode(QtCore.Qt.ElideNone)
+        self.scheduleTable.setHorizontalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
+        self.scheduleTable.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+        self.scheduleTable.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
+        self.scheduleTable.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.scheduleTable.verticalHeader().hide()
+        self.scheduleTable.setStyleSheet(self.guideTable.styleSheet())
+        self.scheduleTable.horizontalHeader().setStretchLastSection(False)
+        self.scheduleTable.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Interactive)
+        self.guidePages = QtWidgets.QTabWidget()
+        self.guidePages.addTab(self.guideTable, 'CHANNELS')
+        self.guidePages.addTab(self.scheduleTable, 'SCHEDULE')
+
         splitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
         splitter.setChildrenCollapsible(False)
         splitter.setHandleWidth(10)
         splitter.setStyleSheet("QSplitter::handle { background: #4444aa; border: none; margin: 3px 0; }")
         topWidget.setMinimumHeight(80)
-        self.guideTable.setMinimumHeight(80)
+        self.guidePages.setMinimumHeight(80)
         splitter.addWidget(topWidget)
-        splitter.addWidget(self.guideTable)
+        splitter.addWidget(self.guidePages)
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 1)
         splitter.setSizes([600, 300])
@@ -1540,6 +1552,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
         chan = self.channels[self.guideHighlightIndex]
         self.guideCaption.setText(f"CH {self.guideHighlightIndex + 1:02d} \u2014 {chan['genre'].upper()}")
 
+        self._refreshScheduleTable(chan)
+
         engine = self.engines.get(self.guideHighlightIndex)
         if engine and engine.currentRow is not None:
             nowRow = engine.currentRow
@@ -1550,6 +1564,31 @@ class RetroChannelWidget(QtWidgets.QWidget):
             f"<p style='color:#ffcc00;font-weight:bold;'>{html.escape(self._titleForRow(nowRow))}</p>"
             f"<p>{html.escape(description)}</p>"
         )
+
+    def _refreshScheduleTable(self, channel):
+        clock = channel['clock']
+        engine = self.engines.get(self.guideHighlightIndex)
+        current = (engine.currentSlotIndex if engine and engine.currentRow is not None
+                   else clock.whatsOnNow()[0])
+        count = len(clock._rotation)
+        self.scheduleTable.setRowCount(count)
+        epochWall = time.time() - (time.monotonic() - clock.epoch)
+        startMs = clock.slotStartMs(current)
+        for index in range(count):
+            slot = current + index
+            row, _ = clock.slotInfo(slot)
+            start = 'NOW' if index == 0 else time.strftime('%a %H:%M', time.localtime(epochWall + startMs / 1000))
+            title = engine.currentTitle if index == 0 and engine and engine.currentRow is not None else self._titleForRow(row)
+            for column, value in enumerate((str(index + 1), start, title)):
+                item = QtWidgets.QTableWidgetItem(value)
+                item.setFlags(QtCore.Qt.ItemIsEnabled)
+                if index == 0:
+                    item.setBackground(QtGui.QColor('#ffcc00'))
+                    item.setForeground(QtGui.QColor('black'))
+                self.scheduleTable.setItem(index, column, item)
+            startMs += clock.durationForSlot(slot)
+        self.scheduleTable.resizeColumnsToContents()
+        self.scheduleTable.resizeRowsToContents()
 
     # ------------------------------------------------------------------
     # Qt event overrides

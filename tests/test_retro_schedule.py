@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 from PyQt5 import QtWidgets
 from PyQt5.QtMultimedia import QMediaPlayer
-from smdb.RetroChannelWidget import ChannelClock, ChannelEngine
+from smdb.RetroChannelWidget import ChannelClock, ChannelEngine, RetroChannelWidget
 
 
 class FullMovieScheduleTests(unittest.TestCase):
@@ -37,6 +37,27 @@ class FullMovieScheduleTests(unittest.TestCase):
             now.return_value = 95
             clock.finishSlot(0)
             self.assertEqual(clock.whatsOnNow()[0], 1)
+
+    def test_twenty_five_movie_lineup_repeats_and_smaller_category_uses_all(self):
+        for available, expected in ((40, 25), (12, 12)):
+            clock = ChannelClock(range(available), lambda row: 120000)
+            first = [clock.slotInfo(i) for i in range(expected)]
+            self.assertEqual(len({row for row, _ in first}), expected)
+            self.assertEqual(first, [clock.slotInfo(i + expected) for i in range(expected)])
+
+    def test_guide_schedule_lists_the_selected_channel_lineup(self):
+        tv = RetroChannelWidget()
+        try:
+            clock = ChannelClock(range(30), lambda row: 120000)
+            channel = {'genre': 'Action', 'rows': list(range(30)), 'clock': clock}
+            with patch.object(tv, '_titleForRow', side_effect=lambda row: f'Movie {row}'):
+                tv._refreshScheduleTable(channel)
+            self.assertEqual(tv.scheduleTable.rowCount(), 25)
+            self.assertEqual(tv.scheduleTable.item(0, 1).text(), 'NOW')
+            self.assertEqual(tv.scheduleTable.item(24, 2).text(), f'Movie {clock.slotInfo(24)[0]}')
+            self.assertEqual(tv.guidePages.tabText(1), 'SCHEDULE')
+        finally:
+            tv.close()
 
     def test_estimated_boundary_never_cuts_active_movie_and_end_advances(self):
         with patch('smdb.RetroChannelWidget.time.monotonic', return_value=0) as now:
