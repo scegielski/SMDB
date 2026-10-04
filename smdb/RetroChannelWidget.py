@@ -2,21 +2,32 @@
 RetroChannelWidget - a prototype "live TV" experience built from the movie collection.
 
 Each "channel" corresponds to a genre. Channels air a continuous rotation of
-1-minute movie promos, where each promo is made up of cuts of random length
-(2-10 seconds) to random points inside a random movie belonging to that genre
-(trailer/sizzle reel style). Switching channels (up/down "clicker") and
-browsing the channel guide both feel instant because the current channel plus
-its two neighbors are always pre-buffered in memory, ready to display
-immediately.
+movies from that genre, each airing for a fixed-length slot starting at a
+random point inside the movie (trailer/sizzle-reel style), then cutting to
+the next movie in the rotation. Each channel's schedule is anchored to an
+absolute wall-clock epoch, so tuning away and back always resumes wherever
+the broadcast "would be" had it kept playing the whole time - just like a
+real TV channel keeps running whether or not you're watching. Switching
+channels (up/down "clicker") and browsing the channel guide both feel
+instant because the current channel plus its two neighbors are always
+pre-buffered in memory, ready to display immediately. Only the channel
+guide's small preview window continues to hop between random clips on the
+fly while you're browsing.
 """
 
 import math
 import os
 import random
+import time
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer
 from PyQt5.QtMultimediaWidgets import QVideoWidget
+
+PROGRAM_DURATION_MS = 60000  # how long each movie airs before the channel cuts to the next one
+PREFETCH_LEAD_MS = 8000  # start buffering the next movie this far before the slot ends
+MAX_START_FRACTION = 0.85  # never start a slot in the last 15% of a movie
+MIN_SEEK_RUNWAY_MS = 1500  # never seek closer than this to the end of a movie
 
 
 class StandByScreen(QtWidgets.QWidget):
@@ -82,6 +93,8 @@ class ClipSlot(QtCore.QObject):
         self.duration = 0
         self._ready = False
         self._wantsRandomSeek = False
+        self._pendingSeekFraction = None
+        self._pendingSeekExtraMs = 0
         self._autoplayAfterLoad = False
 
         self.player.durationChanged.connect(self._onDurationChanged)
@@ -89,21 +102,33 @@ class ClipSlot(QtCore.QObject):
     def isReady(self):
         return self._ready and self.path is not None
 
-    def load(self, path, autoplay=False):
-        """Begin loading a video file. Becomes ready once duration is known."""
+    def load(self, path, autoplay=False, seekFraction=None, extraMs=0):
+        """Begin loading a video file. Becomes ready once duration is known.
+
+        If `seekFraction` is given, the slot seeks to that fraction of the
+        movie's duration plus `extraMs` once loaded (used for clock-synced
+        channel playback). Otherwise it falls back to a random start point
+        (used by the channel guide's live preview).
+        """
         self.path = path
         self.duration = 0
         self._ready = False
         self._autoplayAfterLoad = autoplay
-        self._wantsRandomSeek = True
+        self._pendingSeekFraction = seekFraction
+        self._pendingSeekExtraMs = extraMs
+        self._wantsRandomSeek = seekFraction is None
         self.player.setMedia(QMediaContent(QtCore.QUrl.fromLocalFile(path)))
         self.player.pause()
 
     def _onDurationChanged(self, duration):
         self.duration = duration
-        if duration > 0 and self._wantsRandomSeek:
+        if duration > 0 and (self._wantsRandomSeek or self._pendingSeekFraction is not None):
+            if self._pendingSeekFraction is not None:
+                self.seekTo(self._pendingSeekFraction, self._pendingSeekExtraMs)
+                self._pendingSeekFraction = None
+            else:
+                self.seekRandom()
             self._wantsRandomSeek = False
-            self.seekRandom()
             self._ready = True
             if self._autoplayAfterLoad:
                 self.player.play()
@@ -117,6 +142,15 @@ class ClipSlot(QtCore.QObject):
             pos = random.randint(0, self.duration - 1500)
         else:
             pos = 0
+        self.player.setPosition(pos)
+
+    def seekTo(self, fraction, extraMs=0):
+        """Seek to `fraction` of the movie's duration plus `extraMs`, clamped to valid range."""
+        if self.duration <= 0:
+            return
+        maxPos = max(0, self.duration - MIN_SEEK_RUNWAY_MS)
+        pos = int(fraction * self.duration) + int(extraMs)
+        pos = max(0, min(pos, maxPos))
         self.player.setPosition(pos)
 
     def setVolume(self, volume):
@@ -135,27 +169,81 @@ class ClipSlot(QtCore.QObject):
         self.duration = 0
         self._ready = False
         self._wantsRandomSeek = False
+        self._pendingSeekFraction = None
+
+
+class ChannelClock:
+    """
+    Tracks a single channel's continuous broadcast schedule in real (wall-clock)
+    time. Movies air back-to-back in fixed-length slots, each starting at a
+    random point inside the movie. Because the schedule is a pure function of
+    an absolute start time (epoch), re-syncing to it (e.g. after tuning away
+    and back) always resumes exactly where the broadcast "would be" had it
+    kept playing the whole time - including skipping ahead across multiple
+    movies if you were away longer than one slot.
+    """
+
+    def __init__(self, rows):
+        self.rows = list(rows)
+        self.epoch = time.monotonic()
+        self._rotation = []
+        self._offsetFractions = {}
+        self._extendRotation()
+
+    def _extendRotation(self):
+        pool = list(self.rows)
+        random.shuffle(pool)
+        if self._rotation and pool and pool[0] == self._rotation[-1]:
+            pool.append(pool.pop(0))
+        self._rotation.extend(pool)
+
+    def _rowForSlot(self, slotIndex):
+        while slotIndex >= len(self._rotation):
+            self._extendRotation()
+        return self._rotation[slotIndex]
+
+    def _offsetFractionForSlot(self, slotIndex):
+        fraction = self._offsetFractions.get(slotIndex)
+        if fraction is None:
+            fraction = random.uniform(0.0, MAX_START_FRACTION)
+            self._offsetFractions[slotIndex] = fraction
+        return fraction
+
+    def candidateRows(self, slotIndex, count=5):
+        """Rows for `slotIndex` and the following slots, used as fallbacks
+        when a scheduled movie has no resolvable video file."""
+        return [self._rowForSlot(slotIndex + i) for i in range(count)]
+
+    def whatsOnNow(self):
+        """Return (slotIndex, row, offsetFraction, positionInSlotMs, remainingMs)."""
+        elapsedMs = (time.monotonic() - self.epoch) * 1000.0
+        slotIndex = int(elapsedMs // PROGRAM_DURATION_MS)
+        positionInSlotMs = elapsedMs - slotIndex * PROGRAM_DURATION_MS
+        row = self._rowForSlot(slotIndex)
+        offsetFraction = self._offsetFractionForSlot(slotIndex)
+        remainingMs = PROGRAM_DURATION_MS - positionInSlotMs
+        return slotIndex, row, offsetFraction, positionInSlotMs, remainingMs
+
+    def slotInfo(self, slotIndex):
+        row = self._rowForSlot(slotIndex)
+        offsetFraction = self._offsetFractionForSlot(slotIndex)
+        return row, offsetFraction
 
 
 class ChannelEngine(QtCore.QObject):
     """
-    Drives a single genre "channel": schedules movies from the genre as
-    1-minute promos (made of random 2-10 second cuts) and pre-buffers the
-    next promo so program changes are seamless.
+    Drives a single genre "channel": continuously plays movies from the genre
+    back-to-back according to a `ChannelClock`, pre-buffering the next movie
+    so cuts between programs are seamless.
     """
-
-    PROGRAM_DURATION_MS = 60000  # ~1 minute promo per movie
-    MIN_CUT_MS = 2000
-    MAX_CUT_MS = 10000
-    PREFETCH_LEAD_MS = 8000
 
     programChanged = QtCore.pyqtSignal()
 
-    def __init__(self, channelNumber, genreName, rows, resolver, titleGetter, parent=None):
+    def __init__(self, channelNumber, genreName, clock, resolver, titleGetter, parent=None):
         super().__init__(parent)
         self.channelNumber = channelNumber
         self.genreName = genreName
-        self.rows = list(rows)
+        self.clock = clock
         self.resolver = resolver
         self.titleGetter = titleGetter
 
@@ -178,75 +266,68 @@ class ChannelEngine(QtCore.QObject):
         self.standbySlot = self.slotB
 
         self.desiredVolume = 0
-        self.upcoming = []
+        self.currentSlotIndex = None
         self.currentRow = None
         self.currentTitle = ''
         self.nextRow = None
         self.nextTitle = ''
-        self.elapsedMs = 0
-        self._pendingCutMs = 0
         self._prefetchStarted = False
+        self._prefetchedSlotIndex = None
 
-        self.cutTimer = QtCore.QTimer(self)
-        self.cutTimer.setSingleShot(True)
-        self.cutTimer.timeout.connect(self._tick)
+        self.advanceTimer = QtCore.QTimer(self)
+        self.advanceTimer.setSingleShot(True)
+        self.advanceTimer.timeout.connect(self._onAdvanceTimer)
 
-    # -- queue management -------------------------------------------------
-    def _refill(self):
-        pool = list(self.rows)
-        random.shuffle(pool)
-        if len(pool) > 1 and pool[0] == self.currentRow:
-            pool.append(pool.pop(0))
-        self.upcoming = pool
+        self.prefetchTimer = QtCore.QTimer(self)
+        self.prefetchTimer.setSingleShot(True)
+        self.prefetchTimer.timeout.connect(self._beginPrefetch)
 
-    def _popNextRow(self):
-        if not self.upcoming:
-            self._refill()
-        return self.upcoming.pop(0) if self.upcoming else None
-
-    def _peekNextRow(self):
-        if not self.upcoming:
-            self._refill()
-        return self.upcoming[0] if self.upcoming else None
-
-    def _resolvePathForRow(self, row):
-        """Try a handful of candidates in case some movies have no video file."""
-        tries = 0
-        while row is not None and tries < 5:
+    # -- schedule resolution --------------------------------------------------
+    def _resolvePathForRow(self, slotIndex):
+        """Try a handful of scheduled candidates in case some movies have no video file."""
+        for row in self.clock.candidateRows(slotIndex, count=5):
             path = self.resolver(row)
             if path:
                 return row, path
-            row = self._popNextRow()
-            tries += 1
         return None, None
 
     # -- lifecycle ----------------------------------------------------------
     def start(self):
         if self.currentRow is None:
-            row, path = self._resolvePathForRow(self._popNextRow())
-            if path is None:
-                return False
-            self.currentRow = row
-            self.currentTitle = self.titleGetter(row)
-            self.activeSlot.setVolume(self.desiredVolume)
-            self._stack.setCurrentWidget(self.standbyScreen)
-            self.activeSlot.load(path, autoplay=True)
-            nextRow = self._peekNextRow()
-            self.nextRow = nextRow
-            self.nextTitle = self.titleGetter(nextRow) if nextRow is not None else ''
-            self.elapsedMs = 0
-            self._prefetchStarted = False
-            self.programChanged.emit()
-        if not self.cutTimer.isActive():
-            self._cutActive()
+            return self._tuneIn()
+        return True
+
+    def _tuneIn(self):
+        """Sync playback to wherever the channel clock says we should be right now."""
+        slotIndex, _, offsetFraction, positionInSlotMs, remainingMs = self.clock.whatsOnNow()
+        actualRow, path = self._resolvePathForRow(slotIndex)
+        if path is None:
+            return False
+        self.currentSlotIndex = slotIndex
+        self.currentRow = actualRow
+        self.currentTitle = self.titleGetter(actualRow)
+        self.nextRow = None
+        self.nextTitle = ''
+        self._prefetchStarted = False
+        self._prefetchedSlotIndex = None
+
+        self.activeSlot.setVolume(self.desiredVolume)
+        self._stack.setCurrentWidget(self.standbyScreen)
+        self.activeSlot.load(path, autoplay=True, seekFraction=offsetFraction, extraMs=positionInSlotMs)
+        self.programChanged.emit()
+
+        self._scheduleAdvance(remainingMs)
+        self._maybeSchedulePrefetch(remainingMs)
         return True
 
     def shutdown(self):
         """Fully stop and release this engine's players."""
-        self.cutTimer.stop()
+        self.advanceTimer.stop()
+        self.prefetchTimer.stop()
         self.slotA.stop()
         self.slotB.stop()
         self.currentRow = None
+        self.currentSlotIndex = None
         self._stack.setCurrentWidget(self.standbyScreen)
 
     def _onSlotReady(self, slot):
@@ -257,58 +338,88 @@ class ChannelEngine(QtCore.QObject):
         self.desiredVolume = volume
         self.activeSlot.setVolume(volume)
 
-    # -- playback ticking ----------------------------------------------------
-    def _tick(self):
-        if self.currentRow is None:
-            return
-        self.elapsedMs += self._pendingCutMs
+    # -- scheduling -----------------------------------------------------------
+    def _scheduleAdvance(self, remainingMs):
+        self.advanceTimer.start(max(50, int(remainingMs)))
 
-        if self.elapsedMs >= self.PROGRAM_DURATION_MS:
-            if self.standbySlot.isReady():
-                self._promoteStandby()
-            else:
-                # Next promo isn't buffered yet; keep cutting the current one.
-                self._cutActive()
-            return
-
-        remaining = self.PROGRAM_DURATION_MS - self.elapsedMs
-        if not self._prefetchStarted and remaining <= self.PREFETCH_LEAD_MS:
+    def _maybeSchedulePrefetch(self, remainingMs):
+        leadMs = remainingMs - PREFETCH_LEAD_MS
+        if leadMs <= 0:
             self._beginPrefetch()
-
-        self._cutActive()
-
-    def _cutActive(self):
-        """Cut to a new random point in the active movie; vary cut length 2-10s."""
-        interval = random.randint(self.MIN_CUT_MS, self.MAX_CUT_MS)
-        self._pendingCutMs = interval
-        self.activeSlot.seekRandom(runway_ms=interval)
-        self.cutTimer.start(interval)
+        else:
+            self.prefetchTimer.start(int(leadMs))
 
     def _beginPrefetch(self):
+        if self._prefetchStarted or self.currentSlotIndex is None:
+            return
         self._prefetchStarted = True
-        row, path = self._resolvePathForRow(self.nextRow)
-        self.nextRow = row
+        nextSlotIndex = self.currentSlotIndex + 1
+        _, offsetFraction = self.clock.slotInfo(nextSlotIndex)
+        row, path = self._resolvePathForRow(nextSlotIndex)
         if path:
-            self.standbySlot.load(path, autoplay=False)
+            self.nextRow = row
+            self.nextTitle = self.titleGetter(row)
+            self._prefetchedSlotIndex = nextSlotIndex
+            self.standbySlot.load(path, autoplay=False, seekFraction=offsetFraction, extraMs=0)
+        else:
+            self.nextRow = None
+            self.nextTitle = ''
+            self._prefetchedSlotIndex = None
 
-    def _promoteStandby(self):
+    def _onAdvanceTimer(self):
+        """Slot boundary reached (or we're catching up after being away): re-sync to the clock."""
+        slotIndex, _, offsetFraction, positionInSlotMs, remainingMs = self.clock.whatsOnNow()
+        if slotIndex == self.currentSlotIndex:
+            # Timer fired a hair early due to rounding; check again shortly.
+            self._scheduleAdvance(remainingMs)
+            return
+
+        if self.standbySlot.isReady() and self._prefetchedSlotIndex == slotIndex:
+            self._promote(slotIndex, positionInSlotMs)
+        else:
+            self._hardCut(slotIndex, offsetFraction, positionInSlotMs)
+
+        self._prefetchStarted = False
+        self.prefetchTimer.stop()
+        self._scheduleAdvance(remainingMs)
+        self._maybeSchedulePrefetch(remainingMs)
+
+    def _promote(self, slotIndex, positionInSlotMs):
+        """Swap in the already-buffered standby slot, correcting for any scheduling drift."""
         self.activeSlot.pause()
         self.activeSlot, self.standbySlot = self.standbySlot, self.activeSlot
+        if positionInSlotMs > 250:
+            self.activeSlot.player.setPosition(self.activeSlot.player.position() + int(positionInSlotMs))
         self._stack.setCurrentWidget(self.activeSlot.videoWidget)
         self.activeSlot.setVolume(self.desiredVolume)
         self.activeSlot.play()
         self.standbySlot.stop()
 
+        self.currentSlotIndex = slotIndex
         self.currentRow = self.nextRow
         self.currentTitle = self.nextTitle
-        self.elapsedMs = 0
-        self._prefetchStarted = False
-
-        nextRow = self._peekNextRow()
-        self.nextRow = nextRow
-        self.nextTitle = self.titleGetter(nextRow) if nextRow is not None else ''
+        self.nextRow = None
+        self.nextTitle = ''
+        self._prefetchedSlotIndex = None
         self.programChanged.emit()
-        self._cutActive()
+
+    def _hardCut(self, slotIndex, offsetFraction, positionInSlotMs):
+        """Standby wasn't buffered in time (long gap or slow load) - load directly, showing stand-by briefly."""
+        actualRow, path = self._resolvePathForRow(slotIndex)
+        if path is None:
+            return
+        self.standbySlot.stop()
+        self.activeSlot.setVolume(self.desiredVolume)
+        self._stack.setCurrentWidget(self.standbyScreen)
+        self.activeSlot.load(path, autoplay=True, seekFraction=offsetFraction, extraMs=positionInSlotMs)
+
+        self.currentSlotIndex = slotIndex
+        self.currentRow = actualRow
+        self.currentTitle = self.titleGetter(actualRow)
+        self.nextRow = None
+        self.nextTitle = ''
+        self._prefetchedSlotIndex = None
+        self.programChanged.emit()
 
 
 class _OverlayArea(QtWidgets.QWidget):
@@ -552,7 +663,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
                 genreRows.setdefault(genre, []).append(row)
 
         newChannels = [
-            {'genre': genre, 'rows': rows}
+            {'genre': genre, 'rows': rows, 'clock': ChannelClock(rows)}
             for genre, rows in sorted(genreRows.items())
             if len(rows) >= self.MIN_MOVIES_PER_CHANNEL
         ]
@@ -608,7 +719,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         engine = ChannelEngine(
             index + 1,
             chan['genre'],
-            chan['rows'],
+            chan['clock'],
             resolver=self._resolveVideoPath,
             titleGetter=self._titleForRow,
             parent=self,
