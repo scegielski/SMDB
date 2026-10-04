@@ -88,6 +88,30 @@ class FullMovieScheduleTests(unittest.TestCase):
                 engine.container.close()
                 tv.close()
 
+    def test_reversed_guide_keeps_bottom_highlight_visible_after_layout(self):
+        tv = RetroChannelWidget()
+        tv.channels = [{'genre': f'Genre {i}', 'rows': [i], 'clock': ChannelClock([i])}
+                       for i in range(30)]
+        try:
+            with patch.object(tv.standbyTone, '_syncPlayback'), \
+                    patch.object(tv, '_tuneTo'), patch.object(tv, '_updateGuidePreview'):
+                tv.resize(1200, 700)
+                tv.show()
+                tv.toggleGuide()
+                self.app.processEvents()
+                self.app.processEvents()
+                item = tv.guideTable.item(29, 0)
+                self.assertEqual(item.text(), '01')
+                self.assertTrue(tv.guideTable.viewport().rect().contains(tv.guideTable.visualItemRect(item)))
+                tv.guidePages.setCurrentIndex(1)
+                tv.resize(1100, 650)
+                tv.guidePages.setCurrentIndex(0)
+                self.app.processEvents()
+                self.app.processEvents()
+                self.assertTrue(tv.guideTable.viewport().rect().contains(tv.guideTable.visualItemRect(item)))
+        finally:
+            tv.close()
+
     def test_estimated_boundary_never_cuts_active_movie_and_end_advances(self):
         with patch('smdb.RetroChannelWidget.time.monotonic', return_value=0) as now:
             clock = ChannelClock([0, 1], lambda row: 120000)

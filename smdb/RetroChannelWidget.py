@@ -1121,6 +1121,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         )
         self.guideTable.setColumnWidth(0, 50)
         self.guideTable.setColumnWidth(1, 160)
+        self.guideTable.viewport().installEventFilter(self)
 
         self.scheduleTable = QtWidgets.QTableWidget(0, 3)
         self.scheduleTable.setHorizontalHeaderLabels(['#', 'START (EST.)', 'MOVIE'])
@@ -1137,6 +1138,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.guidePages = QtWidgets.QTabWidget()
         self.guidePages.addTab(self.guideTable, 'CHANNELS')
         self.guidePages.addTab(self.scheduleTable, 'SCHEDULE')
+        self.guidePages.currentChanged.connect(
+            lambda _index: QtCore.QTimer.singleShot(0, self._scrollGuideToHighlight))
 
         splitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
         splitter.setChildrenCollapsible(False)
@@ -1589,13 +1592,12 @@ class RetroChannelWidget(QtWidgets.QWidget):
                 else:
                     item.setBackground(QtGui.QColor('#0a0a6e'))
                     item.setForeground(QtGui.QColor('white'))
-                table.setItem(i, col, item)
+                table.setItem(len(self.channels) - 1 - i, col, item)
 
         self._sizeGuideColumns()
         table.resizeRowsToContents()
-        highlightedItem = table.item(self.guideHighlightIndex, 0)
-        if highlightedItem:
-            table.scrollToItem(highlightedItem)
+        self._scrollGuideToHighlight()
+        QtCore.QTimer.singleShot(0, self._scrollGuideToHighlight)
 
         chan = self.channels[self.guideHighlightIndex]
         self.guideCaption.setText(f"CH {self.guideHighlightIndex + 1:02d} \u2014 {chan['genre'].upper()}")
@@ -1612,6 +1614,21 @@ class RetroChannelWidget(QtWidgets.QWidget):
             f"<p style='color:#ffcc00;font-weight:bold;'>{html.escape(self._titleForRow(nowRow))}</p>"
             f"<p>{html.escape(description)}</p>"
         )
+
+    def _scrollGuideToHighlight(self):
+        if not self.guideVisible or not self.guideTable.isVisible():
+            return
+        item = self.guideTable.item(len(self.channels) - 1 - self.guideHighlightIndex, 0)
+        if item is not None:
+            horizontal = self.guideTable.horizontalScrollBar().value()
+            self.guideTable.scrollToItem(item, QtWidgets.QAbstractItemView.PositionAtCenter)
+            self.guideTable.horizontalScrollBar().setValue(horizontal)
+
+    def eventFilter(self, watched, event):
+        if (watched is self.guideTable.viewport()
+                and event.type() in (QtCore.QEvent.Show, QtCore.QEvent.Resize)):
+            QtCore.QTimer.singleShot(0, self._scrollGuideToHighlight)
+        return super().eventFilter(watched, event)
 
     def _refreshScheduleTable(self, channel):
         clock = channel['clock']

@@ -1,5 +1,9 @@
 # Retro TV (smdb/RetroChannelWidget.py) - Status and Open Issues
 
+- Highlight visibility (2026-10-04): the descending channel guide scrolls to the highlighted row after layout, including opening, viewport resizing, and returning from the Schedule tab. Vertical centering preserves the current horizontal scroll position. Seventeen regressions pass, including a thirty-channel guide with the selected channel at its bottom.
+
+- Guide channel order (2026-10-04): the channel overview displays descending channel numbers. CH Up and the up-arrow key move toward the top of the guide; CH Down and the down-arrow key move toward the bottom. Channel numbering, lineup contents, highlighting, and wrapping retain their existing behavior.
+
 - Program navigation (2026-10-04): NEXT ▶ and PREV ◀ buttons navigate the selected channel's repeating lineup. Each jump starts at that program's assigned random offset, rebases only that channel's clock so the guide agrees, and invalidates pending loads from the previous program. Previous wraps to the lineup's last movie at the beginning; next wraps to its first at the end. Sixteen regression checks pass.
 
 - Extended schedule (2026-10-04): each channel chooses a fixed shuffled lineup of 25 movies, or every movie if fewer than 25 are available. The lineup and random start offsets repeat when its end is reached. The guide retains the CHANNELS overview and adds a SCHEDULE tab listing the highlighted channel's full upcoming cycle with estimated local start times. Fifteen regressions pass, including cycle repetition, smaller categories, and the schedule view.
