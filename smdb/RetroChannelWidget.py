@@ -364,6 +364,15 @@ class ChannelEngine(QtCore.QObject):
         self.prefetchTimer.setSingleShot(True)
         self.prefetchTimer.timeout.connect(self._beginPrefetch)
 
+        # Occasionally the video renderer silently stalls on a frozen frame while the player
+        # still reports PlayingState (a Qt Multimedia backend quirk, not something this code
+        # causes) - previously the only recovery was manually toggling the guide on/off, which
+        # happens to force a rebind via refreshVideoOutputs(). Do that automatically instead.
+        self._watchdogLastPosition = None
+        self.watchdogTimer = QtCore.QTimer(self)
+        self.watchdogTimer.timeout.connect(self._checkForFrozenPlayback)
+        self.watchdogTimer.start(3000)
+
     # -- schedule resolution --------------------------------------------------
     def _startResolve(self, slotIndex, requestAttr, onDone):
         """Resolve candidates for `slotIndex` on a worker thread; `onDone(row, path)` runs on
@@ -420,6 +429,7 @@ class ChannelEngine(QtCore.QObject):
         """Fully stop and release this engine's players."""
         self.advanceTimer.stop()
         self.prefetchTimer.stop()
+        self.watchdogTimer.stop()
         # Invalidate any in-flight background resolves so their results are ignored on arrival.
         self._resolveSeq += 1
         self._tuneRequestId = self._resolveSeq
@@ -437,6 +447,16 @@ class ChannelEngine(QtCore.QObject):
         if slot is self.activeSlot:
             self._stack.setCurrentWidget(slot.videoWidget)
             self.showingStandby.emit(False)
+
+    def _checkForFrozenPlayback(self):
+        slot = self.activeSlot
+        if slot.player.state() != QMediaPlayer.PlayingState:
+            self._watchdogLastPosition = None
+            return
+        position = slot.player.position()
+        if position == self._watchdogLastPosition:
+            self.refreshVideoOutputs()
+        self._watchdogLastPosition = position
 
     def isShowingStandby(self):
         return self._stack.currentWidget() is self.standbyScreen
