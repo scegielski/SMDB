@@ -367,6 +367,10 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.guideHighlightIndex = 0
         self.guidePreviewSlot = None
         self.masterVolume = 70
+        self.isFullScreenActive = False
+        self._fsTabWidget = None
+        self._fsTabIndex = None
+        self._fsTabLabel = None
 
         self.setFocusPolicy(QtCore.Qt.StrongFocus)
         self._buildUI()
@@ -464,11 +468,14 @@ class RetroChannelWidget(QtWidgets.QWidget):
         guideButton.clicked.connect(self.toggleGuide)
         self.muteButton = QtWidgets.QPushButton("Mute")
         self.muteButton.clicked.connect(self.toggleMute)
-        for b in (guideButton, self.muteButton):
+        self.fullScreenButton = QtWidgets.QPushButton("FULL")
+        self.fullScreenButton.clicked.connect(self.toggleFullScreen)
+        for b in (guideButton, self.muteButton, self.fullScreenButton):
             b.setStyleSheet("background: #333; color: white; border-radius: 6px; padding: 8px;")
             b.setFocusPolicy(QtCore.Qt.NoFocus)
         sideLayout.addWidget(guideButton)
         sideLayout.addWidget(self.muteButton)
+        sideLayout.addWidget(self.fullScreenButton)
         sideLayout.addStretch(1)
 
         rootLayout.addWidget(self.sideControls)
@@ -728,6 +735,49 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self._stopGuidePreview()
         self.setFocus()
 
+    def toggleFullScreen(self):
+        if self.isFullScreenActive:
+            self._exitFullScreen()
+        else:
+            self._enterFullScreen()
+
+    def _enterFullScreen(self):
+        tabWidget = self.parentWidget()
+        while tabWidget is not None and not isinstance(tabWidget, QtWidgets.QTabWidget):
+            tabWidget = tabWidget.parentWidget()
+        if tabWidget is None:
+            return
+        index = tabWidget.indexOf(self)
+        if index == -1:
+            return
+        self._fsTabWidget = tabWidget
+        self._fsTabIndex = index
+        self._fsTabLabel = tabWidget.tabText(index)
+        tabWidget.removeTab(index)
+        self.setParent(None)
+        self.setWindowFlags(QtCore.Qt.Window)
+        self.isFullScreenActive = True
+        self.fullScreenButton.setText("EXIT FULL")
+        self.showFullScreen()
+        self.setFocus()
+
+    def _exitFullScreen(self):
+        if self._fsTabWidget is None:
+            return
+        tabWidget = self._fsTabWidget
+        index = self._fsTabIndex
+        label = self._fsTabLabel
+        self._fsTabWidget = None
+        self._fsTabIndex = None
+        self._fsTabLabel = None
+        self.setWindowFlags(QtCore.Qt.Widget)
+        tabWidget.insertTab(index, self, label)
+        tabWidget.setCurrentIndex(index)
+        self.isFullScreenActive = False
+        self.fullScreenButton.setText("FULL")
+        self.show()
+        self.setFocus()
+
     def _startGuidePreview(self):
         if self.guidePreviewSlot is None:
             self.guidePreviewSlot = ClipSlot(self)
@@ -821,11 +871,15 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self.toggleGuide()
         elif key == QtCore.Qt.Key_M:
             self.toggleMute()
+        elif key in (QtCore.Qt.Key_F, QtCore.Qt.Key_F11):
+            self.toggleFullScreen()
         elif key in (QtCore.Qt.Key_Return, QtCore.Qt.Key_Enter):
             if self.guideVisible:
                 self._tuneTo(self.guideHighlightIndex)
                 self.toggleGuide()
         elif key == QtCore.Qt.Key_Escape and self.guideVisible:
             self.toggleGuide()
+        elif key == QtCore.Qt.Key_Escape and self.isFullScreenActive:
+            self.toggleFullScreen()
         else:
             super().keyPressEvent(event)
