@@ -41,9 +41,11 @@ MAX_START_FRACTION = 0.85  # never start a slot in the last 15% of a movie
 MIN_SEEK_RUNWAY_MS = 1500  # never seek closer than this to the end of a movie
 
 
-def _ensureStandbyToneFile(native=False):
+def _ensureStandbyToneFile(native=False, gain=0.15):
     """Generate (once) a short looping sine-wave test tone, returning its WAV path."""
     filename = 'smdb_standby_tone_native_v3.wav' if native else 'smdb_standby_tone_v2.wav'
+    if native and gain != 0.15:
+        filename = f'smdb_standby_tone_native_v3_{round(gain * 10000)}.wav'
     path = os.path.join(tempfile.gettempdir(), filename)
     if os.path.exists(path):
         return path
@@ -51,7 +53,7 @@ def _ensureStandbyToneFile(native=False):
     freqHz = 1000.0
     durationS = 1.0
     # PlaySound has no volume control; bake in the same gain as QSoundEffect.
-    amplitude = 0.25 * 0.15 if native else 0.25
+    amplitude = 0.25 * gain if native else 0.25
     sampleCount = int(sampleRate * durationS)
     frames = bytearray()
     for i in range(sampleCount):
@@ -124,6 +126,19 @@ class StandbyTone(QtCore.QObject):
     def setMuted(self, muted):
         self._muted = muted
         self._syncPlayback()
+
+    def setVolume(self, volume):
+        gain = 0.15 * max(0, min(100, volume)) / 70
+        if gain == self._volume:
+            return
+        self._volume = gain
+        self._effect.setVolume(gain)
+        if self._nativeAvailable and gain > 0:
+            self._tonePath = _ensureStandbyToneFile(native=True, gain=gain)
+            if self._nativePlaying:
+                _winsound.PlaySound(None, 0)
+                self._nativePlaying = False
+        self.setMuted(volume == 0)
 
 
 class StandByScreen(QtWidgets.QWidget):
@@ -720,6 +735,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.guidePreviewSlot = None
         self._guidePreviewHostedEngine = None
         self.masterVolume = 70
+        self._lastVolume = 70
         self.isFullScreenActive = False
         self._fullScreenTransition = False
         self._fsTabWidget = None
@@ -857,23 +873,44 @@ class RetroChannelWidget(QtWidgets.QWidget):
             b.setStyleSheet("background: #333; color: white; border-radius: 6px; padding: 8px;")
             b.setFocusPolicy(QtCore.Qt.NoFocus)
         sideLayout.addWidget(guideButton)
+
+        self.volumeLabel = QtWidgets.QLabel(f"VOLUME {self.masterVolume}%")
+        self.volumeLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.volumeLabel.setStyleSheet("color: #ccc; font-size: 11px;")
+        sideLayout.addWidget(self.volumeLabel)
+        volumeButtons = QtWidgets.QVBoxLayout()
+        self.volumeDownButton = QtWidgets.QPushButton("VOL ▼")
+        self.volumeUpButton = QtWidgets.QPushButton("VOL ▲")
+        self.volumeDownButton.setAccessibleName("Volume down")
+        self.volumeUpButton.setAccessibleName("Volume up")
+        for button, step in ((self.volumeUpButton, 5), (self.volumeDownButton, -5)):
+            button.setStyleSheet(
+                "QPushButton { background: #444; color: white; font-weight: bold; font-size: 14px;"
+                "border-radius: 6px; padding: 10px; }"
+                "QPushButton:disabled { color: #777; background: #292929; }"
+            )
+            button.setFocusPolicy(QtCore.Qt.NoFocus)
+            button.setAutoRepeat(True)
+            button.clicked.connect(lambda _checked=False, delta=step: self.setVolume(self.masterVolume + delta))
+            volumeButtons.addWidget(button)
+        sideLayout.addLayout(volumeButtons)
         sideLayout.addWidget(self.muteButton)
         sideLayout.addWidget(self.fullScreenButton)
 
-        fontLabel = QtWidgets.QLabel("FONT SIZE")
-        fontLabel.setAlignment(QtCore.Qt.AlignCenter)
-        fontLabel.setStyleSheet("color: #ccc; font-size: 11px;")
-        sideLayout.addWidget(fontLabel)
-        self.fontSizeControl = QtWidgets.QSpinBox()
-        self.fontSizeControl.setRange(50, 400)
-        self.fontSizeControl.setSingleStep(25)
-        self.fontSizeControl.setSuffix("%")
-        self.fontSizeControl.setValue(round(self.DEFAULT_FONT_SCALE * 100))
-        self.fontSizeControl.setAccessibleName("TV font size")
-        self.fontSizeControl.setToolTip("Text size relative to the original TV fonts")
-        self.fontSizeControl.setStyleSheet("background: #333; color: white; padding: 4px;")
-        self.fontSizeControl.valueChanged.connect(lambda value: self.setFontScale(value / 100))
-        sideLayout.addWidget(self.fontSizeControl)
+        self.fontSizeLabel = QtWidgets.QLabel("FONT SIZE")
+        self.fontSizeLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.fontSizeLabel.setStyleSheet("color: #ccc; font-size: 11px;")
+        sideLayout.addWidget(self.fontSizeLabel)
+        self.fontUpButton = QtWidgets.QPushButton("FONT ▲")
+        self.fontDownButton = QtWidgets.QPushButton("FONT ▼")
+        self.fontUpButton.setAccessibleName("Increase TV font size")
+        self.fontDownButton.setAccessibleName("Decrease TV font size")
+        for button, step in ((self.fontUpButton, 0.25), (self.fontDownButton, -0.25)):
+            button.setStyleSheet(self.volumeUpButton.styleSheet())
+            button.setFocusPolicy(QtCore.Qt.NoFocus)
+            button.setAutoRepeat(True)
+            button.clicked.connect(lambda _checked=False, delta=step: self.setFontScale(self.fontScale + delta))
+            sideLayout.addWidget(button)
         sideLayout.addStretch(1)
 
         # Large text must remain usable in shorter windows.
@@ -899,9 +936,9 @@ class RetroChannelWidget(QtWidgets.QWidget):
                 lambda match: f'{match[1]}{round(int(match[2]) * self.fontScale)}px',
                 style,
             ))
-        self.fontSizeControl.blockSignals(True)
-        self.fontSizeControl.setValue(round(self.fontScale * 100))
-        self.fontSizeControl.blockSignals(False)
+        self.fontSizeLabel.setText(f"FONT SIZE {round(self.fontScale * 100)}%")
+        self.fontUpButton.setEnabled(self.fontScale < 4.0)
+        self.fontDownButton.setEnabled(self.fontScale > 0.5)
         self.sideScroll.setFixedWidth(max(130, self.sideControls.sizeHint().width() + 24))
         self.guideTable.setColumnWidth(0, round(50 * self.fontScale))
         self.guideTable.setColumnWidth(1, round(160 * self.fontScale))
@@ -1228,9 +1265,17 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._tuneTo(self.currentIndex - 1)
 
     def toggleMute(self):
-        self.masterVolume = 0 if self.masterVolume else 70
+        self.setVolume(0 if self.masterVolume else self._lastVolume)
+
+    def setVolume(self, volume):
+        self.masterVolume = max(0, min(100, int(volume)))
+        if self.masterVolume:
+            self._lastVolume = self.masterVolume
+        self.volumeUpButton.setEnabled(self.masterVolume < 100)
+        self.volumeDownButton.setEnabled(self.masterVolume > 0)
+        self.volumeLabel.setText(f"VOLUME {self.masterVolume}%")
         self.muteButton.setText("Unmute" if self.masterVolume == 0 else "Mute")
-        self.standbyTone.setMuted(self.masterVolume == 0)
+        self.standbyTone.setVolume(self.masterVolume)
         engine = self.engines.get(self.currentIndex)
         if engine:
             engine.setDesiredVolume(self.masterVolume)
