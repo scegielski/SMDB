@@ -564,6 +564,15 @@ class ChannelEngine(QtCore.QObject):
         self._startResolve(slotIndex, '_hardCutRequestId', onResolved)
 
 
+class _GuideTopBar(QtWidgets.QWidget):
+    """Guide header row whose preview frame scales (3:2) with the row's height."""
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        h = max(60, self.height() - 4)
+        self.previewFrame.setFixedSize(int(h * 1.5), h)
+
+
 class _OverlayArea(QtWidgets.QWidget):
     """Keeps a base widget filling the area, with floating overlay children on top."""
 
@@ -751,11 +760,13 @@ class RetroChannelWidget(QtWidgets.QWidget):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(10)
 
-        topLayout = QtWidgets.QHBoxLayout()
-        layout.addLayout(topLayout)
+        topWidget = _GuideTopBar()
+        topLayout = QtWidgets.QHBoxLayout(topWidget)
+        topLayout.setContentsMargins(0, 0, 0, 0)
 
         previewFrame = QtWidgets.QFrame()
         previewFrame.setFixedSize(240, 160)
+        topWidget.previewFrame = previewFrame
         previewFrame.setStyleSheet("background: black; border: 2px solid #4444aa;")
         previewLayout = QtWidgets.QVBoxLayout(previewFrame)
         previewLayout.setContentsMargins(0, 0, 0, 0)
@@ -788,7 +799,19 @@ class RetroChannelWidget(QtWidgets.QWidget):
         )
         self.guideTable.setColumnWidth(0, 50)
         self.guideTable.setColumnWidth(1, 160)
-        layout.addWidget(self.guideTable, 1)
+
+        splitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
+        splitter.setChildrenCollapsible(False)
+        splitter.setHandleWidth(10)
+        splitter.setStyleSheet("QSplitter::handle { background: #4444aa; border: none; margin: 3px 0; }")
+        topWidget.setMinimumHeight(80)
+        self.guideTable.setMinimumHeight(80)
+        splitter.addWidget(topWidget)
+        splitter.addWidget(self.guideTable)
+        splitter.setStretchFactor(0, 0)
+        splitter.setStretchFactor(1, 1)
+        splitter.setSizes([180, 600])
+        layout.addWidget(splitter, 1)
 
         hint = QtWidgets.QLabel("\u25B2/\u25BC Browse channels     Enter Tune     G/Esc Close Guide")
         hint.setAlignment(QtCore.Qt.AlignCenter)
