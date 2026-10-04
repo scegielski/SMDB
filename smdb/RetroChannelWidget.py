@@ -18,16 +18,69 @@ fly while you're browsing.
 import math
 import os
 import random
+import struct
+import tempfile
 import time
+import wave
 
 from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer
+from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer, QSoundEffect
 from PyQt5.QtMultimediaWidgets import QVideoWidget
 
 PROGRAM_DURATION_MS = 60000  # how long each movie airs before the channel cuts to the next one
 PREFETCH_LEAD_MS = 8000  # start buffering the next movie this far before the slot ends
 MAX_START_FRACTION = 0.85  # never start a slot in the last 15% of a movie
 MIN_SEEK_RUNWAY_MS = 1500  # never seek closer than this to the end of a movie
+
+
+def _ensureStandbyToneFile():
+    """Generate (once) a short looping sine-wave test tone, returning its WAV path."""
+    path = os.path.join(tempfile.gettempdir(), 'smdb_standby_tone.wav')
+    if os.path.exists(path):
+        return path
+    sampleRate = 44100
+    freqHz = 1000.0
+    durationS = 1.0
+    amplitude = 0.25
+    fadeSamples = 200
+    sampleCount = int(sampleRate * durationS)
+    frames = bytearray()
+    for i in range(sampleCount):
+        fade = min(1.0, i / fadeSamples, (sampleCount - i) / fadeSamples)
+        value = amplitude * fade * math.sin(2 * math.pi * freqHz * i / sampleRate)
+        frames += struct.pack('<h', int(value * 32767))
+    with wave.open(path, 'w') as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sampleRate)
+        wf.writeframes(bytes(frames))
+    return path
+
+
+class StandbyTone(QtCore.QObject):
+    """Loops a gentle test-pattern tone while a 'PLEASE STAND BY' screen is on air."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._effect = QSoundEffect(self)
+        self._effect.setSource(QtCore.QUrl.fromLocalFile(_ensureStandbyToneFile()))
+        self._effect.setLoopCount(QSoundEffect.Infinite)
+        self._muted = False
+        self._volume = 0.15
+        self._effect.setVolume(self._volume)
+
+    def start(self):
+        if not self._muted and not self._effect.isPlaying():
+            self._effect.play()
+
+    def stop(self):
+        if self._effect.isPlaying():
+            self._effect.stop()
+
+    def setMuted(self, muted):
+        self._muted = muted
+        if muted:
+            self._effect.stop()
 
 
 class StandByScreen(QtWidgets.QWidget):
@@ -230,6 +283,29 @@ class ChannelClock:
         return row, offsetFraction
 
 
+class _PathResolveSignals(QtCore.QObject):
+    finished = QtCore.pyqtSignal(int, object, object)  # requestId, row, path
+
+
+class _PathResolveTask(QtCore.QRunnable):
+    """Resolves a scheduled slot's video file off the GUI thread (disk I/O can be slow)."""
+
+    def __init__(self, requestId, candidateRows, resolver):
+        super().__init__()
+        self.requestId = requestId
+        self.candidateRows = candidateRows
+        self.resolver = resolver
+        self.signals = _PathResolveSignals()
+
+    def run(self):
+        for row in self.candidateRows:
+            path = self.resolver(row)
+            if path:
+                self.signals.finished.emit(self.requestId, row, path)
+                return
+        self.signals.finished.emit(self.requestId, None, None)
+
+
 class ChannelEngine(QtCore.QObject):
     """
     Drives a single genre "channel": continuously plays movies from the genre
@@ -238,6 +314,7 @@ class ChannelEngine(QtCore.QObject):
     """
 
     programChanged = QtCore.pyqtSignal()
+    showingStandby = QtCore.pyqtSignal(bool)
 
     def __init__(self, channelNumber, genreName, clock, resolver, titleGetter, parent=None):
         super().__init__(parent)
@@ -274,6 +351,11 @@ class ChannelEngine(QtCore.QObject):
         self._prefetchStarted = False
         self._prefetchedSlotIndex = None
 
+        self._resolveSeq = 0
+        self._tuneRequestId = None
+        self._prefetchRequestId = None
+        self._hardCutRequestId = None
+
         self.advanceTimer = QtCore.QTimer(self)
         self.advanceTimer.setSingleShot(True)
         self.advanceTimer.timeout.connect(self._onAdvanceTimer)
@@ -283,13 +365,23 @@ class ChannelEngine(QtCore.QObject):
         self.prefetchTimer.timeout.connect(self._beginPrefetch)
 
     # -- schedule resolution --------------------------------------------------
-    def _resolvePathForRow(self, slotIndex):
-        """Try a handful of scheduled candidates in case some movies have no video file."""
-        for row in self.clock.candidateRows(slotIndex, count=5):
-            path = self.resolver(row)
-            if path:
-                return row, path
-        return None, None
+    def _startResolve(self, slotIndex, requestAttr, onDone):
+        """Resolve candidates for `slotIndex` on a worker thread; `onDone(row, path)` runs on
+        the GUI thread once finished, and is skipped if a newer request has superseded it."""
+        self._resolveSeq += 1
+        requestId = self._resolveSeq
+        setattr(self, requestAttr, requestId)
+        candidateRows = self.clock.candidateRows(slotIndex, count=5)
+        task = _PathResolveTask(requestId, candidateRows, self.resolver)
+        task.signals.finished.connect(
+            lambda rid, row, path, attr=requestAttr, cb=onDone: self._finishResolve(rid, row, path, attr, cb)
+        )
+        QtCore.QThreadPool.globalInstance().start(task)
+
+    def _finishResolve(self, requestId, row, path, requestAttr, onDone):
+        if getattr(self, requestAttr) != requestId:
+            return  # stale: superseded by a newer tune/prefetch/cut, or the engine was shut down
+        onDone(row, path)
 
     # -- lifecycle ----------------------------------------------------------
     def start(self):
@@ -300,30 +392,41 @@ class ChannelEngine(QtCore.QObject):
     def _tuneIn(self):
         """Sync playback to wherever the channel clock says we should be right now."""
         slotIndex, _, offsetFraction, positionInSlotMs, remainingMs = self.clock.whatsOnNow()
-        actualRow, path = self._resolvePathForRow(slotIndex)
-        if path is None:
-            return False
-        self.currentSlotIndex = slotIndex
-        self.currentRow = actualRow
-        self.currentTitle = self.titleGetter(actualRow)
-        self.nextRow = None
-        self.nextTitle = ''
-        self._prefetchStarted = False
-        self._prefetchedSlotIndex = None
-
-        self.activeSlot.setVolume(self.desiredVolume)
         self._stack.setCurrentWidget(self.standbyScreen)
-        self.activeSlot.load(path, autoplay=True, seekFraction=offsetFraction, extraMs=positionInSlotMs)
-        self.programChanged.emit()
+        self.showingStandby.emit(True)
 
-        self._scheduleAdvance(remainingMs)
-        self._maybeSchedulePrefetch(remainingMs)
+        def onResolved(row, path):
+            if path is None:
+                return  # no playable movie found for this slot; stay on stand-by
+            self.currentSlotIndex = slotIndex
+            self.currentRow = row
+            self.currentTitle = self.titleGetter(row)
+            self.nextRow = None
+            self.nextTitle = ''
+            self._prefetchStarted = False
+            self._prefetchedSlotIndex = None
+
+            self.activeSlot.setVolume(self.desiredVolume)
+            self.activeSlot.load(path, autoplay=True, seekFraction=offsetFraction, extraMs=positionInSlotMs)
+            self.programChanged.emit()
+
+            self._scheduleAdvance(remainingMs)
+            self._maybeSchedulePrefetch(remainingMs)
+
+        self._startResolve(slotIndex, '_tuneRequestId', onResolved)
         return True
 
     def shutdown(self):
         """Fully stop and release this engine's players."""
         self.advanceTimer.stop()
         self.prefetchTimer.stop()
+        # Invalidate any in-flight background resolves so their results are ignored on arrival.
+        self._resolveSeq += 1
+        self._tuneRequestId = self._resolveSeq
+        self._resolveSeq += 1
+        self._prefetchRequestId = self._resolveSeq
+        self._resolveSeq += 1
+        self._hardCutRequestId = self._resolveSeq
         self.slotA.stop()
         self.slotB.stop()
         self.currentRow = None
@@ -333,6 +436,10 @@ class ChannelEngine(QtCore.QObject):
     def _onSlotReady(self, slot):
         if slot is self.activeSlot:
             self._stack.setCurrentWidget(slot.videoWidget)
+            self.showingStandby.emit(False)
+
+    def isShowingStandby(self):
+        return self._stack.currentWidget() is self.standbyScreen
 
     def setDesiredVolume(self, volume):
         self.desiredVolume = volume
@@ -355,16 +462,19 @@ class ChannelEngine(QtCore.QObject):
         self._prefetchStarted = True
         nextSlotIndex = self.currentSlotIndex + 1
         _, offsetFraction = self.clock.slotInfo(nextSlotIndex)
-        row, path = self._resolvePathForRow(nextSlotIndex)
-        if path:
-            self.nextRow = row
-            self.nextTitle = self.titleGetter(row)
-            self._prefetchedSlotIndex = nextSlotIndex
-            self.standbySlot.load(path, autoplay=False, seekFraction=offsetFraction, extraMs=0)
-        else:
-            self.nextRow = None
-            self.nextTitle = ''
-            self._prefetchedSlotIndex = None
+
+        def onResolved(row, path):
+            if path:
+                self.nextRow = row
+                self.nextTitle = self.titleGetter(row)
+                self._prefetchedSlotIndex = nextSlotIndex
+                self.standbySlot.load(path, autoplay=False, seekFraction=offsetFraction, extraMs=0)
+            else:
+                self.nextRow = None
+                self.nextTitle = ''
+                self._prefetchedSlotIndex = None
+
+        self._startResolve(nextSlotIndex, '_prefetchRequestId', onResolved)
 
     def _onAdvanceTimer(self):
         """Slot boundary reached (or we're catching up after being away): re-sync to the clock."""
@@ -404,22 +514,26 @@ class ChannelEngine(QtCore.QObject):
         self.programChanged.emit()
 
     def _hardCut(self, slotIndex, offsetFraction, positionInSlotMs):
-        """Standby wasn't buffered in time (long gap or slow load) - load directly, showing stand-by briefly."""
-        actualRow, path = self._resolvePathForRow(slotIndex)
-        if path is None:
-            return
+        """Standby wasn't buffered in time (long gap or slow load) - load directly, showing stand-by until ready."""
         self.standbySlot.stop()
-        self.activeSlot.setVolume(self.desiredVolume)
         self._stack.setCurrentWidget(self.standbyScreen)
-        self.activeSlot.load(path, autoplay=True, seekFraction=offsetFraction, extraMs=positionInSlotMs)
+        self.showingStandby.emit(True)
 
-        self.currentSlotIndex = slotIndex
-        self.currentRow = actualRow
-        self.currentTitle = self.titleGetter(actualRow)
-        self.nextRow = None
-        self.nextTitle = ''
-        self._prefetchedSlotIndex = None
-        self.programChanged.emit()
+        def onResolved(row, path):
+            if path is None:
+                return
+            self.activeSlot.setVolume(self.desiredVolume)
+            self.activeSlot.load(path, autoplay=True, seekFraction=offsetFraction, extraMs=positionInSlotMs)
+
+            self.currentSlotIndex = slotIndex
+            self.currentRow = row
+            self.currentTitle = self.titleGetter(row)
+            self.nextRow = None
+            self.nextTitle = ''
+            self._prefetchedSlotIndex = None
+            self.programChanged.emit()
+
+        self._startResolve(slotIndex, '_hardCutRequestId', onResolved)
 
 
 class _OverlayArea(QtWidgets.QWidget):
@@ -482,6 +596,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._fsTabWidget = None
         self._fsTabIndex = None
         self._fsTabLabel = None
+        self.standbyTone = StandbyTone(self)
+        self._standbyConnectedEngine = None
 
         self.setFocusPolicy(QtCore.Qt.StrongFocus)
         self._buildUI()
@@ -710,6 +826,27 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if not hasChannels:
             self.nowPlayingLabel.setText("")
             self.displayStack.setCurrentWidget(self.globalStandby)
+            self._setStandbyConnection(None)
+
+    def _setStandbyConnection(self, engine):
+        """Follow whichever stand-by screen is actually visible (global or a channel's own) with the tone."""
+        if self._standbyConnectedEngine is not None:
+            try:
+                self._standbyConnectedEngine.showingStandby.disconnect(self._onStandbyChanged)
+            except TypeError:
+                pass
+        self._standbyConnectedEngine = engine
+        if engine is not None:
+            engine.showingStandby.connect(self._onStandbyChanged)
+            self._onStandbyChanged(engine.isShowingStandby())
+        else:
+            self._onStandbyChanged(True)
+
+    def _onStandbyChanged(self, isStandby):
+        if isStandby and self.isActive:
+            self.standbyTone.start()
+        else:
+            self.standbyTone.stop()
 
     # ------------------------------------------------------------------
     # Channel engine (tuning) management
@@ -772,6 +909,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._updateNowPlayingLabel(engine)
         if self.guideVisible:
             self._refreshGuideTable()
+        self._setStandbyConnection(engine)
 
     def _updateChannelLabel(self):
         if not self.channels:
@@ -829,6 +967,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
     def toggleMute(self):
         self.masterVolume = 0 if self.masterVolume else 70
         self.muteButton.setText("Unmute" if self.masterVolume == 0 else "Mute")
+        self.standbyTone.setMuted(self.masterVolume == 0)
         engine = self.engines.get(self.currentIndex)
         if engine:
             engine.setDesiredVolume(self.masterVolume)
@@ -895,7 +1034,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self.guidePreviewSlot.setVolume(0)
             self.guidePreviewContainer.layout().addWidget(self.guidePreviewSlot.videoWidget)
         self._updateGuidePreview()
-        self.guidePreviewTimer.start()
+        # Note: periodic random-reseek ("cutting") is disabled for now - see _onGuidePreviewTick -
+        # so self.guidePreviewTimer is intentionally not started here.
 
     def _stopGuidePreview(self):
         self.guidePreviewTimer.stop()
@@ -909,15 +1049,24 @@ class RetroChannelWidget(QtWidgets.QWidget):
         engine = self.engines.get(idx)
         if engine and engine.currentRow is not None:
             row = engine.currentRow
+            # Mirror the live engine's exact playback position so opening the guide
+            # doesn't visibly jump to a different point in the movie.
+            livePositionMs = engine.activeSlot.player.position()
         else:
             row = random.choice(self.channels[idx]['rows'])
+            livePositionMs = None
         path = self._resolveVideoPath(row)
         if path:
-            self.guidePreviewSlot.load(path, autoplay=True)
+            if livePositionMs is not None:
+                self.guidePreviewSlot.load(path, autoplay=True, seekFraction=0.0, extraMs=livePositionMs)
+            else:
+                self.guidePreviewSlot.load(path, autoplay=True)
 
     def _onGuidePreviewTick(self):
+        # Kept for future use (periodic random-reseek "cutting" effect); not currently invoked.
         if self.guidePreviewSlot and self.guidePreviewSlot.isReady():
             self.guidePreviewSlot.seekRandom()
+
 
     def _refreshGuideTable(self):
         table = self.guideTable
@@ -961,11 +1110,15 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.isActive = True
         if self.channels:
             self._tuneTo(self.currentIndex)
+        else:
+            self._setStandbyConnection(None)
         self.setFocus()
 
     def hideEvent(self, event):
         super().hideEvent(event)
         self.isActive = False
+        self._setStandbyConnection(None)
+        self.standbyTone.stop()
         self._teardownAllEngines()
         self._stopGuidePreview()
         if self.guideVisible:

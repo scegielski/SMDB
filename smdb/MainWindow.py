@@ -4196,14 +4196,17 @@ class MainWindow(QtWidgets.QMainWindow):
         table.selectAll()
         pass
 
-    def findMovie(self, moviePath, folderName):
+    def findMovie(self, moviePath, folderName, interactive=True):
         """
         Find a movie folder, first checking the given path, then searching alternate folders.
-        If multiple paths are found during fallback, prompts user to choose.
+        If multiple paths are found during fallback, prompts user to choose (unless `interactive`
+        is False, e.g. when called from a background thread, in which case the first match wins).
         
         Args:
             moviePath: The original/stored path to check first
             folderName: The folder name to search for (e.g., "MovieTitle(2020)")
+            interactive: Whether to prompt the user (via a GUI dialog) when multiple matches are
+                found. Must be False when called from a non-GUI thread.
         
         Returns:
             Full path to the movie folder if found, None otherwise
@@ -4231,7 +4234,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Return based on number of matches found
         if len(foundPaths) == 0:
             return None
-        elif len(foundPaths) == 1:
+        elif len(foundPaths) == 1 or not interactive:
             return foundPaths[0]
         else:
             # Multiple paths found - ask user to choose
@@ -4251,7 +4254,8 @@ class MainWindow(QtWidgets.QMainWindow):
     def resolveMovieVideoFile(self, row, model=None):
         """
         Find a playable video file for the given source model row.
-        Used by the Retro TV channel feature to queue up promo clips.
+        Used by the Retro TV channel feature to queue up promo clips. May be called from a
+        background thread, so this must never touch GUI objects.
 
         Returns the full path to a video file, or None if none can be found.
         """
@@ -4261,7 +4265,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         moviePath = model.getPath(row)
         folderName = model.getFolderName(row)
-        moviePath = self.findMovie(moviePath, folderName)
+        moviePath = self.findMovie(moviePath, folderName, interactive=False)
         if not moviePath:
             return None
 
