@@ -714,7 +714,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
     and a teletext-style channel guide, all built from the movie collection.
     """
 
-    MIN_MOVIES_PER_CHANNEL = 3
+    MIN_MOVIES_PER_CHANNEL = 10
     NEIGHBOR_WARM_COUNT = 1  # warm this many channels on either side for instant surfing
     DEFAULT_FONT_SCALE = 2.0
     RETRO_FONT_FAMILIES = (
