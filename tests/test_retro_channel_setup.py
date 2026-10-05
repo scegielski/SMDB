@@ -66,6 +66,46 @@ class ChannelSetupTests(unittest.TestCase):
         finally:
             tv.close()
 
+    def test_reprogram_repicks_only_current_filtered_channel(self):
+        parent = QtWidgets.QWidget()
+        model = parent.moviesTableModel = Mock()
+        model.rowCount.return_value = 52
+        model.getGenres.side_effect = lambda row: ['Action'] if row < 50 else ['Comedy']
+        model.getMpaaRating.side_effect = lambda row: 'R' if row < 5 else 'PG'
+        model.getRuntime.return_value = '120'
+        tv = RetroChannelWidget(parent)
+        try:
+            tv.refreshChannels()
+            tv.setChannelPreferences([], ['R'])
+            old = tv.channels[0]['clock']
+            neighborClock = tv.channels[1]['clock']
+            current = Mock(container=QtWidgets.QWidget())
+            neighbor = Mock(container=QtWidgets.QWidget())
+            tv.engines = {0: current, 1: neighbor}
+            tv.isActive = True
+            with patch.object(tv, '_tuneTo') as tune, \
+                    patch('smdb.RetroChannelWidget.random.sample', side_effect=lambda rows, count: list(reversed(rows))[:count]):
+                tv.reprogramButton.click()
+                tune.assert_called_once_with(0)
+            clock = tv.channels[0]['clock']
+            self.assertIsNot(clock, old)
+            self.assertEqual(clock._rotation, list(range(49, 24, -1)))
+            self.assertEqual(clock.rows, list(range(5, 50)))
+            self.assertIs(tv.channels[1]['clock'], neighborClock)
+            self.assertIs(tv.engines[1], neighbor)
+            neighbor.shutdown.assert_not_called()
+            current.shutdown.assert_called_once()
+            tv.isActive = False
+            tv.setChannelPreferences([], [])
+            tv.setChannelPreferences([], ['R'])
+            self.assertIs(tv.channels[0]['clock'], clock)
+            tv.setExcludedChannels(['Action', 'Comedy'])
+            self.assertFalse(tv.reprogramButton.isEnabled())
+            tv.reprogramChannel()
+        finally:
+            tv.close()
+            parent.close()
+
     def test_quality_range_filters_catalogue_scores_and_persists(self):
         with tempfile.TemporaryDirectory() as directory:
             parent = QtWidgets.QWidget()

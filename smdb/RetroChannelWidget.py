@@ -1180,6 +1180,12 @@ class RetroChannelWidget(QtWidgets.QWidget):
             b.setStyleSheet("background: #333; color: white; font-size: 14px; border-radius: 6px; padding: 8px;")
             b.setFocusPolicy(QtCore.Qt.NoFocus)
         sideLayout.addWidget(guideButton)
+        self.reprogramButton = QtWidgets.QPushButton('REPROGRAM\nCHANNEL')
+        self.reprogramButton.setStyleSheet(guideButton.styleSheet())
+        self.reprogramButton.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.reprogramButton.setToolTip('Pick a new random lineup for the current channel')
+        self.reprogramButton.clicked.connect(self.reprogramChannel)
+        sideLayout.addWidget(self.reprogramButton)
         self.setupButton = QtWidgets.QPushButton('SETUP')
         self.setupButton.setStyleSheet(guideButton.styleSheet())
         self.setupButton.setFocusPolicy(QtCore.Qt.NoFocus)
@@ -1559,11 +1565,36 @@ class RetroChannelWidget(QtWidgets.QWidget):
         for button in (self.channelUpButton, self.channelDownButton,
                        self.nextProgramButton, self.previousProgramButton,
                        self.backTenButton, self.forwardTenButton,
-                       self.beginningButton, self.nextBeginningButton, self.guideButton):
+                       self.beginningButton, self.nextBeginningButton, self.guideButton,
+                       self.reprogramButton):
             button.setEnabled(hasChannels)
         if not hasChannels:
             self.nowPlayingLabel.setText("")
             self.displayStack.setCurrentWidget(self.globalStandby)
+
+    def reprogramChannel(self):
+        if not self.channels:
+            return
+        channel = self.channels[self.currentIndex]
+        clock = ChannelClock(channel['rows'], self._durationForRow)
+        self._releasePreviewHost()
+        self._stopGuidePreview()
+        engine = self.engines.pop(self.currentIndex, None)
+        if engine is not None:
+            engine.shutdown()
+            self.displayStack.removeWidget(engine.container)
+            engine.container.setParent(None)
+        channel['clock'] = clock
+        # Keep the new lineup when channel/MPAA/quality selections are reapplied.
+        for available in self._availableChannels:
+            if available['genre'] == channel['genre'] and available['rows'] == channel['rows']:
+                available['clock'] = clock
+        self._filteredClocks[(channel['genre'], tuple(channel['rows']))] = clock
+        if self.isActive:
+            self._tuneTo(self.currentIndex)
+        elif self.guideVisible:
+            self._refreshGuideTable()
+            self._updateGuidePreview()
 
     def _syncStandbyTone(self):
         """Continuous fallback: match the tone to whatever stand-by state is actually on
