@@ -376,6 +376,18 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
         else:
             self._ensurePlaybackVisible()
 
+    def wheelEvent(self, event):
+        if event.modifiers() & QtCore.Qt.ControlModifier:
+            event.ignore()
+            return
+        # Ordinary wheel motion always scrolls channels vertically, even when
+        # the horizontal timeline has a range and the channel list does not.
+        pixels = event.pixelDelta().y()
+        distance = pixels if pixels else event.angleDelta().y() / 120 * self.rowHeight * 3
+        bar = self.verticalScrollBar()
+        bar.setValue(bar.value() - round(distance))
+        event.accept()
+
     def mousePressEvent(self, event):
         if event.button() == QtCore.Qt.MiddleButton:
             if self.isPanning():

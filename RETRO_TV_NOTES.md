@@ -1,4 +1,39 @@
-# Retro TV (smdb/RetroChannelWidget.py) - Status and Open Issues
+# SMTV (smdb/RetroChannelWidget.py) - Status, Ideas, and History
+
+## Current status (2026-10-05)
+
+- Latest implementation commit: `5e1aa74`, pushed to `origin/master`. Use `git status` and `git log` to check subsequent repository changes.
+- SMDB and SMTV are separate application modes. SMTV starts with the guide open; FULL/F/F11 currently switches to video-only fullscreen and Esc restores controls.
+- The guide is a single repeating timeline with hourly AM/PM headings, quarter-hour program starts, yellow live time, and a cyan manual-playback cursor. Published film times remain fixed through seeking and program navigation.
+- Channel labels have a distinct style and adjustable column width. The video/info divider and the horizontal guide divider are also draggable; the latter defaults to halfway down. Covers appear under movie titles, with synopsis text wrapping around them.
+- Middle-button dragging pans by default. Setup → Guide offers saved browser-style automatic scrolling as an alternative.
+- Wheel alone scrolls vertically. Only Ctrl+wheel and the font menu adjust fonts; channels, programming, information, and controls have independent saved sizes. Ctrl+wheel over programming retains the time under the pointer.
+- Setup saves channel, MPAA, and numeric quality-rating filters. Any category with an included film can become a channel. Reprogram Channel repicks its eligible lineup.
+- Lineups and original times persist in `smtv_schedule.json` beside the primary movie folder's `smdb_data.json`; restart rejoins the continuing broadcast.
+- Latest full native Windows suite: 58 tests passed. Builds are launched for testing when ready, and their output folder is linked in chat.
+
+## Ideas to choose from
+
+Consult this checklist when asked what to implement next. These are candidate features, not instructions to implement them all. Keep optional ideas open for discussion, and update the checklist and current status as features are implemented.
+
+- [ ] Floating remote with the same controls as the TV controls.
+- [ ] Possibly make TV controls dockable, turning into a floating remote when undocked.
+- [ ] Clean up TV controls: move Reprogram Channel/Channels into Setup, alongside the number of programs and other programming options.
+- [ ] True fullscreen mode, like a game.
+- [ ] Remove the fullscreen button from TV controls once fullscreen is the normal view; the dockable remote/TV controls would be the only obstruction.
+- [ ] Preview mode that randomly cuts between 1–10-second clips from the selected movie. Possibly show a floating player near the mouse over the guide schedule, like the current title/time tooltip.
+- [ ] Language filter in Setup.
+- [ ] Subtitle support.
+- [ ] Audio channel support.
+- [ ] Context menu for the relevant features above.
+- [ ] Alternate standby graphics and sound, including “coming up on sctv”.
+- [ ] Channel and volume overlays over the video, using classic bars.
+
+## Implementation history
+
+The dated entries below describe the behavior at the time of each change; later entries and the current status supersede older designs.
+
+- Restore Ctrl-only font zoom (2026-10-05): wheel alone scrolls vertically again in SMDB and SMTV. The timeline explicitly uses vertical wheel scrolling even when only its horizontal axis has a scroll range. Ctrl+wheel adjusts the pointed section independently using the original quarter-scale steps, preserves saved sizes and menu synchronization, and keeps programming time anchored beneath the pointer. All fifty-eight native Windows tests pass.
 
 - Plain-wheel zoom anchored to pointer (2026-10-05): plain wheel zooms the current SMDB font or the pointed SMTV section; Ctrl+wheel retains independent section font adjustment. Standalone Setup dialogs keep ordinary scrolling. SMTV plain-wheel steps are 0.05 scale per notch, using proportional angle/pixel deltas; Ctrl+wheel and menu commands use quarter steps relative to the same saved scale. Timeline zoom captures time/row beneath the pointer, updates fonts/geometry, and restores its viewport location with subpixel rounding tolerance, extending the repeating range at either edge. Live centering/cyan following pauses for that manual view until NOW/navigation. All fifty-seven Windows tests pass, including plain/Ctrl-wheel section isolation, menu interleaving, and left/right-edge zoom anchoring.
 
@@ -100,20 +135,23 @@
 
 - Application modes (2026-10-04): the Mode menu selects Database or TV; TV has its own central view without database panes or tabs. The selected mode persists, and the former TV tab setting migrates to TV mode. FULL/F/F11 uses the main window for video-only fullscreen, hiding the clicker, title, menu, and status bar without reparenting or restarting players. Escape restores the controls and prior guide state. Switching to Database exits fullscreen and stops TV playback. Ten regressions pass, including mode migration, mode switching, video geometry, font consistency, player lifecycle, and startup tone.
 
-## Open issues (as of last session)
+## Earlier playback reports (2026-10-04)
+
+These reports predate the later startup, navigation, and guide fixes described above. They are retained for investigation if symptoms recur, rather than asserted as current confirmed failures.
 1. **Stand-by screen/tone is inconsistent.** The "PLEASE STAND BY" screen and its tone do not reliably accompany every visible delay when tuning or switching channels. Requirement: the tone should always play whenever stand-by is shown.
 2. **Channel content is inconsistent when switching.** What the guide shows, what plays, and what the banner/label says sometimes disagree after channel up/down.
 
-## Uncommitted state
-- Last commit: `c75b56a` (guide NOW/NEXT uses the schedule clock).
-- Uncommitted: the stand-by tone was changed from signal-driven to a 150ms poll timer (`standbyPollTimer` / `_syncStandbyTone`), and the `showingStandby` signal plus `_setStandbyConnection`/`_onStandbyChanged` were removed. It passed a headless smoke test but the user reports it still does not work consistently in real use. Decide whether to keep it or revert (`git diff`).
+## Repository state
+
+Use `git status --short` for outstanding changes and `git log -1` for the latest commit. The earlier `c75b56a` reference and temporary standby-poll changes are historical; the polling and later startup continuity fixes have since been committed.
 
 ## Architecture summary
 - One `ChannelEngine` per genre: a stack of stand-by screen + two `ClipSlot`s (double buffer, `QMediaPlayer` + `QVideoWidget`). The current channel plus 1 neighbour on each side are kept warm (muted).
-- `ChannelClock` holds a per-channel wall-clock epoch and a lazily generated rotation; `whatsOnNow()` and `slotInfo()` define the schedule. Clocks persist until `refreshChannels()` rebuilds them.
+- `ChannelClock` uses a monotonic playback epoch and a fixed randomly chosen lineup of up to 25 films. Immutable wall-clock start/end times define quarter-hour-aligned repeating programming; manual playback can move separately. Saved schedules identify films by normalized paths and are restored on catalogue refresh/restart.
 - Video path resolution runs on `QThreadPool` (`_PathResolveTask`) with request-ID invalidation of stale results.
 - Guide overlay reparents the live engine container into the preview frame; non-warmed channels use a throwaway preview clip (`guidePreviewSlot`).
-- `StandbyTone` is a `QSoundEffect` looping a generated WAV, all on the GUI thread (no separate thread).
+- `GuideTimeline` paints channel labels, film blocks, time headings, and cursors in a scroll area. It handles channel-column resizing, both panning modes, and pointer-centered zoom. Horizontal splitters manage video/info and guide layout.
+- `StandbyTone` loops a generated WAV, using native asynchronous `winsound.PlaySound` on Windows and `QSoundEffect` as the portable/fallback path. Standby remains until first-frame readiness, and a 150ms poll synchronizes the visible fallback and tone.
 
 ## History of fixes (committed)
 - `8b0afca` reuse the live engine widget for the guide preview.
@@ -122,7 +160,9 @@
 - `58aec9e` removed per-toggle video rebinds (guide toggle was slow).
 - `c75b56a` guide NOW/NEXT for non-warmed channels uses the clock.
 
-## Hypotheses for the remaining problems (not yet verified)
+## Historical investigation hypotheses (2026-10-04)
+
+These ideas were recorded before the subsequent fixes; check current code and reproduce a symptom before treating them as present defects.
 - Stand-by state: `isShowingStandby()` reads the engine's `QStackedLayout`, but `_tuneTo()` ends with `displayStack.setCurrentWidget(engine.container)` and the guide reparents containers, so the visible state may differ from the engine's internal state. Also `_onSlotReady` fires on duration known, which can precede actual first-frame paint, and `_hardCut`/`_promote` change the stack independently. Consider a single source of truth (e.g. one stand-by overlay owned by the widget, shown until the first frame is confirmed, e.g. via `QMediaPlayer.mediaStatus`/video frame probe) instead of per-engine screens.
 - `QSoundEffect` may not restart reliably if `play()` is called while `isPlaying()` is stale; consider always `stop()` then `play()` on transition, or a persistent looping player.
 - Channel inconsistency: the engine's `currentRow` is set only after async path resolution, while `_updateNowPlayingLabel`/banner/guide read it immediately after `_tuneTo()`; the candidate-row fallback (`candidateRows(count=5)`) may play a different row than the clock's primary row that the guide shows. Consider having the clock/engine record the resolved row back into the schedule so guide, banner and playback all agree.

@@ -15,6 +15,29 @@ class GuideTimelineTests(unittest.TestCase):
     def setUpClass(cls):
         cls.app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
+    def test_plain_wheel_scrolls_only_vertically_without_zoom(self):
+        guide = GuideTimeline()
+        guide.resize(900, 350)
+        guide.show()
+        guide.setRows([{'channel': i, 'label': str(i), 'programs': []} for i in range(40)], 0)
+        self.app.processEvents()
+        guide.horizontalScrollBar().setValue(200)
+        guide.verticalScrollBar().setValue(100)
+        try:
+            point = QtCore.QPointF(guide.channelWidth + 30, guide.headerHeight + 20)
+            event = QtGui.QWheelEvent(point, point, QtCore.QPoint(), QtCore.QPoint(0, -120),
+                                      QtCore.Qt.NoButton, QtCore.Qt.NoModifier,
+                                      QtCore.Qt.NoScrollPhase, False)
+            QtWidgets.QApplication.sendEvent(guide.viewport(), event)
+            self.assertEqual(guide.verticalScrollBar().value(), 100 + 3 * guide.rowHeight)
+            self.assertEqual(guide.horizontalScrollBar().value(), 200)
+            self.assertEqual(guide.scale, 1.0)
+            guide.setRows([], 0)
+            QtWidgets.QApplication.sendEvent(guide.viewport(), event)
+            self.assertEqual(guide.horizontalScrollBar().value(), 200)
+        finally:
+            guide.close()
+
     def test_initial_random_join_uses_full_film_beginning_and_runtime(self):
         with patch('smdb.RetroChannelWidget.time.time', return_value=36420), \
                 patch('smdb.RetroChannelWidget.time.monotonic', return_value=0), \

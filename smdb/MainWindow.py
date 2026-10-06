@@ -757,32 +757,32 @@ class MainWindow(QtWidgets.QMainWindow):
             QtCore.QCoreApplication.processEvents()
 
     def wheelEvent(self, event):
-        dy = event.angleDelta().y()
-        self.changeModeFontSize(1 if dy > 0 else (-1 if dy < 0 else 0))
-        event.accept()
+        if event.modifiers() & QtCore.Qt.ControlModifier:
+            dy = event.angleDelta().y() or event.pixelDelta().y()
+            self.changeModeFontSize(1 if dy > 0 else (-1 if dy < 0 else 0))
+            event.accept()
+        else:
+            super().wheelEvent(event)
 
     def eventFilter(self, watched, event):
         # Intercept zoom before child scroll areas consume it. Dialogs keep
-        # normal scrolling; Ctrl+wheel uses the menu's font-size step.
+        # normal scrolling; only Ctrl+wheel adjusts fonts.
         if (event.type() == QtCore.QEvent.Wheel
+                and event.modifiers() & QtCore.Qt.ControlModifier
                 and isinstance(watched, QtWidgets.QWidget)
                 and (watched is self or self.isAncestorOf(watched))
                 and watched.window() is self):
             tv = self.retroChannelWidget
             inTV = (self.applicationMode == 'TV' and
                     (watched is tv or tv.isAncestorOf(watched)) and watched.window() is self)
-            dy = event.angleDelta().y()
+            dy = event.angleDelta().y() or event.pixelDelta().y()
             delta = 1 if dy > 0 else (-1 if dy < 0 else 0)
             if inTV:
-                # Preserve fractional/high-resolution wheel motion and use much
-                # finer steps than the menu's quarter-scale increments.
-                motion = dy / 120 if dy else event.pixelDelta().y() / 40
-                if motion:
+                if delta:
                     section = tv.fontSectionForWidget(watched, event.pos())
                     point = tv.guideTable.viewport().mapFromGlobal(watched.mapToGlobal(event.pos()))
                     anchor = tv.guideTable.captureZoomAnchor(point) if section == 'guide' else None
-                    step = motion if event.modifiers() & QtCore.Qt.ControlModifier else motion * 0.2
-                    tv.changeSectionFontSize(section, step)
+                    tv.changeSectionFontSize(section, delta)
                     tv.guideTable.restoreZoomAnchor(anchor)
             else:
                 self.changeModeFontSize(delta)
@@ -791,6 +791,8 @@ class MainWindow(QtWidgets.QMainWindow):
         return super().eventFilter(watched, event)
 
     def changeFontSize(self, delta):
+        if not QtWidgets.QApplication.keyboardModifiers() & QtCore.Qt.ControlModifier:
+            return
         # Normalize to step of -1, 0, or +1
         delta = -1 if delta < 0 else (1 if delta > 0 else 0)
         self.changeModeFontSize(delta)
