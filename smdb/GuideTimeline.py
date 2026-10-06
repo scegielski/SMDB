@@ -121,7 +121,7 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
             painter.fillRect(rect, QtGui.QColor('#ffcc00' if active else '#1a1aae'))
             painter.setPen(QtGui.QColor('black' if active else 'white'))
             painter.drawText(rect.adjusted(6, 0, 0, 0), QtCore.Qt.AlignVCenter,
-                             time.strftime('%a %H:%M', time.localtime(timestamp)))
+                             time.strftime('%a %I:%M %p', time.localtime(timestamp)))
             painter.setPen(QtGui.QColor('#4444aa'))
             painter.drawRect(rect)
         painter.setClipping(False)
@@ -172,8 +172,8 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
             for program in self.rows[index]['programs']:
                 if self.programRect(index, program).contains(event.pos()):
                     label = '{}\n{} – {}'.format(program['title'],
-                        time.strftime('%a %H:%M', time.localtime(program['start'])),
-                        time.strftime('%a %H:%M', time.localtime(program['end'])))
+                        time.strftime('%a %I:%M %p', time.localtime(program['start'])),
+                        time.strftime('%a %I:%M %p', time.localtime(program['end'])))
                     QtWidgets.QToolTip.showText(event.globalPos(), label, self)
                     return
         QtWidgets.QToolTip.hideText()

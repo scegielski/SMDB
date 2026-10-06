@@ -351,17 +351,24 @@ class ChannelClock:
         # resume jumps, and playback's mutable wall-clock anchor.
         self._scheduleStarts = []
         self._scheduleEnds = []
-        scheduledStart = math.floor(time.time() / 900) * 900
+        wallNow = time.time()
+        for index in range(len(self._rotation)):
+            self._offsetFractions[index] = random.uniform(0.0, MAX_START_FRACTION)
+        firstDuration = (self.durationGetter(self._rotation[0]) if self.durationGetter else 0) or DEFAULT_PROGRAM_DURATION_MS
+        # Join a full broadcast already in progress, rather than publishing only
+        # the portion remaining after the initial random playback position.
+        initialElapsed = firstDuration * self._offsetFractions[0] / 1000.0 if broadcastAligned else 0
+        scheduledStart = math.floor((wallNow - initialElapsed) / 900) * 900
         for index in range(len(self._rotation)):
             self._scheduleStarts.append(scheduledStart)
             duration = self.durationGetter(self._rotation[index]) if self.durationGetter else 0
             duration = duration or DEFAULT_PROGRAM_DURATION_MS
-            end = scheduledStart + max(1, duration * (1 - self._offsetFractionForSlot(index))) / 1000.0
+            end = scheduledStart + max(1, duration) / 1000.0
             self._scheduleEnds.append(end)
             scheduledStart = math.ceil(end / 900) * 900
         self._scheduleCycleSeconds = scheduledStart - self._scheduleStarts[0]
         if broadcastAligned:
-            self.epoch -= time.time() - self._scheduleStarts[0]
+            self.epoch -= wallNow - self._scheduleStarts[0]
 
     def publishedPrograms(self, start, end):
         """Immutable broadcast blocks; padding remains empty until the next quarter hour."""
@@ -392,6 +399,8 @@ class ChannelClock:
     def _offsetFractionForSlot(self, slotIndex):
         if slotIndex in self._startOverrides:
             return self._startOverrides[slotIndex]
+        if self.broadcastAligned:
+            return 0.0
         slotIndex %= len(self._rotation)
         if slotIndex not in self._offsetFractions:
             self._offsetFractions[slotIndex] = random.uniform(0.0, MAX_START_FRACTION)
@@ -874,8 +883,10 @@ class ChannelEngine(QtCore.QObject):
         self._beginningMarkerOrigin = None
         if beginning:
             self.clock.startSlotAtBeginning(target)
-        else:
-            self.clock.resumeSlot(target)
+        elif not self.clock.resumeSlot(target) and self.clock.broadcastAligned:
+            # Manual NEXT/PREV retains random starts for unvisited films.
+            self.clock._startOverrides[target] = self.clock._offsetFractions[target % len(self.clock._rotation)]
+            self.clock._durations.pop(target, None)
         self.clock.jumpToSlot(target)
         self.clock.hasManualNavigation = True
         self._tuneIn()
@@ -1980,7 +1991,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self._refreshGuideTable()
 
     def _updatePlaybackMarker(self):
-        clockText = time.strftime('%A %d %b %Y   %H:%M:%S', time.localtime(self.guideTable.now))
+        clockText = time.strftime('%A %d %b %Y   %I:%M:%S %p', time.localtime(self.guideTable.now))
         timestamp = None
         playbackText = ''
         engine = self.engines.get(self.currentIndex)
@@ -1992,11 +2003,9 @@ class RetroChannelWidget(QtWidgets.QWidget):
             # position inside its video-frame callback can deadlock movie loading.
             position = max(0, min(engine.activeSlot.duration, engine.activeSlot._lastPlaybackPosition or 0))
             start, end = clock.publishedSlotTimes(engine.currentSlotIndex)
-            # Keep the airing's cursor baseline stable through seeks and resume.
-            # Starting the full film resets this baseline to zero without moving
-            # either its published block or the live clock.
-            initialFraction = clock.playbackOriginForSlot(engine.currentSlotIndex)
-            progress = (position / engine.activeSlot.duration - initialFraction) / (1 - initialFraction)
+            # Blocks represent the whole film, so zero is always its beginning.
+            # Random starts and resumed positions fall inside that fixed block.
+            progress = position / engine.activeSlot.duration
             timestamp = start + (end - start) * max(0.0, min(1.0, progress))
             seconds = int(position / 1000)
             playbackText = f'   <span style="color:#00ffff">Playback {seconds // 3600:02d}:{seconds // 60 % 60:02d}:{seconds % 60:02d}</span>'
@@ -2062,7 +2071,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         for index in range(count):
             isCurrent = index == current % count
             row = clock._rotation[index]
-            start = time.strftime('%a %H:%M', time.localtime(clock._scheduleStarts[index]))
+            start = time.strftime('%a %I:%M %p', time.localtime(clock._scheduleStarts[index]))
             title = engine.currentTitle if isCurrent and engine and engine.currentRow is not None else self._titleForRow(row)
             for column, value in enumerate((str(index + 1), start, title)):
                 item = QtWidgets.QTableWidgetItem(value)

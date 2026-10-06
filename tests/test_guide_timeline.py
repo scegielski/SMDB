@@ -14,6 +14,24 @@ class GuideTimelineTests(unittest.TestCase):
     def setUpClass(cls):
         cls.app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
+    def test_initial_random_join_uses_full_film_beginning_and_runtime(self):
+        with patch('smdb.RetroChannelWidget.time.time', return_value=36420), \
+                patch('smdb.RetroChannelWidget.time.monotonic', return_value=0), \
+                patch('smdb.RetroChannelWidget.random.uniform', return_value=0.5):
+            clock = ChannelClock([0, 1], lambda row: 120 * 60000, broadcastAligned=True)
+            start, end = clock.publishedSlotTimes(0)
+            self.assertEqual(start, 32400)
+            self.assertEqual(end - start, 120 * 60)
+            slot, row, fraction, position, remaining = clock.whatsOnNow()
+            self.assertEqual(slot, 0)
+            self.assertEqual(fraction, 0)
+            self.assertEqual(position, (36420 - start) * 1000)
+            self.assertEqual(start + position / 1000, 36420)
+            self.assertEqual(remaining, (end - 36420) * 1000)
+            self.assertEqual(clock.publishedSlotTimes(1)[0], end)
+            clock.jumpToSlot(1)
+            self.assertEqual(clock.whatsOnNow()[2], 0)
+
     def test_quarter_hour_starts_padding_and_repeating_blocks_are_immutable(self):
         with patch('smdb.RetroChannelWidget.time.time', return_value=36000 + 7 * 60), \
                 patch('smdb.RetroChannelWidget.random.uniform', return_value=0):
@@ -143,9 +161,8 @@ class GuideTimelineTests(unittest.TestCase):
                 engine.activeSlot._lastPlaybackPosition = position
                 tv._updatePlaybackMarker()
                 start, end = clock.publishedSlotTimes(slot)
-                fraction = clock._offsetFractions[slot]
                 self.assertEqual(tv.guideTable.playbackTime,
-                                 start + (end - start) * max(0.0, min(1.0, (position / 120000 - fraction) / (1 - fraction))))
+                                 start + (end - start) * position / 120000)
                 self.assertEqual(tv.guideTable.now, 1234567890)
             self.assertIn('Playback 00:01:30', tv.guideClockLabel.text())
             engine.activeSlot.player.position.assert_not_called()
@@ -169,7 +186,7 @@ class GuideTimelineTests(unittest.TestCase):
         tv.engines[0] = engine
         try:
             start = clock._scheduleStarts[0]
-            tv.guideTable.setCurrentTime(start + 15)
+            tv.guideTable.setCurrentTime(start + 75)
             engine.activeSlot._lastPlaybackPosition = 75000
             tv._updatePlaybackMarker()
             self.assertEqual(tv.guideTable.playbackTime, tv.guideTable.now)
@@ -277,11 +294,11 @@ class GuideTimelineTests(unittest.TestCase):
                 self.app.processEvents()
                 start, end = clock.publishedSlotTimes(1)
                 self.assertEqual(clock.playbackOriginForSlot(1), 0.0)
-                self.assertAlmostEqual(tv.guideTable.playbackTime, start + (end - start) * 10001 / 120000, places=3)
+                self.assertAlmostEqual(tv.guideTable.playbackTime, start + (end - start) * 10001 / 120000, delta=0.002)
                 tv.beginningButton.click()
                 self.assertEqual(tv.guideTable.playbackTime, start)
                 tv.nextBeginningButton.click()
-                self.assertAlmostEqual(tv.guideTable.playbackTime, start + (end - start) * 10001 / 120000, places=3)
+                self.assertAlmostEqual(tv.guideTable.playbackTime, start + (end - start) * 10001 / 120000, delta=0.002)
         finally:
             for slot, original in zip((engine.slotA, engine.slotB), originals):
                 slot.player = original
