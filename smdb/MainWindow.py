@@ -773,7 +773,12 @@ class MainWindow(QtWidgets.QMainWindow):
                 and (watched is self or self.isAncestorOf(watched))
                 and event.modifiers() & QtCore.Qt.ControlModifier):
             dy = event.angleDelta().y()
-            self.changeModeFontSize(1 if dy > 0 else (-1 if dy < 0 else 0))
+            delta = 1 if dy > 0 else (-1 if dy < 0 else 0)
+            if self.applicationMode == 'TV' and dy:
+                tv = self.retroChannelWidget
+                tv.changeSectionFontSize(tv.fontSectionForWidget(watched), delta)
+            else:
+                self.changeModeFontSize(delta)
             event.accept()
             return True
         return super().eventFilter(watched, event)
@@ -1011,7 +1016,8 @@ class MainWindow(QtWidgets.QMainWindow):
         if not delta:
             return
         if self.applicationMode == 'TV':
-            self.retroChannelWidget.setFontScale(self.retroChannelWidget.fontScale + delta * 0.25)
+            tv = self.retroChannelWidget
+            tv.changeSectionFontSize(tv.activeFontSection, delta)
         else:
             self.setFontSize(self.fontSize + delta)
         self._syncFontMenu()
@@ -1020,7 +1026,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if getattr(self, 'applicationMode', 'Database') == 'TV':
             size = self.retroChannelWidget.fontScale
             minimum, maximum = 0.5, 4.0
-            label = f'{round(size * 100)}%'
+            label = f'{self.retroChannelWidget.activeFontSection.title()} {round(size * 100)}%'
         else:
             size = self.fontSize
             minimum, maximum = 6, 29

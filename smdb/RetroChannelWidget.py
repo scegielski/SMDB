@@ -1165,7 +1165,14 @@ class RetroChannelWidget(QtWidgets.QWidget):
             for widget in self.findChildren(QtWidgets.QWidget)
             if re.search(r'font-size:\s*\d+px', widget.styleSheet())
         ]
-        self.setFontScale(self.DEFAULT_FONT_SCALE)
+        self.activeFontSection = 'controls'
+        self.sectionFontScales = {
+            section: max(0.5, min(4.0, self._settings.value(
+                'smtvFontScale/' + section, self.DEFAULT_FONT_SCALE, type=float)))
+            if self._settings else self.DEFAULT_FONT_SCALE
+            for section in ('guide', 'info', 'controls')}
+        self.fontScale = self.sectionFontScales[self.activeFontSection]
+        self._applyFontSizes()
 
         self.bannerTimer = QtCore.QTimer(self)
         self.bannerTimer.setSingleShot(True)
@@ -1377,25 +1384,54 @@ class RetroChannelWidget(QtWidgets.QWidget):
 
     def setFontScale(self, scale):
         """Scale from the original fonts so repeated adjustments never compound."""
-        self.fontScale = max(0.5, min(4.0, scale))
+        for section in self.sectionFontScales:
+            self.sectionFontScales[section] = max(0.5, min(4.0, scale))
+        self._applyFontSizes()
+        self._saveFontSizes()
+
+    def fontSectionForWidget(self, widget):
+        for section, root in (('info', self.infoPane), ('guide', self.guidePages),
+                              ('controls', self.sideControls)):
+            if widget is root or root.isAncestorOf(widget):
+                return section
+        return 'controls'
+
+    def changeSectionFontSize(self, section, delta):
+        self.activeFontSection = section
+        self.sectionFontScales[section] = max(0.5, min(4.0, self.sectionFontScales[section] + delta * 0.25))
+        self._applyFontSizes()
+        self._saveFontSizes()
+
+    def _saveFontSizes(self):
+        if self._settings:
+            for section, scale in self.sectionFontScales.items():
+                self._settings.setValue('smtvFontScale/' + section, scale)
+
+    def _applyFontSizes(self):
+        self.fontScale = self.sectionFontScales[self.activeFontSection]
+        controlScale = self.sectionFontScales['controls']
         font = QtGui.QFont(self._baseFont)
         if font.pixelSize() > 0:
-            font.setPixelSize(round(font.pixelSize() * self.fontScale))
+            font.setPixelSize(round(font.pixelSize() * controlScale))
         else:
-            font.setPointSizeF(font.pointSizeF() * self.fontScale)
+            font.setPointSizeF(font.pointSizeF() * controlScale)
         self.setFont(font)
         self.setStyleSheet(
             f'QWidget {{ font-family: "{font.family()}"; font-size: {font.pixelSize()}px; }}'
         )
+        for section, root in (('info', self.infoPane), ('guide', self.guidePages)):
+            root.setStyleSheet(f'QWidget {{ font-family: "{font.family()}"; '
+                              f'font-size: {round(14 * self.sectionFontScales[section])}px; }}')
         for widget, style in self._fontStyles:
+            scale = self.sectionFontScales[self.fontSectionForWidget(widget)]
             widget.setStyleSheet(re.sub(
                 r'font-size:\s*(\d+)px;',
-                lambda match: f'font-size: {round(int(match[1]) * self.fontScale)}px; '
+                lambda match: f'font-size: {round(int(match[1]) * scale)}px; '
                               f'font-family: "{font.family()}";',
                 style,
             ))
         self.sideScroll.setFixedWidth(max(130, self.sideControls.sizeHint().width() + 24))
-        self.guideTable.setScale(self.fontScale)
+        self.guideTable.setScale(self.sectionFontScales['guide'])
         self.overlayArea._layoutOverlay(self.banner)
         self.fontScaleChanged.emit(self.fontScale)
 
@@ -1419,8 +1455,10 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.guidePreviewContainer = previewFrame
         topLayout.addWidget(previewFrame)
 
-        captionLayout = QtWidgets.QVBoxLayout()
-        topLayout.addLayout(captionLayout, 1)
+        self.infoPane = QtWidgets.QWidget()
+        captionLayout = QtWidgets.QVBoxLayout(self.infoPane)
+        captionLayout.setContentsMargins(0, 0, 0, 0)
+        topLayout.addWidget(self.infoPane, 1)
 
         asLabel = QtWidgets.QLabel("NOW SHOWING")
         asLabel.setStyleSheet("color: #ffcc00; font-size: 14px; font-weight: bold;")

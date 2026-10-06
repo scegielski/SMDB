@@ -1,9 +1,10 @@
 import os
+import tempfile
 import unittest
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
-from PyQt5 import QtGui, QtWidgets
+from PyQt5 import QtCore, QtGui, QtWidgets
 from smdb.RetroChannelWidget import RetroChannelWidget
 
 
@@ -11,6 +12,38 @@ class RetroFontTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+
+    def test_section_sizes_restore_independently(self):
+        with tempfile.TemporaryDirectory() as directory:
+            parent = QtWidgets.QWidget()
+            parent.settings = QtCore.QSettings(os.path.join(directory, 'fonts.ini'), QtCore.QSettings.IniFormat)
+            tv = RetroChannelWidget(parent)
+            restored = None
+            try:
+                self.assertEqual(tv.sectionFontScales, dict.fromkeys(('guide', 'info', 'controls'), 2.0))
+                tv.changeSectionFontSize('guide', 1)
+                tv.changeSectionFontSize('info', -2)
+                tv.changeSectionFontSize('controls', 3)
+                expected = {'guide': 2.25, 'info': 1.5, 'controls': 2.75}
+                self.assertEqual(tv.sectionFontScales, expected)
+                parent.settings.sync()
+                restored = RetroChannelWidget(parent)
+                restored.show()
+                self.app.processEvents()
+                self.assertEqual(restored.sectionFontScales, expected)
+                self.assertEqual(restored.guideTable.scale, 2.25)
+                self.assertEqual(restored.guideDescription.font().pixelSize(), 21)
+                self.assertEqual(restored.volumeUpButton.font().pixelSize(), 38)
+                for _ in range(2):
+                    restored.toggleFullScreen()
+                    self.app.processEvents()
+                self.assertEqual(restored.sectionFontScales, expected)
+                self.assertEqual(restored.guideDescription.font().pixelSize(), 21)
+            finally:
+                tv.close()
+                if restored is not None:
+                    restored.close()
+                parent.close()
 
     def test_fonts_ignore_parent_styles_and_survive_fullscreen(self):
         window = QtWidgets.QWidget()

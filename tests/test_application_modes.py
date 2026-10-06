@@ -44,8 +44,13 @@ class ApplicationModeTests(unittest.TestCase):
                     # area must not swallow zoom or change the hidden database.
                     for target in (tv.guideDescription.viewport(), tv.guideTable.viewport(),
                                    tv.globalStandby, tv.sideScroll.viewport()):
+                        section = tv.fontSectionForWidget(target)
+                        before = dict(tv.sectionFontScales)
                         wheel(target, 120)
                         self.assertEqual(tv.fontScale, tvSize + 0.25)
+                        self.assertEqual(tv.sectionFontScales,
+                                         {name: value + (0.25 if name == section else 0)
+                                          for name, value in before.items()})
                         self.assertEqual(window.fontSize, databaseSize)
                         self.assertIn('225%', window.fontMenu.title())
                         window.decreaseFontAction.trigger()
@@ -57,6 +62,7 @@ class ApplicationModeTests(unittest.TestCase):
                     self.assertEqual(window.fontSize, databaseSize)
                     window.decreaseFontAction.trigger()
                     self.assertEqual(tv.fontScale, tvSize)
+                    self.assertEqual(tv.sectionFontScales, before)
                     tv.setFontScale(4.0)
                     self.assertFalse(window.increaseFontAction.isEnabled())
                     tv.setFontScale(0.5)
