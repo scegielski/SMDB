@@ -1478,7 +1478,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         splitter.addWidget(self.guidePages)
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 1)
-        splitter.setSizes([600, 300])
+        splitter.setSizes([450, 450])
         layout.addWidget(splitter, 1)
 
 
@@ -2201,9 +2201,29 @@ class RetroChannelWidget(QtWidgets.QWidget):
         else:
             nowRow = chan['clock'].whatsOnNow()[1]
         description = self._descriptionForRow(nowRow) or "No description available."
+        cover = ''
+        model = getattr(self.mainWindow, 'moviesTableModel', None)
+        try:
+            coverPath = model.getCoverPath(nowRow)
+        except (AttributeError, IndexError, TypeError):
+            coverPath = None
+        if isinstance(coverPath, str) and os.path.isfile(coverPath):
+            reader = QtGui.QImageReader(coverPath)
+            size = reader.size()
+            if size.isValid():
+                size.scale(140, 200, QtCore.Qt.KeepAspectRatio)
+                reader.setScaledSize(size)
+                image = reader.read()
+                if not image.isNull():
+                    url = QtCore.QUrl.fromLocalFile(coverPath)
+                    self.guideDescription.document().addResource(QtGui.QTextDocument.ImageResource, url, image)
+                    cover = (f'<table style="float:left; margin-right:8px; margin-bottom:4px;" '
+                             f'cellspacing="0" cellpadding="0"><tr><td>'
+                             f'<img src="{html.escape(url.toString(), quote=True)}" '
+                             f'width="{image.width()}" height="{image.height()}"></td></tr></table>')
         self.guideDescription.setHtml(
             f"<p style='color:#ffcc00;font-weight:bold;'>{html.escape(self._titleForRow(nowRow))}</p>"
-            f"<p>{html.escape(description)}</p>"
+            f'{cover}<p>{html.escape(description)}</p>'
         )
 
     def _scrollGuideToHighlight(self):
