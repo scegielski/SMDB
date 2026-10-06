@@ -107,7 +107,9 @@ class GuideTimelineTests(unittest.TestCase):
                     self.assertEqual(load.call_args.kwargs['seekFraction'], 0)
                     self.assertFalse(clock.hasManualNavigation)
                     self.assertIsNone(tv.guideTable.playbackTime)
-                    self.assertEqual(tv.guideTable.horizontalScrollBar().value(), tv.guideTable.hourWidth)
+                    center = (tv.guideTable.channelWidth + tv.guideTable.viewport().width()) / 2
+                    if tv.guideTable.viewport().width() > tv.guideTable.channelWidth:
+                        self.assertAlmostEqual(tv.guideTable.timeX(wall.return_value), center, delta=0.5)
                     self.assertEqual(neighbor.epoch, 0)
                     self.assertEqual(neighbor._startOverrides, {})
                     # The backend still reports the older skipped-to position.
@@ -383,6 +385,31 @@ class GuideTimelineTests(unittest.TestCase):
             guide.setPlaybackTime(None)
             guide.setCurrentTime(37000)
             self.assertEqual(guide.horizontalScrollBar().value(), scroll)
+        finally:
+            guide.close()
+
+    def test_live_marker_starts_centered_and_stays_centered_after_layout_and_scale(self):
+        guide = GuideTimeline()
+        guide.startTime = 36000
+        guide.endTime = 36000 + 48 * 3600
+        guide.setCurrentTime(36300)
+        guide.showCurrentHour()  # initial call before the visible layout settles
+        guide.resize(1400, 300)
+        guide.show()
+        self.app.processEvents()
+        try:
+            for scale, width in ((1, 1400), (2, 1000), (1, 700)):
+                guide.setScale(scale)
+                guide.resize(width, 300)
+                self.app.processEvents()
+                center = (guide.channelWidth + guide.viewport().width()) / 2
+                self.assertAlmostEqual(guide.timeX(guide.now), center, delta=0.5)
+                self.assertLess(guide.startTime, 36000)
+            guide.setPlaybackTime(36000 + 10 * 3600)
+            guide.resize(600, 300)
+            self.app.processEvents()
+            self.assertGreater(guide.timeX(guide.playbackTime), guide.channelWidth)
+            self.assertLess(guide.timeX(guide.playbackTime), guide.viewport().width())
         finally:
             guide.close()
 

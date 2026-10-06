@@ -15,6 +15,7 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
         self.selectedChannel = 0
         self.now = time.time()
         self.playbackTime = None
+        self._centerOnLive = False
         self.startTime = math.floor(self.now / 3600) * 3600
         self.endTime = self.startTime + 48 * 3600
         self.scale = 1.0
@@ -41,6 +42,8 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
         self.setMinimumHeight(self.headerHeight + self.rowHeight + self.horizontalScrollBar().sizeHint().height() + 12)
         self._updateRanges()
         self._ensurePlaybackVisible()
+        if self._centerOnLive:
+            self.showCurrentHour()
         self.viewport().update()
 
     def setRows(self, rows, selectedChannel):
@@ -56,6 +59,8 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
 
     def setPlaybackTime(self, timestamp):
         self.playbackTime = timestamp
+        if timestamp is not None:
+            self._centerOnLive = False
         self._ensurePlaybackVisible()
         self.viewport().update()
 
@@ -87,14 +92,21 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
             self.timeRangeChanged.emit()
 
     def showCurrentHour(self):
-        # Opening the guide or NOW recenters real time; manual playback follows
-        # the cyan cursor when it reaches a viewport edge.
-        hour = math.floor(self.now / 3600) * 3600
-        if hour < self.startTime or hour >= self.endTime:
-            self.startTime = hour
-            self.endTime = hour + 48 * 3600
+        # Center the actual live marker, allowing earlier hours on its left.
+        # Resize may occur after the guide opens, so retain this initial view
+        # until a manual playback cursor takes over.
+        self._centerOnLive = True
+        visibleWidth = self.viewport().width() - self.channelWidth
+        if visibleWidth <= 0:
+            return  # the hidden guide has not received its usable layout yet
+        halfSeconds = visibleWidth * 1800 / self.hourWidth
+        oldStart, oldEnd = self.startTime, self.endTime
+        self.startTime = min(self.startTime, math.floor((self.now - halfSeconds) / 3600) * 3600)
+        self.endTime = max(self.endTime, math.ceil((self.now + halfSeconds) / 3600) * 3600)
         self._updateRanges()
-        self.horizontalScrollBar().setValue(round((hour - self.startTime) * self.hourWidth / 3600))
+        self.horizontalScrollBar().setValue(round((self.now - self.startTime) * self.hourWidth / 3600 - visibleWidth / 2))
+        if (oldStart, oldEnd) != (self.startTime, self.endTime):
+            self.timeRangeChanged.emit()
 
     def _updateRanges(self):
         self.horizontalScrollBar().setRange(0, max(0, round((self.endTime - self.startTime) / 3600 * self.hourWidth)
@@ -221,7 +233,10 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self._updateRanges()
-        self._ensurePlaybackVisible()
+        if self._centerOnLive:
+            self.showCurrentHour()
+        else:
+            self._ensurePlaybackVisible()
 
     def mousePressEvent(self, event):
         index = (event.y() - self.headerHeight + self.verticalScrollBar().value()) // self.rowHeight
