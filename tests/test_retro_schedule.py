@@ -201,6 +201,7 @@ class FullMovieScheduleTests(unittest.TestCase):
                     tv.backTenButton.click()
                     self.assertEqual(position[0], 0)
                     position[0] = 95000
+                    slot._onPlaybackPosition(95000)
                     tv.forwardTenButton.click()
                     self.assertEqual(position[0], 99999)
                     self.assertEqual(engine.currentRow, 0)

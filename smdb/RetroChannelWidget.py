@@ -915,7 +915,12 @@ class ChannelEngine(QtCore.QObject):
         self._tuneIn()
 
     def seekCurrentFilm(self, offsetMs=0, beginning=False):
-        target = 0 if beginning else self.activeSlot.player.position() + offsetMs
+        # Explicit seeks seed the telemetry immediately. The Windows backend's
+        # position getter may still report the previous seek while it catches up.
+        position = self.activeSlot._lastPlaybackPosition
+        if position is None:
+            position = self.activeSlot.player.position()
+        target = 0 if beginning else position + offsetMs
         return self._seekFilmPosition(target)
 
     def _seekFilmPosition(self, target):

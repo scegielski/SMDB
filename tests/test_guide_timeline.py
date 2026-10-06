@@ -81,16 +81,24 @@ class GuideTimelineTests(unittest.TestCase):
             tv.engines[0] = engine
             originalPlayer = engine.activeSlot.player
             engine.activeSlot.player = Mock()
+            engine.activeSlot.player.position.return_value = 600000
+            engine.activeSlot.player.state.return_value = QMediaPlayer.PlayingState
             clock.repositionSlot(0, clock._rotation[0], 1800000, 600000)
             clock.hasManualNavigation = True
             wall.return_value = 39900
             tv.guideTable.startTime = 36000
             tv.guideTable.endTime = 36000 + 48 * 3600
             tv.guideTable.horizontalScrollBar().setValue(3000)
+            def loadLive(path, autoplay=False, seekFraction=None, extraMs=0):
+                slot = engine.activeSlot
+                slot.path, slot.duration, slot._ready = path, 1800000, True
+                slot.seekTo(seekFraction, extraMs)
+                slot._hasPlayingFrame = True
+                engine._onSlotReady(slot)
             try:
                 with patch.object(engine, '_startResolve', side_effect=lambda idx, attr, done:
                                   done(clock._rowForSlot(idx), 'movie.mp4')), \
-                        patch.object(engine.activeSlot, 'load') as load, \
+                        patch.object(engine.activeSlot, 'load', side_effect=loadLive) as load, \
                         patch.object(engine, '_maybeSchedulePrefetch'), \
                         patch.object(engine, '_onMovieDuration'):
                     tv.nowButton.click()
@@ -102,6 +110,16 @@ class GuideTimelineTests(unittest.TestCase):
                     self.assertEqual(tv.guideTable.horizontalScrollBar().value(), tv.guideTable.hourWidth)
                     self.assertEqual(neighbor.epoch, 0)
                     self.assertEqual(neighbor._startOverrides, {})
+                    # The backend still reports the older skipped-to position.
+                    # Relative seeks must use NOW's freshly recorded live seek.
+                    for button, seconds in ((tv.forwardTenButton, 10), (tv.backTenButton, -10),
+                                            (tv.forwardTenButton, 10)):
+                        tv.nowButton.click()
+                        button.click()
+                        self.assertEqual(engine.activeSlot._lastPlaybackPosition, 300000 + seconds * 1000)
+                        self.assertEqual(tv.guideTable.playbackTime, wall.return_value + seconds)
+                    tv.forwardTenButton.click()
+                    self.assertEqual(tv.guideTable.playbackTime, wall.return_value + 20)
             finally:
                 engine.activeSlot.player = originalPlayer
                 tv.close()
