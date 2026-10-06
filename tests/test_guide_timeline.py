@@ -66,6 +66,25 @@ class GuideTimelineTests(unittest.TestCase):
             self.assertGreater(clock.whatsOnNow()[3], clock.filmDurationForSlot(0))
             self.assertEqual(clock.whatsOnNow()[4], 13 * 60000)
 
+    def test_programming_wraps_before_and_after_the_initial_lineup(self):
+        with patch('smdb.RetroChannelWidget.time.time', return_value=36000), \
+                patch('smdb.RetroChannelWidget.random.uniform', return_value=0):
+            clock = ChannelClock([0, 1, 2], lambda row: 61 * 60000, broadcastAligned=True)
+        cycle = clock._scheduleCycleSeconds
+        start = clock._scheduleStarts[0]
+        blocks = list(clock.publishedPrograms(start - cycle, start + 2 * cycle))
+        count = len(clock._rotation)
+        self.assertEqual([block['slot'] for block in blocks], list(range(-count, 2 * count)))
+        self.assertEqual([block['row'] for block in blocks], clock._rotation * 3)
+        for index, block in enumerate(blocks):
+            self.assertEqual(block['start'] % 900, 0)
+            self.assertEqual(block['end'] - block['start'], 61 * 60)
+            if index:
+                self.assertEqual(block['start'] - blocks[index - 1]['end'], 14 * 60)
+            if index >= count:
+                self.assertEqual(block['start'] - blocks[index - count]['start'], cycle)
+        self.assertEqual(clock.publishedSlotTimes(-1), (blocks[count - 1]['start'], blocks[count - 1]['end']))
+
     def test_now_button_restores_selected_channel_and_recenters_guide(self):
         tv = RetroChannelWidget()
         with patch('smdb.RetroChannelWidget.time.time', return_value=36000) as wall, \

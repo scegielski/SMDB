@@ -371,9 +371,9 @@ class ChannelClock:
             self.epoch -= wallNow - self._scheduleStarts[0]
 
     def publishedPrograms(self, start, end):
-        """Immutable broadcast blocks; padding remains empty until the next quarter hour."""
+        """Repeat the fixed broadcast lineup in both directions, retaining padding."""
         count = len(self._rotation)
-        first = max(0, math.floor((start - self._scheduleStarts[0]) / self._scheduleCycleSeconds))
+        first = math.floor((start - self._scheduleStarts[0]) / self._scheduleCycleSeconds)
         last = max(first, math.floor((end - self._scheduleStarts[0]) / self._scheduleCycleSeconds))
         for cycle in range(first, last + 1):
             offset = cycle * self._scheduleCycleSeconds
