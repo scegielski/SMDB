@@ -23,6 +23,8 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
         self._channelWidthOverride = None
         self._channelDragOffset = None
         self._panOrigin = None
+        self.panMode = 'drag'
+        self._panLastPosition = None
         self._manualPanView = False
         self._panTimer = QtCore.QTimer(self)
         self._panTimer.setInterval(30)
@@ -262,7 +264,7 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
             painter.fillRect(labelRect, QtGui.QColor('#050531'))
             painter.setPen(QtGui.QColor(color))
             painter.drawText(labelRect, QtCore.Qt.AlignCenter, label)
-        if self.isPanning():
+        if self.isPanning() and self.panMode == 'browser':
             painter.setClipping(False)
             origin = self.viewport().mapFromGlobal(self._panOrigin)
             painter.setPen(QtGui.QPen(QtGui.QColor('white'), 1))
@@ -279,6 +281,7 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
 
     def stopPanning(self):
         self._panOrigin = None
+        self._panLastPosition = None
         self._panTimer.stop()
         self.viewport().unsetCursor()
         self.viewport().update()
@@ -287,12 +290,16 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
         self.stopPanning()
         self._manualPanView = False
 
+    def setPanMode(self, mode):
+        self.stopPanning()
+        self.panMode = mode if mode in ('drag', 'browser') else 'drag'
+
     def _applicationStateChanged(self, state):
         if state != QtCore.Qt.ApplicationActive:
             self.stopPanning()
 
     def _panTick(self):
-        if not self.isPanning():
+        if not self.isPanning() or self.panMode != 'browser':
             return
         delta = QtGui.QCursor.pos() - self._panOrigin
         def speed(distance):
@@ -300,16 +307,21 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
                 return 0
             return math.copysign(min(40, (abs(distance) - 8) / 8), distance)
         dx, dy = round(speed(delta.x())), round(speed(delta.y()))
+        self._scrollPanBy(dx, dy)
+
+    def _scrollPanBy(self, dx, dy):
         horizontal = self.horizontalScrollBar()
         if dx and (horizontal.value() + dx < horizontal.minimum() or
                    horizontal.value() + dx > horizontal.maximum()):
             # Continue through the repeating schedule instead of hitting the
             # initial time window's edge. Keep the current viewport stationary.
             if dx < 0:
-                self.startTime -= 3600
-                oldScroll = horizontal.value() + self.hourWidth
+                hours = max(1, math.ceil(-(horizontal.value() + dx) / self.hourWidth))
+                self.startTime -= hours * 3600
+                oldScroll = horizontal.value() + hours * self.hourWidth
             else:
-                self.endTime += 3600
+                hours = max(1, math.ceil((horizontal.value() + dx - horizontal.maximum()) / self.hourWidth))
+                self.endTime += hours * 3600
                 oldScroll = horizontal.value()
             self._updateRanges()
             horizontal.setValue(oldScroll)
@@ -340,11 +352,13 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
                 self.stopPanning()
             else:
                 self._panOrigin = event.globalPos()
+                self._panLastPosition = event.globalPos()
                 self._manualPanView = True
                 self._centerOnLive = False
-                self.viewport().setCursor(QtCore.Qt.SizeAllCursor)
+                self.viewport().setCursor(QtCore.Qt.SizeAllCursor if self.panMode == 'browser' else QtCore.Qt.ClosedHandCursor)
                 QtWidgets.QToolTip.hideText()
-                self._panTimer.start()
+                if self.panMode == 'browser':
+                    self._panTimer.start()
                 self.viewport().update()
             event.accept()
             return
@@ -366,6 +380,11 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
 
     def mouseMoveEvent(self, event):
         if self.isPanning():
+            if self.panMode == 'drag':
+                delta = self._panLastPosition - event.globalPos()
+                self._panLastPosition = event.globalPos()
+                self._scrollPanBy(delta.x(), delta.y())
+                event.accept()
             return
         if self._channelDragOffset is not None:
             self.channelWidth = self._boundedChannelWidth(event.x() - self._channelDragOffset)
@@ -395,6 +414,10 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
         return max(80, min(round(width), max(80, self.viewport().width() - 120)))
 
     def mouseReleaseEvent(self, event):
+        if event.button() == QtCore.Qt.MiddleButton and self.panMode == 'drag' and self.isPanning():
+            self.stopPanning()
+            event.accept()
+            return
         if event.button() == QtCore.Qt.LeftButton and self._channelDragOffset is not None:
             self._channelDragOffset = None
             self.viewport().unsetCursor()

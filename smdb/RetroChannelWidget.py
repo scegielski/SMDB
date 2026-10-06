@@ -1011,7 +1011,7 @@ class _OverlayArea(QtWidgets.QWidget):
 
 class _ChannelSetupDialog(QtWidgets.QDialog):
     def __init__(self, channels, excludedGenres, parent=None, ratingCounts=None, excludedRatings=None,
-                 qualityRange=(0.0, 10.0), includeUnrated=True):
+                 qualityRange=(0.0, 10.0), includeUnrated=True, panMode='drag'):
         super().__init__(parent)
         self.setWindowTitle('SMTV channel setup')
         self.resize(600, 650)
@@ -1074,6 +1074,18 @@ class _ChannelSetupDialog(QtWidgets.QDialog):
         qualityLayout.addWidget(self.includeUnrated)
         qualityLayout.addStretch()
         self.pages.addTab(qualityPage, 'Quality Rating')
+        guidePage = QtWidgets.QWidget()
+        guideLayout = QtWidgets.QFormLayout(guidePage)
+        self.panMode = QtWidgets.QComboBox()
+        self.panMode.addItem('Hold middle button and drag', 'drag')
+        self.panMode.addItem('Browser-style automatic scrolling', 'browser')
+        self.panMode.setCurrentIndex(max(0, self.panMode.findData(panMode)))
+        guideLayout.addRow('Guide panning', self.panMode)
+        hint = QtWidgets.QLabel('Drag moves the guide with the mouse while the middle button is held. '
+                               'Browser mode toggles scrolling with a middle-click; moving away from the anchor controls speed.')
+        hint.setWordWrap(True)
+        guideLayout.addRow(hint)
+        self.pages.addTab(guidePage, 'Guide')
         layout.addWidget(self.pages, 1)
         selection = QtWidgets.QHBoxLayout()
         for label, checked in (('Select all', True), ('Clear all', False)):
@@ -1488,6 +1500,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         captionLayout.addWidget(self.guideDescription, 1)
 
         self.guideTable = GuideTimeline(self)
+        self.guideTable.setPanMode(self._settings.value('smtvGuidePanMode', 'drag', type=str) if self._settings else 'drag')
         self.guideTable.viewport().installEventFilter(self)
         self.guideTable.channelSelected.connect(self._tuneTo)
         self.guideTable.timeRangeChanged.connect(
@@ -1637,7 +1650,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
     def openChannelSetup(self):
         dialog = _ChannelSetupDialog(self._availableChannels, self._excludedGenres, self,
                                      self._ratingCounts, self._excludedRatings,
-                                     (self._minimumQuality, self._maximumQuality), self._includeUnratedQuality)
+                                     (self._minimumQuality, self._maximumQuality), self._includeUnratedQuality,
+                                     self.guideTable.panMode)
         if dialog.exec_() == QtWidgets.QDialog.Accepted:
             available = set(dialog.channelChecks)
             excluded = (self._excludedGenres - available) | {
@@ -1648,6 +1662,12 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self.setChannelPreferences(excluded, excludedRatings,
                                        (dialog.minimumRating.value(), dialog.maximumRating.value()),
                                        dialog.includeUnrated.isChecked())
+            self.setGuidePanMode(dialog.panMode.currentData())
+
+    def setGuidePanMode(self, mode):
+        self.guideTable.setPanMode(mode)
+        if self._settings:
+            self._settings.setValue('smtvGuidePanMode', self.guideTable.panMode)
 
     def setExcludedChannels(self, genres):
         self.setChannelPreferences(genres, self._excludedRatings)

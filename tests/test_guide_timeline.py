@@ -434,6 +434,7 @@ class GuideTimelineTests(unittest.TestCase):
 
     def test_middle_click_pans_both_axes_without_tuning_and_pauses_cursor_follow(self):
         guide = GuideTimeline()
+        guide.setPanMode('browser')
         guide.resize(900, 300)
         guide.setRows([{'channel': i, 'label': str(i), 'programs': []} for i in range(40)], 0)
         guide.show()
@@ -486,6 +487,7 @@ class GuideTimelineTests(unittest.TestCase):
 
     def test_pan_extends_repeating_time_range_and_stops_on_click_hide_or_escape(self):
         guide = GuideTimeline()
+        guide.setPanMode('browser')
         guide.resize(900, 300)
         guide.show()
         self.app.processEvents()
@@ -670,6 +672,40 @@ class ChannelDividerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+
+    def test_default_middle_drag_moves_with_pointer_and_stops_on_release(self):
+        guide = GuideTimeline()
+        guide.resize(1000, 300)
+        guide.setRows([{'channel': i, 'label': str(i), 'programs': []} for i in range(40)], 0)
+        guide.show()
+        self.app.processEvents()
+        selected = []
+        guide.channelSelected.connect(selected.append)
+        try:
+            self.assertEqual(guide.panMode, 'drag')
+            guide.horizontalScrollBar().setValue(200)
+            guide.verticalScrollBar().setValue(100)
+            def mouse(kind, point, button, buttons):
+                event = QtGui.QMouseEvent(kind, QtCore.QPointF(point),
+                                         QtCore.QPointF(guide.viewport().mapToGlobal(point)),
+                                         button, buttons, QtCore.Qt.NoModifier)
+                QtWidgets.QApplication.sendEvent(guide.viewport(), event)
+            anchor = QtCore.QPoint(450, 140)
+            target = anchor + QtCore.QPoint(80, 40)
+            mouse(QtCore.QEvent.MouseButtonPress, anchor, QtCore.Qt.MiddleButton, QtCore.Qt.MiddleButton)
+            self.assertFalse(guide._panTimer.isActive())
+            mouse(QtCore.QEvent.MouseMove, target, QtCore.Qt.NoButton, QtCore.Qt.MiddleButton)
+            self.assertEqual(guide.horizontalScrollBar().value(), 120)
+            self.assertEqual(guide.verticalScrollBar().value(), 60)
+            mouse(QtCore.QEvent.MouseButtonRelease, target, QtCore.Qt.MiddleButton, QtCore.Qt.NoButton)
+            self.assertFalse(guide.isPanning())
+            mouse(QtCore.QEvent.MouseMove, anchor, QtCore.Qt.NoButton, QtCore.Qt.NoButton)
+            self.assertEqual(guide.horizontalScrollBar().value(), 120)
+            guide.setPlaybackTime(guide.endTime - 60)
+            self.assertEqual(guide.horizontalScrollBar().value(), 120)
+            self.assertEqual(selected, [])
+        finally:
+            guide.close()
 
     def test_drag_resizes_channel_column_without_tuning_and_retains_width(self):
         guide = GuideTimeline()

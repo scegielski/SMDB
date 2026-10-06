@@ -13,6 +13,35 @@ class ChannelSetupTests(unittest.TestCase):
     def setUpClass(cls):
         cls.app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
+    def test_guide_pan_preference_dialog_and_restart(self):
+        with tempfile.TemporaryDirectory() as directory:
+            parent = QtWidgets.QWidget()
+            parent.settings = QtCore.QSettings(os.path.join(directory, 'settings.ini'), QtCore.QSettings.IniFormat)
+            tv = RetroChannelWidget(parent)
+            restored = None
+            try:
+                self.assertEqual(tv.guideTable.panMode, 'drag')
+                dialog = _ChannelSetupDialog([], set(), tv)
+                dialog.panMode.setCurrentIndex(dialog.panMode.findData('browser'))
+                with patch('smdb.RetroChannelWidget._ChannelSetupDialog', return_value=dialog), \
+                        patch.object(dialog, 'exec_', return_value=QtWidgets.QDialog.Accepted):
+                    tv.openChannelSetup()
+                self.assertEqual(tv.guideTable.panMode, 'browser')
+                parent.settings.sync()
+                restored = RetroChannelWidget(parent)
+                self.assertEqual(restored.guideTable.panMode, 'browser')
+                dialog.panMode.setCurrentIndex(dialog.panMode.findData('drag'))
+                with patch('smdb.RetroChannelWidget._ChannelSetupDialog', return_value=dialog), \
+                        patch.object(dialog, 'exec_', return_value=QtWidgets.QDialog.Rejected):
+                    tv.openChannelSetup()
+                self.assertEqual(tv.guideTable.panMode, 'browser')
+                dialog.close()
+            finally:
+                tv.close()
+                if restored is not None:
+                    restored.close()
+                parent.close()
+
     def test_selection_persists_and_can_recover_from_all_disabled(self):
         with tempfile.TemporaryDirectory() as directory:
             parent = QtWidgets.QWidget()
