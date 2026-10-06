@@ -123,6 +123,195 @@ class GuideTimelineTests(unittest.TestCase):
                 engine.shutdown()
                 engine.container.close()
 
+    def test_playback_cursor_tracks_actual_position_without_shifting_clock_or_blocks(self):
+        tv = RetroChannelWidget()
+        clock = ChannelClock([0, 1], lambda row: 120000)
+        tv.channels = [{'genre': 'Action', 'clock': clock, 'rows': [0, 1]}]
+        engine = Mock(currentSlotIndex=0, currentRow=clock._rotation[0], clock=clock)
+        engine.activeSlot.duration = 120000
+        engine.activeSlot._lastPlaybackPosition = 60000
+        engine.isShowingStandby.return_value = False
+        tv.engines[0] = engine
+        try:
+            tv.guideTable.setCurrentTime(1234567890)
+            original = list(clock.publishedPrograms(clock._scheduleStarts[0], clock._scheduleStarts[0] + 86400))
+            tv._updatePlaybackMarker()
+            self.assertIsNone(tv.guideTable.playbackTime)
+            clock.hasManualNavigation = True
+            for slot, position in ((0, 60000), (1, 30000), (0, 0), (0, 90000)):
+                engine.currentSlotIndex = slot
+                engine.activeSlot._lastPlaybackPosition = position
+                tv._updatePlaybackMarker()
+                start, end = clock.publishedSlotTimes(slot)
+                fraction = clock._offsetFractions[slot]
+                self.assertEqual(tv.guideTable.playbackTime,
+                                 start + (end - start) * max(0.0, min(1.0, (position / 120000 - fraction) / (1 - fraction))))
+                self.assertEqual(tv.guideTable.now, 1234567890)
+            self.assertIn('Playback 00:01:30', tv.guideClockLabel.text())
+            engine.activeSlot.player.position.assert_not_called()
+            self.assertEqual(original, list(clock.publishedPrograms(clock._scheduleStarts[0], clock._scheduleStarts[0] + 86400)))
+            engine.isShowingStandby.return_value = True
+            tv._updatePlaybackMarker()
+            self.assertIsNone(tv.guideTable.playbackTime)
+        finally:
+            tv.engines = {}
+            tv.close()
+
+    def test_ten_second_seek_moves_cursor_ten_seconds_from_original_random_start(self):
+        tv = RetroChannelWidget()
+        with patch('smdb.RetroChannelWidget.random.uniform', return_value=0.5):
+            clock = ChannelClock([0], lambda row: 120000)
+        tv.channels = [{'genre': 'Action', 'clock': clock, 'rows': [0]}]
+        clock.hasManualNavigation = True
+        engine = Mock(currentSlotIndex=0, currentRow=0)
+        engine.activeSlot.duration = 120000
+        engine.isShowingStandby.return_value = False
+        tv.engines[0] = engine
+        try:
+            start = clock._scheduleStarts[0]
+            tv.guideTable.setCurrentTime(start + 15)
+            engine.activeSlot._lastPlaybackPosition = 75000
+            tv._updatePlaybackMarker()
+            self.assertEqual(tv.guideTable.playbackTime, tv.guideTable.now)
+            engine.activeSlot._lastPlaybackPosition = 85000
+            tv._updatePlaybackMarker()
+            self.assertEqual(tv.guideTable.playbackTime, tv.guideTable.now + 10)
+        finally:
+            tv.engines = {}
+            tv.close()
+
+    def test_playback_cursor_is_cyan_and_wall_clock_line_stays_yellow(self):
+        guide = GuideTimeline()
+        guide.resize(900, 260)
+        guide.startTime = 36000
+        guide.endTime = 36000 + 48 * 3600
+        guide.setCurrentTime(36900)
+        guide.setPlaybackTime(38700)
+        guide.show()
+        self.app.processEvents()
+        try:
+            image = guide.viewport().grab().toImage()
+            y = guide.headerHeight + 50
+            self.assertEqual(image.pixelColor(round(guide.timeX(36900)), y).name(), '#ffcc00')
+            self.assertEqual(image.pixelColor(round(guide.timeX(38700)), y).name(), '#00ffff')
+            guide.setPlaybackTime(None)
+            image = guide.viewport().grab().toImage()
+            self.assertNotEqual(image.pixelColor(round(guide.timeX(38700)), y).name(), '#00ffff')
+        finally:
+            guide.close()
+
+    def test_first_frame_queues_guide_refresh_without_querying_media_position(self):
+        tv = RetroChannelWidget()
+        clock = ChannelClock([0, 1], lambda row: 120000)
+        tv.channels = [{'genre': 'Action', 'clock': clock, 'rows': [0, 1]}]
+        tv.guideVisible = True
+        clock.hasManualNavigation = True
+        engine = tv._createEngine(0)
+        tv.engines[0] = engine
+        engine.currentSlotIndex = 1
+        engine.currentRow = clock._rotation[1]
+        slot = engine.activeSlot
+        realPlayer = slot.player
+        slot.player = Mock()
+        slot.player.state.return_value = QMediaPlayer.PlayingState
+        slot.player.position.side_effect = AssertionError('Media position must not be queried in a frame callback')
+        slot.duration = 120000
+        slot.path = 'movie.mp4'
+        slot._ready = True
+        slot._lastPlaybackPosition = 45000
+        try:
+            tv._refreshGuideTable()
+            self.assertIsNone(tv.guideTable.playbackTime)
+            slot._onVideoFrame(Mock(isValid=lambda: True))
+            self.assertIsNone(tv.guideTable.playbackTime)  # refresh waits for the callback to return
+            self.app.processEvents()
+            self.assertIsNotNone(tv.guideTable.playbackTime)
+            self.assertEqual([b['slot'] for b in tv.guideTable.rows[0]['programs'] if b['playing']], [1])
+            slot.player.position.assert_not_called()
+        finally:
+            slot.player = realPlayer
+            tv.close()
+
+    def test_first_next_start_click_places_cursor_at_destination_block_and_resume_preserves_origin(self):
+        tv = RetroChannelWidget()
+        with patch('smdb.RetroChannelWidget.random.uniform', return_value=0.8):
+            clock = ChannelClock([0, 1, 2], lambda row: 120000, broadcastAligned=True)
+        tv.channels = [{'genre': 'Action', 'clock': clock, 'rows': [0, 1, 2]}]
+        tv.guideVisible = True
+        tv._updateEmptyState()
+        engine = tv._createEngine(0)
+        tv.engines[0] = engine
+        engine.currentSlotIndex = 0
+        engine.currentRow = clock._rotation[0]
+        originals = [slot.player for slot in (engine.slotA, engine.slotB)]
+        for slot in (engine.slotA, engine.slotB):
+            slot.player = Mock()
+            slot.player.state.return_value = QMediaPlayer.PlayingState
+            slot.player.mediaStatus.return_value = QMediaPlayer.BufferedMedia
+            slot.player.position.return_value = 96000
+        def resolve(index, attr, callback):
+            callback(clock._rowForSlot(index), 'movie.mp4')
+        def load(path, autoplay=False, seekFraction=None, extraMs=0):
+            slot = engine.activeSlot
+            slot.path, slot.duration, slot._ready = path, 120000, True
+            slot._lastPlaybackPosition = int(seekFraction * slot.duration + extraMs)
+            slot.player.position.return_value = slot._lastPlaybackPosition
+            slot._hasPlayingFrame = True
+            engine._onSlotReady(slot)
+        try:
+            with patch.object(engine, '_startResolve', side_effect=resolve), \
+                    patch.object(engine.activeSlot, 'load', side_effect=load), \
+                    patch.object(engine, '_maybeSchedulePrefetch'):
+                for target in (1, 2):
+                    tv.nextBeginningButton.click()
+                    self.app.processEvents()
+                    start, end = clock.publishedSlotTimes(target)
+                    self.assertEqual(engine.currentSlotIndex, target)
+                    self.assertEqual(clock.playbackOriginForSlot(target), 0.0)
+                    self.assertGreaterEqual(tv.guideTable.playbackTime, start)
+                    self.assertLess(tv.guideTable.playbackTime, start + 0.01)
+                    self.assertEqual([b['slot'] for b in tv.guideTable.rows[0]['programs'] if b['playing']], [target])
+                    tv.forwardTenButton.click()
+                    engine.activeSlot.player.position.return_value = engine.activeSlot._lastPlaybackPosition
+                tv.beginningButton.click()
+                self.app.processEvents()
+                start, end = clock.publishedSlotTimes(1)
+                self.assertEqual(clock.playbackOriginForSlot(1), 0.0)
+                self.assertAlmostEqual(tv.guideTable.playbackTime, start + (end - start) * 10001 / 120000, places=3)
+                tv.beginningButton.click()
+                self.assertEqual(tv.guideTable.playbackTime, start)
+                tv.nextBeginningButton.click()
+                self.assertAlmostEqual(tv.guideTable.playbackTime, start + (end - start) * 10001 / 120000, places=3)
+        finally:
+            for slot, original in zip((engine.slotA, engine.slotB), originals):
+                slot.player = original
+            tv.close()
+
+    def test_beginning_then_resume_restores_the_original_cursor_location(self):
+        with patch('smdb.RetroChannelWidget.random.uniform', return_value=0.5):
+            clock = ChannelClock([0], lambda row: 100000)
+        engine = ChannelEngine(1, 'Action', clock, lambda row: None, str)
+        engine.currentSlotIndex = engine._previousNavigationSlot = 0
+        engine.currentRow = 0
+        clock.rememberPosition(0, 0, 100000, 90000)
+        slot = engine.activeSlot
+        realPlayer = slot.player
+        slot.player = Mock()
+        slot.duration, slot.path, slot._ready = 100000, 'movie.mp4', True
+        slot.player.position.return_value = 90000
+        try:
+            with patch.object(engine, '_maybeSchedulePrefetch'):
+                engine.skipProgram(-1)
+                self.assertEqual(clock.playbackOriginForSlot(0), 0.0)
+                self.assertEqual(slot._lastPlaybackPosition, 0)
+                engine.skipProgram(1)
+                self.assertEqual(clock.playbackOriginForSlot(0), 0.5)
+                self.assertEqual(slot._lastPlaybackPosition, 90000)
+        finally:
+            slot.player = realPlayer
+            engine.shutdown()
+            engine.container.close()
+
 
 if __name__ == '__main__':
     unittest.main()

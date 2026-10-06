@@ -13,6 +13,7 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
         self.rows = []
         self.selectedChannel = 0
         self.now = time.time()
+        self.playbackTime = None
         self.startTime = math.floor(self.now / 3600) * 3600
         self.endTime = self.startTime + 48 * 3600
         self.scale = 1.0
@@ -44,6 +45,10 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
 
     def setCurrentTime(self, now):
         self.now = now
+        self.viewport().update()
+
+    def setPlaybackTime(self, timestamp):
+        self.playbackTime = timestamp
         self.viewport().update()
 
     def showCurrentHour(self):
@@ -139,6 +144,18 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
         if self.channelWidth <= x <= width:
             painter.setPen(QtGui.QPen(QtGui.QColor('#ffcc00'), 2))
             painter.drawLine(QtCore.QPointF(x, self.headerHeight), QtCore.QPointF(x, height))
+        # The cyan cursor follows the player's position after manual navigation.
+        # It never changes the wall-clock marker or the published program blocks.
+        if self.playbackTime is not None:
+            x = self.timeX(self.playbackTime)
+            if self.channelWidth <= x <= width:
+                painter.setPen(QtGui.QPen(QtGui.QColor('#00ffff'), 3))
+                painter.drawLine(QtCore.QPointF(x, self.headerHeight), QtCore.QPointF(x, height))
+                painter.setBrush(QtGui.QColor('#00ffff'))
+                painter.drawPolygon(QtGui.QPolygonF([
+                    QtCore.QPointF(x - 5, self.headerHeight),
+                    QtCore.QPointF(x + 5, self.headerHeight),
+                    QtCore.QPointF(x, self.headerHeight + 7)]))
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

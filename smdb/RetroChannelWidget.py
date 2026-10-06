@@ -295,6 +295,7 @@ class ClipSlot(QtCore.QObject):
         pos = int(fraction * self.duration) + int(extraMs)
         pos = max(0, min(pos, maxPos))
         self.player.setPosition(pos)
+        self._lastPlaybackPosition = pos
 
     def setVolume(self, volume):
         self.player.setVolume(volume)
@@ -333,10 +334,13 @@ class ChannelClock:
     def __init__(self, rows, durationGetter=None, broadcastAligned=False):
         self.rows = list(rows)
         self.broadcastAligned = broadcastAligned
+        self.hasManualNavigation = False
         self.epoch = time.monotonic()
         self._rotation = []
         self._offsetFractions = {}
         self._startOverrides = {}
+        self._playbackOrigins = {}
+        self._resumeMarkerOrigins = {}
         self._resumePositions = {}
         self._durations = {}
         self._filmDurations = {}
@@ -370,6 +374,14 @@ class ChannelClock:
                 blockStart, blockEnd = self._scheduleStarts[index] + offset, self._scheduleEnds[index] + offset
                 if blockEnd > start and blockStart < end:
                     yield {'slot': cycle * count + index, 'row': row, 'start': blockStart, 'end': blockEnd}
+
+    def publishedSlotTimes(self, slotIndex):
+        cycle, index = divmod(slotIndex, len(self._rotation))
+        offset = cycle * self._scheduleCycleSeconds
+        return self._scheduleStarts[index] + offset, self._scheduleEnds[index] + offset
+
+    def playbackOriginForSlot(self, slotIndex):
+        return self._playbackOrigins.get(slotIndex, self._offsetFractions[slotIndex % len(self._rotation)])
 
     def _extendRotation(self):
         self._rotation = random.sample(self.rows, min(SCHEDULE_MOVIE_COUNT, len(self.rows)))
@@ -428,10 +440,12 @@ class ChannelClock:
 
     def startSlotAtBeginning(self, slotIndex):
         self._startOverrides[slotIndex] = 0.0
+        self._playbackOrigins[slotIndex] = 0.0
         self._durations.pop(slotIndex, None)
 
     def rememberPosition(self, slotIndex, row, duration, position):
         self._resumePositions[row] = (row, duration, position)
+        self._resumeMarkerOrigins[row] = self.playbackOriginForSlot(slotIndex)
 
     def resumeInfoForSlot(self, slotIndex):
         row = self._resolvedRows.get(slotIndex, self._rowForSlot(slotIndex))
@@ -442,6 +456,8 @@ class ChannelClock:
         if saved is None:
             return False
         row, duration, position = saved
+        origin = self._resumeMarkerOrigins.get(row, self.playbackOriginForSlot(slotIndex))
+        self._playbackOrigins[slotIndex] = 0.0 if position / duration < origin else origin
         self.repositionSlot(slotIndex, row, duration, position)
         return True
 
@@ -550,6 +566,7 @@ class ChannelEngine(QtCore.QObject):
         self._hardCutRequestId = None
         self._previousNavigationSlot = None
         self._beginningResume = None
+        self._beginningMarkerOrigin = None
 
         self.advanceTimer = QtCore.QTimer(self)
         self.advanceTimer.setSingleShot(True)
@@ -816,13 +833,18 @@ class ChannelEngine(QtCore.QObject):
                 slot = self.activeSlot
                 if saved is None and self.currentRow is not None and slot.isReady() and slot.duration > 0:
                     saved = (self.currentRow, slot.duration, slot.player.position())
+                origin = self.clock.playbackOriginForSlot(current)
                 if saved is not None and self.seekCurrentFilm(beginning=True):
                     self._beginningResume = saved
+                    self._beginningMarkerOrigin = origin
                 return
             if step > 0 and self._beginningResume is not None:
                 _row, _duration, position = self._beginningResume
+                if self._beginningMarkerOrigin is not None:
+                    self.clock._playbackOrigins[current] = self._beginningMarkerOrigin
                 if self._seekFilmPosition(position):
                     self._beginningResume = None
+                    self._beginningMarkerOrigin = None
                     self._previousNavigationSlot = None
                 return
         target = current + step
@@ -849,11 +871,13 @@ class ChannelEngine(QtCore.QObject):
         self._prefetchedSlotIndex = None
         self._previousNavigationSlot = target if step < 0 and not beginning else None
         self._beginningResume = None
+        self._beginningMarkerOrigin = None
         if beginning:
             self.clock.startSlotAtBeginning(target)
         else:
             self.clock.resumeSlot(target)
         self.clock.jumpToSlot(target)
+        self.clock.hasManualNavigation = True
         self._tuneIn()
 
     def seekCurrentFilm(self, offsetMs=0, beginning=False):
@@ -865,7 +889,11 @@ class ChannelEngine(QtCore.QObject):
         if self.currentRow is None or self.currentSlotIndex is None or not slot.isReady() or slot.duration <= 0:
             return False
         target = max(0, min(slot.duration - 1, int(target)))
+        if target / slot.duration < self.clock.playbackOriginForSlot(self.currentSlotIndex):
+            self.clock._playbackOrigins[self.currentSlotIndex] = 0.0
+        self.clock.hasManualNavigation = True
         slot.player.setPosition(target)
+        slot._lastPlaybackPosition = target
         self.clock.repositionSlot(self.currentSlotIndex, self.currentRow, slot.duration, target)
         self.advanceTimer.stop()
         self.prefetchTimer.stop()
@@ -1341,6 +1369,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         captionLayout.addWidget(self.guideDescription, 1)
 
         self.guideClockLabel = QtWidgets.QLabel()
+        self.guideClockLabel.setWordWrap(True)
         self.guideClockLabel.setStyleSheet('color: #ffcc00; font-size: 14px;')
         layout.addWidget(self.guideClockLabel)
         self.guideTable = GuideTimeline(self)
@@ -1647,7 +1676,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         engine.programChanged.connect(lambda idx=index: self._onProgramChanged(idx))
         engine._stack.currentChanged.connect(lambda _index: self._syncStandbyTone())
         engine._stack.currentChanged.connect(
-            lambda _index: self._refreshGuideTable() if self.guideVisible else None)
+            lambda _index: QtCore.QTimer.singleShot(0, self._refreshGuideTable) if self.guideVisible else None)
         return engine
 
     def _teardownAllEngines(self):
@@ -1944,11 +1973,35 @@ class RetroChannelWidget(QtWidgets.QWidget):
 
     def _updateGuideTime(self):
         now = time.time()
-        self.guideClockLabel.setText(time.strftime('%A %d %b %Y   %H:%M:%S', time.localtime(now)))
         self.guideTable.setCurrentTime(now)
+        self._updatePlaybackMarker()
         if self.guideVisible and now >= self.guideTable.endTime:
             self.guideTable.showCurrentHour()
             self._refreshGuideTable()
+
+    def _updatePlaybackMarker(self):
+        clockText = time.strftime('%A %d %b %Y   %H:%M:%S', time.localtime(self.guideTable.now))
+        timestamp = None
+        playbackText = ''
+        engine = self.engines.get(self.currentIndex)
+        clock = self.channels[self.currentIndex]['clock'] if self.channels else None
+        if (engine is not None and clock is not None and clock.hasManualNavigation
+                and engine.currentRow is not None and engine.currentSlotIndex is not None
+                and engine.activeSlot.duration > 0 and not engine.isShowingStandby()):
+            # Use positionChanged telemetry: asking the Windows media backend for
+            # position inside its video-frame callback can deadlock movie loading.
+            position = max(0, min(engine.activeSlot.duration, engine.activeSlot._lastPlaybackPosition or 0))
+            start, end = clock.publishedSlotTimes(engine.currentSlotIndex)
+            # Keep the airing's cursor baseline stable through seeks and resume.
+            # Starting the full film resets this baseline to zero without moving
+            # either its published block or the live clock.
+            initialFraction = clock.playbackOriginForSlot(engine.currentSlotIndex)
+            progress = (position / engine.activeSlot.duration - initialFraction) / (1 - initialFraction)
+            timestamp = start + (end - start) * max(0.0, min(1.0, progress))
+            seconds = int(position / 1000)
+            playbackText = f'   <span style="color:#00ffff">Playback {seconds // 3600:02d}:{seconds // 60 % 60:02d}:{seconds % 60:02d}</span>'
+        self.guideTable.setPlaybackTime(timestamp)
+        self.guideClockLabel.setText(f'<span style="color:#ffcc00">Live clock {clockText}</span>{playbackText}')
 
     def _refreshGuideTable(self):
         if not self.channels:
@@ -1968,6 +2021,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
             timelineRows.append({'channel': i, 'label': f"{i + 1:02d} {channel['genre'].upper()}",
                                  'programs': programs})
         self.guideTable.setRows(timelineRows, self.guideHighlightIndex)
+        self._updatePlaybackMarker()
         self._scrollGuideToHighlight()
         QtCore.QTimer.singleShot(0, self._scrollGuideToHighlight)
 
