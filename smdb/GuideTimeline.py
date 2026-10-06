@@ -7,6 +7,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 
 class GuideTimeline(QtWidgets.QAbstractScrollArea):
     channelSelected = QtCore.pyqtSignal(int)
+    timeRangeChanged = QtCore.pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -39,12 +40,14 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
         self.rowHeight = textHeight + 6
         self.setMinimumHeight(self.headerHeight + self.rowHeight + self.horizontalScrollBar().sizeHint().height() + 12)
         self._updateRanges()
+        self._ensurePlaybackVisible()
         self.viewport().update()
 
     def setRows(self, rows, selectedChannel):
         self.rows = rows
         self.selectedChannel = selectedChannel
         self._updateRanges()
+        self._ensurePlaybackVisible()
         self.viewport().update()
 
     def setCurrentTime(self, now):
@@ -53,10 +56,39 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
 
     def setPlaybackTime(self, timestamp):
         self.playbackTime = timestamp
+        self._ensurePlaybackVisible()
         self.viewport().update()
 
+    def _ensurePlaybackVisible(self):
+        if self.playbackTime is None:
+            return
+        visibleWidth = self.viewport().width() - self.channelWidth
+        if visibleWidth <= 0:
+            return
+        margin = min(80, max(8, visibleWidth // 4))
+        paddingSeconds = margin * 3600 / self.hourWidth
+        oldStart, oldEnd = self.startTime, self.endTime
+        if self.playbackTime - paddingSeconds < self.startTime:
+            self.startTime = math.floor((self.playbackTime - paddingSeconds) / 3600) * 3600
+        if self.playbackTime + paddingSeconds > self.endTime:
+            self.endTime = math.ceil((self.playbackTime + paddingSeconds) / 3600) * 3600
+        bar = self.horizontalScrollBar()
+        if (oldStart, oldEnd) != (self.startTime, self.endTime):
+            oldScroll = bar.value()
+            self._updateRanges()
+            bar.setValue(oldScroll + round((oldStart - self.startTime) * self.hourWidth / 3600))
+        position = (self.playbackTime - self.startTime) * self.hourWidth / 3600
+        x = position - bar.value()
+        if x < margin:
+            bar.setValue(round(position - margin))
+        elif x > visibleWidth - margin:
+            bar.setValue(round(position - visibleWidth + margin))
+        if (oldStart, oldEnd) != (self.startTime, self.endTime):
+            self.timeRangeChanged.emit()
+
     def showCurrentHour(self):
-        # Only opening the guide recenters time. Program skips preserve the view.
+        # Opening the guide or NOW recenters real time; manual playback follows
+        # the cyan cursor when it reaches a viewport edge.
         hour = math.floor(self.now / 3600) * 3600
         if hour < self.startTime or hour >= self.endTime:
             self.startTime = hour
@@ -121,7 +153,8 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
         # Hour headings use wall time, independently of the playing film.
         painter.setClipRect(self.channelWidth, 0, max(0, width - self.channelWidth), self.headerHeight)
         first = max(0, self.horizontalScrollBar().value() // self.hourWidth)
-        for hour in range(first, min(48, first + math.ceil(width / self.hourWidth) + 1)):
+        hourCount = math.ceil((self.endTime - self.startTime) / 3600)
+        for hour in range(first, min(hourCount, first + math.ceil(width / self.hourWidth) + 1)):
             timestamp = self.startTime + hour * 3600
             rect = QtCore.QRectF(self.timeX(timestamp), self.labelHeight, self.hourWidth,
                                  self.headerHeight - self.labelHeight)
@@ -188,6 +221,7 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self._updateRanges()
+        self._ensurePlaybackVisible()
 
     def mousePressEvent(self, event):
         index = (event.y() - self.headerHeight + self.verticalScrollBar().value()) // self.rowHeight

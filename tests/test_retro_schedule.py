@@ -237,6 +237,40 @@ class FullMovieScheduleTests(unittest.TestCase):
             engine.container.close()
             tv.close()
 
+    def test_barred_back_restarts_current_movie_without_loading_previous(self):
+        clock = ChannelClock([0, 1], lambda row: 100000)
+        clock._rotation = [0, 1]
+        clock.rememberPosition(0, 0, 100000, 42000)
+        engine = ChannelEngine(1, 'Action', clock, lambda row: None, str)
+        engine.currentSlotIndex, engine.currentRow = 1, 1
+        slot = engine.activeSlot
+        realPlayer = slot.player
+        slot.player = Mock()
+        slot.path, slot.duration, slot._ready = 'current.mp4', 100000, True
+        slot._lastPlaybackPosition = 63000
+        tv = RetroChannelWidget()
+        tv.engines = {0: engine}
+        self.enableControls(tv)
+        try:
+            with patch.object(engine, '_tuneIn') as tune, patch.object(engine, '_maybeSchedulePrefetch'):
+                for _ in range(2):
+                    tv.beginningButton.click()
+                    slot.player.setPosition.assert_called_with(0)
+                    self.assertEqual((engine.currentSlotIndex, engine.currentRow), (1, 1))
+                    self.assertEqual(clock.resumeInfoForSlot(1)[2], 63000)
+                tv.nextBeginningButton.click()
+                slot.player.setPosition.assert_called_with(63000)
+                self.assertEqual((engine.currentSlotIndex, engine.currentRow), (1, 1))
+                self.assertEqual(clock.resumeInfoForSlot(0)[2], 42000)
+                tune.assert_not_called()
+                slot.player.setMedia.assert_not_called()
+        finally:
+            tv.engines.clear()
+            slot.player = realPlayer
+            engine.shutdown()
+            engine.container.close()
+            tv.close()
+
     def test_previous_resume_then_beginning_and_forward_restores_saved_position(self):
         clock = ChannelClock([0, 1], lambda row: 100000)
         clock._rotation = [0, 1]
@@ -251,7 +285,7 @@ class FullMovieScheduleTests(unittest.TestCase):
         self.enableControls(tv)
         try:
             with patch.object(engine, '_tuneIn') as tune, patch.object(engine, '_maybeSchedulePrefetch'):
-                tv.beginningButton.click()
+                tv.previousProgramButton.click()
                 self.assertEqual(clock.slotInfo(0)[1], 0.42)
                 self.assertEqual(engine.currentSlotIndex, 0)
                 slot.player = Mock()

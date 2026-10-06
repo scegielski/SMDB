@@ -914,6 +914,26 @@ class ChannelEngine(QtCore.QObject):
         self.clock.hasManualNavigation = True
         self._tuneIn()
 
+    def restartCurrentFilm(self):
+        slot = self.activeSlot
+        current = self.currentSlotIndex
+        if current is None or self.currentRow is None or not slot.isReady() or slot.duration <= 0:
+            return False
+        saved = self._beginningResume if self._previousNavigationSlot == current else None
+        origin = self._beginningMarkerOrigin if saved is not None else self.clock.playbackOriginForSlot(current)
+        if saved is None:
+            position = slot._lastPlaybackPosition
+            if position is None:
+                position = slot.player.position()
+            saved = (self.currentRow, slot.duration, position)
+            self.clock.rememberPosition(current, *saved)
+        if not self._seekFilmPosition(0):
+            return False
+        self._previousNavigationSlot = current
+        self._beginningResume = saved
+        self._beginningMarkerOrigin = origin
+        return True
+
     def seekCurrentFilm(self, offsetMs=0, beginning=False):
         # Explicit seeks seed the telemetry immediately. The Windows backend's
         # position getter may still report the previous seek while it catches up.
@@ -1270,9 +1290,9 @@ class RetroChannelWidget(QtWidgets.QWidget):
 
         self.beginningButton.setStyleSheet(upButton.styleSheet())
         self.beginningButton.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.beginningButton.setAccessibleName('Previous film, then beginning')
-        self.beginningButton.setToolTip('Resume previous film; press again for its beginning')
-        self.beginningButton.clicked.connect(lambda: self.skipProgram(-1))
+        self.beginningButton.setAccessibleName('Beginning of current film')
+        self.beginningButton.setToolTip('Restart this film; forward restores the saved position')
+        self.beginningButton.clicked.connect(self.restartCurrentFilm)
 
         self.nextBeginningButton = QtWidgets.QPushButton('▶|')
         self.nextBeginningButton.setStyleSheet(upButton.styleSheet())
@@ -1418,6 +1438,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.guideTable = GuideTimeline(self)
         self.guideTable.viewport().installEventFilter(self)
         self.guideTable.channelSelected.connect(self._tuneTo)
+        self.guideTable.timeRangeChanged.connect(
+            lambda: QtCore.QTimer.singleShot(0, self._refreshGuideTable))
         self.guideClockTimer = QtCore.QTimer(self)
         self.guideClockTimer.setInterval(1000)
         self.guideClockTimer.timeout.connect(self._updateGuideTime)
@@ -1833,6 +1855,11 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self._refreshGuideTable()
         self._syncStandbyTone()
 
+    def restartCurrentFilm(self):
+        engine = self.engines.get(self.currentIndex)
+        if engine and engine.restartCurrentFilm() and self.guideVisible:
+            self._refreshGuideTable()
+
     def seekCurrentFilm(self, offsetMs=0, beginning=False):
         engine = self.engines.get(self.currentIndex)
         if engine and engine.seekCurrentFilm(offsetMs, beginning) and self.guideVisible:
@@ -2039,11 +2066,11 @@ class RetroChannelWidget(QtWidgets.QWidget):
             # Use positionChanged telemetry: asking the Windows media backend for
             # position inside its video-frame callback can deadlock movie loading.
             position = max(0, min(engine.activeSlot.duration, engine.activeSlot._lastPlaybackPosition or 0))
-            start, end = clock.publishedSlotTimes(engine.currentSlotIndex)
-            # Blocks represent the whole film, so zero is always its beginning.
-            # Random starts and resumed positions fall inside that fixed block.
-            progress = position / engine.activeSlot.duration
-            timestamp = start + (end - start) * max(0.0, min(1.0, progress))
+            start, _end = clock.publishedSlotTimes(engine.currentSlotIndex)
+            # NOW joins using elapsed broadcast seconds. Use that same unit for
+            # the cursor: catalogue runtime estimates must not stretch the media
+            # position or turn a ten-second seek into a multi-minute offset.
+            timestamp = start + position / 1000.0
         self.guideTable.setPlaybackTime(timestamp)
 
     def _refreshGuideTable(self):

@@ -241,7 +241,7 @@ class GuideTimelineTests(unittest.TestCase):
                 tv._updatePlaybackMarker()
                 start, end = clock.publishedSlotTimes(slot)
                 self.assertEqual(tv.guideTable.playbackTime,
-                                 start + (end - start) * position / 120000)
+                                 start + position / 1000)
                 self.assertEqual(tv.guideTable.now, 1234567890)
             cursorTime = time.strftime('%I:%M:%S %p', time.localtime(tv.guideTable.playbackTime))
             self.assertEqual(cursorTime, tv.guideTable.markerLabel(tv.guideTable.playbackTime))
@@ -294,6 +294,95 @@ class GuideTimelineTests(unittest.TestCase):
             guide.setPlaybackTime(None)
             image = guide.viewport().grab().toImage()
             self.assertNotEqual(image.pixelColor(round(guide.timeX(38700)), y).name(), '#00ffff')
+        finally:
+            guide.close()
+
+    def test_now_then_seeking_uses_real_seconds_when_catalogue_runtime_differs(self):
+        tv = RetroChannelWidget()
+        with patch('smdb.RetroChannelWidget.time.time', return_value=36000) as wall, \
+                patch('smdb.RetroChannelWidget.time.monotonic', return_value=0), \
+                patch('smdb.RetroChannelWidget.random.uniform', return_value=0):
+            # At one hour elapsed, the previous ratio mapping put the cursor
+            # four minutes 48 seconds ahead when the file is only 100 minutes.
+            clock = ChannelClock([0], lambda row: 108 * 60000, broadcastAligned=True)
+            published = list(clock.publishedPrograms(36000, 86400))
+            tv.channels = [{'genre': 'Action', 'clock': clock, 'rows': [0]}]
+            tv.guideVisible = True
+            tv._updateEmptyState()
+            engine = tv._createEngine(0)
+            tv.engines[0] = engine
+            slot, originalPlayer = engine.activeSlot, engine.activeSlot.player
+            slot.player = Mock()
+            slot.player.state.return_value = QMediaPlayer.PlayingState
+            slot.player.position.return_value = 1800000  # deliberately stale
+            def loadLive(path, autoplay=False, seekFraction=None, extraMs=0):
+                slot.path, slot.duration, slot._ready = path, 100 * 60000, True
+                slot.seekTo(seekFraction, extraMs)
+                slot._hasPlayingFrame = True
+                engine._onSlotReady(slot)
+            wall.return_value = 39600
+            try:
+                with patch.object(engine, '_startResolve', side_effect=lambda idx, attr, done: done(0, 'movie.mp4')), \
+                        patch.object(slot, 'load', side_effect=loadLive), \
+                        patch.object(engine, '_maybeSchedulePrefetch'):
+                    tv.nowButton.click()
+                    self.assertEqual(slot._lastPlaybackPosition, 3600000)
+                    self.assertIsNone(tv.guideTable.playbackTime)
+                    tv.forwardTenButton.click()
+                    self.assertEqual(tv.guideTable.playbackTime, 39610)
+                    tv.forwardTenButton.click()
+                    self.assertEqual(tv.guideTable.playbackTime, 39620)
+                    tv.backTenButton.click()
+                    self.assertEqual(tv.guideTable.playbackTime, 39610)
+                    tv.nowButton.click()
+                    tv.backTenButton.click()
+                    self.assertEqual(tv.guideTable.playbackTime, 39590)
+                    tv.beginningButton.click()
+                    self.assertEqual(tv.guideTable.playbackTime, 36000)
+                    tv.nextBeginningButton.click()
+                    self.assertEqual(tv.guideTable.playbackTime, 39590)
+                    # An overrun is truthful seconds beyond the estimate; it
+                    # must not be compressed to fit the unchanged film block.
+                    slot.duration = 120 * 60000
+                    slot._onPlaybackPosition(110 * 60000)
+                    tv._updatePlaybackMarker()
+                    self.assertEqual(tv.guideTable.playbackTime, 36000 + 110 * 60)
+                    self.assertEqual(published, list(clock.publishedPrograms(36000, 86400)))
+                    self.assertEqual(tv.guideTable.now, 39600)
+            finally:
+                slot.player = originalPlayer
+                tv.close()
+
+    def test_horizontal_view_follows_cursor_both_directions_and_extends_time_range(self):
+        guide = GuideTimeline()
+        guide.resize(900, 260)
+        guide.startTime, guide.endTime = 36000, 36000 + 48 * 3600
+        guide.setCurrentTime(36900)
+        program = {'slot': 0, 'row': 0, 'start': 36000, 'end': 39600,
+                   'title': 'Fixed program', 'playing': True}
+        guide.setRows([{'channel': 0, 'label': '01 ACTION', 'programs': [program]}], 0)
+        guide.show()
+        self.app.processEvents()
+        changed = Mock()
+        guide.timeRangeChanged.connect(changed)
+        try:
+            for timestamp in (36900, 36000 + 8 * 3600, 36000 + 9 * 3600,
+                              36000 + 3600, 36000 - 4 * 3600, 36000 + 60 * 3600):
+                guide.setPlaybackTime(timestamp)
+                self.assertGreater(guide.timeX(timestamp), guide.channelWidth)
+                self.assertLess(guide.timeX(timestamp), guide.viewport().width())
+                self.assertEqual(guide.now, 36900)
+                self.assertEqual((program['start'], program['end']), (36000, 39600))
+            self.assertLessEqual(guide.startTime, 36000 - 4 * 3600)
+            self.assertGreater(guide.endTime, 36000 + 60 * 3600)
+            self.assertGreaterEqual(changed.call_count, 2)
+            guide.resize(600, 260)
+            self.app.processEvents()
+            self.assertLess(guide.timeX(guide.playbackTime), guide.viewport().width())
+            scroll = guide.horizontalScrollBar().value()
+            guide.setPlaybackTime(None)
+            guide.setCurrentTime(37000)
+            self.assertEqual(guide.horizontalScrollBar().value(), scroll)
         finally:
             guide.close()
 
@@ -403,15 +492,15 @@ class GuideTimelineTests(unittest.TestCase):
                     self.assertEqual([b['slot'] for b in tv.guideTable.rows[0]['programs'] if b['playing']], [target])
                     tv.forwardTenButton.click()
                     engine.activeSlot.player.position.return_value = engine.activeSlot._lastPlaybackPosition
-                tv.beginningButton.click()
+                tv.previousProgramButton.click()
                 self.app.processEvents()
                 start, end = clock.publishedSlotTimes(1)
                 self.assertEqual(clock.playbackOriginForSlot(1), 0.0)
-                self.assertAlmostEqual(tv.guideTable.playbackTime, start + (end - start) * 10001 / 120000, delta=0.002)
+                self.assertAlmostEqual(tv.guideTable.playbackTime, start + 10001 / 1000, delta=0.002)
                 tv.beginningButton.click()
                 self.assertEqual(tv.guideTable.playbackTime, start)
                 tv.nextBeginningButton.click()
-                self.assertAlmostEqual(tv.guideTable.playbackTime, start + (end - start) * 10001 / 120000, delta=0.002)
+                self.assertAlmostEqual(tv.guideTable.playbackTime, start + 10001 / 1000, delta=0.002)
         finally:
             for slot, original in zip((engine.slotA, engine.slotB), originals):
                 slot.player = original
