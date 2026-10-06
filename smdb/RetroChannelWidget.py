@@ -440,6 +440,24 @@ class ChannelClock:
     def jumpToSlot(self, slotIndex):
         self.epoch = time.monotonic() - (self.slotStartMs(slotIndex) + 1) / 1000.0
 
+    def returnToLive(self):
+        """Restore the published broadcast after manual navigation or seeking."""
+        wallNow = time.time()
+        elapsed = max(0, wallNow - self._scheduleStarts[0])
+        count = len(self._rotation)
+        cycle = int(elapsed // self._scheduleCycleSeconds)
+        self._startOverrides.clear()
+        self._playbackOrigins.clear()
+        self._durations.clear()
+        # Preserve the original padded boundaries even after seeks or media
+        # metadata changed playback's mutable slot durations.
+        for slot in range((cycle + 1) * count):
+            start, _end = self.publishedSlotTimes(slot)
+            nextStart, _end = self.publishedSlotTimes(slot + 1)
+            self._durations[slot] = (nextStart - start) * 1000
+        self.epoch = time.monotonic() - elapsed
+        self.hasManualNavigation = False
+
     def repositionSlot(self, slotIndex, row, duration, position):
         # Manual seeking affects this airing only, keeping the loop's assigned
         # random starting position for future airings.
@@ -832,11 +850,11 @@ class ChannelEngine(QtCore.QObject):
 
         self._startResolve(slotIndex, '_hardCutRequestId', onResolved)
 
-    def skipProgram(self, step, beginning=False, startUnvisited=False):
+    def skipProgram(self, step, beginning=False, startUnvisited=False, live=False):
         current = self.currentSlotIndex
         if current is None:
             current = self.clock.whatsOnNow()[0]
-        if not beginning and current == self._previousNavigationSlot:
+        if not live and not beginning and current == self._previousNavigationSlot:
             if step < 0 and self._beginningResume is None:
                 saved = self.clock.resumeInfoForSlot(current)
                 slot = self.activeSlot
@@ -881,6 +899,11 @@ class ChannelEngine(QtCore.QObject):
         self._previousNavigationSlot = target if step < 0 and not beginning else None
         self._beginningResume = None
         self._beginningMarkerOrigin = None
+        if live:
+            self._previousNavigationSlot = None
+            self.clock.returnToLive()
+            self._tuneIn()
+            return
         if beginning:
             self.clock.startSlotAtBeginning(target)
         elif not self.clock.resumeSlot(target) and self.clock.broadcastAligned:
@@ -1253,10 +1276,18 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.nextBeginningButton.setToolTip('Restore saved position, or open the next film from its beginning')
         self.nextBeginningButton.clicked.connect(lambda: self.skipProgram(1, startUnvisited=True))
         filmControls = QtWidgets.QGridLayout()
+        self.nowButton = QtWidgets.QPushButton('NOW')
+        self.nowButton.setStyleSheet(
+            'background: #444; color: white; font-size: 12px; border-radius: 6px; padding: 6px;')
+        self.nowButton.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.nowButton.setAccessibleName('Return to live broadcast')
+        self.nowButton.setToolTip('Return this channel to the current live broadcast time')
+        self.nowButton.clicked.connect(self.returnToLive)
         filmControls.addWidget(self.backTenButton, 0, 0)
-        filmControls.addWidget(self.forwardTenButton, 0, 1)
+        filmControls.addWidget(self.nowButton, 0, 1)
+        filmControls.addWidget(self.forwardTenButton, 0, 2)
         filmControls.addWidget(self.beginningButton, 1, 0)
-        filmControls.addWidget(self.nextBeginningButton, 1, 1)
+        filmControls.addWidget(self.nextBeginningButton, 1, 2)
         sideLayout.addLayout(filmControls)
 
         guideButton = QtWidgets.QPushButton("GUIDE")
@@ -1379,10 +1410,6 @@ class RetroChannelWidget(QtWidgets.QWidget):
         )
         captionLayout.addWidget(self.guideDescription, 1)
 
-        self.guideClockLabel = QtWidgets.QLabel()
-        self.guideClockLabel.setWordWrap(True)
-        self.guideClockLabel.setStyleSheet('color: #ffcc00; font-size: 14px;')
-        layout.addWidget(self.guideClockLabel)
         self.guideTable = GuideTimeline(self)
         self.guideTable.viewport().installEventFilter(self)
         self.guideTable.channelSelected.connect(self._tuneTo)
@@ -1423,11 +1450,6 @@ class RetroChannelWidget(QtWidgets.QWidget):
         splitter.setSizes([600, 300])
         layout.addWidget(splitter, 1)
 
-        hint = QtWidgets.QLabel("\u25B2/\u25BC Browse channels     Enter Tune     G/Esc Close Guide")
-        hint.setAlignment(QtCore.Qt.AlignCenter)
-        hint.setWordWrap(True)
-        hint.setStyleSheet("color: #8888cc; font-size: 11px;")
-        layout.addWidget(hint)
 
         return guide
 
@@ -1626,7 +1648,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         hasChannels = bool(self.channels)
         for button in (self.channelUpButton, self.channelDownButton,
                        self.nextProgramButton, self.previousProgramButton,
-                       self.backTenButton, self.forwardTenButton,
+                       self.backTenButton, self.forwardTenButton, self.nowButton,
                        self.beginningButton, self.nextBeginningButton, self.guideButton,
                        self.reprogramButton):
             button.setEnabled(hasChannels)
@@ -1990,10 +2012,20 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self.guideTable.showCurrentHour()
             self._refreshGuideTable()
 
+    def returnToLive(self):
+        engine = self.engines.get(self.currentIndex)
+        if engine is None:
+            return
+        engine.skipProgram(0, live=True)
+        self._updateNowPlayingLabel(engine)
+        self.guideTable.setCurrentTime(time.time())
+        self.guideTable.showCurrentHour()
+        if self.guideVisible:
+            self._refreshGuideTable()
+        self._syncStandbyTone()
+
     def _updatePlaybackMarker(self):
-        clockText = time.strftime('%A %d %b %Y   %I:%M:%S %p', time.localtime(self.guideTable.now))
         timestamp = None
-        playbackText = ''
         engine = self.engines.get(self.currentIndex)
         clock = self.channels[self.currentIndex]['clock'] if self.channels else None
         if (engine is not None and clock is not None and clock.hasManualNavigation
@@ -2007,10 +2039,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
             # Random starts and resumed positions fall inside that fixed block.
             progress = position / engine.activeSlot.duration
             timestamp = start + (end - start) * max(0.0, min(1.0, progress))
-            seconds = int(position / 1000)
-            playbackText = f'   <span style="color:#00ffff">Playback {seconds // 3600:02d}:{seconds // 60 % 60:02d}:{seconds % 60:02d}</span>'
         self.guideTable.setPlaybackTime(timestamp)
-        self.guideClockLabel.setText(f'<span style="color:#ffcc00">Live clock {clockText}</span>{playbackText}')
 
     def _refreshGuideTable(self):
         if not self.channels:

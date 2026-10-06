@@ -1,4 +1,5 @@
 import os
+import time
 import unittest
 from unittest.mock import Mock, patch
 
@@ -46,6 +47,65 @@ class GuideTimelineTests(unittest.TestCase):
             self.assertEqual(original[2]['row'], original[0]['row'])
             self.assertEqual(original[2]['start'] % 900, 0)
 
+    def test_return_to_live_restores_published_slot_and_padding_after_navigation(self):
+        with patch('smdb.RetroChannelWidget.time.time', return_value=36000) as wall, \
+                patch('smdb.RetroChannelWidget.time.monotonic', return_value=0), \
+                patch('smdb.RetroChannelWidget.random.uniform', return_value=0):
+            clock = ChannelClock([0, 1], lambda row: 61 * 60000, broadcastAligned=True)
+            original = list(clock.publishedPrograms(36000, 86400))
+            clock.repositionSlot(0, clock._rotation[0], 3660000, 3500000)
+            clock.hasManualNavigation = True
+            wall.return_value = 40500 + 300
+            clock.returnToLive()
+            slot, row, fraction, position, remaining = clock.whatsOnNow()
+            self.assertEqual((slot, fraction, position, remaining), (1, 0, 300000, 4200000))
+            self.assertFalse(clock.hasManualNavigation)
+            self.assertEqual(original, list(clock.publishedPrograms(36000, 86400)))
+            wall.return_value = 36000 + 62 * 60
+            clock.returnToLive()
+            self.assertGreater(clock.whatsOnNow()[3], clock.filmDurationForSlot(0))
+            self.assertEqual(clock.whatsOnNow()[4], 13 * 60000)
+
+    def test_now_button_restores_selected_channel_and_recenters_guide(self):
+        tv = RetroChannelWidget()
+        with patch('smdb.RetroChannelWidget.time.time', return_value=36000) as wall, \
+                patch('smdb.RetroChannelWidget.time.monotonic', return_value=0), \
+                patch('smdb.RetroChannelWidget.random.uniform', return_value=0):
+            clock = ChannelClock([0, 1, 2], lambda row: 1800000, broadcastAligned=True)
+            neighbor = ChannelClock([3], lambda row: 1800000, broadcastAligned=True)
+            tv.channels = [{'genre': 'Action', 'clock': clock, 'rows': [0, 1, 2]},
+                           {'genre': 'Adventure', 'clock': neighbor, 'rows': [3]}]
+            tv.guideVisible = True
+            tv._updateEmptyState()
+            engine = tv._createEngine(0)
+            tv.engines[0] = engine
+            originalPlayer = engine.activeSlot.player
+            engine.activeSlot.player = Mock()
+            clock.repositionSlot(0, clock._rotation[0], 1800000, 600000)
+            clock.hasManualNavigation = True
+            wall.return_value = 39900
+            tv.guideTable.startTime = 36000
+            tv.guideTable.endTime = 36000 + 48 * 3600
+            tv.guideTable.horizontalScrollBar().setValue(3000)
+            try:
+                with patch.object(engine, '_startResolve', side_effect=lambda idx, attr, done:
+                                  done(clock._rowForSlot(idx), 'movie.mp4')), \
+                        patch.object(engine.activeSlot, 'load') as load, \
+                        patch.object(engine, '_maybeSchedulePrefetch'), \
+                        patch.object(engine, '_onMovieDuration'):
+                    tv.nowButton.click()
+                    self.assertEqual(engine.currentSlotIndex, 2)
+                    self.assertEqual(load.call_args.kwargs['extraMs'], 300000)
+                    self.assertEqual(load.call_args.kwargs['seekFraction'], 0)
+                    self.assertFalse(clock.hasManualNavigation)
+                    self.assertIsNone(tv.guideTable.playbackTime)
+                    self.assertEqual(tv.guideTable.horizontalScrollBar().value(), tv.guideTable.hourWidth)
+                    self.assertEqual(neighbor.epoch, 0)
+                    self.assertEqual(neighbor._startOverrides, {})
+            finally:
+                engine.activeSlot.player = originalPlayer
+                tv.close()
+
     def test_hour_highlight_uses_wall_time_and_geometry_tracks_film_length(self):
         guide = GuideTimeline()
         guide.startTime = 36000
@@ -61,11 +121,12 @@ class GuideTimelineTests(unittest.TestCase):
             self.assertEqual(guide.programRect(0, second).width(), guide.programRect(0, first).width() * 2)
             guide.setCurrentTime(36500)
             before = guide.viewport().grab().toImage()
-            self.assertEqual(before.pixelColor(guide.channelWidth + 5, 3).name(), '#ffcc00')
+            self.assertEqual(before.pixelColor(guide.channelWidth + guide.hourWidth - 15, guide.labelHeight + 5).name(), '#ffcc00')
             guide.setCurrentTime(39601)
             after = guide.viewport().grab().toImage()
-            self.assertEqual(after.pixelColor(guide.channelWidth + 5, 3).name(), '#1a1aae')
-            self.assertEqual(after.pixelColor(guide.channelWidth + guide.hourWidth + 5, 3).name(), '#ffcc00')
+            self.assertEqual(after.pixelColor(guide.channelWidth + guide.hourWidth - 15, guide.labelHeight + 5).name(), '#123b57')
+            self.assertEqual(after.pixelColor(guide.channelWidth + 2 * guide.hourWidth - 15, guide.labelHeight + 5).name(), '#ffcc00')
+            self.assertEqual(after.pixelColor(guide.channelWidth + 2, guide.labelHeight + 2).name(), '#050531')
         finally:
             guide.close()
 
@@ -164,7 +225,8 @@ class GuideTimelineTests(unittest.TestCase):
                 self.assertEqual(tv.guideTable.playbackTime,
                                  start + (end - start) * position / 120000)
                 self.assertEqual(tv.guideTable.now, 1234567890)
-            self.assertIn('Playback 00:01:30', tv.guideClockLabel.text())
+            cursorTime = time.strftime('%I:%M:%S %p', time.localtime(tv.guideTable.playbackTime))
+            self.assertEqual(cursorTime, tv.guideTable.markerLabel(tv.guideTable.playbackTime))
             engine.activeSlot.player.position.assert_not_called()
             self.assertEqual(original, list(clock.publishedPrograms(clock._scheduleStarts[0], clock._scheduleStarts[0] + 86400)))
             engine.isShowingStandby.return_value = True
@@ -216,6 +278,39 @@ class GuideTimelineTests(unittest.TestCase):
             self.assertNotEqual(image.pixelColor(round(guide.timeX(38700)), y).name(), '#00ffff')
         finally:
             guide.close()
+
+    def test_cursor_labels_and_ticks_are_above_hour_blocks_without_old_banners(self):
+        tv = RetroChannelWidget()
+        guide = GuideTimeline()
+        guide.startTime = 36000
+        guide.endTime = 36000 + 48 * 3600
+        guide.setCurrentTime(36900)
+        guide.setPlaybackTime(38700)
+        guide.resize(900, 260)
+        guide.show()
+        self.app.processEvents()
+        try:
+            image = guide.viewport().grab().toImage()
+            for timestamp, color in ((guide.now, '#ffcc00'), (guide.playbackTime, '#00ffff')):
+                x = round(guide.timeX(timestamp))
+                self.assertEqual(image.pixelColor(x, guide.labelHeight + 3).name(), color)
+                self.assertEqual(image.pixelColor(x, guide.headerHeight - 3).name(), color)
+                # Windows' offscreen plugin does not render font glyphs; native
+                # runs verify the small antialiased time labels as well.
+                if self.app.platformName() != 'offscreen':
+                    textPixels = (image.pixelColor(px, py)
+                                  for py in range(guide.labelHeight)
+                                  for px in range(guide.channelWidth, image.width()))
+                    self.assertTrue(any(pixel.green() > 80 and
+                                        (pixel.red() > 80 and pixel.blue() < 80 if color == '#ffcc00'
+                                         else pixel.blue() > 80 and pixel.red() < 80)
+                                        for pixel in textPixels))
+            self.assertFalse(hasattr(tv, 'guideClockLabel'))
+            self.assertFalse(any('Browse channels' in label.text()
+                                 for label in tv.guideOverlay.findChildren(QtWidgets.QLabel)))
+        finally:
+            guide.close()
+            tv.close()
 
     def test_first_frame_queues_guide_refresh_without_querying_media_position(self):
         tv = RetroChannelWidget()

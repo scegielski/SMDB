@@ -31,8 +31,12 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
         self.viewport().setFont(font)
         self.channelWidth = round(190 * scale)
         self.hourWidth = round(200 * scale)
-        self.headerHeight = round(30 * scale)
-        self.rowHeight = round(34 * scale)
+        textHeight = QtGui.QFontMetrics(font).height()
+        markerFont = QtGui.QFont(font)
+        markerFont.setPixelSize(max(10, min(16, round(10 * scale))))
+        self.labelHeight = QtGui.QFontMetrics(markerFont).height() + 4
+        self.headerHeight = self.labelHeight + textHeight + 6
+        self.rowHeight = textHeight + 6
         self.setMinimumHeight(self.headerHeight + self.rowHeight + self.horizontalScrollBar().sizeHint().height() + 12)
         self._updateRanges()
         self.viewport().update()
@@ -82,6 +86,9 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
     def timeX(self, timestamp):
         return self.channelWidth + (timestamp - self.startTime) * self.hourWidth / 3600 - self.horizontalScrollBar().value()
 
+    def markerLabel(self, timestamp):
+        return time.strftime('%I:%M:%S %p', time.localtime(timestamp))
+
     def programRect(self, rowIndex, program):
         row = self.rowRect(rowIndex)
         return QtCore.QRectF(self.timeX(program['start']), row.y() + 2,
@@ -116,14 +123,17 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
         first = max(0, self.horizontalScrollBar().value() // self.hourWidth)
         for hour in range(first, min(48, first + math.ceil(width / self.hourWidth) + 1)):
             timestamp = self.startTime + hour * 3600
-            rect = QtCore.QRectF(self.timeX(timestamp), 0, self.hourWidth, self.headerHeight)
+            rect = QtCore.QRectF(self.timeX(timestamp), self.labelHeight, self.hourWidth,
+                                 self.headerHeight - self.labelHeight)
             active = timestamp <= self.now < timestamp + 3600
-            painter.fillRect(rect, QtGui.QColor('#ffcc00' if active else '#1a1aae'))
+            blockRect = rect.adjusted(2, 2, -2, -2)
+            painter.setBrush(QtGui.QColor('#ffcc00' if active else '#123b57'))
+            painter.setPen(QtGui.QPen(QtGui.QColor('#ffe06a' if active else '#4b8196'), 1))
+            radius = min(10, round(5 * self.scale))
+            painter.drawRoundedRect(blockRect, radius, radius)
             painter.setPen(QtGui.QColor('black' if active else 'white'))
-            painter.drawText(rect.adjusted(6, 0, 0, 0), QtCore.Qt.AlignVCenter,
+            painter.drawText(blockRect.adjusted(6, 0, -6, 0), QtCore.Qt.AlignVCenter,
                              time.strftime('%a %I:%M %p', time.localtime(timestamp)))
-            painter.setPen(QtGui.QColor('#4444aa'))
-            painter.drawRect(rect)
         painter.setClipping(False)
         # Channel labels stay fixed while the timeline scrolls horizontally.
         painter.fillRect(0, 0, self.channelWidth, self.headerHeight, QtGui.QColor('#1a1aae'))
@@ -139,23 +149,41 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
             text = painter.fontMetrics().elidedText(row['label'], QtCore.Qt.ElideRight, self.channelWidth - 12)
             painter.drawText(labelRect.adjusted(6, 0, -6, 0), QtCore.Qt.AlignVCenter, text)
         painter.setClipping(False)
-        # A thin time marker also shows where we are within the current hour.
-        x = self.timeX(self.now)
-        if self.channelWidth <= x <= width:
-            painter.setPen(QtGui.QPen(QtGui.QColor('#ffcc00'), 2))
-            painter.drawLine(QtCore.QPointF(x, self.headerHeight), QtCore.QPointF(x, height))
-        # The cyan cursor follows the player's position after manual navigation.
-        # It never changes the wall-clock marker or the published program blocks.
-        if self.playbackTime is not None:
-            x = self.timeX(self.playbackTime)
-            if self.channelWidth <= x <= width:
-                painter.setPen(QtGui.QPen(QtGui.QColor('#00ffff'), 3))
-                painter.drawLine(QtCore.QPointF(x, self.headerHeight), QtCore.QPointF(x, height))
-                painter.setBrush(QtGui.QColor('#00ffff'))
-                painter.drawPolygon(QtGui.QPolygonF([
-                    QtCore.QPointF(x - 5, self.headerHeight),
-                    QtCore.QPointF(x + 5, self.headerHeight),
-                    QtCore.QPointF(x, self.headerHeight + 7)]))
+        # Compact labels sit above the hour blocks. Both pointers start at the
+        # top edge of those blocks and continue through the program rows.
+        painter.setClipRect(self.channelWidth, 0, max(0, width - self.channelWidth), height)
+        markerFont = QtGui.QFont(self.font())
+        markerFont.setPixelSize(max(10, min(16, round(10 * self.scale))))
+        painter.setFont(markerFont)
+        labelRects = []
+        for timestamp, color in ((self.now, '#ffcc00'), (self.playbackTime, '#00ffff')):
+            if timestamp is None:
+                continue
+            x = self.timeX(timestamp)
+            if not self.channelWidth <= x <= width:
+                continue
+            label = self.markerLabel(timestamp)
+            labelWidth = painter.fontMetrics().horizontalAdvance(label) + 8
+            left = max(self.channelWidth, min(x - labelWidth / 2, width - labelWidth))
+            labelRect = QtCore.QRectF(left, 0, labelWidth, self.labelHeight)
+            if labelRects and labelRect.intersects(labelRects[0]):
+                previous = labelRects[0]
+                left = previous.right() + 4 if previous.right() + 4 + labelWidth <= width else previous.left() - labelWidth - 4
+                labelRect.moveLeft(max(self.channelWidth, left))
+            labelRects.append(labelRect)
+            painter.setPen(QtGui.QPen(QtGui.QColor('#050531'), 4))
+            painter.drawLine(QtCore.QPointF(x, self.labelHeight), QtCore.QPointF(x, height))
+            painter.setPen(QtGui.QPen(QtGui.QColor(color), 2))
+            painter.drawLine(QtCore.QPointF(x, self.labelHeight), QtCore.QPointF(x, height))
+            painter.setBrush(QtGui.QColor(color))
+            painter.setPen(QtGui.QPen(QtGui.QColor('#050531'), 1))
+            painter.drawPolygon(QtGui.QPolygonF([
+                QtCore.QPointF(x - 5, self.labelHeight),
+                QtCore.QPointF(x + 5, self.labelHeight),
+                QtCore.QPointF(x, self.labelHeight + 7)]))
+            painter.fillRect(labelRect, QtGui.QColor('#050531'))
+            painter.setPen(QtGui.QColor(color))
+            painter.drawText(labelRect, QtCore.Qt.AlignCenter, label)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
