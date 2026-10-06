@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtMultimedia import QMediaPlayer
 from smdb.RetroChannelWidget import ChannelClock, ChannelEngine, RetroChannelWidget
 from smdb.GuideTimeline import GuideTimeline
@@ -429,6 +429,94 @@ class GuideTimelineTests(unittest.TestCase):
             self.app.processEvents()
             self.assertGreater(guide.timeX(guide.playbackTime), guide.channelWidth)
             self.assertLess(guide.timeX(guide.playbackTime), guide.viewport().width())
+        finally:
+            guide.close()
+
+    def test_middle_click_pans_both_axes_without_tuning_and_pauses_cursor_follow(self):
+        guide = GuideTimeline()
+        guide.resize(900, 300)
+        guide.setRows([{'channel': i, 'label': str(i), 'programs': []} for i in range(40)], 0)
+        guide.show()
+        self.app.processEvents()
+        tuned = Mock()
+        guide.channelSelected.connect(tuned)
+        local = QtCore.QPoint(guide.channelWidth + 100, guide.headerHeight + 12)
+        origin = guide.viewport().mapToGlobal(local)
+        def click(button):
+            guide.mousePressEvent(QtGui.QMouseEvent(QtCore.QEvent.MouseButtonPress,
+                QtCore.QPointF(local), QtCore.QPointF(origin), button, button, QtCore.Qt.NoModifier))
+        try:
+            guide.horizontalScrollBar().setValue(500)
+            guide.verticalScrollBar().setValue(150)
+            click(QtCore.Qt.MiddleButton)
+            self.assertTrue(guide.isPanning())
+            self.assertTrue(guide._panTimer.isActive())
+            guide._panTimer.stop()  # deterministic manual timer ticks below
+            tuned.assert_not_called()
+            with patch('smdb.GuideTimeline.QtGui.QCursor.pos', return_value=origin + QtCore.QPoint(160, 96)):
+                guide._panTick()
+            forward = guide.horizontalScrollBar().value(), guide.verticalScrollBar().value()
+            self.assertGreater(forward[0], 500)
+            self.assertGreater(forward[1], 150)
+            with patch('smdb.GuideTimeline.QtGui.QCursor.pos', return_value=origin + QtCore.QPoint(-160, -96)):
+                guide._panTick()
+            self.assertLess(guide.horizontalScrollBar().value(), forward[0])
+            self.assertLess(guide.verticalScrollBar().value(), forward[1])
+            before = guide.horizontalScrollBar().value(), guide.verticalScrollBar().value()
+            with patch('smdb.GuideTimeline.QtGui.QCursor.pos', return_value=origin + QtCore.QPoint(4, -4)):
+                guide._panTick()
+            guide.setPlaybackTime(guide.startTime + 30 * 3600)
+            guide.ensureChannelVisible(0)
+            self.assertEqual((guide.horizontalScrollBar().value(), guide.verticalScrollBar().value()), before)
+            click(QtCore.Qt.MiddleButton)
+            self.assertFalse(guide.isPanning())
+            self.assertFalse(guide._panTimer.isActive())
+            tuned.assert_not_called()
+            guide.setPlaybackTime(guide.startTime + 31 * 3600)
+            self.assertEqual((guide.horizontalScrollBar().value(), guide.verticalScrollBar().value()), before)
+            guide.resumePlaybackFollow()
+            guide.setPlaybackTime(guide.startTime + 31 * 3600)
+            self.assertGreater(guide.horizontalScrollBar().value(), before[0])
+            click(QtCore.Qt.RightButton)
+            tuned.assert_not_called()
+            click(QtCore.Qt.LeftButton)
+            tuned.assert_called_once()
+        finally:
+            guide.close()
+
+    def test_pan_extends_repeating_time_range_and_stops_on_click_hide_or_escape(self):
+        guide = GuideTimeline()
+        guide.resize(900, 300)
+        guide.show()
+        self.app.processEvents()
+        origin = guide.viewport().mapToGlobal(QtCore.QPoint(250, 100))
+        event = lambda button: QtGui.QMouseEvent(QtCore.QEvent.MouseButtonPress,
+            QtCore.QPointF(250, 100), QtCore.QPointF(origin), button, button, QtCore.Qt.NoModifier)
+        tuned = Mock()
+        guide.channelSelected.connect(tuned)
+        try:
+            oldStart = guide.startTime
+            guide.mousePressEvent(event(QtCore.Qt.MiddleButton))
+            guide._panTimer.stop()
+            with patch('smdb.GuideTimeline.QtGui.QCursor.pos', return_value=origin + QtCore.QPoint(-160, 0)):
+                guide._panTick()
+            self.assertEqual(guide.startTime, oldStart - 3600)
+            self.assertGreater(guide.horizontalScrollBar().value(), 0)
+            guide.mousePressEvent(event(QtCore.Qt.LeftButton))
+            self.assertFalse(guide.isPanning())
+            tuned.assert_not_called()
+            guide.mousePressEvent(event(QtCore.Qt.MiddleButton))
+            guide.hide()
+            self.assertFalse(guide.isPanning())
+            tv = RetroChannelWidget()
+            try:
+                tv.guideTable._panOrigin = origin
+                tv.guideVisible = True
+                tv.keyPressEvent(QtGui.QKeyEvent(QtCore.QEvent.KeyPress, QtCore.Qt.Key_Escape, QtCore.Qt.NoModifier))
+                self.assertFalse(tv.guideTable.isPanning())
+                self.assertTrue(tv.guideVisible)
+            finally:
+                tv.close()
         finally:
             guide.close()
 

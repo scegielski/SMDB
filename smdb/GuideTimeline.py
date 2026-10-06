@@ -19,6 +19,12 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
         self.startTime = math.floor(self.now / 3600) * 3600
         self.endTime = self.startTime + 48 * 3600
         self.scale = 1.0
+        self._panOrigin = None
+        self._manualPanView = False
+        self._panTimer = QtCore.QTimer(self)
+        self._panTimer.setInterval(30)
+        self._panTimer.timeout.connect(self._panTick)
+        QtWidgets.QApplication.instance().applicationStateChanged.connect(self._applicationStateChanged)
         self.setFocusPolicy(QtCore.Qt.NoFocus)
         self.setMouseTracking(True)
         self.horizontalScrollBar().valueChanged.connect(self.viewport().update)
@@ -65,7 +71,7 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
         self.viewport().update()
 
     def _ensurePlaybackVisible(self):
-        if self.playbackTime is None:
+        if self.playbackTime is None or self._manualPanView:
             return
         visibleWidth = self.viewport().width() - self.channelWidth
         if visibleWidth <= 0:
@@ -92,6 +98,7 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
             self.timeRangeChanged.emit()
 
     def showCurrentHour(self):
+        self.resumePlaybackFollow()
         # Center the actual live marker, allowing earlier hours on its left.
         # Resize may occur after the guide opens, so retain this initial view
         # until a manual playback cursor takes over.
@@ -121,6 +128,8 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
                             self.viewport().width(), self.rowHeight)
 
     def ensureChannelVisible(self, channel):
+        if self.isPanning():
+            return
         index = next((i for i, row in enumerate(self.rows) if row['channel'] == channel), None)
         if index is None:
             return
@@ -229,6 +238,65 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
             painter.fillRect(labelRect, QtGui.QColor('#050531'))
             painter.setPen(QtGui.QColor(color))
             painter.drawText(labelRect, QtCore.Qt.AlignCenter, label)
+        if self.isPanning():
+            painter.setClipping(False)
+            origin = self.viewport().mapFromGlobal(self._panOrigin)
+            painter.setPen(QtGui.QPen(QtGui.QColor('white'), 1))
+            painter.setBrush(QtGui.QColor('#222'))
+            painter.drawEllipse(origin, 11, 11)
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                tip = origin + QtCore.QPoint(dx * 7, dy * 7)
+                painter.drawLine(origin, tip)
+                painter.drawLine(tip, origin + QtCore.QPoint(dx * 4 - dy * 3, dy * 4 + dx * 3))
+                painter.drawLine(tip, origin + QtCore.QPoint(dx * 4 + dy * 3, dy * 4 - dx * 3))
+
+    def isPanning(self):
+        return self._panOrigin is not None
+
+    def stopPanning(self):
+        self._panOrigin = None
+        self._panTimer.stop()
+        self.viewport().unsetCursor()
+        self.viewport().update()
+
+    def resumePlaybackFollow(self):
+        self.stopPanning()
+        self._manualPanView = False
+
+    def _applicationStateChanged(self, state):
+        if state != QtCore.Qt.ApplicationActive:
+            self.stopPanning()
+
+    def _panTick(self):
+        if not self.isPanning():
+            return
+        delta = QtGui.QCursor.pos() - self._panOrigin
+        def speed(distance):
+            if abs(distance) <= 8:
+                return 0
+            return math.copysign(min(40, (abs(distance) - 8) / 8), distance)
+        dx, dy = round(speed(delta.x())), round(speed(delta.y()))
+        horizontal = self.horizontalScrollBar()
+        if dx and (horizontal.value() + dx < horizontal.minimum() or
+                   horizontal.value() + dx > horizontal.maximum()):
+            # Continue through the repeating schedule instead of hitting the
+            # initial time window's edge. Keep the current viewport stationary.
+            if dx < 0:
+                self.startTime -= 3600
+                oldScroll = horizontal.value() + self.hourWidth
+            else:
+                self.endTime += 3600
+                oldScroll = horizontal.value()
+            self._updateRanges()
+            horizontal.setValue(oldScroll)
+            self.timeRangeChanged.emit()
+        horizontal.setValue(horizontal.value() + dx)
+        vertical = self.verticalScrollBar()
+        vertical.setValue(vertical.value() + dy)
+
+    def hideEvent(self, event):
+        self.stopPanning()
+        super().hideEvent(event)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -239,11 +307,32 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
             self._ensurePlaybackVisible()
 
     def mousePressEvent(self, event):
+        if event.button() == QtCore.Qt.MiddleButton:
+            if self.isPanning():
+                self.stopPanning()
+            else:
+                self._panOrigin = event.globalPos()
+                self._manualPanView = True
+                self._centerOnLive = False
+                self.viewport().setCursor(QtCore.Qt.SizeAllCursor)
+                QtWidgets.QToolTip.hideText()
+                self._panTimer.start()
+                self.viewport().update()
+            event.accept()
+            return
+        if self.isPanning():
+            self.stopPanning()
+            event.accept()
+            return
+        if event.button() != QtCore.Qt.LeftButton:
+            return
         index = (event.y() - self.headerHeight + self.verticalScrollBar().value()) // self.rowHeight
         if event.y() >= self.headerHeight and 0 <= index < len(self.rows):
             self.channelSelected.emit(self.rows[index]['channel'])
 
     def mouseMoveEvent(self, event):
+        if self.isPanning():
+            return
         index = (event.y() - self.headerHeight + self.verticalScrollBar().value()) // self.rowHeight
         if event.y() >= self.headerHeight and event.x() >= self.channelWidth and 0 <= index < len(self.rows):
             for program in self.rows[index]['programs']:

@@ -1751,6 +1751,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
     def _tuneTo(self, index):
         if not self.channels:
             return
+        self.guideTable.resumePlaybackFollow()
         index = index % len(self.channels)
         self._releasePreviewHost()
 
@@ -1849,6 +1850,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         engine = self.engines.get(self.currentIndex)
         if engine is None:
             return
+        self.guideTable.resumePlaybackFollow()
         engine.skipProgram(step, beginning, startUnvisited)
         self._updateNowPlayingLabel(engine)
         if self.guideVisible:
@@ -1857,11 +1859,15 @@ class RetroChannelWidget(QtWidgets.QWidget):
 
     def restartCurrentFilm(self):
         engine = self.engines.get(self.currentIndex)
+        if engine:
+            self.guideTable.resumePlaybackFollow()
         if engine and engine.restartCurrentFilm() and self.guideVisible:
             self._refreshGuideTable()
 
     def seekCurrentFilm(self, offsetMs=0, beginning=False):
         engine = self.engines.get(self.currentIndex)
+        if engine:
+            self.guideTable.resumePlaybackFollow()
         if engine and engine.seekCurrentFilm(offsetMs, beginning) and self.guideVisible:
             self._refreshGuideTable()
 
@@ -2180,6 +2186,10 @@ class RetroChannelWidget(QtWidgets.QWidget):
 
     def keyPressEvent(self, event):
         key = event.key()
+        if key == QtCore.Qt.Key_Escape and self.guideTable.isPanning():
+            self.guideTable.stopPanning()
+            event.accept()
+            return
         if key in (QtCore.Qt.Key_Up, QtCore.Qt.Key_PageUp):
             self.channelUp()
         elif key in (QtCore.Qt.Key_Down, QtCore.Qt.Key_PageDown):
