@@ -15,6 +15,8 @@ fly while you're browsing.
 """
 
 import html
+import hashlib
+import json
 import math
 import os
 import random
@@ -1118,6 +1120,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._qualityByRow = {}
         self._filteredClocks = {}
         self._settings = getattr(parent, 'settings', None)
+        self._savedSchedules = {}
+        self._schedulePath = None
         self._excludedGenres = set(self._settings.value('smtvExcludedGenres', [], type=list)) if self._settings else set()
         self._excludedRatings = set(self._settings.value('smtvExcludedMpaaRatings', [], type=list)) if self._settings else set()
         self._minimumQuality = self._settings.value('smtvMinimumQuality', 0.0, type=float) if self._settings else 0.0
@@ -1489,6 +1493,20 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if model is None:
             return
 
+        folder = getattr(self.mainWindow, 'moviesFolder', None)
+        path = os.path.join(folder, 'smtv_schedule.json') if isinstance(folder, str) and os.path.isdir(folder) else None
+        if path != self._schedulePath:
+            self._savedSchedules = {}
+            self._schedulePath = path
+            if path:
+                try:
+                    with open(path, encoding='utf-8') as file:
+                        data = json.load(file)
+                    if data.get('version') == 1 and isinstance(data.get('channels'), dict):
+                        self._savedSchedules = data['channels']
+                except (OSError, ValueError, AttributeError):
+                    pass
+
         genreRows = {}
         self._ratingByRow = {}
         self._ratingCounts = {}
@@ -1507,7 +1525,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
                 genreRows.setdefault(genre, []).append(row)
 
         newChannels = [
-            {'genre': genre, 'rows': rows, 'clock': ChannelClock(rows, self._durationForRow, broadcastAligned=True)}
+            {'genre': genre, 'rows': rows, 'clock': self._restoreChannelClock(genre, rows)}
             for genre, rows in sorted(genreRows.items())
             if rows
         ]
@@ -1516,6 +1534,75 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._descriptionCache = {}
         self._availableChannels = newChannels
         self._applyChannelSelection()
+
+    def _scheduleIdentity(self, genre, rows):
+        model = getattr(self.mainWindow, 'moviesTableModel', None)
+        identities = {}
+        for row in rows:
+            try:
+                path = model.getPath(row)
+            except (AttributeError, IndexError, TypeError):
+                return None, {}
+            if not isinstance(path, str) or not path:
+                return None, {}
+            identities[row] = os.path.normcase(os.path.normpath(path))
+        if len(set(identities.values())) != len(rows):
+            return None, {}
+        key = hashlib.sha256(json.dumps([genre, sorted(identities.values())]).encode('utf-8')).hexdigest()
+        return key, identities
+
+    def _restoreChannelClock(self, genre, rows):
+        clock = ChannelClock(rows, self._durationForRow, broadcastAligned=True)
+        key, identities = self._scheduleIdentity(genre, rows)
+        saved = self._savedSchedules.get(key)
+        if not isinstance(saved, dict):
+            return clock
+        try:
+            byPath = {path: row for row, path in identities.items()}
+            programs = saved['programs']
+            if not isinstance(programs, list) or len(programs) != min(SCHEDULE_MOVIE_COUNT, len(rows)):
+                return clock
+            rotation = [byPath[program['path']] for program in programs]
+            starts = [float(program['start']) for program in programs]
+            ends = [float(program['end']) for program in programs]
+            fractions = [float(program['randomStart']) for program in programs]
+            cycle = float(saved['cycleSeconds'])
+            if (len(set(rotation)) != len(rotation) or not math.isfinite(cycle) or cycle <= 0
+                    or any(not math.isfinite(value) for value in starts + ends + fractions)
+                    or any(end <= start or start % 900 != 0 for start, end in zip(starts, ends))
+                    or any(starts[i + 1] != math.ceil(ends[i] / 900) * 900 for i in range(len(starts) - 1))
+                    or starts[0] + cycle != math.ceil(ends[-1] / 900) * 900
+                    or any(not 0 <= fraction <= MAX_START_FRACTION for fraction in fractions)):
+                return clock
+            clock._rotation = rotation
+            clock._scheduleStarts, clock._scheduleEnds = starts, ends
+            clock._scheduleCycleSeconds = cycle
+            clock._offsetFractions = dict(enumerate(fractions))
+            clock.returnToLive()
+        except (KeyError, TypeError, ValueError, OverflowError):
+            pass
+        return clock
+
+    def _saveSchedules(self):
+        if not self._schedulePath:
+            return
+        for channel in self._availableChannels + self.channels:
+            key, identities = self._scheduleIdentity(channel['genre'], channel['rows'])
+            if key is None:
+                continue
+            clock = channel['clock']
+            self._savedSchedules[key] = {
+                'genre': channel['genre'], 'cycleSeconds': clock._scheduleCycleSeconds,
+                'programs': [{'path': identities[row], 'start': clock._scheduleStarts[index],
+                              'end': clock._scheduleEnds[index], 'randomStart': clock._offsetFractions[index]}
+                             for index, row in enumerate(clock._rotation)]}
+        file = QtCore.QSaveFile(self._schedulePath)
+        if not file.open(QtCore.QIODevice.WriteOnly):
+            print('Unable to save SMTV schedule: ' + file.errorString())
+            return
+        payload = json.dumps({'version': 1, 'channels': self._savedSchedules}, indent=2).encode('utf-8')
+        if file.write(payload) != len(payload) or not file.commit():
+            print('Unable to save SMTV schedule: ' + file.errorString())
 
     def openChannelSetup(self):
         dialog = _ChannelSetupDialog(self._availableChannels, self._excludedGenres, self,
@@ -1576,11 +1663,12 @@ class RetroChannelWidget(QtWidgets.QWidget):
             else:
                 key = (channel['genre'], tuple(rows))
                 if key not in self._filteredClocks:
-                    self._filteredClocks[key] = ChannelClock(rows, self._durationForRow, broadcastAligned=True)
+                    self._filteredClocks[key] = self._restoreChannelClock(channel['genre'], rows)
                 self.channels.append({'genre': channel['genre'], 'rows': rows, 'clock': self._filteredClocks[key]})
         self.currentIndex = next((i for i, channel in enumerate(self.channels)
                                   if channel['genre'] == currentGenre), 0)
         self.guideHighlightIndex = self.currentIndex
+        self._saveSchedules()
         self._updateEmptyState()
         if not self.channels:
             self.guideVisible = False
@@ -1701,6 +1789,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
             if available['genre'] == channel['genre'] and available['rows'] == channel['rows']:
                 available['clock'] = clock
         self._filteredClocks[(channel['genre'], tuple(channel['rows']))] = clock
+        self._saveSchedules()
         if self.isActive:
             self._tuneTo(self.currentIndex)
         elif self.guideVisible:
