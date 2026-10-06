@@ -26,7 +26,7 @@ class RetroFontTests(unittest.TestCase):
         self.app.processEvents()
         widgets = [tv, tv.volumeUpButton, tv.volumeDownButton,
                    tv.muteButton, tv.fullScreenButton,
-                   tv.nowPlayingLabel, tv.guideTable, tv.guideTable.horizontalHeader()]
+                   tv.nowPlayingLabel, tv.guideTable, tv.guideTable.viewport()]
 
         def snapshot():
             return [(QtGui.QFontInfo(widget.font()).family(), widget.font().pixelSize())

@@ -57,10 +57,36 @@ class FullMovieScheduleTests(unittest.TestCase):
             with patch.object(tv, '_titleForRow', side_effect=lambda row: f'Movie {row}'):
                 tv._refreshScheduleTable(channel)
             self.assertEqual(tv.scheduleTable.rowCount(), 25)
-            self.assertEqual(tv.scheduleTable.item(0, 1).text(), 'NOW')
+            self.assertNotEqual(tv.scheduleTable.item(0, 1).text(), 'NOW')
             self.assertEqual(tv.scheduleTable.item(24, 2).text(), f'Movie {clock.slotInfo(24)[0]}')
             self.assertEqual(tv.guidePages.tabText(1), 'SCHEDULE')
         finally:
+            tv.close()
+
+    def test_schedule_numbers_and_original_times_survive_navigation_and_seeks(self):
+        tv = RetroChannelWidget()
+        try:
+            clock = ChannelClock(range(30), lambda row: 120000)
+            channel = {'genre': 'Action', 'rows': list(range(30)), 'clock': clock}
+            engine = Mock(currentSlotIndex=0, currentRow=clock._rotation[0])
+            engine.isShowingStandby.return_value = False
+            tv.engines[0] = engine
+            with patch.object(tv, '_titleForRow', side_effect=lambda row: f'Movie {row}'):
+                engine.currentTitle = f'Movie {clock._rotation[0]}'
+                tv._refreshScheduleTable(channel)
+                original = [[tv.scheduleTable.item(row, col).text() for col in range(3)] for row in range(25)]
+                for target in (3, 2, 26, 0):
+                    clock.repositionSlot(target, clock._rowForSlot(target), 180000, 90000)
+                    engine.currentSlotIndex = target
+                    engine.currentRow = clock._rowForSlot(target)
+                    engine.currentTitle = f'Movie {engine.currentRow}'
+                    tv._refreshScheduleTable(channel)
+                    self.assertEqual(original, [[tv.scheduleTable.item(row, col).text() for col in range(3)]
+                                                for row in range(25)])
+                    self.assertEqual(tv.scheduleTable.item(target % 25, 2).background().color().name(), '#00ff00')
+            tv.engines = {}
+        finally:
+            tv.engines = {}
             tv.close()
 
     def test_program_buttons_jump_selected_channel_and_previous_wraps(self):
@@ -104,15 +130,14 @@ class FullMovieScheduleTests(unittest.TestCase):
                 self.assertTrue(tv.guideVisible)
                 self.app.processEvents()
                 self.app.processEvents()
-                item = tv.guideTable.item(29, 0)
-                self.assertEqual(item.text(), '01')
-                self.assertTrue(tv.guideTable.viewport().rect().contains(tv.guideTable.visualItemRect(item)))
+                self.assertEqual(tv.guideTable.rows[29]['label'], '01 GENRE 0')
+                self.assertTrue(tv.guideTable.viewport().rect().contains(tv.guideTable.rowRect(29)))
                 tv.guidePages.setCurrentIndex(1)
                 tv.resize(1100, 650)
                 tv.guidePages.setCurrentIndex(0)
                 self.app.processEvents()
                 self.app.processEvents()
-                self.assertTrue(tv.guideTable.viewport().rect().contains(tv.guideTable.visualItemRect(item)))
+                self.assertTrue(tv.guideTable.viewport().rect().contains(tv.guideTable.rowRect(29)))
         finally:
             tv.close()
 

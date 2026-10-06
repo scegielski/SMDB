@@ -28,6 +28,7 @@ import wave
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer, QSoundEffect, QVideoProbe
 from PyQt5.QtMultimediaWidgets import QVideoWidget
+from .GuideTimeline import GuideTimeline
 
 if sys.platform == 'win32':
     import winsound as _winsound
@@ -329,17 +330,46 @@ class ChannelClock:
     movies if you were away longer than one slot.
     """
 
-    def __init__(self, rows, durationGetter=None):
+    def __init__(self, rows, durationGetter=None, broadcastAligned=False):
         self.rows = list(rows)
+        self.broadcastAligned = broadcastAligned
         self.epoch = time.monotonic()
         self._rotation = []
         self._offsetFractions = {}
         self._startOverrides = {}
         self._resumePositions = {}
         self._durations = {}
+        self._filmDurations = {}
         self._resolvedRows = {}
         self.durationGetter = durationGetter
         self._extendRotation()
+        # Published guide times belong to the lineup, independently of seeks,
+        # resume jumps, and playback's mutable wall-clock anchor.
+        self._scheduleStarts = []
+        self._scheduleEnds = []
+        scheduledStart = math.floor(time.time() / 900) * 900
+        for index in range(len(self._rotation)):
+            self._scheduleStarts.append(scheduledStart)
+            duration = self.durationGetter(self._rotation[index]) if self.durationGetter else 0
+            duration = duration or DEFAULT_PROGRAM_DURATION_MS
+            end = scheduledStart + max(1, duration * (1 - self._offsetFractionForSlot(index))) / 1000.0
+            self._scheduleEnds.append(end)
+            scheduledStart = math.ceil(end / 900) * 900
+        self._scheduleCycleSeconds = scheduledStart - self._scheduleStarts[0]
+        if broadcastAligned:
+            self.epoch -= time.time() - self._scheduleStarts[0]
+
+    def publishedPrograms(self, start, end):
+        """Immutable broadcast blocks; padding remains empty until the next quarter hour."""
+        count = len(self._rotation)
+        first = max(0, math.floor((start - self._scheduleStarts[0]) / self._scheduleCycleSeconds))
+        last = max(first, math.floor((end - self._scheduleStarts[0]) / self._scheduleCycleSeconds))
+        for cycle in range(first, last + 1):
+            offset = cycle * self._scheduleCycleSeconds
+            for index, row in enumerate(self._rotation):
+                blockStart, blockEnd = self._scheduleStarts[index] + offset, self._scheduleEnds[index] + offset
+                if blockEnd > start and blockStart < end:
+                    yield {'slot': cycle * count + index, 'row': row, 'start': blockStart, 'end': blockEnd}
 
     def _extendRotation(self):
         self._rotation = random.sample(self.rows, min(SCHEDULE_MOVIE_COUNT, len(self.rows)))
@@ -357,11 +387,16 @@ class ChannelClock:
 
     def durationForSlot(self, slotIndex):
         if slotIndex not in self._durations:
+            length = self.filmDurationForSlot(slotIndex)
+            self._durations[slotIndex] = math.ceil(length / 900000) * 900000 if self.broadcastAligned else length
+        return self._durations[slotIndex]
+
+    def filmDurationForSlot(self, slotIndex):
+        if slotIndex not in self._filmDurations:
             row = self._resolvedRows.get(slotIndex, self._rowForSlot(slotIndex))
             duration = self.durationGetter(row) if self.durationGetter else 0
-            duration = duration or DEFAULT_PROGRAM_DURATION_MS
-            self._durations[slotIndex] = max(1, duration * (1 - self._offsetFractionForSlot(slotIndex)))
-        return self._durations[slotIndex]
+            self._filmDurations[slotIndex] = duration or DEFAULT_PROGRAM_DURATION_MS
+        return max(1, self._filmDurations[slotIndex] * (1 - self._offsetFractionForSlot(slotIndex)))
 
     def slotStartMs(self, slotIndex):
         return sum(self.durationForSlot(i) for i in range(slotIndex))
@@ -369,13 +404,17 @@ class ChannelClock:
     def recordMedia(self, slotIndex, row, duration=0):
         self._resolvedRows[slotIndex] = row
         if duration > 0:
-            self._durations[slotIndex] = max(1, duration * (1 - self._offsetFractionForSlot(slotIndex)))
+            self._filmDurations[slotIndex] = duration
+            length = max(1, duration * (1 - self._offsetFractionForSlot(slotIndex)))
+            self._durations[slotIndex] = math.ceil(length / 900000) * 900000 if self.broadcastAligned else length
 
     def finishSlot(self, slotIndex):
         # Playback completion is authoritative, including buffering delays and
         # inaccurate catalogue runtimes. Anchor the next movie to this moment.
         elapsed = (time.monotonic() - self.epoch) * 1000.0
-        self._durations[slotIndex] = max(1, elapsed - self.slotStartMs(slotIndex) - 1)
+        wallNow = time.time()
+        wait = (math.ceil(wallNow / 900) * 900 - wallNow) * 1000 if self.broadcastAligned else 0
+        self._durations[slotIndex] = max(1, elapsed + wait - self.slotStartMs(slotIndex) - (0 if wait else 1))
 
     def jumpToSlot(self, slotIndex):
         self.epoch = time.monotonic() - (self.slotStartMs(slotIndex) + 1) / 1000.0
@@ -558,6 +597,16 @@ class ChannelEngine(QtCore.QObject):
         """Sync playback to wherever the channel clock says we should be right now."""
         slotIndex, _, offsetFraction, positionInSlotMs, remainingMs = self.clock.whatsOnNow()
         self._stack.setCurrentWidget(self.standbyScreen)
+        if self.clock.broadcastAligned and positionInSlotMs >= self.clock.filmDurationForSlot(slotIndex):
+            # Joining during the padded gap must not replay the film's last seconds.
+            self.currentSlotIndex = slotIndex
+            self.currentRow = None
+            self.currentTitle = ''
+            self.activeSlot.stop()
+            self._scheduleAdvance(remainingMs)
+            self._maybeSchedulePrefetch(remainingMs)
+            self.programChanged.emit()
+            return True
 
         def onResolved(row, path):
             if path is None:
@@ -650,6 +699,8 @@ class ChannelEngine(QtCore.QObject):
         if (slot is self.activeSlot and status == QMediaPlayer.EndOfMedia
                 and self.currentSlotIndex is not None):
             self.clock.finishSlot(self.currentSlotIndex)
+            if self.clock.broadcastAligned:
+                self._stack.setCurrentWidget(self.standbyScreen)
             self._onAdvanceTimer()
 
     def _scheduleAdvance(self, remainingMs):
@@ -1245,25 +1296,9 @@ class RetroChannelWidget(QtWidgets.QWidget):
                 style,
             ))
         self.sideScroll.setFixedWidth(max(130, self.sideControls.sizeHint().width() + 24))
-        self.guideTable.setColumnWidth(0, round(50 * self.fontScale))
-        self.guideTable.setColumnWidth(1, round(160 * self.fontScale))
-        self._sizeGuideColumns()
-        self.guideTable.resizeRowsToContents()
+        self.guideTable.setScale(self.fontScale)
         self.overlayArea._layoutOverlay(self.banner)
         self.fontScaleChanged.emit(self.fontScale)
-
-    def _onGuideColumnResized(self, column, oldWidth, newWidth):
-        if column in (2, 3) and not self._sizingGuideColumns:
-            self._manualGuideColumns.add(column)
-
-    def _sizeGuideColumns(self):
-        self._sizingGuideColumns = True
-        try:
-            for column in (2, 3):
-                if column not in self._manualGuideColumns:
-                    self.guideTable.resizeColumnToContents(column)
-        finally:
-            self._sizingGuideColumns = False
 
     def _buildGuideOverlay(self):
         guide = QtWidgets.QFrame()
@@ -1305,30 +1340,17 @@ class RetroChannelWidget(QtWidgets.QWidget):
         )
         captionLayout.addWidget(self.guideDescription, 1)
 
-        self.guideTable = QtWidgets.QTableWidget(0, 4)
-        self.guideTable.setHorizontalHeaderLabels(["CH", "CHANNEL", "NOW", "NEXT"])
-        self.guideTable.setWordWrap(False)
-        self.guideTable.setTextElideMode(QtCore.Qt.ElideNone)
-        self.guideTable.setHorizontalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
-        header = self.guideTable.horizontalHeader()
-        header.setStretchLastSection(False)
-        header.setResizeContentsPrecision(-1)
-        header.setSectionResizeMode(2, QtWidgets.QHeaderView.Interactive)
-        header.setSectionResizeMode(3, QtWidgets.QHeaderView.Interactive)
-        self._manualGuideColumns = set()
-        self._sizingGuideColumns = False
-        header.sectionResized.connect(self._onGuideColumnResized)
-        self.guideTable.verticalHeader().hide()
-        self.guideTable.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
-        self.guideTable.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
-        self.guideTable.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.guideTable.setStyleSheet(
-            "QTableWidget { background: #0a0a6e; color: white; gridline-color: #3333aa; font-size: 14px; }"
-            "QHeaderView::section { background: #1a1aae; color: white; font-size: 14px; padding: 4px; border: 1px solid #3333aa; }"
-        )
-        self.guideTable.setColumnWidth(0, 50)
-        self.guideTable.setColumnWidth(1, 160)
+        self.guideClockLabel = QtWidgets.QLabel()
+        self.guideClockLabel.setStyleSheet('color: #ffcc00; font-size: 14px;')
+        layout.addWidget(self.guideClockLabel)
+        self.guideTable = GuideTimeline(self)
         self.guideTable.viewport().installEventFilter(self)
+        self.guideTable.channelSelected.connect(self._tuneTo)
+        self.guideClockTimer = QtCore.QTimer(self)
+        self.guideClockTimer.setInterval(1000)
+        self.guideClockTimer.timeout.connect(self._updateGuideTime)
+        self.guideClockTimer.start()
+        self._updateGuideTime()
 
         self.scheduleTable = QtWidgets.QTableWidget(0, 3)
         self.scheduleTable.setHorizontalHeaderLabels(['#', 'START (EST.)', 'MOVIE'])
@@ -1339,7 +1361,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.scheduleTable.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
         self.scheduleTable.setFocusPolicy(QtCore.Qt.NoFocus)
         self.scheduleTable.verticalHeader().hide()
-        self.scheduleTable.setStyleSheet(self.guideTable.styleSheet())
+        self.scheduleTable.setStyleSheet('QTableWidget { background: #0a0a6e; color: white; gridline-color: #3333aa; font-size: 14px; } QHeaderView::section { background: #1a1aae; color: white; font-size: 14px; }')
         self.scheduleTable.horizontalHeader().setStretchLastSection(False)
         self.scheduleTable.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Interactive)
         self.guidePages = QtWidgets.QTabWidget()
@@ -1396,7 +1418,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
                 genreRows.setdefault(genre, []).append(row)
 
         newChannels = [
-            {'genre': genre, 'rows': rows, 'clock': ChannelClock(rows, self._durationForRow)}
+            {'genre': genre, 'rows': rows, 'clock': ChannelClock(rows, self._durationForRow, broadcastAligned=True)}
             for genre, rows in sorted(genreRows.items())
             if rows
         ]
@@ -1465,7 +1487,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
             else:
                 key = (channel['genre'], tuple(rows))
                 if key not in self._filteredClocks:
-                    self._filteredClocks[key] = ChannelClock(rows, self._durationForRow)
+                    self._filteredClocks[key] = ChannelClock(rows, self._durationForRow, broadcastAligned=True)
                 self.channels.append({'genre': channel['genre'], 'rows': rows, 'clock': self._filteredClocks[key]})
         self.currentIndex = next((i for i, channel in enumerate(self.channels)
                                   if channel['genre'] == currentGenre), 0)
@@ -1474,7 +1496,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if not self.channels:
             self.guideVisible = False
             self.guideOverlay.hide()
-            self.guideTable.setRowCount(0)
+            self.guideTable.setRows([], 0)
             self.scheduleTable.setRowCount(0)
             self._updateChannelLabel()
         elif self.isActive:
@@ -1576,7 +1598,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if not self.channels:
             return
         channel = self.channels[self.currentIndex]
-        clock = ChannelClock(channel['rows'], self._durationForRow)
+        clock = ChannelClock(channel['rows'], self._durationForRow, broadcastAligned=True)
         self._releasePreviewHost()
         self._stopGuidePreview()
         engine = self.engines.pop(self.currentIndex, None)
@@ -1769,6 +1791,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if self._showGuideOnStart and self.channels:
             self._showGuideOnStart = False
             self.guidePages.setCurrentIndex(0)
+            self.guideTable.showCurrentHour()
             if not self.guideVisible:
                 self.toggleGuide()
 
@@ -1778,6 +1801,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.guideVisible = not self.guideVisible
         self.guideOverlay.setVisible(self.guideVisible)
         if self.guideVisible:
+            self._updateGuideTime()
+            self.guideTable.showCurrentHour()
             self.guideHighlightIndex = self.currentIndex
             self._refreshGuideTable()
             self._startGuidePreview()
@@ -1917,44 +1942,32 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self.guidePreviewSlot.seekRandom()
 
 
-    def _refreshGuideTable(self):
-        table = self.guideTable
-        table.setRowCount(len(self.channels))
-        for i, chan in enumerate(self.channels):
-            engine = self.engines.get(i)
-            if engine and engine.currentRow is not None:
-                nowText = engine.currentTitle
-                nextRow, _ = chan['clock'].slotInfo(engine.currentSlotIndex + 1)
-                nextText = engine.nextTitle or self._titleForRow(nextRow)
-            else:
-                # No live engine warmed for this channel - preview "now"/"next" straight from
-                # its schedule clock, the same source tuning in will actually use, so the guide
-                # never promises content that switching to the channel won't deliver.
-                slotIndex, row, _, _, _ = chan['clock'].whatsOnNow()
-                nextRow, _ = chan['clock'].slotInfo(slotIndex + 1)
-                nowText = self._titleForRow(row)
-                nextText = self._titleForRow(nextRow)
+    def _updateGuideTime(self):
+        now = time.time()
+        self.guideClockLabel.setText(time.strftime('%A %d %b %Y   %H:%M:%S', time.localtime(now)))
+        self.guideTable.setCurrentTime(now)
+        if self.guideVisible and now >= self.guideTable.endTime:
+            self.guideTable.showCurrentHour()
+            self._refreshGuideTable()
 
-            values = [f"{i + 1:02d}", chan['genre'].upper(), nowText, nextText]
-            highlighted = (i == self.guideHighlightIndex)
+    def _refreshGuideTable(self):
+        if not self.channels:
+            self.guideTable.setRows([], 0)
+            return
+        timelineRows = []
+        for i in reversed(range(len(self.channels))):
+            channel = self.channels[i]
+            engine = self.engines.get(i)
             playing = (i == self.currentIndex and engine is not None
                        and engine.currentRow is not None and not engine.isShowingStandby())
-            for col, value in enumerate(values):
-                item = QtWidgets.QTableWidgetItem(value)
-                item.setFlags(QtCore.Qt.ItemIsEnabled)
-                if playing and col == 2:
-                    item.setBackground(QtGui.QColor('#00ff00'))
-                    item.setForeground(QtGui.QColor('black'))
-                elif highlighted:
-                    item.setBackground(QtGui.QColor('#ffcc00'))
-                    item.setForeground(QtGui.QColor('black'))
-                else:
-                    item.setBackground(QtGui.QColor('#0a0a6e'))
-                    item.setForeground(QtGui.QColor('white'))
-                table.setItem(len(self.channels) - 1 - i, col, item)
-
-        self._sizeGuideColumns()
-        table.resizeRowsToContents()
+            programs = []
+            for block in channel['clock'].publishedPrograms(self.guideTable.startTime, self.guideTable.endTime):
+                block['playing'] = playing and block['slot'] == engine.currentSlotIndex
+                block['title'] = self._titleForRow(block['row'])
+                programs.append(block)
+            timelineRows.append({'channel': i, 'label': f"{i + 1:02d} {channel['genre'].upper()}",
+                                 'programs': programs})
+        self.guideTable.setRows(timelineRows, self.guideHighlightIndex)
         self._scrollGuideToHighlight()
         QtCore.QTimer.singleShot(0, self._scrollGuideToHighlight)
 
@@ -1977,11 +1990,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
     def _scrollGuideToHighlight(self):
         if not self.guideVisible or not self.guideTable.isVisible():
             return
-        item = self.guideTable.item(len(self.channels) - 1 - self.guideHighlightIndex, 0)
-        if item is not None:
-            horizontal = self.guideTable.horizontalScrollBar().value()
-            self.guideTable.scrollToItem(item, QtWidgets.QAbstractItemView.PositionAtCenter)
-            self.guideTable.horizontalScrollBar().setValue(horizontal)
+        self.guideTable.ensureChannelVisible(self.guideHighlightIndex)
 
     def eventFilter(self, watched, event):
         if (watched is self.guideTable.viewport()
@@ -1996,23 +2005,20 @@ class RetroChannelWidget(QtWidgets.QWidget):
                    else clock.whatsOnNow()[0])
         count = len(clock._rotation)
         self.scheduleTable.setRowCount(count)
-        epochWall = time.time() - (time.monotonic() - clock.epoch)
-        startMs = clock.slotStartMs(current)
         for index in range(count):
-            slot = current + index
-            row, _ = clock.slotInfo(slot)
-            start = 'NOW' if index == 0 else time.strftime('%a %H:%M', time.localtime(epochWall + startMs / 1000))
-            title = engine.currentTitle if index == 0 and engine and engine.currentRow is not None else self._titleForRow(row)
+            isCurrent = index == current % count
+            row = clock._rotation[index]
+            start = time.strftime('%a %H:%M', time.localtime(clock._scheduleStarts[index]))
+            title = engine.currentTitle if isCurrent and engine and engine.currentRow is not None else self._titleForRow(row)
             for column, value in enumerate((str(index + 1), start, title)):
                 item = QtWidgets.QTableWidgetItem(value)
                 item.setFlags(QtCore.Qt.ItemIsEnabled)
-                if index == 0:
+                if isCurrent:
                     playing = (self.guideHighlightIndex == self.currentIndex and engine is not None
                                and engine.currentRow is not None and not engine.isShowingStandby())
                     item.setBackground(QtGui.QColor('#00ff00' if playing else '#ffcc00'))
                     item.setForeground(QtGui.QColor('black'))
                 self.scheduleTable.setItem(index, column, item)
-            startMs += clock.durationForSlot(slot)
         self.scheduleTable.resizeColumnsToContents()
         self.scheduleTable.resizeRowsToContents()
 
