@@ -964,13 +964,14 @@ class ChannelEngine(QtCore.QObject):
         return True
 
 
-class _GuideTopBar(QtWidgets.QWidget):
-    """Guide header row whose preview frame scales (3:2) with the row's height."""
+class _GuideTopBar(QtWidgets.QSplitter):
+    """Resizable video and information panes within the guide header."""
 
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        h = max(60, self.height() - 4)
-        self.previewFrame.setFixedSize(int(h * 1.5), h)
+    def __init__(self):
+        super().__init__(QtCore.Qt.Horizontal)
+        self.setChildrenCollapsible(False)
+        self.setHandleWidth(10)
+        self.setStyleSheet('QSplitter::handle { background: #4444aa; border: none; margin: 0 3px; }')
 
 
 class _OverlayArea(QtWidgets.QWidget):
@@ -1443,22 +1444,25 @@ class RetroChannelWidget(QtWidgets.QWidget):
         layout.setSpacing(10)
 
         topWidget = _GuideTopBar()
-        topLayout = QtWidgets.QHBoxLayout(topWidget)
-        topLayout.setContentsMargins(0, 0, 0, 0)
+        self.guideInfoSplitter = topWidget
 
         previewFrame = QtWidgets.QFrame()
-        previewFrame.setFixedSize(240, 160)
-        topWidget.previewFrame = previewFrame
+        previewFrame.setMinimumSize(100, 60)
         previewFrame.setStyleSheet("background: black; border: 2px solid #4444aa;")
         previewLayout = QtWidgets.QVBoxLayout(previewFrame)
         previewLayout.setContentsMargins(0, 0, 0, 0)
         self.guidePreviewContainer = previewFrame
-        topLayout.addWidget(previewFrame)
+        topWidget.addWidget(previewFrame)
 
         self.infoPane = QtWidgets.QWidget()
+        self.infoPane.setMinimumWidth(120)
+        self.infoPane.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Preferred)
         captionLayout = QtWidgets.QVBoxLayout(self.infoPane)
         captionLayout.setContentsMargins(0, 0, 0, 0)
-        topLayout.addWidget(self.infoPane, 1)
+        topWidget.addWidget(self.infoPane)
+        topWidget.setStretchFactor(0, 1)
+        topWidget.setStretchFactor(1, 1)
+        topWidget.setSizes([450, 450])
 
         asLabel = QtWidgets.QLabel("NOW SHOWING")
         asLabel.setStyleSheet("color: #ffcc00; font-size: 14px; font-weight: bold;")

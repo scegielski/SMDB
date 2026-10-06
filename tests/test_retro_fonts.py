@@ -4,7 +4,7 @@ import unittest
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
-from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5 import QtCore, QtGui, QtTest, QtWidgets
 from smdb.RetroChannelWidget import RetroChannelWidget
 
 
@@ -44,6 +44,41 @@ class RetroFontTests(unittest.TestCase):
                 if restored is not None:
                     restored.close()
                 parent.close()
+
+    def test_video_info_splitter_drag_survives_layout_changes(self):
+        tv = RetroChannelWidget()
+        tv.resize(1300, 850)
+        tv.show()
+        tv.guideOverlay.show()
+        self.app.processEvents()
+        try:
+            splitter = tv.guideInfoSplitter
+            self.assertEqual(splitter.orientation(), QtCore.Qt.Horizontal)
+            before = splitter.sizes()
+            handle = splitter.handle(1)
+            anchor = handle.rect().center()
+            globalTarget = handle.mapToGlobal(anchor) + QtCore.QPoint(-100, 0)
+            QtTest.QTest.mousePress(handle, QtCore.Qt.LeftButton, pos=anchor)
+            event = QtGui.QMouseEvent(QtCore.QEvent.MouseMove,
+                                      QtCore.QPointF(handle.mapFromGlobal(globalTarget)),
+                                      QtCore.QPointF(globalTarget), QtCore.Qt.NoButton,
+                                      QtCore.Qt.LeftButton, QtCore.Qt.NoModifier)
+            QtWidgets.QApplication.sendEvent(handle, event)
+            QtTest.QTest.mouseRelease(handle, QtCore.Qt.LeftButton,
+                                     pos=handle.mapFromGlobal(globalTarget))
+            self.app.processEvents()
+            after = splitter.sizes()
+            self.assertLess(after[0], before[0] - 60)
+            self.assertGreater(after[1], before[1] + 60)
+            tv.resize(1300, 950)
+            tv.changeSectionFontSize('info', 1)
+            self.app.processEvents()
+            resized = splitter.sizes()
+            self.assertAlmostEqual(resized[0] / sum(resized), after[0] / sum(after), delta=0.015)
+            self.assertGreater(tv.infoPane.width(), 120)
+        finally:
+            tv.close()
+            self.app.processEvents()
 
     def test_fonts_ignore_parent_styles_and_survive_fullscreen(self):
         window = QtWidgets.QWidget()
