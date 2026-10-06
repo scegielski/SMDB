@@ -673,6 +673,30 @@ class ChannelDividerTests(unittest.TestCase):
     def setUpClass(cls):
         cls.app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
+    def test_zoom_keeps_pointer_time_at_both_range_edges(self):
+        guide = GuideTimeline()
+        guide.setScale(2.0)
+        guide.setChannelScale(2.0)
+        guide.resize(1100, 350)
+        guide.show()
+        self.app.processEvents()
+        try:
+            for edge in ('left', 'right'):
+                guide.horizontalScrollBar().setValue(0 if edge == 'left' else guide.horizontalScrollBar().maximum())
+                point = QtCore.QPoint(guide.channelWidth + 300, guide.headerHeight + 20)
+                anchor = guide.captureZoomAnchor(point)
+                timestamp = anchor[0]
+                guide.setScale(guide.scale * 0.8)
+                guide.restoreZoomAnchor(anchor)
+                self.assertAlmostEqual(guide.timeX(timestamp), point.x(), delta=1)
+                self.assertFalse(guide._centerOnLive)
+                self.assertTrue(guide._manualPanView)
+                scroll = guide.horizontalScrollBar().value()
+                guide.setPlaybackTime(guide.endTime - 60)
+                self.assertEqual(guide.horizontalScrollBar().value(), scroll)
+        finally:
+            guide.close()
+
     def test_default_middle_drag_moves_with_pointer_and_stops_on_release(self):
         guide = GuideTimeline()
         guide.resize(1000, 300)

@@ -1416,7 +1416,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
 
     def changeSectionFontSize(self, section, delta):
         self.activeFontSection = section
-        self.sectionFontScales[section] = max(0.5, min(4.0, self.sectionFontScales[section] + delta * 0.25))
+        self.sectionFontScales[section] = round(max(0.5, min(4.0, self.sectionFontScales[section] + delta * 0.25)), 6)
         self._applyFontSizes()
         self._saveFontSizes()
 

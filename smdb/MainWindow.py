@@ -255,7 +255,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.defaultFontSize = 12
         self.fontSize = self.settings.value('fontSize', self.defaultFontSize, type=int)
-        self._debugZoom = False  # set True to log Ctrl+wheel handling
         self.bgColorA = 'rgb(50, 50, 50)'
         self.bgColorB = 'rgb(25, 25, 25)'
         self.bgColorC = 'rgb(0, 0, 0)'
@@ -758,25 +757,33 @@ class MainWindow(QtWidgets.QMainWindow):
             QtCore.QCoreApplication.processEvents()
 
     def wheelEvent(self, event):
-        if event.modifiers() & QtCore.Qt.ControlModifier:
-            dy = event.angleDelta().y()
-            self.changeModeFontSize(1 if dy > 0 else (-1 if dy < 0 else 0))
-            event.accept()
-        else:
-            super().wheelEvent(event)
+        dy = event.angleDelta().y()
+        self.changeModeFontSize(1 if dy > 0 else (-1 if dy < 0 else 0))
+        event.accept()
 
     def eventFilter(self, watched, event):
-        # Catch the wheel before child scroll areas consume it. Use the event's
-        # modifiers so zoom is independent of global keyboard-state timing.
+        # Intercept zoom before child scroll areas consume it. Dialogs keep
+        # normal scrolling; Ctrl+wheel uses the menu's font-size step.
         if (event.type() == QtCore.QEvent.Wheel
                 and isinstance(watched, QtWidgets.QWidget)
                 and (watched is self or self.isAncestorOf(watched))
-                and event.modifiers() & QtCore.Qt.ControlModifier):
+                and watched.window() is self):
+            tv = self.retroChannelWidget
+            inTV = (self.applicationMode == 'TV' and
+                    (watched is tv or tv.isAncestorOf(watched)) and watched.window() is self)
             dy = event.angleDelta().y()
             delta = 1 if dy > 0 else (-1 if dy < 0 else 0)
-            if self.applicationMode == 'TV' and dy:
-                tv = self.retroChannelWidget
-                tv.changeSectionFontSize(tv.fontSectionForWidget(watched, event.pos()), delta)
+            if inTV:
+                # Preserve fractional/high-resolution wheel motion and use much
+                # finer steps than the menu's quarter-scale increments.
+                motion = dy / 120 if dy else event.pixelDelta().y() / 40
+                if motion:
+                    section = tv.fontSectionForWidget(watched, event.pos())
+                    point = tv.guideTable.viewport().mapFromGlobal(watched.mapToGlobal(event.pos()))
+                    anchor = tv.guideTable.captureZoomAnchor(point) if section == 'guide' else None
+                    step = motion if event.modifiers() & QtCore.Qt.ControlModifier else motion * 0.2
+                    tv.changeSectionFontSize(section, step)
+                    tv.guideTable.restoreZoomAnchor(anchor)
             else:
                 self.changeModeFontSize(delta)
             event.accept()
@@ -784,23 +791,9 @@ class MainWindow(QtWidgets.QMainWindow):
         return super().eventFilter(watched, event)
 
     def changeFontSize(self, delta):
-        # Require Ctrl to be held (allow other modifiers too)
-        mods = QtWidgets.QApplication.keyboardModifiers()
-        if not (mods & QtCore.Qt.ControlModifier):
-            if self._debugZoom:
-                self.output(f"zoom: ignored (no Ctrl). mods={int(mods)} raw={delta}")
-            return
-
         # Normalize to step of -1, 0, or +1
-        raw = delta
         delta = -1 if delta < 0 else (1 if delta > 0 else 0)
-
-        if self._debugZoom:
-            self.output(f"zoom: mods={int(mods)} raw={raw} norm={delta} font={self.fontSize}")
-
         self.changeModeFontSize(delta)
-        if self._debugZoom:
-            self.output(f"zoom: new font={self.fontSize}")
 
     def setFontSize(self, fontSize):
         self.fontSize = max(6, min(29, fontSize))

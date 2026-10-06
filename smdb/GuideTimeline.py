@@ -67,6 +67,36 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
         self.channelScale = scale
         self.setScale(self.scale)
 
+    def captureZoomAnchor(self, point):
+        """Keep the time and row beneath the pointer stationary during zoom."""
+        if point.x() < self.channelWidth:
+            return None
+        timestamp = self.startTime + (point.x() - self.channelWidth + self.horizontalScrollBar().value()) * 3600 / self.hourWidth
+        row = ((point.y() - self.headerHeight + self.verticalScrollBar().value()) / self.rowHeight
+               if point.y() >= self.headerHeight else None)
+        self.stopPanning()
+        self._centerOnLive = False
+        self._manualPanView = True
+        return timestamp, QtCore.QPoint(point), row
+
+    def restoreZoomAnchor(self, anchor):
+        if anchor is None:
+            return
+        timestamp, point, row = anchor
+        left = timestamp - (point.x() - self.channelWidth) * 3600 / self.hourWidth
+        right = left + max(1, self.viewport().width() - self.channelWidth) * 3600 / self.hourWidth
+        oldRange = self.startTime, self.endTime
+        self.startTime = min(self.startTime, math.floor(left / 3600) * 3600)
+        self.endTime = max(self.endTime, math.ceil(right / 3600) * 3600)
+        self._updateRanges()
+        self.horizontalScrollBar().setValue(round((timestamp - self.startTime) * self.hourWidth / 3600
+                                                 - (point.x() - self.channelWidth)))
+        if row is not None:
+            self.verticalScrollBar().setValue(round(row * self.rowHeight + self.headerHeight - point.y()))
+        if oldRange != (self.startTime, self.endTime):
+            self.timeRangeChanged.emit()
+        self.viewport().update()
+
     def setRows(self, rows, selectedChannel):
         self.rows = rows
         self.selectedChannel = selectedChannel

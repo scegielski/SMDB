@@ -33,8 +33,8 @@ class ApplicationModeTests(unittest.TestCase):
                     self.assertFalse(window.menuBar().isHidden())
                     databaseSize = window.fontSize
                     tvSize = tv.fontScale
-                    def wheel(widget, delta, modifiers=QtCore.Qt.ControlModifier):
-                        point = QtCore.QPointF(20, 20)
+                    def wheel(widget, delta, modifiers=QtCore.Qt.NoModifier, position=None):
+                        point = QtCore.QPointF(position or QtCore.QPoint(20, 20))
                         event = QtGui.QWheelEvent(point, point, QtCore.QPoint(),
                                                   QtCore.QPoint(0, delta), QtCore.Qt.NoButton,
                                                   modifiers, QtCore.Qt.NoScrollPhase, False)
@@ -47,16 +47,31 @@ class ApplicationModeTests(unittest.TestCase):
                         section = tv.fontSectionForWidget(target, QtCore.QPoint(20, 20))
                         before = dict(tv.sectionFontScales)
                         wheel(target, 120)
-                        self.assertEqual(tv.fontScale, tvSize + 0.25)
+                        self.assertEqual(tv.fontScale, tvSize + 0.05)
                         self.assertEqual(tv.sectionFontScales,
-                                         {name: value + (0.25 if name == section else 0)
+                                         {name: value + (0.05 if name == section else 0)
                                           for name, value in before.items()})
                         self.assertEqual(window.fontSize, databaseSize)
-                        self.assertIn('225%', window.fontMenu.title())
+                        self.assertIn('205%', window.fontMenu.title())
                         window.decreaseFontAction.trigger()
+                        self.assertEqual(tv.fontScale, tvSize - 0.2)
+                        wheel(target, 480)
                         self.assertEqual(tv.fontScale, tvSize)
                     wheel(tv.guideTable.viewport(), 120, QtCore.Qt.NoModifier)
+                    self.assertEqual(tv.fontScale, tvSize + 0.05)
+                    wheel(tv.guideTable.viewport(), -120)
                     self.assertEqual(tv.fontScale, tvSize)
+                    tv.guideOverlay.show()
+                    self.app.processEvents()
+                    tv.guideTable.horizontalScrollBar().setValue(300)
+                    point = QtCore.QPoint(tv.guideTable.channelWidth + 120, tv.guideTable.headerHeight + 20)
+                    stamp = tv.guideTable.startTime + (point.x() - tv.guideTable.channelWidth + 300) * 3600 / tv.guideTable.hourWidth
+                    wheel(tv.guideTable.viewport(), 120, position=point)
+                    self.assertEqual(tv.sectionFontScales['guide'], tvSize + 0.05)
+                    self.assertEqual(tv.sectionFontScales['channels'], tvSize)
+                    self.assertAlmostEqual(tv.guideTable.timeX(stamp), point.x(), delta=1)
+                    wheel(tv.guideTable.viewport(), -120, position=point)
+                    self.assertAlmostEqual(tv.guideTable.timeX(stamp), point.x(), delta=1)
                     window.increaseFontAction.trigger()
                     self.assertEqual(tv.fontScale, tvSize + 0.25)
                     self.assertEqual(window.fontSize, databaseSize)
@@ -97,10 +112,21 @@ class ApplicationModeTests(unittest.TestCase):
                     window.increaseFontAction.trigger()
                     wheel(window.movieInfoListView.viewport(), -120)
                     self.assertEqual(window.fontSize, databaseSize + 1)
+                    wheel(window.moviesTableView.viewport(), 120, QtCore.Qt.ControlModifier)
+                    self.assertEqual(window.fontSize, databaseSize + 2)
                     window.setFontSize(databaseSize)
                     self.assertIn(str(databaseSize), window.fontMenu.title())
                     window.modeActions['TV'].trigger()
                     self.app.processEvents()
+                    for target in (tv.guideTable.viewport(), tv.guideDescription.viewport(), tv.sideScroll.viewport()):
+                        section = tv.fontSectionForWidget(target, QtCore.QPoint(20, 20))
+                        tvScales = dict(tv.sectionFontScales)
+                        wheel(target, 120, QtCore.Qt.ControlModifier)
+                        self.assertEqual(tv.sectionFontScales,
+                                         {name: value + (0.25 if name == section else 0)
+                                          for name, value in tvScales.items()})
+                        window.decreaseFontAction.trigger()
+                        self.assertEqual(tv.sectionFontScales, tvScales)
                     self.assertIs(window.modeStack.currentWidget(), tv)
                     self.assertFalse(tv.sideScroll.isHidden())
                     self.assertEqual(settings.value('applicationMode'), 'TV')
