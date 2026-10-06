@@ -1172,6 +1172,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
                 'smtvFontScale/' + section, self.DEFAULT_FONT_SCALE, type=float)))
             if self._settings else self.DEFAULT_FONT_SCALE
             for section in ('guide', 'info', 'controls')}
+        self.sectionFontScales['channels'] = max(0.5, min(4.0, self._settings.value(
+            'smtvFontScale/channels', self.sectionFontScales['guide'], type=float))) if self._settings else self.DEFAULT_FONT_SCALE
         self.fontScale = self.sectionFontScales[self.activeFontSection]
         self._applyFontSizes()
 
@@ -1390,8 +1392,11 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._applyFontSizes()
         self._saveFontSizes()
 
-    def fontSectionForWidget(self, widget):
-        for section, root in (('info', self.infoPane), ('guide', self.guidePages),
+    def fontSectionForWidget(self, widget, position=None):
+        if (position is not None and (widget is self.guideTable or self.guideTable.isAncestorOf(widget))):
+            local = self.guideTable.viewport().mapFromGlobal(widget.mapToGlobal(position))
+            return 'channels' if local.x() < self.guideTable.channelWidth else 'guide'
+        for section, root in (('info', self.infoPane), ('guide', self.guideTable),
                               ('controls', self.sideControls)):
             if widget is root or root.isAncestorOf(widget):
                 return section
@@ -1420,7 +1425,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.setStyleSheet(
             f'QWidget {{ font-family: "{font.family()}"; font-size: {font.pixelSize()}px; }}'
         )
-        for section, root in (('info', self.infoPane), ('guide', self.guidePages)):
+        for section, root in (('info', self.infoPane), ('guide', self.guideTable)):
             root.setStyleSheet(f'QWidget {{ font-family: "{font.family()}"; '
                               f'font-size: {round(14 * self.sectionFontScales[section])}px; }}')
         for widget, style in self._fontStyles:
@@ -1433,6 +1438,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
             ))
         self.sideScroll.setFixedWidth(max(130, self.sideControls.sizeHint().width() + 24))
         self.guideTable.setScale(self.sectionFontScales['guide'])
+        self.guideTable.setChannelScale(self.sectionFontScales['channels'])
         self.overlayArea._layoutOverlay(self.banner)
         self.fontScaleChanged.emit(self.fontScale)
 
@@ -1492,32 +1498,14 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.guideClockTimer.start()
         self._updateGuideTime()
 
-        self.scheduleTable = QtWidgets.QTableWidget(0, 3)
-        self.scheduleTable.setHorizontalHeaderLabels(['#', 'START (EST.)', 'MOVIE'])
-        self.scheduleTable.setWordWrap(False)
-        self.scheduleTable.setTextElideMode(QtCore.Qt.ElideNone)
-        self.scheduleTable.setHorizontalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
-        self.scheduleTable.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
-        self.scheduleTable.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
-        self.scheduleTable.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.scheduleTable.verticalHeader().hide()
-        self.scheduleTable.setStyleSheet('QTableWidget { background: #0a0a6e; color: white; gridline-color: #3333aa; font-size: 14px; } QHeaderView::section { background: #1a1aae; color: white; font-size: 14px; }')
-        self.scheduleTable.horizontalHeader().setStretchLastSection(False)
-        self.scheduleTable.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Interactive)
-        self.guidePages = QtWidgets.QTabWidget()
-        self.guidePages.addTab(self.guideTable, 'CHANNELS')
-        self.guidePages.addTab(self.scheduleTable, 'SCHEDULE')
-        self.guidePages.currentChanged.connect(
-            lambda _index: QtCore.QTimer.singleShot(0, self._scrollGuideToHighlight))
-
         splitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
         splitter.setChildrenCollapsible(False)
         splitter.setHandleWidth(10)
         splitter.setStyleSheet("QSplitter::handle { background: #4444aa; border: none; margin: 3px 0; }")
         topWidget.setMinimumHeight(80)
-        self.guidePages.setMinimumHeight(80)
+        self.guideTable.setMinimumHeight(80)
         splitter.addWidget(topWidget)
-        splitter.addWidget(self.guidePages)
+        splitter.addWidget(self.guideTable)
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 1)
         splitter.setSizes([450, 450])
@@ -1716,7 +1704,6 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self.guideVisible = False
             self.guideOverlay.hide()
             self.guideTable.setRows([], 0)
-            self.scheduleTable.setRowCount(0)
             self._updateChannelLabel()
         elif self.isActive:
             self._tuneTo(self.currentIndex)
@@ -2021,7 +2008,6 @@ class RetroChannelWidget(QtWidgets.QWidget):
     def _openStartupGuide(self):
         if self._showGuideOnStart and self.channels:
             self._showGuideOnStart = False
-            self.guidePages.setCurrentIndex(0)
             self.guideTable.showCurrentHour()
             if not self.guideVisible:
                 self.toggleGuide()
@@ -2235,8 +2221,6 @@ class RetroChannelWidget(QtWidgets.QWidget):
         chan = self.channels[self.guideHighlightIndex]
         self.guideCaption.setText(f"CH {self.guideHighlightIndex + 1:02d} \u2014 {chan['genre'].upper()}")
 
-        self._refreshScheduleTable(chan)
-
         engine = self.engines.get(self.guideHighlightIndex)
         if engine and engine.currentRow is not None:
             nowRow = engine.currentRow
@@ -2278,30 +2262,6 @@ class RetroChannelWidget(QtWidgets.QWidget):
                 and event.type() in (QtCore.QEvent.Show, QtCore.QEvent.Resize)):
             QtCore.QTimer.singleShot(0, self._scrollGuideToHighlight)
         return super().eventFilter(watched, event)
-
-    def _refreshScheduleTable(self, channel):
-        clock = channel['clock']
-        engine = self.engines.get(self.guideHighlightIndex)
-        current = (engine.currentSlotIndex if engine and engine.currentRow is not None
-                   else clock.whatsOnNow()[0])
-        count = len(clock._rotation)
-        self.scheduleTable.setRowCount(count)
-        for index in range(count):
-            isCurrent = index == current % count
-            row = clock._rotation[index]
-            start = time.strftime('%a %I:%M %p', time.localtime(clock._scheduleStarts[index]))
-            title = engine.currentTitle if isCurrent and engine and engine.currentRow is not None else self._titleForRow(row)
-            for column, value in enumerate((str(index + 1), start, title)):
-                item = QtWidgets.QTableWidgetItem(value)
-                item.setFlags(QtCore.Qt.ItemIsEnabled)
-                if isCurrent:
-                    playing = (self.guideHighlightIndex == self.currentIndex and engine is not None
-                               and engine.currentRow is not None and not engine.isShowingStandby())
-                    item.setBackground(QtGui.QColor('#00ff00' if playing else '#ffcc00'))
-                    item.setForeground(QtGui.QColor('black'))
-                self.scheduleTable.setItem(index, column, item)
-        self.scheduleTable.resizeColumnsToContents()
-        self.scheduleTable.resizeRowsToContents()
 
     # ------------------------------------------------------------------
     # Qt event overrides

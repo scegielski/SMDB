@@ -776,7 +776,7 @@ class MainWindow(QtWidgets.QMainWindow):
             delta = 1 if dy > 0 else (-1 if dy < 0 else 0)
             if self.applicationMode == 'TV' and dy:
                 tv = self.retroChannelWidget
-                tv.changeSectionFontSize(tv.fontSectionForWidget(watched), delta)
+                tv.changeSectionFontSize(tv.fontSectionForWidget(watched, event.pos()), delta)
             else:
                 self.changeModeFontSize(delta)
             event.accept()

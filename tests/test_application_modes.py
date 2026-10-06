@@ -44,7 +44,7 @@ class ApplicationModeTests(unittest.TestCase):
                     # area must not swallow zoom or change the hidden database.
                     for target in (tv.guideDescription.viewport(), tv.guideTable.viewport(),
                                    tv.globalStandby, tv.sideScroll.viewport()):
-                        section = tv.fontSectionForWidget(target)
+                        section = tv.fontSectionForWidget(target, QtCore.QPoint(20, 20))
                         before = dict(tv.sectionFontScales)
                         wheel(target, 120)
                         self.assertEqual(tv.fontScale, tvSize + 0.25)

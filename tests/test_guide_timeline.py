@@ -666,5 +666,46 @@ class GuideTimelineTests(unittest.TestCase):
             engine.container.close()
 
 
+class ChannelDividerTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+
+    def test_drag_resizes_channel_column_without_tuning_and_retains_width(self):
+        guide = GuideTimeline()
+        guide.resize(1000, 300)
+        guide.setRows([{'channel': 0, 'label': '01 ACTION', 'programs': []}], 0)
+        selected = []
+        guide.channelSelected.connect(selected.append)
+        guide.show()
+        self.app.processEvents()
+        try:
+            before = guide.channelWidth
+            y = guide.headerHeight + 12
+            def mouse(kind, x, button, buttons):
+                local = QtCore.QPointF(x, y)
+                event = QtGui.QMouseEvent(kind, local,
+                                         QtCore.QPointF(guide.viewport().mapToGlobal(local.toPoint())),
+                                         button, buttons, QtCore.Qt.NoModifier)
+                QtWidgets.QApplication.sendEvent(guide.viewport(), event)
+            mouse(QtCore.QEvent.MouseButtonPress, before, QtCore.Qt.LeftButton, QtCore.Qt.LeftButton)
+            mouse(QtCore.QEvent.MouseMove, before + 120, QtCore.Qt.NoButton, QtCore.Qt.LeftButton)
+            mouse(QtCore.QEvent.MouseButtonRelease, before + 120, QtCore.Qt.LeftButton, QtCore.Qt.NoButton)
+            self.assertEqual(guide.channelWidth, before + 120)
+            self.assertEqual(selected, [])
+            guide.setRows(guide.rows, 0)
+            self.assertEqual(guide.channelWidth, before + 120)
+            guide.setScale(1.25)
+            self.assertEqual(guide.channelWidth, round((before + 120) * 1.25))
+            guide.resize(300, 300)
+            self.app.processEvents()
+            self.assertLessEqual(guide.channelWidth, guide.viewport().width() - 120)
+            guide.resize(1000, 300)
+            self.app.processEvents()
+            self.assertEqual(guide.channelWidth, round((before + 120) * 1.25))
+        finally:
+            guide.close()
+
+
 if __name__ == '__main__':
     unittest.main()

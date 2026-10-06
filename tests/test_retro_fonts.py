@@ -20,11 +20,12 @@ class RetroFontTests(unittest.TestCase):
             tv = RetroChannelWidget(parent)
             restored = None
             try:
-                self.assertEqual(tv.sectionFontScales, dict.fromkeys(('guide', 'info', 'controls'), 2.0))
+                self.assertEqual(tv.sectionFontScales, dict.fromkeys(('guide', 'info', 'controls', 'channels'), 2.0))
                 tv.changeSectionFontSize('guide', 1)
                 tv.changeSectionFontSize('info', -2)
                 tv.changeSectionFontSize('controls', 3)
-                expected = {'guide': 2.25, 'info': 1.5, 'controls': 2.75}
+                tv.changeSectionFontSize('channels', -3)
+                expected = {'guide': 2.25, 'info': 1.5, 'controls': 2.75, 'channels': 1.25}
                 self.assertEqual(tv.sectionFontScales, expected)
                 parent.settings.sync()
                 restored = RetroChannelWidget(parent)
@@ -32,6 +33,8 @@ class RetroFontTests(unittest.TestCase):
                 self.app.processEvents()
                 self.assertEqual(restored.sectionFontScales, expected)
                 self.assertEqual(restored.guideTable.scale, 2.25)
+                self.assertEqual(restored.guideTable.channelScale, 1.25)
+                self.assertEqual(restored.guideTable.channelWidth, round(190 * 1.25))
                 self.assertEqual(restored.guideDescription.font().pixelSize(), 21)
                 self.assertEqual(restored.volumeUpButton.font().pixelSize(), 38)
                 for _ in range(2):

@@ -19,6 +19,9 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
         self.startTime = math.floor(self.now / 3600) * 3600
         self.endTime = self.startTime + 48 * 3600
         self.scale = 1.0
+        self.channelScale = None
+        self._channelWidthOverride = None
+        self._channelDragOffset = None
         self._panOrigin = None
         self._manualPanView = False
         self._panTimer = QtCore.QTimer(self)
@@ -37,20 +40,30 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
         font.setPixelSize(round(14 * scale))
         self.setFont(font)
         self.viewport().setFont(font)
-        self.channelWidth = round(190 * scale)
+        channelScale = self.channelScale if self.channelScale is not None else scale
+        self.channelWidth = round((self._channelWidthOverride or 190) * channelScale)
+        if self._channelWidthOverride is not None:
+            self.channelWidth = self._boundedChannelWidth(self.channelWidth)
         self.hourWidth = round(200 * scale)
         textHeight = QtGui.QFontMetrics(font).height()
+        channelFont = QtGui.QFont(font)
+        channelFont.setPixelSize(round(14 * channelScale))
+        rowTextHeight = max(textHeight, QtGui.QFontMetrics(channelFont).height())
         markerFont = QtGui.QFont(font)
         markerFont.setPixelSize(max(10, min(16, round(10 * scale))))
         self.labelHeight = QtGui.QFontMetrics(markerFont).height() + 4
-        self.headerHeight = self.labelHeight + textHeight + 6
-        self.rowHeight = textHeight + 6
+        self.headerHeight = self.labelHeight + rowTextHeight + 6
+        self.rowHeight = rowTextHeight + 6
         self.setMinimumHeight(self.headerHeight + self.rowHeight + self.horizontalScrollBar().sizeHint().height() + 12)
         self._updateRanges()
         self._ensurePlaybackVisible()
         if self._centerOnLive:
             self.showCurrentHour()
         self.viewport().update()
+
+    def setChannelScale(self, scale):
+        self.channelScale = scale
+        self.setScale(self.scale)
 
     def setRows(self, rows, selectedChannel):
         self.rows = rows
@@ -71,7 +84,7 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
         self.viewport().update()
 
     def _ensurePlaybackVisible(self):
-        if self.playbackTime is None or self._manualPanView:
+        if self.playbackTime is None or self._manualPanView or self._channelDragOffset is not None:
             return
         visibleWidth = self.viewport().width() - self.channelWidth
         if visibleWidth <= 0:
@@ -190,19 +203,30 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
                              time.strftime('%a %I:%M %p', time.localtime(timestamp)))
         painter.setClipping(False)
         # Channel labels stay fixed while the timeline scrolls horizontally.
-        painter.fillRect(0, 0, self.channelWidth, self.headerHeight, QtGui.QColor('#1a1aae'))
+        channelFont = QtGui.QFont(self.font())
+        channelFont.setPixelSize(round(14 * (self.channelScale if self.channelScale is not None else self.scale)))
+        painter.setFont(channelFont)
+        painter.fillRect(0, 0, self.channelWidth, self.headerHeight, QtGui.QColor('#1b2d42'))
         painter.setPen(QtGui.QColor('white'))
-        painter.drawText(QtCore.QRect(6, 0, self.channelWidth - 12, self.headerHeight), QtCore.Qt.AlignVCenter, 'CHANNEL')
+        painter.drawText(QtCore.QRect(6, 0, self.channelWidth - 12, self.headerHeight),
+                         QtCore.Qt.AlignVCenter | QtCore.Qt.AlignLeft, 'CHANNELS')
         painter.setClipRect(0, self.headerHeight, self.channelWidth, height)
         for index, row in enumerate(self.rows):
             rect = self.rowRect(index)
             selected = row['channel'] == self.selectedChannel
             labelRect = QtCore.QRect(0, rect.y(), self.channelWidth, self.rowHeight)
-            painter.fillRect(labelRect, QtGui.QColor('#ffcc00' if selected else '#0a0a6e'))
+            painter.fillRect(labelRect, QtGui.QColor('#ffcc00' if selected else
+                                                   ('#24384c' if index % 2 else '#1b2d42')))
+            painter.setPen(QtGui.QColor('#51748c'))
+            painter.drawLine(labelRect.bottomLeft(), labelRect.bottomRight())
             painter.setPen(QtGui.QColor('black' if selected else 'white'))
             text = painter.fontMetrics().elidedText(row['label'], QtCore.Qt.ElideRight, self.channelWidth - 12)
             painter.drawText(labelRect.adjusted(6, 0, -6, 0), QtCore.Qt.AlignVCenter, text)
         painter.setClipping(False)
+        # Keep both boundaries visible regardless of horizontal/vertical panning.
+        painter.setPen(QtGui.QPen(QtGui.QColor('#6e8bbd'), 4))
+        painter.drawLine(self.channelWidth - 2, 0, self.channelWidth - 2, height)
+        painter.drawLine(0, self.headerHeight - 1, width, self.headerHeight - 1)
         # Compact labels sit above the hour blocks. Both pointers start at the
         # top edge of those blocks and continue through the program rows.
         painter.setClipRect(self.channelWidth, 0, max(0, width - self.channelWidth), height)
@@ -295,11 +319,15 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
         vertical.setValue(vertical.value() + dy)
 
     def hideEvent(self, event):
+        self._channelDragOffset = None
         self.stopPanning()
         super().hideEvent(event)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        if self._channelWidthOverride is not None:
+            channelScale = self.channelScale if self.channelScale is not None else self.scale
+            self.channelWidth = self._boundedChannelWidth(round(self._channelWidthOverride * channelScale))
         self._updateRanges()
         if self._centerOnLive:
             self.showCurrentHour()
@@ -326,6 +354,12 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
             return
         if event.button() != QtCore.Qt.LeftButton:
             return
+        if abs(event.x() - self.channelWidth) <= 6:
+            self._channelDragOffset = event.x() - self.channelWidth
+            self.viewport().setCursor(QtCore.Qt.SplitHCursor)
+            QtWidgets.QToolTip.hideText()
+            event.accept()
+            return
         index = (event.y() - self.headerHeight + self.verticalScrollBar().value()) // self.rowHeight
         if event.y() >= self.headerHeight and 0 <= index < len(self.rows):
             self.channelSelected.emit(self.rows[index]['channel'])
@@ -333,6 +367,19 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
     def mouseMoveEvent(self, event):
         if self.isPanning():
             return
+        if self._channelDragOffset is not None:
+            self.channelWidth = self._boundedChannelWidth(event.x() - self._channelDragOffset)
+            channelScale = self.channelScale if self.channelScale is not None else self.scale
+            self._channelWidthOverride = self.channelWidth / channelScale
+            self._updateRanges()
+            self.viewport().update()
+            event.accept()
+            return
+        if abs(event.x() - self.channelWidth) <= 6:
+            self.viewport().setCursor(QtCore.Qt.SplitHCursor)
+            QtWidgets.QToolTip.hideText()
+            return
+        self.viewport().unsetCursor()
         index = (event.y() - self.headerHeight + self.verticalScrollBar().value()) // self.rowHeight
         if event.y() >= self.headerHeight and event.x() >= self.channelWidth and 0 <= index < len(self.rows):
             for program in self.rows[index]['programs']:
@@ -343,3 +390,18 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
                     QtWidgets.QToolTip.showText(event.globalPos(), label, self)
                     return
         QtWidgets.QToolTip.hideText()
+
+    def _boundedChannelWidth(self, width):
+        return max(80, min(round(width), max(80, self.viewport().width() - 120)))
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == QtCore.Qt.LeftButton and self._channelDragOffset is not None:
+            self._channelDragOffset = None
+            self.viewport().unsetCursor()
+            if self._centerOnLive:
+                self.showCurrentHour()
+            else:
+                self._ensurePlaybackVisible()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
