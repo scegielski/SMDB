@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore, QtGui, QtWidgets
 from smdb.MainWindow import MainWindow
 
 
@@ -33,6 +33,25 @@ class ApplicationModeTests(unittest.TestCase):
                     self.assertFalse(window.menuBar().isHidden())
                     databaseSize = window.fontSize
                     tvSize = tv.fontScale
+                    def wheel(widget, delta, modifiers=QtCore.Qt.ControlModifier):
+                        point = QtCore.QPointF(20, 20)
+                        event = QtGui.QWheelEvent(point, point, QtCore.QPoint(),
+                                                  QtCore.QPoint(0, delta), QtCore.Qt.NoButton,
+                                                  modifiers, QtCore.Qt.NoScrollPhase, False)
+                        QtWidgets.QApplication.sendEvent(widget, event)
+
+                    # Every TV surface uses its current scale; a child scroll
+                    # area must not swallow zoom or change the hidden database.
+                    for target in (tv.guideDescription.viewport(), tv.guideTable.viewport(),
+                                   tv.globalStandby, tv.sideScroll.viewport()):
+                        wheel(target, 120)
+                        self.assertEqual(tv.fontScale, tvSize + 0.25)
+                        self.assertEqual(window.fontSize, databaseSize)
+                        self.assertIn('225%', window.fontMenu.title())
+                        window.decreaseFontAction.trigger()
+                        self.assertEqual(tv.fontScale, tvSize)
+                    wheel(tv.guideTable.viewport(), 120, QtCore.Qt.NoModifier)
+                    self.assertEqual(tv.fontScale, tvSize)
                     window.increaseFontAction.trigger()
                     self.assertEqual(tv.fontScale, tvSize + 0.25)
                     self.assertEqual(window.fontSize, databaseSize)
@@ -65,6 +84,15 @@ class ApplicationModeTests(unittest.TestCase):
                     self.assertEqual(tv.fontScale, tvSize)
                     window.decreaseFontAction.trigger()
                     self.assertEqual(window.fontSize, databaseSize)
+                    wheel(window.moviesTableView.viewport(), 120)
+                    self.assertEqual(window.fontSize, databaseSize + 1)
+                    self.assertIn(str(databaseSize + 1), window.fontMenu.title())
+                    self.assertEqual(tv.fontScale, tvSize)
+                    window.increaseFontAction.trigger()
+                    wheel(window.movieInfoListView.viewport(), -120)
+                    self.assertEqual(window.fontSize, databaseSize + 1)
+                    window.setFontSize(databaseSize)
+                    self.assertIn(str(databaseSize), window.fontMenu.title())
                     window.modeActions['TV'].trigger()
                     self.app.processEvents()
                     self.assertIs(window.modeStack.currentWidget(), tv)

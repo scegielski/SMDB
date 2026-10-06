@@ -672,6 +672,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Show the window
         self.setApplicationMode(self._startupMode)
+        QtWidgets.QApplication.instance().installEventFilter(self)
         self.show()
 
         self.moviesSmdbFile = os.path.join(self.moviesFolder, "smdb_data.json")
@@ -757,9 +758,25 @@ class MainWindow(QtWidgets.QMainWindow):
             QtCore.QCoreApplication.processEvents()
 
     def wheelEvent(self, event):
-        dy = event.angleDelta().y()
-        self.changeFontSize(1 if dy > 0 else (-1 if dy < 0 else 0))
-        event.accept()
+        if event.modifiers() & QtCore.Qt.ControlModifier:
+            dy = event.angleDelta().y()
+            self.changeModeFontSize(1 if dy > 0 else (-1 if dy < 0 else 0))
+            event.accept()
+        else:
+            super().wheelEvent(event)
+
+    def eventFilter(self, watched, event):
+        # Catch the wheel before child scroll areas consume it. Use the event's
+        # modifiers so zoom is independent of global keyboard-state timing.
+        if (event.type() == QtCore.QEvent.Wheel
+                and isinstance(watched, QtWidgets.QWidget)
+                and (watched is self or self.isAncestorOf(watched))
+                and event.modifiers() & QtCore.Qt.ControlModifier):
+            dy = event.angleDelta().y()
+            self.changeModeFontSize(1 if dy > 0 else (-1 if dy < 0 else 0))
+            event.accept()
+            return True
+        return super().eventFilter(watched, event)
 
     def changeFontSize(self, delta):
         # Require Ctrl to be held (allow other modifiers too)
@@ -776,13 +793,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if self._debugZoom:
             self.output(f"zoom: mods={int(mods)} raw={raw} norm={delta} font={self.fontSize}")
 
-        # Avoid redundant updates at bounds
-        if (self.fontSize <= 6 and delta < 0) or (self.fontSize >= 29 and delta > 0):
-            if self._debugZoom:
-                self.output("zoom: at bound, no change")
-            return
-
-        self.setFontSize(self.fontSize + delta)
+        self.changeModeFontSize(delta)
         if self._debugZoom:
             self.output(f"zoom: new font={self.fontSize}")
 
@@ -833,12 +844,15 @@ class MainWindow(QtWidgets.QMainWindow):
             self.logTextWidget.setStyleSheet(f"background: {self.bgColorC};"
                                              f"color: {self.fgColor};"
                                              f"font-size: {self.fontSize}px;")
+        if hasattr(self, 'fontMenu'):
+            self._syncFontMenu()
 
 
     def clearSettings(self):
         self.settings.clear()
 
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
+        QtWidgets.QApplication.instance().removeEventFilter(self)
         if self.retroChannelWidget.isFullScreenActive:
             self.retroChannelWidget._exitFullScreen()
         self.settings.setValue('geometry', self.geometry())
@@ -994,6 +1008,8 @@ class MainWindow(QtWidgets.QMainWindow):
         fileMenu.addAction(quitAction)
 
     def changeModeFontSize(self, delta):
+        if not delta:
+            return
         if self.applicationMode == 'TV':
             self.retroChannelWidget.setFontScale(self.retroChannelWidget.fontScale + delta * 0.25)
         else:
