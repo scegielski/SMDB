@@ -861,6 +861,7 @@ class ChannelEngine(QtCore.QObject):
         self._prefetchRequestId = None
         self._hardCutRequestId = None
         self._previousNavigationSlot = None
+        self._backBeginningSlot = None
         self._beginningResume = None
         self._beginningMarkerOrigin = None
 
@@ -909,6 +910,7 @@ class ChannelEngine(QtCore.QObject):
     def _tuneIn(self):
         """Sync playback to wherever the channel clock says we should be right now."""
         slotIndex, _, offsetFraction, positionInSlotMs, remainingMs = self.clock.whatsOnNow()
+        self.currentSlotIndex = slotIndex
         self.standbyScreen.startStatic()
         self._stack.setCurrentWidget(self.standbyScreen)
         if self.clock.broadcastAligned and positionInSlotMs >= self.clock.filmDurationForSlot(slotIndex):
@@ -1206,12 +1208,13 @@ class ChannelEngine(QtCore.QObject):
                     self._previousNavigationSlot = None
                 return
         target = current + step
-        if target < 0:
+        if target < 0 and not self.clock.broadcastAligned:
             target = len(self.clock._rotation) - 1
         if (startUnvisited or step < 0) and self.clock.resumeInfoForSlot(target) is None:
             beginning = True
         slot = self.activeSlot
-        if self.currentRow is not None and slot.isReady() and slot.duration > 0:
+        if (self.currentRow is not None and slot.isReady() and slot.duration > 0
+                and not self.isShowingComingUp()):
             if current == self._previousNavigationSlot and self._beginningResume is not None:
                 # Leaving a restarted film must retain its pre-restart resume point.
                 self.clock.rememberPosition(current, *self._beginningResume)
@@ -1231,6 +1234,7 @@ class ChannelEngine(QtCore.QObject):
         self.slotB.stop()
         self.currentRow = None
         self.currentTitle = ''
+        self._backBeginningSlot = None
         self._pendingTimelineSeek = None
         self.nextRow = None
         self.nextTitle = ''
@@ -1253,13 +1257,31 @@ class ChannelEngine(QtCore.QObject):
             self.clock._durations.pop(target, None)
         self.clock.jumpToSlot(target)
         self.clock.hasManualNavigation = True
+        if step < 0:
+            self._backBeginningSlot = target if beginning else None
+            resume = self.clock.resumeInfoForSlot(target)
+            self._pendingTimelineSeek = self.clock.publishedSlotTimes(target)[0] + (resume[2] / 1000.0 if resume and not beginning else 0)
         self._tuneIn()
 
     def restartCurrentFilm(self):
         slot = self.activeSlot
         current = self.currentSlotIndex
-        if current is None or self.currentRow is None or not slot.isReady() or slot.duration <= 0:
-            return False
+        if current is None:
+            current = self.clock.whatsOnNow()[0]
+        ready = self.currentRow is not None and slot.isReady() and slot.duration > 0
+        if self._backBeginningSlot == current and (not ready or (slot._lastPlaybackPosition or 0) < 1000):
+            self.skipProgram(-1)
+            return True
+        if self.isShowingComingUp() or not ready:
+            # Padding and a freshly selected NOW slot may have no loaded film.
+            # Load the scheduled film explicitly rather than seeking an ended or
+            # empty player. In padding, restore a saved viewing position first.
+            resume = self.clock.resumeInfoForSlot(current) if self.isShowingComingUp() else None
+            self.skipProgram(0, beginning=resume is None)
+            self._backBeginningSlot = current if resume is None else None
+            self._pendingTimelineSeek = self.clock.publishedSlotTimes(current)[0] + (resume[2] / 1000.0 if resume else 0)
+            return True
+        self._backBeginningSlot = None
         saved = self._beginningResume if self._previousNavigationSlot == current else None
         if saved is not None:
             self.skipProgram(-1)
@@ -1788,10 +1810,10 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.backTenButton = remoteButton('REW', 'Back ten seconds', lambda: self.seekCurrentFilm(-10000))
         self.forwardTenButton = remoteButton('FF', 'Forward ten seconds', lambda: self.seekCurrentFilm(10000))
         self.pauseButton = remoteButton('PAUSE', 'Pause all channels', self.togglePause, size=11)
-        self.beginningButton = remoteButton('|◀', 'Beginning of current film or previous film', self.restartCurrentFilm)
+        self.beginningButton = remoteButton('BACK', 'Beginning of current film or previous film', self.restartCurrentFilm)
         self.beginningButton.setToolTip('Restart this film; press again for the previous film. Forward restores the saved position')
         self.nowButton = remoteButton('NOW', 'Return to live broadcast', self.returnToLive, '#3c5f8b', size=11)
-        self.nextBeginningButton = remoteButton('▶|', 'Next film or restore resume position',
+        self.nextBeginningButton = remoteButton('NEXT', 'Next film or restore resume position',
                                                lambda: self.skipProgram(1, startUnvisited=True))
         self.nextBeginningButton.setToolTip('Restore saved position, or open the next film from its beginning')
         filmControls = QtWidgets.QGridLayout()

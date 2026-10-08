@@ -327,6 +327,86 @@ class ComingUpTests(unittest.TestCase):
                 engine.shutdown(); engine.container.close()
                 tv.engines = {}; tv.close()
 
+    def test_back_after_now_in_gap_loads_film_and_accepts_repeated_press(self):
+        with patch('smdb.RetroChannelWidget.time.monotonic', return_value=0) as now, \
+                patch('smdb.RetroChannelWidget.time.time', return_value=36000) as wall, \
+                patch('smdb.RetroChannelWidget.random.uniform', return_value=0):
+            tv = RetroChannelWidget()
+            clock = ChannelClock([0, 1], lambda row: 61000, broadcastAligned=True)
+            engine = ChannelEngine(1, 'Action', clock, lambda row: None, str)
+            tv.channels = [{'clock': clock, 'genre': 'Action', 'rows': [0, 1]}]
+            tv.engines = {0: engine}; tv._updateEmptyState()
+            try:
+                now.return_value = 120; wall.return_value = 36120
+                engine.currentSlotIndex = 1
+                with patch.object(engine, '_startResolve') as resolve, patch.object(engine, '_beginPrefetch'):
+                    tv.returnToLive()
+                    self.assertTrue(engine.isShowingComingUp())
+                    self.assertEqual(engine.currentSlotIndex, 0)
+                    tv.beginningButton.click()
+                    self.assertEqual(resolve.call_args.args[0], 0)
+                    self.assertEqual(clock.slotInfo(0)[1], 0)
+                    self.assertFalse(engine.isShowingComingUp())
+                    tv._updatePlaybackMarker()
+                    self.assertEqual(tv.guideTable.playbackTime, 36000)
+                    # Another BACK must not depend on the first load finishing.
+                    tv.beginningButton.click()
+                    self.assertEqual(resolve.call_args.args[0], -1)
+                    self.assertEqual(engine.currentSlotIndex, -1)
+                    tv._updatePlaybackMarker()
+                    self.assertEqual(tv.guideTable.playbackTime, 35100)
+                    tv.beginningButton.click()
+                    self.assertEqual(resolve.call_args.args[0], -2)
+                    tv._updatePlaybackMarker()
+                    self.assertEqual(tv.guideTable.playbackTime, 34200)
+            finally:
+                engine.shutdown(); engine.container.close()
+                tv.engines = {}; tv.close()
+
+    def test_back_in_gap_uses_saved_position_and_now_loading_uses_correct_slot(self):
+        with patch('smdb.RetroChannelWidget.time.monotonic', return_value=0) as now, \
+                patch('smdb.RetroChannelWidget.time.time', return_value=36000) as wall, \
+                patch('smdb.RetroChannelWidget.random.uniform', return_value=0):
+            tv = RetroChannelWidget()
+            clock = ChannelClock([0, 1], lambda row: 61000, broadcastAligned=True)
+            engine = ChannelEngine(1, 'Action', clock, lambda row: None, str)
+            tv.channels = [{'clock': clock, 'genre': 'Action', 'rows': [0, 1]}]
+            tv.engines = {0: engine}; tv._updateEmptyState()
+            try:
+                now.return_value = 120; wall.return_value = 36120
+                row = clock.slotInfo(0)[0]
+                clock.rememberPosition(0, row, 61000, 25000)
+                with patch.object(engine, '_startResolve') as resolve, patch.object(engine, '_beginPrefetch'):
+                    engine._tuneIn()
+                    # A naturally ended film can still leave loaded-player metadata.
+                    engine.currentRow = row
+                    engine.activeSlot.path = 'ended.mp4'
+                    engine.activeSlot.duration = 61000
+                    engine.activeSlot._ready = True
+                    engine.activeSlot._lastPlaybackPosition = 61000
+                    tv.beginningButton.click()
+                    self.assertEqual(clock.slotInfo(0)[1], 25000 / 61000)
+                    self.assertEqual(clock.resumeInfoForSlot(0)[2], 25000)
+                    tv._updatePlaybackMarker()
+                    self.assertEqual(tv.guideTable.playbackTime, 36025)
+                    tv.beginningButton.click()
+                    self.assertEqual(clock.slotInfo(0)[1], 0)
+                    tv._updatePlaybackMarker()
+                    self.assertEqual(tv.guideTable.playbackTime, 36000)
+                    # NOW during a film updates the slot before its path resolves.
+                    now.return_value = 930; wall.return_value = 36930
+                    tv.returnToLive()
+                    self.assertEqual(engine.currentSlotIndex, 1)
+                    self.assertIsNone(engine.currentRow)
+                    tv.beginningButton.click()
+                    self.assertEqual(resolve.call_args.args[0], 1)
+                    self.assertEqual(clock.slotInfo(1)[1], 0)
+                    tv._updatePlaybackMarker()
+                    self.assertEqual(tv.guideTable.playbackTime, 36900)
+            finally:
+                engine.shutdown(); engine.container.close()
+                tv.engines = {}; tv.close()
+
 
 if __name__ == '__main__':
     unittest.main()
