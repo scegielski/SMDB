@@ -51,9 +51,7 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
         channelFont = QtGui.QFont(font)
         channelFont.setPixelSize(round(14 * channelScale))
         rowTextHeight = max(textHeight, QtGui.QFontMetrics(channelFont).height())
-        markerFont = QtGui.QFont(font)
-        markerFont.setPixelSize(max(10, min(16, round(10 * scale))))
-        self.labelHeight = QtGui.QFontMetrics(markerFont).height() + 4
+        self.labelHeight = 0
         self.headerHeight = self.labelHeight + rowTextHeight + 6
         self.rowHeight = rowTextHeight + 6
         self.setMinimumHeight(self.headerHeight + self.rowHeight + self.horizontalScrollBar().sizeHint().height() + 12)
@@ -267,28 +265,15 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
         painter.setPen(QtGui.QPen(QtGui.QColor('#6e8bbd'), 4))
         painter.drawLine(self.channelWidth - 2, 0, self.channelWidth - 2, height)
         painter.drawLine(0, self.headerHeight - 1, width, self.headerHeight - 1)
-        # Compact labels sit above the hour blocks. Both pointers start at the
-        # top edge of those blocks and continue through the program rows.
+        # Unlabelled pointers start at the top of the hour blocks and continue
+        # through the programme rows; the live clock is in the corner header.
         painter.setClipRect(self.channelWidth, 0, max(0, width - self.channelWidth), height)
-        markerFont = QtGui.QFont(self.font())
-        markerFont.setPixelSize(max(10, min(16, round(10 * self.scale))))
-        painter.setFont(markerFont)
-        labelRects = []
         for timestamp, color in ((self.now, '#ffcc00'), (self.playbackTime, '#00ffff')):
             if timestamp is None:
                 continue
             x = self.timeX(timestamp)
             if not self.channelWidth <= x <= width:
                 continue
-            label = self.markerLabel(timestamp)
-            labelWidth = painter.fontMetrics().horizontalAdvance(label) + 8
-            left = max(self.channelWidth, min(x - labelWidth / 2, width - labelWidth))
-            labelRect = QtCore.QRectF(left, 0, labelWidth, self.labelHeight)
-            if labelRects and labelRect.intersects(labelRects[0]):
-                previous = labelRects[0]
-                left = previous.right() + 4 if previous.right() + 4 + labelWidth <= width else previous.left() - labelWidth - 4
-                labelRect.moveLeft(max(self.channelWidth, left))
-            labelRects.append(labelRect)
             painter.setPen(QtGui.QPen(QtGui.QColor('#050531'), 4))
             painter.drawLine(QtCore.QPointF(x, self.labelHeight), QtCore.QPointF(x, height))
             painter.setPen(QtGui.QPen(QtGui.QColor(color), 2))
@@ -299,9 +284,6 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
                 QtCore.QPointF(x - 5, self.labelHeight),
                 QtCore.QPointF(x + 5, self.labelHeight),
                 QtCore.QPointF(x, self.labelHeight + 7)]))
-            painter.fillRect(labelRect, QtGui.QColor('#050531'))
-            painter.setPen(QtGui.QColor(color))
-            painter.drawText(labelRect, QtCore.Qt.AlignCenter, label)
         if self.isPanning() and self.panMode == 'browser':
             painter.setClipping(False)
             origin = self.viewport().mapFromGlobal(self._panOrigin)
