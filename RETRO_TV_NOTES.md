@@ -2,13 +2,14 @@
 
 ## Current status (2026-10-08)
 
-- Latest implementation commit: `4dc3fa7` (video status overlays); `origin/master` currently has `72ae171`. Use `git status` and `git log` to check subsequent repository changes.
+- Latest implementation commit: `e651900` (global pause); `origin/master` currently has `72ae171`. Use `git status` and `git log` to check subsequent repository changes.
 - SMDB and SMTV are separate application modes. SMTV starts with the guide open; FULL/F/F11 currently switches to video-only fullscreen and Esc restores controls.
 - The guide is a single repeating timeline with hourly AM/PM headings, quarter-hour program starts, yellow live time, and a cyan manual-playback cursor. Published film times remain fixed through seeking and program navigation.
 - Channel labels have a distinct style and adjustable column width. The video/info divider and the horizontal guide divider are also draggable; the latter defaults to halfway down. Covers appear under movie titles, with synopsis text wrapping around them.
 - Middle-button dragging pans by default. Setup → Guide offers saved browser-style automatic scrolling as an alternative.
 - Wheel alone scrolls vertically. Only Ctrl+wheel and the font menu adjust fonts; channels, programming, information, and controls have independent saved sizes. Ctrl+wheel over programming retains the time under the pointer.
 - Standby uses color bars and an animated five-second film leader, with explicit Arial pixel fonts sized only to the video pane. App/section font controls cannot shrink the standby text. The countdown repeats only while buffering and never delays the first playing frame.
+- TV controls live in a right-side QDockWidget named SMTV Remote. Its explicit UNDOCK/DOCK button floats/redocks it. Both states are titleless, without native close/undock buttons. Drag anywhere on its surface, including controls, to move it; a drag undocks the panel while ordinary clicks and scrollbar gestures keep working. View menu commands also show or dock/undock the remote. Floating preference and window geometry persist. It hides in SMDB and video-only fullscreen, then restores on return.
 - Film controls have pause/resume between the ten-second arrows, with NOW between the lower barred arrows. Pause freezes every channel clock and buffered player, suppresses standby tone, and shows newly tuned films as frozen video frames while paused; resume continues all channels together.
 - Channel changes show a green channel number/name at the upper left of the video; volume changes show a green segmented bar and numeric level (MUTE at zero) near the lower left. Overlays expire after three seconds, renew on repeated changes, pass mouse events through, and use independent video-relative font sizing.
 - With subtitles enabled, missing captions trigger a background English download via the configured OpenSubtitles routine. The video shows `Downloading subtitles...` until captions are ready; failures stop the progress message and report unavailability.
@@ -22,8 +23,8 @@
 
 Consult this checklist when asked what to implement next. These are candidate features, not instructions to implement them all. Keep optional ideas open for discussion, and update the checklist and current status as features are implemented.
 
-- [ ] Floating remote with the same controls as the TV controls.
-- [ ] Possibly make TV controls dockable, turning into a floating remote when undocked.
+- [x] Floating remote with the same controls as the TV controls.
+- [x] Make TV controls dockable, turning into a floating remote when undocked.
 - [ ] Clean up TV controls: move Reprogram Channel/Channels into Setup, alongside the number of programs and other programming options.
 - [ ] True fullscreen mode, like a game.
 - [ ] Remove the fullscreen button from TV controls once fullscreen is the normal view; the dockable remote/TV controls would be the only obstruction.
@@ -38,6 +39,8 @@ Consult this checklist when asked what to implement next. These are candidate fe
 ## Implementation history
 
 The dated entries below describe the behavior at the time of each change; later entries and the current status supersede older designs.
+
+- Dockable SMTV Remote (2026-10-08): moved the existing control panel into a QDockWidget hosted by an internal QMainWindow, with docking allowed only on the right. The same controls float without duplicating or recreating players. Added shared View menu commands for showing and docking/undocking the remote, available in SMTV mode. Floating state and geometry persist in QSettings; mode switches hide the floating window and restore it in SMTV, and fullscreen still hides all controls and restores them on exit. Kept the video central layout margin-free for true video-only fullscreen. Four dock/geometry/action tests cover titleless floating, the explicit button, dragging from controls without activating them, normal clicks, saved geometry, and repeated drags with no floating-window hide/show events. Dragging uses a global pointer anchor and follows the complete mouse gesture across children and outside the remote; already-floating windows are moved without recreating them. Application-mode, fullscreen, and three font checks also pass on Windows.
 
 - Global pause and control layout (2026-10-08): moved NOW to the lower center between barred navigation arrows and added pause/resume in the upper center between ten-second arrows. Pause freezes all channel clocks, stops active/warmed players and advance/prefetch timers, suppresses standby tone, and prevents new movie loads from autoplaying. Resume preserves each position and shifts paused clock anchors by the elapsed pause interval; published guide times remain fixed. Five pause/layout tests pass, including a paused newly loaded channel that must show its video surface without advancing-position telemetry. The seven startup/standby tests and twenty-six timeline tests also pass; fourteen schedule tests passed before the paused-frame fix. Two native Windows movie players were verified to freeze and resume together. A newly loaded paused movie was separately verified to render its frame, remain in PausedState, and hold its exact position; it no longer stays on standby awaiting playback progress.
 

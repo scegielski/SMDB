@@ -31,6 +31,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer, QSoundEffect, QVideoProbe
 from .VideoView import VideoView
 from .GuideTimeline import GuideTimeline
+from .RemoteDock import RemoteDock
 from .Subtitles import SubtitleController
 from .SubtitleDownload import SubtitleDownloadJob
 
@@ -1223,6 +1224,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.mainWindow = parent
         self._videoOsdStatus = {}
         self._pausedAll = False
+        self._remoteRestored = False
         self._videoPathCache = {}
         self._descriptionCache = {}
         self.channels = []
@@ -1328,6 +1330,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         leftColumn = QtWidgets.QVBoxLayout()
         self.leftColumn = leftColumn
         leftColumn.setSpacing(4)
+        leftColumn.setContentsMargins(0, 0, 0, 0)
         leftColumn.addWidget(self.overlayArea, 1)
 
         self.nowPlayingLabel = QtWidgets.QLabel("")
@@ -1339,7 +1342,13 @@ class RetroChannelWidget(QtWidgets.QWidget):
         )
         leftColumn.addWidget(self.nowPlayingLabel)
 
-        rootLayout.addLayout(leftColumn, 1)
+        self.tvDockHost = QtWidgets.QMainWindow()
+        self.tvDockHost.setDockOptions(QtWidgets.QMainWindow.AnimatedDocks)
+        self.tvDockHost.setStyleSheet('QMainWindow::separator { background: #555; width: 5px; }')
+        videoPanel = QtWidgets.QWidget()
+        videoPanel.setLayout(leftColumn)
+        self.tvDockHost.setCentralWidget(videoPanel)
+        rootLayout.addWidget(self.tvDockHost, 1)
 
         self.banner = QtWidgets.QLabel()
         self.banner.setWordWrap(True)
@@ -1504,6 +1513,12 @@ class RetroChannelWidget(QtWidgets.QWidget):
         sideLayout.addWidget(self.muteButton)
         sideLayout.addWidget(self.fullScreenButton)
 
+        self.remoteDockButton = QtWidgets.QPushButton('UNDOCK')
+        self.remoteDockButton.setStyleSheet(guideButton.styleSheet())
+        self.remoteDockButton.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.remoteDockButton.clicked.connect(self.toggleRemoteDock)
+        self.remoteDockButton.setToolTip("Dock or undock the remote. Drag its surface to move it.")
+        sideLayout.insertWidget(0, self.remoteDockButton)
         sideLayout.addStretch(1)
 
         # Large text must remain usable in shorter windows.
@@ -1512,7 +1527,39 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.sideScroll.setFrameShape(QtWidgets.QFrame.NoFrame)
         self.sideScroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.sideScroll.setWidget(self.sideControls)
-        rootLayout.addWidget(self.sideScroll)
+        self.controlsDock = RemoteDock(self.tvDockHost)
+        self.controlsDock.setWidget(self.sideScroll)
+        self.tvDockHost.addDockWidget(QtCore.Qt.RightDockWidgetArea, self.controlsDock)
+        self.controlsDock.setStyleSheet('QDockWidget { color: white; background: #222; } '
+                                       'QDockWidget::title { background: #353535; padding: 6px; }')
+        self.controlsDock.toggleViewAction().setText('SMTV Remote')
+        self.controlsDock.topLevelChanged.connect(self._remoteDockChanged)
+        self.controlsDock.installEventFilter(self)
+
+    def toggleRemoteDock(self):
+        self.controlsDock.setFloating(not self.controlsDock.isFloating())
+        self.controlsDock.show()
+
+    def _remoteDockChanged(self, floating):
+        self.remoteDockButton.setText('DOCK' if floating else 'UNDOCK')
+        self._saveRemoteState()
+
+    def _saveRemoteState(self, *_args):
+        if self._settings is None or not self._remoteRestored or self._fullScreenTransition:
+            return
+        self._settings.setValue('smtvRemoteFloating', self.controlsDock.isFloating())
+        if self.controlsDock.isFloating():
+            self._settings.setValue('smtvRemoteGeometry', self.controlsDock.saveGeometry())
+
+    def _showRemote(self):
+        if not self._remoteRestored:
+            if self._settings and self._settings.value('smtvRemoteFloating', False, type=bool):
+                geometry = self._settings.value('smtvRemoteGeometry')
+                self.controlsDock.setFloating(True)
+                if geometry:
+                    self.controlsDock.restoreGeometry(geometry)
+            self._remoteRestored = True
+        self.controlsDock.show()
 
     def _subtitleSlot(self):
         engine = self._guidePreviewHostedEngine if self.guideVisible else None
@@ -2371,7 +2418,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._fsSpacing = self.layout().spacing()
         self._fsLeftSpacing = self.leftColumn.spacing()
         self._fsChrome = [(widget, not widget.isHidden())
-                          for widget in (self.sideScroll, self.nowPlayingLabel)]
+                          for widget in (self.controlsDock, self.sideScroll, self.nowPlayingLabel)]
         if isinstance(host, QtWidgets.QMainWindow):
             self._fsChrome += [(widget, not widget.isHidden())
                                for widget in (host.menuBar(), host.statusBar())]
@@ -2589,6 +2636,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.guideTable.ensureChannelVisible(self.guideHighlightIndex)
 
     def eventFilter(self, watched, event):
+        if watched is getattr(self, 'controlsDock', None) and event.type() in (QtCore.QEvent.Move, QtCore.QEvent.Resize):
+            self._saveRemoteState()
         if (watched is self.guideTable.viewport()
                 and event.type() in (QtCore.QEvent.Show, QtCore.QEvent.Resize)):
             QtCore.QTimer.singleShot(0, self._scrollGuideToHighlight)
@@ -2602,6 +2651,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if self._fullScreenTransition:
             return
         self.isActive = True
+        self._showRemote()
         self._showGuideOnStart = True
         # Start before engine creation or any catalogue/tuning work can block Qt.
         self.standbyTone.start()
@@ -2617,6 +2667,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
         super().hideEvent(event)
         if self._fullScreenTransition:
             return
+        self._saveRemoteState()
+        self.controlsDock.hide()
         self.isActive = False
         self.standbyPollTimer.stop()
         self.standbyTone.stop()

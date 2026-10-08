@@ -406,6 +406,9 @@ class MainWindow(QtWidgets.QMainWindow):
         # TV is a separate application mode, outside the database panes.
         from .RetroChannelWidget import RetroChannelWidget
         self.retroChannelWidget = RetroChannelWidget(parent=self)
+        self.viewMenu.addAction(self.retroChannelWidget.controlsDock.toggleViewAction())
+        self.remoteDockAction = self.viewMenu.addAction('Dock / Undock SMTV Remote')
+        self.remoteDockAction.triggered.connect(self.retroChannelWidget.toggleRemoteDock)
         self.retroChannelWidget.fontScaleChanged.connect(lambda _scale: self._syncFontMenu())
         self.modeStack.addWidget(self.retroChannelWidget)
 
@@ -943,6 +946,8 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.retroChannelWidget.isFullScreenActive:
             self.retroChannelWidget._exitFullScreen()
         self.applicationMode = mode
+        self.retroChannelWidget.controlsDock.toggleViewAction().setEnabled(mode == 'TV')
+        self.remoteDockAction.setEnabled(mode == 'TV')
         self.modeStack.setCurrentWidget(self.retroChannelWidget if mode == 'TV' else self.databaseWidget)
         self.modeActions[mode].setChecked(True)
         self.statusBar().setVisible(mode == 'Database')
@@ -1034,6 +1039,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def initUIViewMenu(self):
         menuBar = self.menuBar()
         viewMenu = menuBar.addMenu('View')
+        self.viewMenu = viewMenu
         self.fontMenu = viewMenu.addMenu('Font Size')
         self.increaseFontAction = self.fontMenu.addAction('Increase')
         self.decreaseFontAction = self.fontMenu.addAction('Decrease')
