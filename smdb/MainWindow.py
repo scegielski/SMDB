@@ -275,6 +275,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.statusBar().setStyleSheet(f"background: {self.bgColorA};"
                                        f"color: {self.fgColor};")
+        self.statusBar().hide()
 
         # Default view state of UI sections
         self.showPrimaryFilter = self.settings.value('showPrimaryFilter', True, type=bool)
@@ -950,7 +951,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.remoteDockAction.setEnabled(mode == 'TV')
         self.modeStack.setCurrentWidget(self.retroChannelWidget if mode == 'TV' else self.databaseWidget)
         self.modeActions[mode].setChecked(True)
-        self.statusBar().setVisible(mode == 'Database')
+        self.statusBar().hide()
         self.settings.setValue('applicationMode', mode)
         self._syncFontMenu()
         if mode == 'TV':

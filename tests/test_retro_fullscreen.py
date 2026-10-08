@@ -39,7 +39,10 @@ class FullScreenLifecycleTests(unittest.TestCase):
         try:
             with patch.object(tv, '_teardownAllEngines', wraps=tv._teardownAllEngines) as teardown, \
                     patch.object(tv, '_tuneTo', wraps=tv._tuneTo) as tune:
-                for _ in range(3):
+                for guide_visible in (True, False, True):
+                    if tv.guideVisible != guide_visible:
+                        tv.toggleGuide()
+                    preview_engine = tv._guidePreviewHostedEngine
                     for fullscreen in (True, False):
                         tv.toggleFullScreen()
                         self.app.processEvents()
@@ -48,14 +51,11 @@ class FullScreenLifecycleTests(unittest.TestCase):
                         self.assertTrue(tv.standbyPollTimer.isActive())
                         self.assertEqual(tv.engines, engines)
                         self.assertEqual({i: e.activeSlot.player for i, e in tv.engines.items()}, players)
-                        self.assertEqual(tv.guideVisible, not fullscreen)
+                        self.assertEqual(tv.guideVisible, guide_visible)
                         self.assertFalse(tv.sideScroll.isHidden())
                         self.assertTrue(tv.controlsDock.isVisible())
-                        self.assertEqual(tv.nowPlayingLabel.isHidden(), fullscreen)
-                        if fullscreen:
-                            self.assertIsNone(tv._guidePreviewHostedEngine)
-                        else:
-                            self.assertIs(tv._guidePreviewHostedEngine, preview_engine)
+                        self.assertTrue(tv.nowPlayingLabel.isHidden())
+                        self.assertIs(tv._guidePreviewHostedEngine, preview_engine)
                 teardown.assert_not_called()
                 tune.assert_not_called()
                 self.assertIs(tabs.currentWidget(), tv)
@@ -74,6 +74,52 @@ class FullScreenLifecycleTests(unittest.TestCase):
             tabs.close()
             QtCore.QThreadPool.globalInstance().waitForDone()
             self.app.processEvents()
+
+    def test_fullscreen_hides_menu_and_status_but_keeps_guide_changes_on_exit(self):
+        host = QtWidgets.QMainWindow()
+        tv = RetroChannelWidget()
+        host.setCentralWidget(tv)
+        host.menuBar().addMenu('View')
+        host.statusBar().showMessage('Ready')
+        host.resize(1100, 900)
+        try:
+            with patch.object(tv.standbyTone, '_syncPlayback'):
+                host.show()
+                self.app.processEvents()
+                tv.channels = [{'genre': 'Action', 'rows': [0], 'clock': ChannelClock([0])}]
+                tv.toggleGuide()
+                margins = tv.layout().contentsMargins()
+                spacing = tv.layout().spacing()
+                tv._enterFullScreen()
+                self.app.processEvents()
+                self.assertTrue(tv.guideVisible)
+                self.assertTrue(tv.guideOverlay.isVisible())
+                self.assertTrue(tv.guideButton.isChecked())
+                self.assertFalse(host.menuBar().isVisible())
+                self.assertFalse(host.statusBar().isVisible())
+                self.assertFalse(tv.nowPlayingLabel.isVisible())
+                self.assertEqual(tv.layout().contentsMargins(), margins)
+                self.assertEqual(tv.layout().spacing(), spacing)
+                tv.toggleGuide()
+                self.assertFalse(tv.guideVisible)
+                tv._exitFullScreen()
+                self.app.processEvents()
+                self.assertFalse(tv.guideVisible)
+                self.assertFalse(tv.guideButton.isChecked())
+                self.assertFalse(tv.guideOverlay.isVisible())
+                self.assertTrue(host.menuBar().isVisible())
+                self.assertFalse(host.statusBar().isVisible())
+                self.assertFalse(tv.nowPlayingLabel.isVisible())
+                tv._enterFullScreen()
+                self.assertFalse(tv.guideVisible)
+                tv.toggleGuide()
+                tv._exitFullScreen()
+                self.assertTrue(tv.guideVisible)
+                self.assertTrue(tv.guideButton.isChecked())
+        finally:
+            if tv.isFullScreenActive:
+                tv._exitFullScreen()
+            host.close()
 
 
 if __name__ == '__main__':

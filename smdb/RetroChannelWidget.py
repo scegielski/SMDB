@@ -1357,6 +1357,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
             "padding: 6px; border: 1px solid #444; border-radius: 4px;"
         )
         leftColumn.addWidget(self.nowPlayingLabel)
+        self.nowPlayingLabel.hide()
 
         self.tvDockHost = QtWidgets.QMainWindow()
         self.tvDockHost.setDockOptions(QtWidgets.QMainWindow.AnimatedDocks)
@@ -2540,29 +2541,19 @@ class RetroChannelWidget(QtWidgets.QWidget):
         host = self.window()
         self._fsWindow = host
         self._fsWindowState = host.windowState()
-        self._fsGuideVisible = self.guideVisible
         self._fsRemoteFloating = self.controlsDock.isFloating()
         self._fsRemoteGeometry = self.controlsDock.saveGeometry()
         self._fsRemotePosition = self.controlsDock.mapToGlobal(QtCore.QPoint())
-        self._fsMargins = self.layout().contentsMargins()
-        self._fsSpacing = self.layout().spacing()
-        self._fsLeftSpacing = self.leftColumn.spacing()
         self._fsChrome = [(widget, not widget.isHidden())
-                          for widget in (self.controlsDock, self.sideScroll, self.nowPlayingLabel)]
+                          for widget in (self.controlsDock, self.sideScroll)]
         if isinstance(host, QtWidgets.QMainWindow):
-            self._fsChrome += [(widget, not widget.isHidden())
-                               for widget in (host.menuBar(), host.statusBar())]
+            self._fsChrome.append((host.menuBar(), not host.menuBar().isHidden()))
+            host.statusBar().hide()
         self._fullScreenTransition = True
         try:
             self.isFullScreenActive = True
-            if self.guideVisible:
-                self.toggleGuide()
-            self.banner.hide()
             for widget, _visible in self._fsChrome:
                 widget.hide()
-            self.layout().setContentsMargins(0, 0, 0, 0)
-            self.layout().setSpacing(0)
-            self.leftColumn.setSpacing(0)
             self.fullScreenButton.setText("EXIT FULL")
             host.showFullScreen()
             dock = self.controlsDock
@@ -2603,16 +2594,11 @@ class RetroChannelWidget(QtWidgets.QWidget):
             if self._fsRemoteFloating:
                 dock.restoreGeometry(self._fsRemoteGeometry)
             self.remoteDockButton.setEnabled(True)
-            self.layout().setContentsMargins(self._fsMargins)
-            self.layout().setSpacing(self._fsSpacing)
-            self.leftColumn.setSpacing(self._fsLeftSpacing)
             for widget, visible in self._fsChrome:
                 widget.setVisible(visible)
             self.fullScreenButton.setText("FULL")
             host.setWindowState(self._fsWindowState)
             host.show()
-            if self.guideVisible != self._fsGuideVisible:
-                self.toggleGuide()
         finally:
             self._fullScreenTransition = False
         self.setFocus()
