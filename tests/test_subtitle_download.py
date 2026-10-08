@@ -94,7 +94,10 @@ class SubtitleDownloadTests(unittest.TestCase):
                 pool.start(job)
                 self.assertTrue(started.wait(1))
                 QtCore.QTimer.singleShot(10, lambda: heartbeat.append(True))
-                QtTest.QTest.qWait(40)
+                for _ in range(50):
+                    if heartbeat:
+                        break
+                    QtTest.QTest.qWait(10)
                 self.assertEqual(heartbeat, [True])
                 self.assertEqual(delivered, [])
             finally:

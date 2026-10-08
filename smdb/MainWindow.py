@@ -4086,25 +4086,67 @@ class MainWindow(QtWidgets.QMainWindow):
         sort_column = Columns.Rank.value if name == 'criterion' else Columns.Year.value
         self.moviesTableProxyModel.sort(sort_column, QtCore.Qt.AscendingOrder)
 
-    def moviesTableRightMenuShow(self, QPos):
+    def movieVideoRightMenuShow(self, sourceRow, globalPosition):
+        """Open without loading hidden database details or changing its filters."""
+        self.moviesTableRightMenuShow(None, globalPosition, sourceRow=sourceRow)
+
+    def _runMovieContextAction(self, sourceRow, callback):
+        """Select the displayed film only while executing a chosen movie action."""
+        model = self.moviesTableModel
+        if sourceRow is None or not 0 <= sourceRow < model.rowCount():
+            return
+        table = self.moviesTableView
+        proxy = self.moviesTableProxyModel
+        selection = table.selectionModel()
+        saved = [QtCore.QPersistentModelIndex(proxy.mapToSource(index))
+                 for index in selection.selectedRows()]
+        current = QtCore.QPersistentModelIndex(proxy.mapToSource(table.currentIndex()))
+        target = QtCore.QPersistentModelIndex(model.index(sourceRow, 0))
+        try:
+            proxy.setContextMovieIndex(QtCore.QModelIndex(target))
+            index = proxy.mapFromSource(QtCore.QModelIndex(target))
+            blocker = QtCore.QSignalBlocker(selection)
+            selection.select(index, QtCore.QItemSelectionModel.ClearAndSelect | QtCore.QItemSelectionModel.Rows)
+            table.setCurrentIndex(index)
+            del blocker
+            callback()
+        finally:
+            blocker = QtCore.QSignalBlocker(selection)
+            proxy.setContextMovieIndex(QtCore.QModelIndex())
+            selection.clearSelection()
+            for source in saved:
+                index = proxy.mapFromSource(QtCore.QModelIndex(source))
+                if index.isValid():
+                    selection.select(index, QtCore.QItemSelectionModel.Select | QtCore.QItemSelectionModel.Rows)
+            selection.setCurrentIndex(proxy.mapFromSource(QtCore.QModelIndex(current)),
+                                      QtCore.QItemSelectionModel.NoUpdate)
+            del blocker
+
+    def moviesTableRightMenuShow(self, QPos, globalPosition=None, sourceRow=None):
+        def bind(action, callback):
+            if sourceRow is None:
+                action.triggered.connect(callback)
+            else:
+                action.triggered.connect(lambda checked=False: self._runMovieContextAction(sourceRow, callback))
+
         moviesTableRightMenu = QtWidgets.QMenu(self.moviesTableView)
 
         moviesTableRightMenu.setStyleSheet("""QMenu::separator { background: white; }""")
 
         # Play
         playAction = QtWidgets.QAction("Play")
-        playAction.triggered.connect(lambda: self.playMovie(self.moviesTableView,
+        bind(playAction, lambda: self.playMovie(self.moviesTableView,
                                                             self.moviesTableProxyModel))
         moviesTableRightMenu.addAction(playAction)
 
         # Open Folder
         openFolderAction = QtWidgets.QAction("Open Folder", self)
-        openFolderAction.triggered.connect(self.openMovieFolder)
+        bind(openFolderAction, self.openMovieFolder)
         moviesTableRightMenu.addAction(openFolderAction)
 
         # Open Json File
         openJsonAction = QtWidgets.QAction("Open Json File", self)
-        openJsonAction.triggered.connect(self.openMovieJson)
+        bind(openJsonAction, self.openMovieJson)
         moviesTableRightMenu.addAction(openJsonAction)
 
         # Subtitles submenu
@@ -4112,15 +4154,15 @@ class MainWindow(QtWidgets.QMainWindow):
         subtitlesSubmenu.setStyle(moviesTableRightMenu.style())
         
         downloadOpenSubtitlesSelectAction = QtWidgets.QAction("Download Subtitles (Select Language)", self)
-        downloadOpenSubtitlesSelectAction.triggered.connect(lambda: self.downloadSubtitles('select'))
+        bind(downloadOpenSubtitlesSelectAction, lambda: self.downloadSubtitles('select'))
         subtitlesSubmenu.addAction(downloadOpenSubtitlesSelectAction)
 
         downloadOpenSubtitlesAction = QtWidgets.QAction("Download English Subtitles", self)
-        downloadOpenSubtitlesAction.triggered.connect(lambda: self.downloadSubtitles('en'))
+        bind(downloadOpenSubtitlesAction, lambda: self.downloadSubtitles('en'))
         subtitlesSubmenu.addAction(downloadOpenSubtitlesAction)
 
         downloadSubtitlesAction = QtWidgets.QAction("Download Subtitles from YIFY", self)
-        downloadSubtitlesAction.triggered.connect(self.downloadSubtitlesYify)
+        bind(downloadSubtitlesAction, self.downloadSubtitlesYify)
         subtitlesSubmenu.addAction(downloadSubtitlesAction)
 
         moviesTableRightMenu.addMenu(subtitlesSubmenu)
@@ -4130,11 +4172,11 @@ class MainWindow(QtWidgets.QMainWindow):
         imdbSubmenu.setStyle(moviesTableRightMenu.style())
         
         openImdbAction = QtWidgets.QAction("Open IMDB Page", self)
-        openImdbAction.triggered.connect(self.openMovieImdbPage)
+        bind(openImdbAction, self.openMovieImdbPage)
         imdbSubmenu.addAction(openImdbAction)
 
         overrideImdbAction = QtWidgets.QAction("Override IMDB ID", self)
-        overrideImdbAction.triggered.connect(self.overrideID)
+        bind(overrideImdbAction, self.overrideID)
         imdbSubmenu.addAction(overrideImdbAction)
 
         moviesTableRightMenu.addMenu(imdbSubmenu)
@@ -4144,11 +4186,11 @@ class MainWindow(QtWidgets.QMainWindow):
         listsSubmenu.setStyle(moviesTableRightMenu.style())
         
         addToWatchListAction = QtWidgets.QAction("Add To Watch List", self)
-        addToWatchListAction.triggered.connect(self.watchListAdd)
+        bind(addToWatchListAction, self.watchListAdd)
         listsSubmenu.addAction(addToWatchListAction)
 
         addToBackupListAction = QtWidgets.QAction("Add To Backup List", self)
-        addToBackupListAction.triggered.connect(self.backupListAdd)
+        bind(addToBackupListAction, self.backupListAdd)
         listsSubmenu.addAction(addToBackupListAction)
 
         moviesTableRightMenu.addMenu(listsSubmenu)
@@ -4161,7 +4203,7 @@ class MainWindow(QtWidgets.QMainWindow):
         for c in self.collections:
             label = os.path.splitext(os.path.basename(c))[0]
             action = QtWidgets.QAction(f"Filter by {label} Collection", self)
-            action.triggered.connect(lambda checked, collection=c: self.filterCollection(collection))
+            bind(action, lambda checked=False, collection=c: self.filterCollection(collection))
             filterBySubmenu.addAction(action)
 
         moviesTableRightMenu.addSeparator()
@@ -4171,27 +4213,27 @@ class MainWindow(QtWidgets.QMainWindow):
         downloadSubmenu.setStyle(moviesTableRightMenu.style())
         
         downloadDataAction = QtWidgets.QAction("Download Data", self)
-        downloadDataAction.triggered.connect(self.downloadDataMenu)
+        bind(downloadDataAction, self.downloadDataMenu)
         downloadSubmenu.addAction(downloadDataAction)
 
         downloadMissingDataAction = QtWidgets.QAction("Download Missing Data", self)
-        downloadMissingDataAction.triggered.connect(self.downloadMissingDataMenu)
+        bind(downloadMissingDataAction, self.downloadMissingDataMenu)
         downloadSubmenu.addAction(downloadMissingDataAction)
 
         downloadSubmenu.addSeparator()
 
         forceDownloadDataAction = QtWidgets.QAction("Force Download Data", self)
-        forceDownloadDataAction.triggered.connect(lambda: self.downloadDataMenu(force=True))
+        bind(forceDownloadDataAction, lambda: self.downloadDataMenu(force=True))
         downloadSubmenu.addAction(forceDownloadDataAction)
 
         forceDownloadJsonAction = QtWidgets.QAction("Force Download Json only", self)
-        forceDownloadJsonAction.triggered.connect(lambda: self.downloadDataMenu(force=True,
+        bind(forceDownloadJsonAction, lambda: self.downloadDataMenu(force=True,
                                                                            doJson=True,
                                                                            doCover=False))
         downloadSubmenu.addAction(forceDownloadJsonAction)
 
         forceDownloadCoverAction = QtWidgets.QAction("Force Download Cover only", self)
-        forceDownloadCoverAction.triggered.connect(lambda: self.downloadDataMenu(force=True,
+        bind(forceDownloadCoverAction, lambda: self.downloadDataMenu(force=True,
                                                                            doJson=False,
                                                                            doCover=True))
         downloadSubmenu.addAction(forceDownloadCoverAction)
@@ -4199,11 +4241,11 @@ class MainWindow(QtWidgets.QMainWindow):
         downloadSubmenu.addSeparator()
 
         downloadSynopsisAction = QtWidgets.QAction("Download Synopsis", self)
-        downloadSynopsisAction.triggered.connect(lambda: self.downloadSynopsisMenu(force=False))
+        bind(downloadSynopsisAction, lambda: self.downloadSynopsisMenu(force=False))
         downloadSubmenu.addAction(downloadSynopsisAction)
 
         forceDownloadSynopsisAction = QtWidgets.QAction("Force Download Synopsis", self)
-        forceDownloadSynopsisAction.triggered.connect(lambda: self.downloadSynopsisMenu(force=True))
+        bind(forceDownloadSynopsisAction, lambda: self.downloadSynopsisMenu(force=True))
         downloadSubmenu.addAction(forceDownloadSynopsisAction)
 
         moviesTableRightMenu.addMenu(downloadSubmenu)
@@ -4213,25 +4255,25 @@ class MainWindow(QtWidgets.QMainWindow):
         duplicatesSubmenu.setStyle(moviesTableRightMenu.style())
         
         findDuplicatesAction = QtWidgets.QAction("Find Duplicates", self)
-        findDuplicatesAction.triggered.connect(self.findDuplicates)
+        bind(findDuplicatesAction, self.findDuplicates)
         duplicatesSubmenu.addAction(findDuplicatesAction)
 
         markKnownDuplicateAction = QtWidgets.QAction("Mark as Known Duplicate", self)
-        markKnownDuplicateAction.triggered.connect(self.markAsKnownDuplicate)
+        bind(markKnownDuplicateAction, self.markAsKnownDuplicate)
         duplicatesSubmenu.addAction(markKnownDuplicateAction)
 
         unmarkKnownDuplicateAction = QtWidgets.QAction("Unmark as Known Duplicate", self)
-        unmarkKnownDuplicateAction.triggered.connect(self.unmarkAsKnownDuplicate)
+        bind(unmarkKnownDuplicateAction, self.unmarkAsKnownDuplicate)
         duplicatesSubmenu.addAction(unmarkKnownDuplicateAction)
 
         duplicatesSubmenu.addSeparator()
 
         findMovieInMovieAction = QtWidgets.QAction("Find Movie in Movie", self)
-        findMovieInMovieAction.triggered.connect(self.findMovieInMovie)
+        bind(findMovieInMovieAction, self.findMovieInMovie)
         duplicatesSubmenu.addAction(findMovieInMovieAction)
 
         searchForOtherVersionsAction = QtWidgets.QAction("Search for other versions", self)
-        searchForOtherVersionsAction.triggered.connect(self.searchForOtherVersions)
+        bind(searchForOtherVersionsAction, self.searchForOtherVersions)
         duplicatesSubmenu.addAction(searchForOtherVersionsAction)
 
         moviesTableRightMenu.addMenu(duplicatesSubmenu)
@@ -4241,15 +4283,15 @@ class MainWindow(QtWidgets.QMainWindow):
         userTagsSubmenu.setStyle(moviesTableRightMenu.style())
         
         addNewUserTagAction = QtWidgets.QAction("Add New Tag", self)
-        addNewUserTagAction.triggered.connect(self.addNewUserTag)
+        bind(addNewUserTagAction, self.addNewUserTag)
         userTagsSubmenu.addAction(addNewUserTagAction)
 
         addExistingUserTagAction = QtWidgets.QAction("Add Existing Tag", self)
-        addExistingUserTagAction.triggered.connect(self.addExistingUserTag)
+        bind(addExistingUserTagAction, self.addExistingUserTag)
         userTagsSubmenu.addAction(addExistingUserTagAction)
 
         clearUserTagsAction = QtWidgets.QAction("Clear Tags", self)
-        clearUserTagsAction.triggered.connect(self.clearUserTags)
+        bind(clearUserTagsAction, self.clearUserTags)
         userTagsSubmenu.addAction(clearUserTagsAction)
 
         moviesTableRightMenu.addMenu(userTagsSubmenu)
@@ -4258,22 +4300,23 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Select All
         selectAllAction = QtWidgets.QAction("Select All", self)
-        selectAllAction.triggered.connect(lambda: self.tableSelectAll(self.moviesTableView))
+        bind(selectAllAction, lambda: self.tableSelectAll(self.moviesTableView))
         moviesTableRightMenu.addAction(selectAllAction)
 
         # Remove Movie
         removeMovieAction = QtWidgets.QAction("Remove Movie", self)
-        removeMovieAction.triggered.connect(self.removeMovieMenu)
+        bind(removeMovieAction, self.removeMovieMenu)
         moviesTableRightMenu.addAction(removeMovieAction)
 
         selectionModel = self.moviesTableView.selectionModel()
-        if selectionModel and selectionModel.selectedRows():
+        if sourceRow is None and selectionModel and selectionModel.selectedRows():
             modelIndex = selectionModel.selectedRows()[0]
             self.clickedTable(modelIndex,
                               self.moviesTableModel,
                               self.moviesTableProxyModel)
 
-        moviesTableRightMenu.exec_(QtGui.QCursor.pos())
+        moviesTableRightMenu.exec_(globalPosition if globalPosition is not None else QtGui.QCursor.pos())
+        moviesTableRightMenu.deleteLater()
 
     def tableSelectAll(self, table):
         # Select all rows in the proxy model (which are already filtered)

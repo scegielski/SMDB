@@ -14,6 +14,7 @@ class MovieFilterProxyModel(QtCore.QSortFilterProxyModel):
         # Filter criteria storage
         self.filter_movie_list = []  # List of (title, year) tuples to show
         self.filter_mode = 'none'  # 'none', 'include', or 'exclude'
+        self._contextMovieIndex = QtCore.QPersistentModelIndex()
         self._filter_set = set()
         self._filter_set_dirty = True
         
@@ -41,12 +42,22 @@ class MovieFilterProxyModel(QtCore.QSortFilterProxyModel):
         self._filter_set_dirty = True
         self.invalidateFilter()
     
+    def setContextMovieIndex(self, index):
+        """Temporarily expose a video-menu target without changing saved filters."""
+        self._contextMovieIndex = QtCore.QPersistentModelIndex(index)
+        self.invalidateFilter()
+
     def filterAcceptsRow(self, source_row, source_parent):
         """
         Determine if a row should be shown based on filter criteria.
         
         This method is called by Qt for each row to determine visibility.
         """
+        if (self._contextMovieIndex.isValid()
+                and self._contextMovieIndex.row() == source_row
+                and self._contextMovieIndex.parent() == source_parent):
+            return True
+
         # First check the built-in filter (used for title search)
         if not super().filterAcceptsRow(source_row, source_parent):
             return False

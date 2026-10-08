@@ -82,3 +82,5 @@ Use SUBTITLES on the TV controls to turn captions on/off, select an embedded tex
 Embedded text subtitles use FFmpeg/FFprobe, packaged with the Windows builds when available on the build machine; source runs use tools on PATH. Image-based tracks such as PGS/VobSub are listed but disabled. Text markup is rendered as plain captions.
 
 When subtitles are enabled and a visible SMTV movie has no usable local or embedded captions, SMTV automatically tries the existing OpenSubtitles English-download routine with the configured API key. The video displays `Downloading subtitles...` until the validated SRT is saved beside the movie and loaded. Downloads run in the background; failed attempts report unavailability and are not repeatedly retried during that run.
+
+Right-click the SMTV video pane to use the SMDB movie-list context menu for the displayed film (folder, JSON, IMDb, subtitles, lists, tags, and other movie actions). The database filters and prior selection are preserved when the menu closes.

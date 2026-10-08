@@ -211,6 +211,8 @@ class ClipSlot(QtCore.QObject):
         while owner is not None and not hasattr(owner, 'subtitlesEnabled'):
             owner = owner.parent()
         if owner is not None:
+            self.videoWidget.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+            self.videoWidget.customContextMenuRequested.connect(owner._showVideoContextMenu)
             self.subtitles.setEnabled(owner.subtitlesEnabled)
             self.subtitles.error.connect(owner._subtitleError)
             self.subtitles.tracksChanged.connect(owner._subtitleTracksChanged)
@@ -1426,6 +1428,17 @@ class RetroChannelWidget(QtWidgets.QWidget):
         engine = self._guidePreviewHostedEngine if self.guideVisible else None
         engine = engine or self.engines.get(self.currentIndex)
         return engine.activeSlot if engine else self.guidePreviewSlot
+
+    def _showVideoContextMenu(self, position):
+        video = self.sender()
+        slot = self._subtitleSlot()
+        if slot is None or video is not slot.videoWidget or not slot.path:
+            return
+        path = os.path.normcase(os.path.abspath(slot.path))
+        row = next((row for row, cached in self._videoPathCache.items()
+                    if cached and os.path.normcase(os.path.abspath(cached)) == path), None)
+        if row is not None and hasattr(self.mainWindow, 'movieVideoRightMenuShow'):
+            self.mainWindow.movieVideoRightMenuShow(row, video.mapToGlobal(position))
 
     def _subtitleError(self, message):
         self.subtitleButton.setToolTip(message)
