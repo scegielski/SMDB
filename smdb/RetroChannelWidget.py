@@ -1250,6 +1250,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._includeUnratedQuality = self._settings.value('smtvIncludeUnratedQuality', True, type=bool) if self._settings else True
         self.engines = {}
         self.currentIndex = 0
+        self._preferredChannel = self._settings.value('smtvCurrentChannel', '', type=str) if self._settings else ''
         self.isActive = False
         self.guideVisible = False
         self._showGuideOnStart = True
@@ -2097,7 +2098,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._applyChannelSelection()
 
     def _applyChannelSelection(self):
-        currentGenre = self.channels[self.currentIndex]['genre'] if self.channels else None
+        currentGenre = self.channels[self.currentIndex]['genre'] if self.channels else self._preferredChannel
         self._teardownAllEngines()
         self._stopGuidePreview()
         self.channels = []
@@ -2294,11 +2295,19 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.engines = {}
         self.displayStack.setCurrentWidget(self.globalStandby)
 
+    def _rememberCurrentChannel(self):
+        if not self.channels:
+            return
+        self._preferredChannel = self.channels[self.currentIndex]['genre']
+        if self._settings is not None:
+            self._settings.setValue('smtvCurrentChannel', self._preferredChannel)
+
     def _tuneTo(self, index):
         if not self.channels:
             return
         if not self._powerOn:
             self.currentIndex = index % len(self.channels)
+            self._rememberCurrentChannel()
             self.guideHighlightIndex = self.currentIndex
             self.displayStack.setCurrentWidget(self.powerOffScreen)
             if self.guideVisible:
@@ -2343,6 +2352,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self.engines[idx].start()
 
         self.currentIndex = index
+        self._rememberCurrentChannel()
         self.guideHighlightIndex = index
         engine = self.engines.get(index)
         if engine:
