@@ -2,12 +2,13 @@
 
 ## Current status (2026-10-07)
 
-- Latest implementation commit: `71283ee` (automatic subtitle downloads); `origin/master` currently has `8f1d505`. Use `git status` and `git log` to check subsequent repository changes.
+- Latest implementation commit: `a9177b3` (video context menu); `origin/master` currently has `8f1d505`. Use `git status` and `git log` to check subsequent repository changes.
 - SMDB and SMTV are separate application modes. SMTV starts with the guide open; FULL/F/F11 currently switches to video-only fullscreen and Esc restores controls.
 - The guide is a single repeating timeline with hourly AM/PM headings, quarter-hour program starts, yellow live time, and a cyan manual-playback cursor. Published film times remain fixed through seeking and program navigation.
 - Channel labels have a distinct style and adjustable column width. The video/info divider and the horizontal guide divider are also draggable; the latter defaults to halfway down. Covers appear under movie titles, with synopsis text wrapping around them.
 - Middle-button dragging pans by default. Setup → Guide offers saved browser-style automatic scrolling as an alternative.
 - Wheel alone scrolls vertically. Only Ctrl+wheel and the font menu adjust fonts; channels, programming, information, and controls have independent saved sizes. Ctrl+wheel over programming retains the time under the pointer.
+- Standby uses color bars and an animated five-second film leader, with explicit Arial pixel fonts sized only to the video pane. App/section font controls cannot shrink the standby text. The countdown repeats only while buffering and never delays the first playing frame.
 - With subtitles enabled, missing captions trigger a background English download via the configured OpenSubtitles routine. The video shows `Downloading subtitles...` until captions are ready; failures stop the progress message and report unavailability.
 - Right-click the SMTV video pane for the same movie context menu as the SMDB list. It targets the displayed film, including films hidden by database filters, and restores the database selection when dismissed.
 - SUBTITLES offers Off/On, embedded text tracks, nearby SRT/VTT files, and a file picker. Captions use media position and paint inside the composited video viewport, following guide/fullscreen geometry. Image-based tracks are listed as unsupported.
@@ -35,6 +36,8 @@ Consult this checklist when asked what to implement next. These are candidate fe
 ## Implementation history
 
 The dated entries below describe the behavior at the time of each change; later entries and the current status supersede older designs.
+
+- Standby color-bar leader (2026-10-07): replaced the inherited-font gray test pattern with color bars, a circular animated 5-to-1 countdown, and a large PLEASE STAND BY banner. All painted fonts are explicitly set from video geometry, independent of app fonts and section zoom. Animation runs only while visible, resetting on each loading screen; it does not impose a countdown delay on playback. Two rendering/lifecycle tests and seven existing standby/tone tests pass on Windows; the 800x450 rendered preview was inspected.
 
 - Video context menu (2026-10-07): reused the SMDB list menu on each SMTV video buffer, including guide and fullscreen playback. Opening the video menu does not refilter the catalogue or reload the hidden cover/synopsis/Cover Flow view; those operations were causing playback stutter. Selection is applied only when an action is triggered. Actions target the displayed video through its catalogue row; a temporary proxy exemption exposes filtered-out films without clearing filters. Persistent source indexes restore the database selection even after changes. Added five checks covering native right-click delivery, filtered targets, selection restoration on errors, lightweight opening, and deferred action targeting. All 74 checks pass in isolated module runs; the combined Qt multimedia run can terminate during existing subtitle-player teardown. The background-download heartbeat check now waits up to 500 ms for the event instead of assuming a Windows timer fires within 40 ms.
 

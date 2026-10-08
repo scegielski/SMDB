@@ -147,50 +147,75 @@ class StandbyTone(QtCore.QObject):
 
 
 class StandByScreen(QtWidgets.QWidget):
-    """Retro test-pattern placeholder shown while a channel's clip is buffering."""
+    """Animated color-bar leader; typography depends only on the video geometry."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setStyleSheet("background: #9a9a9a;")
+        self.setStyleSheet("background: black;")
+        self._elapsed = QtCore.QElapsedTimer()
+        self._animationTimer = QtCore.QTimer(self)
+        self._animationTimer.setInterval(33)
+        self._animationTimer.timeout.connect(self.update)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._elapsed.start()
+        self._animationTimer.start()
+
+    def hideEvent(self, event):
+        self._animationTimer.stop()
+        super().hideEvent(event)
+
+    def _leaderPosition(self):
+        elapsed = self._elapsed.elapsed() if self._elapsed.isValid() else 0
+        return 5 - (elapsed // 1000) % 5, (elapsed % 1000) / 1000
+
+    def _titleFont(self, width, height):
+        font = QtGui.QFont('Arial')
+        font.setWeight(QtGui.QFont.Black)
+        font.setPixelSize(max(1, round(min(width * .065, height * .10))))
+        while font.pixelSize() > 1 and QtGui.QFontMetrics(font).horizontalAdvance('PLEASE STAND BY') > width * .9:
+            font.setPixelSize(font.pixelSize() - 1)
+        return font
 
     def paintEvent(self, event):
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.Antialiasing)
-        rect = self.rect()
-        painter.fillRect(rect, QtGui.QColor('#9a9a9a'))
-
-        cx, cy = rect.center().x(), rect.center().y()
-        radius = min(rect.width(), rect.height()) * 0.42
-
-        pen = QtGui.QPen(QtGui.QColor('#222222'))
-        pen.setWidth(2)
-        painter.setPen(pen)
-        painter.drawEllipse(QtCore.QPointF(cx, cy), radius, radius)
-        painter.drawEllipse(QtCore.QPointF(cx, cy), radius * 0.5, radius * 0.5)
-        for i in range(12):
-            angle = math.radians(i * 30)
-            x = cx + radius * math.cos(angle)
-            y = cy + radius * math.sin(angle)
-            painter.drawLine(QtCore.QPointF(cx, cy), QtCore.QPointF(x, y))
-
-        margin = 30
-        corners = (
-            (margin, margin), (rect.width() - margin, margin),
-            (margin, rect.height() - margin), (rect.width() - margin, rect.height() - margin),
-        )
-        for dx, dy in corners:
-            painter.drawEllipse(QtCore.QPointF(dx, dy), 18, 18)
-            painter.drawLine(QtCore.QPointF(dx - 18, dy), QtCore.QPointF(dx + 18, dy))
-            painter.drawLine(QtCore.QPointF(dx, dy - 18), QtCore.QPointF(dx, dy + 18))
-
-        font = QtGui.QFont(self.font())
-        font.setWeight(QtGui.QFont.Black)
+        w, h = self.width(), self.height()
+        colors = ('#ebebeb', '#ebeb00', '#00ebeb', '#00eb00', '#eb00eb', '#eb0000', '#0000eb')
+        for i, color in enumerate(colors):
+            left, right = round(i * w / 7), round((i + 1) * w / 7)
+            painter.fillRect(QtCore.QRect(left, 0, right - left, h), QtGui.QColor(color))
+        # Keep the words legible over every bar, including in a narrow guide preview.
+        painter.fillRect(QtCore.QRectF(0, h * .75, w, h * .25), QtGui.QColor('#101010'))
+        radius = min(w * .29, h * .30)
+        center = QtCore.QPointF(w / 2, h * .38)
+        circle = QtCore.QRectF(center.x() - radius, center.y() - radius, radius * 2, radius * 2)
+        painter.setBrush(QtGui.QColor(20, 20, 20, 225))
+        painter.setPen(QtGui.QPen(QtGui.QColor('#eeeeee'), max(1, radius * .015)))
+        painter.drawEllipse(circle)
+        painter.setBrush(QtCore.Qt.NoBrush)
+        painter.drawEllipse(circle.adjusted(radius * .10, radius * .10, -radius * .10, -radius * .10))
+        painter.setPen(QtGui.QPen(QtGui.QColor(255, 255, 255, 85), max(1, radius * .008)))
+        painter.drawLine(QtCore.QPointF(center.x() - radius, center.y()), QtCore.QPointF(center.x() + radius, center.y()))
+        painter.drawLine(QtCore.QPointF(center.x(), center.y() - radius), QtCore.QPointF(center.x(), center.y() + radius))
+        number, fraction = self._leaderPosition()
+        painter.setPen(QtGui.QPen(QtGui.QColor('#ffcc00'), max(2, radius * .04)))
+        painter.drawArc(circle, 90 * 16, -round(fraction * 360 * 16))
+        font = QtGui.QFont('Arial')
+        font.setWeight(QtGui.QFont.Bold)
+        font.setPixelSize(max(1, round(radius * 1.15)))
         painter.setFont(font)
-        textRect = rect.adjusted(10, 0, -10, 0)
-        painter.setPen(QtGui.QColor('black'))
-        painter.drawText(textRect.translated(2, 2), QtCore.Qt.AlignCenter, "PLEASE STAND BY")
         painter.setPen(QtGui.QColor('white'))
-        painter.drawText(textRect, QtCore.Qt.AlignCenter, "PLEASE STAND BY")
+        painter.drawText(circle, QtCore.Qt.AlignCenter, str(number))
+        painter.setFont(self._titleFont(w, h))
+        painter.drawText(QtCore.QRectF(0, h * .77, w, h * .16), QtCore.Qt.AlignCenter, 'PLEASE STAND BY')
+        font = QtGui.QFont('Arial')
+        font.setPixelSize(max(1, round(min(w * .025, h * .035))))
+        font.setLetterSpacing(QtGui.QFont.AbsoluteSpacing, 2)
+        painter.setFont(font)
+        painter.setPen(QtGui.QColor('#ffcc00'))
+        painter.drawText(QtCore.QRectF(0, h * .93, w, h * .06), QtCore.Qt.AlignCenter, 'SMTV')
 
 
 class ClipSlot(QtCore.QObject):
