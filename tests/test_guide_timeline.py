@@ -292,6 +292,7 @@ class GuideTimelineTests(unittest.TestCase):
             engine.activeSlot.player.position.assert_not_called()
             self.assertEqual(original, list(clock.publishedPrograms(clock._scheduleStarts[0], clock._scheduleStarts[0] + 86400)))
             engine.isShowingStandby.return_value = True
+            engine.isShowingComingUp.return_value = False
             tv._updatePlaybackMarker()
             self.assertIsNone(tv.guideTable.playbackTime)
         finally:

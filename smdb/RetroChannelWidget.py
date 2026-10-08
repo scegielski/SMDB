@@ -607,6 +607,8 @@ class ChannelClock:
         return max(1, self._filmDurations[slotIndex] * (1 - self._offsetFractionForSlot(slotIndex)))
 
     def slotStartMs(self, slotIndex):
+        if slotIndex < 0:
+            return -sum(self.durationForSlot(i) for i in range(slotIndex, 0))
         return sum(self.durationForSlot(i) for i in range(slotIndex))
 
     def recordMedia(self, slotIndex, row, duration=0):
@@ -685,7 +687,10 @@ class ChannelClock:
         """Return (slotIndex, row, offsetFraction, positionInSlotMs, remainingMs)."""
         elapsedMs = (self._clockNow() - self.epoch) * 1000.0
         slotIndex = 0
-        positionInSlotMs = max(0, elapsedMs)
+        positionInSlotMs = elapsedMs
+        while positionInSlotMs < 0:
+            slotIndex -= 1
+            positionInSlotMs += self.durationForSlot(slotIndex)
         while positionInSlotMs >= self.durationForSlot(slotIndex):
             positionInSlotMs -= self.durationForSlot(slotIndex)
             slotIndex += 1
@@ -723,6 +728,48 @@ class _PathResolveTask(QtCore.QRunnable):
         self.signals.finished.emit(self.requestId, None, None)
 
 
+class ComingUpScreen(QtWidgets.QWidget):
+    """Programme information shown during quarter-hour schedule padding."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet('ComingUpScreen { background: #07072f; }')
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(22, 18, 22, 18)
+        self.heading = QtWidgets.QLabel()
+        self.heading.setWordWrap(True)
+        self.heading.setStyleSheet('color: #ffcc00; font-family: "Lucida Console"; font-size: 20px; font-weight: bold;')
+        layout.addWidget(self.heading)
+        self.details = QtWidgets.QTextBrowser()
+        self.details.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.details.setStyleSheet('background: transparent; color: #d6dcff; font-family: "Lucida Console"; font-size: 17px; border: none;')
+        layout.addWidget(self.details, 1)
+
+    def setFilm(self, start, title, description, coverPath=None):
+        pacific = QtCore.QTimeZone(b'America/Los_Angeles')
+        stamp = QtCore.QDateTime.fromSecsSinceEpoch(int(start), pacific)
+        self.heading.setText('Coming up next at ' + stamp.toString('h:mm AP').lower() + ' Pacific')
+        cover = ''
+        if isinstance(coverPath, str) and os.path.isfile(coverPath):
+            reader = QtGui.QImageReader(coverPath)
+            size = reader.size()
+            if size.isValid():
+                size.scale(150, 220, QtCore.Qt.KeepAspectRatio)
+                reader.setScaledSize(size)
+                image = reader.read()
+                if not image.isNull():
+                    url = QtCore.QUrl.fromLocalFile(coverPath)
+                    self.details.document().addResource(QtGui.QTextDocument.ImageResource, url, image)
+                    cover = (f'<table style="float:left; margin-right:14px; margin-bottom:8px;" '
+                             f'cellspacing="0" cellpadding="0"><tr><td><img '
+                             f'src="{html.escape(url.toString(), quote=True)}" '
+                             f'width="{image.width()}" height="{image.height()}"></td></tr></table>')
+        self.details.setHtml(
+            f'<p style="color:#ffffff; font-size:22px; font-weight:bold;">{html.escape(title)}</p>'
+            f'{cover}<p>{html.escape(description or "No description available.")}</p>')
+        self.details.verticalScrollBar().setValue(0)
+
+
 class ChannelEngine(QtCore.QObject):
     """
     Drives a single genre "channel": continuously plays movies from the genre
@@ -732,7 +779,7 @@ class ChannelEngine(QtCore.QObject):
 
     programChanged = QtCore.pyqtSignal()
 
-    def __init__(self, channelNumber, genreName, clock, resolver, titleGetter, parent=None):
+    def __init__(self, channelNumber, genreName, clock, resolver, titleGetter, parent=None, infoGetter=None):
         super().__init__(parent)
         self._paused = False
         self.channelNumber = channelNumber
@@ -740,15 +787,18 @@ class ChannelEngine(QtCore.QObject):
         self.clock = clock
         self.resolver = resolver
         self.titleGetter = titleGetter
+        self.infoGetter = infoGetter
 
         self.container = QtWidgets.QWidget()
         self._stack = QtWidgets.QStackedLayout(self.container)
         self._stack.setContentsMargins(0, 0, 0, 0)
 
         self.standbyScreen = StandByScreen()
+        self.comingUpScreen = ComingUpScreen()
         self.slotA = ClipSlot(self)
         self.slotB = ClipSlot(self)
         self._stack.addWidget(self.standbyScreen)
+        self._stack.addWidget(self.comingUpScreen)
         self._stack.addWidget(self.slotA.videoWidget)
         self._stack.addWidget(self.slotB.videoWidget)
         self._stack.setCurrentWidget(self.standbyScreen)
@@ -770,6 +820,9 @@ class ChannelEngine(QtCore.QObject):
         self.currentSlotIndex = None
         self.currentRow = None
         self.currentTitle = ''
+        self._gapMarkerTime = None
+        self._gapStartedAt = None
+        self._pendingTimelineSeek = None
         self.nextRow = None
         self.nextTitle = ''
         self._prefetchStarted = False
@@ -836,6 +889,7 @@ class ChannelEngine(QtCore.QObject):
             self.currentRow = None
             self.currentTitle = ''
             self.activeSlot.stop()
+            self._showComingUp(slotIndex)
             self._scheduleAdvance(remainingMs)
             self._maybeSchedulePrefetch(remainingMs)
             self.programChanged.emit()
@@ -886,10 +940,13 @@ class ChannelEngine(QtCore.QObject):
         # PlayingState/BufferedMedia can both precede the first video frame.
         pausedReady = self._paused and slot.player.state() == QMediaPlayer.PausedState
         if (slot is self.activeSlot and slot.isReady()
+                and not self.isShowingComingUp()
+                and slot.player.mediaStatus() != QMediaPlayer.EndOfMedia
                 and ((slot._hasPlayingFrame and slot.player.state() == QMediaPlayer.PlayingState)
                      or pausedReady)):
             # A paused load cannot produce advancing-position telemetry. Show
             # its video surface so Qt can render the frozen frame after seeking.
+            self._pendingTimelineSeek = None
             self._stack.setCurrentWidget(slot.videoWidget)
             owner = self.parent()
             if owner is not None and hasattr(owner, '_restoreVideoOsd'):
@@ -905,8 +962,29 @@ class ChannelEngine(QtCore.QObject):
             self.refreshVideoOutputs()
         self._watchdogLastPosition = position
 
+    def isShowingComingUp(self):
+        return self._stack.currentWidget() is self.comingUpScreen
+
+    def _showComingUp(self, slotIndex):
+        nextIndex = slotIndex + 1
+        row, _offset = self.clock.slotInfo(nextIndex)
+        start, _end = self.clock.publishedSlotTimes(nextIndex)
+        info = self.infoGetter(row) if self.infoGetter is not None else {}
+        self.comingUpScreen.setFilm(start, self.titleGetter(row),
+                                    info.get('description', ''), info.get('cover'))
+        filmStart, filmEnd = self.clock.publishedSlotTimes(slotIndex)
+        if self.currentRow is not None and self.activeSlot.duration > 0:
+            self._gapMarkerTime = filmStart + self.activeSlot.duration / 1000.0
+        else:
+            position = self.clock.whatsOnNow()[3]
+            gapElapsed = max(0, position - self.clock.filmDurationForSlot(slotIndex))
+            self._gapMarkerTime = filmEnd + gapElapsed / 1000.0
+        self._gapStartedAt = self.clock._clockNow()
+        self.standbyScreen._staticUntil = 0.0
+        self._stack.setCurrentWidget(self.comingUpScreen)
+
     def isShowingStandby(self):
-        return self._stack.currentWidget() is self.standbyScreen
+        return self._stack.currentWidget() in (self.standbyScreen, self.comingUpScreen)
 
     def setPaused(self, paused):
         wasPaused = self._paused
@@ -919,6 +997,10 @@ class ChannelEngine(QtCore.QObject):
         if paused:
             slot.pause()
             self.standbySlot.pause()
+        elif self.isShowingComingUp():
+            remainingMs = self.clock.whatsOnNow()[4]
+            self._scheduleAdvance(remainingMs)
+            self._maybeSchedulePrefetch(remainingMs)
         elif slot.isReady():
             slot.play()
             position = slot._lastPlaybackPosition or 0
@@ -959,8 +1041,6 @@ class ChannelEngine(QtCore.QObject):
         if (slot is self.activeSlot and status == QMediaPlayer.EndOfMedia
                 and self.currentSlotIndex is not None):
             self.clock.finishSlot(self.currentSlotIndex)
-            if self.clock.broadcastAligned:
-                self._stack.setCurrentWidget(self.standbyScreen)
             self._onAdvanceTimer()
 
     def _scheduleAdvance(self, remainingMs):
@@ -1008,7 +1088,9 @@ class ChannelEngine(QtCore.QObject):
             return
         slotIndex, _, offsetFraction, positionInSlotMs, remainingMs = self.clock.whatsOnNow()
         if slotIndex == self.currentSlotIndex:
-            # Timer fired a hair early due to rounding; check again shortly.
+            # Keep the next-film card visible throughout the quarter-hour gap.
+            if self.clock.broadcastAligned and not self.isShowingComingUp():
+                self._showComingUp(slotIndex)
             self._scheduleAdvance(remainingMs)
             return
 
@@ -1122,6 +1204,7 @@ class ChannelEngine(QtCore.QObject):
         self.slotB.stop()
         self.currentRow = None
         self.currentTitle = ''
+        self._pendingTimelineSeek = None
         self.nextRow = None
         self.nextTitle = ''
         self.currentSlotIndex = target
@@ -1168,13 +1251,73 @@ class ChannelEngine(QtCore.QObject):
         return True
 
     def seekCurrentFilm(self, offsetMs=0, beginning=False):
+        if self.isShowingComingUp() and not beginning:
+            return self._seekFromGap(offsetMs)
         # Explicit seeks seed the telemetry immediately. The Windows backend's
         # position getter may still report the previous seek while it catches up.
         position = self.activeSlot._lastPlaybackPosition
         if position is None:
             position = self.activeSlot.player.position()
         target = 0 if beginning else position + offsetMs
+        if (not beginning and self.clock.broadcastAligned and self.currentSlotIndex is not None
+                and self.currentRow is not None and self.activeSlot.isReady()
+                and self.activeSlot.duration > 0
+                and (target < 0 or target >= self.activeSlot.duration)):
+            start, _end = self.clock.publishedSlotTimes(self.currentSlotIndex)
+            return self._seekScheduledTime(start + target / 1000.0)
         return self._seekFilmPosition(target)
+
+    def _seekFromGap(self, offsetMs):
+        timestamp = self._gapMarkerTime + max(0, self.clock._clockNow() - self._gapStartedAt)
+        return self._seekScheduledTime(timestamp + offsetMs / 1000.0)
+
+    def _seekScheduledTime(self, timestamp):
+        target = self.currentSlotIndex
+        start, end = self.clock.publishedSlotTimes(target)
+        while timestamp < start:
+            target -= 1
+            start, end = self.clock.publishedSlotTimes(target)
+        nextStart = self.clock.publishedSlotTimes(target + 1)[0]
+        while timestamp >= nextStart:
+            target += 1
+            start, end = self.clock.publishedSlotTimes(target)
+            nextStart = self.clock.publishedSlotTimes(target + 1)[0]
+
+        slot = self.activeSlot
+        if self.currentRow is not None and slot.isReady() and slot.duration > 0:
+            self.clock.rememberPosition(self.currentSlotIndex, self.currentRow, slot.duration,
+                                        slot._lastPlaybackPosition or 0)
+        self.advanceTimer.stop()
+        self.prefetchTimer.stop()
+        self._resolveSeq += 1
+        for attr in ('_tuneRequestId', '_prefetchRequestId', '_hardCutRequestId'):
+            setattr(self, attr, self._resolveSeq)
+        self.clock.startSlotAtBeginning(target)
+        self.clock._durations[target] = (nextStart - start) * 1000.0
+        position = (timestamp - start) * 1000.0
+        self.clock.epoch = self.clock._clockNow() - (self.clock.slotStartMs(target) + position) / 1000.0
+        self.clock.hasManualNavigation = True
+        self._pendingTimelineSeek = timestamp
+        self.currentSlotIndex = target
+        self.currentRow = None
+        self.currentTitle = ''
+        self._previousNavigationSlot = None
+        self._beginningResume = None
+        self._beginningMarkerOrigin = None
+        self._prefetchStarted = False
+        self._prefetchedSlotIndex = None
+        if timestamp >= end:
+            self.activeSlot.stop()
+            self._showComingUp(target)
+            self._gapMarkerTime = timestamp
+            self._gapStartedAt = self.clock._clockNow()
+            remaining = (nextStart - timestamp) * 1000.0
+            self._scheduleAdvance(remaining)
+            self._maybeSchedulePrefetch(remaining)
+            self.programChanged.emit()
+        else:
+            self._hardCut(target, 0.0, position)
+        return True
 
     def _seekFilmPosition(self, target):
         slot = self.activeSlot
@@ -2337,6 +2480,14 @@ class RetroChannelWidget(QtWidgets.QWidget):
         except Exception:
             return ''
 
+    def _filmInfoForRow(self, row):
+        model = getattr(self.mainWindow, 'moviesTableModel', None)
+        try:
+            cover = model.getCoverPath(row)
+        except (AttributeError, IndexError, TypeError):
+            cover = None
+        return {'description': self._descriptionForRow(row), 'cover': cover}
+
     def _descriptionForRow(self, row):
         """Plot text for a movie row (cached - the data lives in a per-movie JSON file)."""
         if row in self._descriptionCache:
@@ -2441,6 +2592,10 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self.standbyTone.stop()
             return
         engine = self.engines.get(self.currentIndex) if self.channels else None
+        if engine is not None and engine.isShowingComingUp() and self._tuningOverlay is None:
+            self.staticHiss.stop()
+            self.standbyTone.stop()
+            return
         screen = engine.standbyScreen if engine is not None and engine.isShowingStandby() else self.globalStandby if engine is None else None
         if self._tuningOverlay is not None or (screen is not None and screen.isShowingStatic()):
             self.standbyTone.stop()
@@ -2473,6 +2628,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
             chan['clock'],
             resolver=self._resolveVideoPath,
             titleGetter=self._titleForRow,
+            infoGetter=self._filmInfoForRow,
             parent=self,
         )
         engine.setPaused(self._pausedAll)
@@ -2639,7 +2795,9 @@ class RetroChannelWidget(QtWidgets.QWidget):
                 self._refreshGuideTable()
             if not beginning and offsetMs:
                 start, _end = engine.clock.publishedSlotTimes(engine.currentSlotIndex)
-                timestamp = start + (engine.activeSlot._lastPlaybackPosition or 0) / 1000.0
+                pending = getattr(engine, '_pendingTimelineSeek', None)
+                timestamp = (pending if isinstance(pending, (int, float)) else
+                             start + (engine.activeSlot._lastPlaybackPosition or 0) / 1000.0)
                 self._showVideoOsd('seek', (int(offsetMs / 1000), timestamp))
 
     def _syncPauseButton(self, *_args):
@@ -2931,6 +3089,11 @@ class RetroChannelWidget(QtWidgets.QWidget):
         engine = self.engines.get(self.currentIndex)
         clock = self.channels[self.currentIndex]['clock'] if self.channels else None
         if (engine is not None and clock is not None and clock.hasManualNavigation
+                and engine.isShowingStandby() and engine.isShowingComingUp()):
+            # Padding still occupies broadcast time. Advance the cursor from the
+            # film's end using the channel clock, which also freezes on pause.
+            timestamp = engine._gapMarkerTime + max(0, clock._clockNow() - engine._gapStartedAt)
+        elif (engine is not None and clock is not None and clock.hasManualNavigation
                 and engine.currentRow is not None and engine.currentSlotIndex is not None
                 and engine.activeSlot.duration > 0 and not engine.isShowingStandby()):
             # Use positionChanged telemetry: asking the Windows media backend for
@@ -2941,6 +3104,10 @@ class RetroChannelWidget(QtWidgets.QWidget):
             # the cursor: catalogue runtime estimates must not stretch the media
             # position or turn a ten-second seek into a multi-minute offset.
             timestamp = start + position / 1000.0
+        if timestamp is None and engine is not None and clock is not None and clock.hasManualNavigation:
+            pending = getattr(engine, '_pendingTimelineSeek', None)
+            if isinstance(pending, (int, float)):
+                timestamp = pending
         self.guideTable.setPlaybackTime(timestamp)
         seek = self._videoOsdStatus.get('seek')
         if timestamp is not None and seek and seek[1] > time.monotonic():
