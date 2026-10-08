@@ -20,13 +20,17 @@ class ComingUpTests(unittest.TestCase):
             image.fill(QtGui.QColor('green'))
             image.save(cover)
             utc = QtCore.QDateTime.fromString('2026-10-09T01:30:00Z', QtCore.Qt.ISODate)
-            screen.setFilm(utc.toSecsSinceEpoch(), 'The Matrix (1999)', 'Neo <awakens> & follows the rabbit.', cover)
-            self.assertEqual(screen.heading.text(), 'Coming up next at 6:30 pm Pacific')
-            self.assertIn('The Matrix (1999)', screen.details.toPlainText())
-            self.assertIn('Neo <awakens> & follows the rabbit.', screen.details.toPlainText())
-            self.assertIn('<img', screen.details.toHtml())
-            screen.setFilm(utc.toSecsSinceEpoch(), 'No cover', '', None)
-            self.assertIn('No description available.', screen.details.toPlainText())
+            screen.setFilm(utc.toSecsSinceEpoch(), 'The Matrix (1999)', 'Keanu Reeves, Laurence Fishburne', 'Lana & Lilly Wachowski', cover)
+            self.assertEqual(screen.heading.text(), 'Coming up next\nat 6:30 pm Pacific')
+            self.assertEqual(screen.title.text(), 'The Matrix (1999)')
+            self.assertEqual(screen.cast.text(), 'Starring Keanu Reeves, Laurence Fishburne')
+            self.assertEqual(screen.directors.text(), 'Directed by Lana & Lilly Wachowski')
+            self.assertFalse(screen.cover.pixmap().isNull())
+            self.assertEqual(screen.title.alignment(), QtCore.Qt.AlignCenter)
+            screen.setFilm(utc.toSecsSinceEpoch(), 'No cover')
+            self.assertEqual(screen.cast.text(), '')
+            self.assertEqual(screen.directors.text(), '')
+            self.assertIsNone(screen.cover.pixmap())
         screen.close()
 
     def test_gap_join_and_pause_keep_card_until_next_slot(self):
@@ -34,16 +38,16 @@ class ComingUpTests(unittest.TestCase):
                 patch('smdb.RetroChannelWidget.time.time', return_value=36000), \
                 patch('smdb.RetroChannelWidget.random.uniform', return_value=0):
             clock = ChannelClock([0, 1], lambda row: 61000, broadcastAligned=True)
-            info = Mock(return_value={'description': 'Upcoming plot', 'cover': None})
-            engine = ChannelEngine(1, 'Action', clock, lambda row: None, lambda row: f'Film {row}', infoGetter=info)
+            engine = ChannelEngine(1, 'Action', clock, lambda row: None, lambda row: f'Film {row}')
             try:
                 now.return_value = 120
                 with patch.object(engine, '_startResolve') as resolve:
                     engine._tuneIn()
                     resolve.assert_not_called()
                 self.assertTrue(engine.isShowingComingUp())
-                info.assert_called_with(clock.slotInfo(1)[0])
-                self.assertIn('Upcoming plot', engine.comingUpScreen.details.toPlainText())
+                self.assertEqual(engine.comingUpRow, clock.slotInfo(1)[0])
+                self.assertEqual(engine.comingUpStart, clock.publishedSlotTimes(1)[0])
+                self.assertFalse(engine.comingUpScreen.findChildren(QtWidgets.QLabel))
                 engine.setPaused(True)
                 now.return_value = 140
                 with patch.object(engine.activeSlot, 'play') as play:
@@ -283,6 +287,43 @@ class ComingUpTests(unittest.TestCase):
                     self.assertEqual(tv.guideTable.playbackTime, 36905)
             finally:
                 slot.player = player
+                engine.shutdown(); engine.container.close()
+                tv.engines = {}; tv.close()
+
+    def test_gap_info_appears_only_in_right_panel_and_restores_normal_info(self):
+        with patch('smdb.RetroChannelWidget.time.monotonic', return_value=0) as now, \
+                patch('smdb.RetroChannelWidget.time.time', return_value=36000), \
+                patch('smdb.RetroChannelWidget.random.uniform', return_value=0):
+            tv = RetroChannelWidget()
+            model = Mock()
+            model.getMovieData.return_value = {'cast': ['Keanu Reeves', 'Laurence Fishburne', 'Carrie-Anne Moss', 'Hugo Weaving'],
+                                               'directors': ['Lana Wachowski', 'Lilly Wachowski']}
+            model.getCoverPath.return_value = None
+            model.getTitle.return_value = 'The Matrix'; model.getYear.return_value = 1999
+            tv.mainWindow = Mock(moviesTableModel=model)
+            clock = ChannelClock([0, 1], lambda row: 61000, broadcastAligned=True)
+            engine = ChannelEngine(1, 'Action', clock, lambda row: None, str)
+            tv.channels = [{'clock': clock, 'genre': 'Action', 'rows': [0, 1]}]
+            tv.engines = {0: engine}
+            try:
+                now.return_value = 120
+                with patch.object(engine, '_startResolve'), patch.object(engine, '_beginPrefetch'):
+                    engine._tuneIn()
+                tv._refreshGuideTable()
+                self.assertIs(tv.infoStack.currentWidget(), tv.guideComingUp)
+                self.assertEqual(tv.guideComingUp.title.text(), 'The Matrix (1999)')
+                self.assertEqual(tv.guideComingUp.cast.text(), 'Starring Keanu Reeves, Laurence Fishburne, Carrie-Anne Moss, etc.')
+                self.assertEqual(tv.guideComingUp.directors.text(), 'Directed by Lana Wachowski, Lilly Wachowski')
+                self.assertEqual(tv.guideComingUp.heading.alignment(), QtCore.Qt.AlignCenter)
+                self.assertIs(tv.guideComingUp.parentWidget(), tv.infoPane)
+                self.assertFalse(engine.comingUpScreen.findChildren(QtWidgets.QLabel))
+                tv._refreshGuideTable()
+                model.getMovieData.assert_called_once()
+                engine._stack.setCurrentWidget(engine.activeSlot.videoWidget)
+                engine.currentRow = clock.slotInfo(1)[0]
+                tv._refreshGuideTable()
+                self.assertIs(tv.infoStack.currentWidget(), tv.nowInfoPane)
+            finally:
                 engine.shutdown(); engine.container.close()
                 tv.engines = {}; tv.close()
 

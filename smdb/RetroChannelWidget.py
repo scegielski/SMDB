@@ -729,45 +729,71 @@ class _PathResolveTask(QtCore.QRunnable):
 
 
 class ComingUpScreen(QtWidgets.QWidget):
-    """Programme information shown during quarter-hour schedule padding."""
+    """Centered upcoming-film card for the guide's information pane."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setStyleSheet('ComingUpScreen { background: #07072f; }')
+        self.setAttribute(QtCore.Qt.WA_StyledBackground, True)
+        self.setStyleSheet('ComingUpScreen { background: #050531; border: none; }')
+        self._filmKey = None
+        self._coverImage = QtGui.QPixmap()
         layout = QtWidgets.QVBoxLayout(self)
-        layout.setContentsMargins(22, 18, 22, 18)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(8)
         self.heading = QtWidgets.QLabel()
-        self.heading.setWordWrap(True)
-        self.heading.setStyleSheet('color: #ffcc00; font-family: "Lucida Console"; font-size: 20px; font-weight: bold;')
-        layout.addWidget(self.heading)
-        self.details = QtWidgets.QTextBrowser()
-        self.details.setFrameShape(QtWidgets.QFrame.NoFrame)
-        self.details.setStyleSheet('background: transparent; color: #d6dcff; font-family: "Lucida Console"; font-size: 17px; border: none;')
-        layout.addWidget(self.details, 1)
+        self.title = QtWidgets.QLabel()
+        self.cast = QtWidgets.QLabel()
+        self.directors = QtWidgets.QLabel()
+        for label, size, color in ((self.heading, 20, '#ffcc00'),
+                                   (self.title, 20, '#ffffff'),
+                                   (self.cast, 16, '#d6dcff'),
+                                   (self.directors, 16, '#d6dcff')):
+            label.setTextFormat(QtCore.Qt.PlainText)
+            label.setWordWrap(True)
+            label.setAlignment(QtCore.Qt.AlignCenter)
+            label.setStyleSheet(f'border: none; color: {color}; font-family: "Lucida Console"; font-size: {size}px;')
+            layout.addWidget(label)
+        self.cover = QtWidgets.QLabel()
+        self.cover.setAlignment(QtCore.Qt.AlignCenter)
+        self.cover.setMinimumSize(1, 1)
+        self.cover.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored)
+        self.cover.setStyleSheet('border: none;')
+        self.cover.installEventFilter(self)
+        layout.addWidget(self.cover, 1)
 
-    def setFilm(self, start, title, description, coverPath=None):
-        pacific = QtCore.QTimeZone(b'America/Los_Angeles')
-        stamp = QtCore.QDateTime.fromSecsSinceEpoch(int(start), pacific)
-        self.heading.setText('Coming up next at ' + stamp.toString('h:mm AP').lower() + ' Pacific')
-        cover = ''
+    def setFilm(self, start, title, cast='', directors='', coverPath=None):
+        key = (start, title, cast, directors, coverPath)
+        if key == self._filmKey:
+            return
+        self._filmKey = key
+        stamp = QtCore.QDateTime.fromSecsSinceEpoch(int(start), QtCore.QTimeZone(b'America/Los_Angeles'))
+        self.heading.setText('Coming up next\nat ' + stamp.toString('h:mm AP').lower() + ' Pacific')
+        self.title.setText(title)
+        self.cast.setText('Starring ' + cast if cast else '')
+        self.cast.setVisible(bool(cast))
+        self.directors.setText('Directed by ' + directors if directors else '')
+        self.directors.setVisible(bool(directors))
+        self._coverImage = QtGui.QPixmap()
         if isinstance(coverPath, str) and os.path.isfile(coverPath):
             reader = QtGui.QImageReader(coverPath)
             size = reader.size()
             if size.isValid():
-                size.scale(150, 220, QtCore.Qt.KeepAspectRatio)
+                size.scale(320, 450, QtCore.Qt.KeepAspectRatio)
                 reader.setScaledSize(size)
-                image = reader.read()
-                if not image.isNull():
-                    url = QtCore.QUrl.fromLocalFile(coverPath)
-                    self.details.document().addResource(QtGui.QTextDocument.ImageResource, url, image)
-                    cover = (f'<table style="float:left; margin-right:14px; margin-bottom:8px;" '
-                             f'cellspacing="0" cellpadding="0"><tr><td><img '
-                             f'src="{html.escape(url.toString(), quote=True)}" '
-                             f'width="{image.width()}" height="{image.height()}"></td></tr></table>')
-        self.details.setHtml(
-            f'<p style="color:#ffffff; font-size:22px; font-weight:bold;">{html.escape(title)}</p>'
-            f'{cover}<p>{html.escape(description or "No description available.")}</p>')
-        self.details.verticalScrollBar().setValue(0)
+                self._coverImage = QtGui.QPixmap.fromImage(reader.read())
+        self._resizeCover()
+
+    def _resizeCover(self):
+        if self._coverImage.isNull():
+            self.cover.clear()
+        else:
+            bounds = self.cover.size().boundedTo(QtCore.QSize(240, 320))
+            self.cover.setPixmap(self._coverImage.scaled(bounds, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation))
+
+    def eventFilter(self, watched, event):
+        if watched is self.cover and event.type() == QtCore.QEvent.Resize:
+            self._resizeCover()
+        return super().eventFilter(watched, event)
 
 
 class ChannelEngine(QtCore.QObject):
@@ -779,7 +805,7 @@ class ChannelEngine(QtCore.QObject):
 
     programChanged = QtCore.pyqtSignal()
 
-    def __init__(self, channelNumber, genreName, clock, resolver, titleGetter, parent=None, infoGetter=None):
+    def __init__(self, channelNumber, genreName, clock, resolver, titleGetter, parent=None):
         super().__init__(parent)
         self._paused = False
         self.channelNumber = channelNumber
@@ -787,14 +813,16 @@ class ChannelEngine(QtCore.QObject):
         self.clock = clock
         self.resolver = resolver
         self.titleGetter = titleGetter
-        self.infoGetter = infoGetter
 
         self.container = QtWidgets.QWidget()
         self._stack = QtWidgets.QStackedLayout(self.container)
         self._stack.setContentsMargins(0, 0, 0, 0)
 
         self.standbyScreen = StandByScreen()
-        self.comingUpScreen = ComingUpScreen()
+        self.comingUpScreen = QtWidgets.QWidget()
+        self.comingUpScreen.setStyleSheet('background: black; border: none;')
+        self.comingUpRow = None
+        self.comingUpStart = None
         self.slotA = ClipSlot(self)
         self.slotB = ClipSlot(self)
         self._stack.addWidget(self.standbyScreen)
@@ -969,9 +997,8 @@ class ChannelEngine(QtCore.QObject):
         nextIndex = slotIndex + 1
         row, _offset = self.clock.slotInfo(nextIndex)
         start, _end = self.clock.publishedSlotTimes(nextIndex)
-        info = self.infoGetter(row) if self.infoGetter is not None else {}
-        self.comingUpScreen.setFilm(start, self.titleGetter(row),
-                                    info.get('description', ''), info.get('cover'))
+        self.comingUpRow = row
+        self.comingUpStart = start
         filmStart, filmEnd = self.clock.publishedSlotTimes(slotIndex)
         if self.currentRow is not None and self.activeSlot.duration > 0:
             self._gapMarkerTime = filmStart + self.activeSlot.duration / 1000.0
@@ -1504,6 +1531,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._remoteRestored = False
         self._videoPathCache = {}
         self._descriptionCache = {}
+        self._filmInfoCache = {}
         self.channels = []
         self._availableChannels = []
         self._ratingByRow = {}
@@ -2165,7 +2193,13 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.infoPane = QtWidgets.QWidget()
         self.infoPane.setMinimumWidth(120)
         self.infoPane.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Preferred)
-        captionLayout = QtWidgets.QVBoxLayout(self.infoPane)
+        self.infoStack = QtWidgets.QStackedLayout(self.infoPane)
+        self.infoStack.setContentsMargins(0, 0, 0, 0)
+        self.nowInfoPane = QtWidgets.QWidget()
+        self.infoStack.addWidget(self.nowInfoPane)
+        self.guideComingUp = ComingUpScreen()
+        self.infoStack.addWidget(self.guideComingUp)
+        captionLayout = QtWidgets.QVBoxLayout(self.nowInfoPane)
         captionLayout.setContentsMargins(0, 0, 0, 0)
         topWidget.addWidget(self.infoPane)
         topWidget.setStretchFactor(0, 1)
@@ -2265,6 +2299,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
 
         self._videoPathCache = {}
         self._descriptionCache = {}
+        self._filmInfoCache = {}
         self._availableChannels = newChannels
         self._applyChannelSelection()
 
@@ -2481,12 +2516,24 @@ class RetroChannelWidget(QtWidgets.QWidget):
             return ''
 
     def _filmInfoForRow(self, row):
+        if row in self._filmInfoCache:
+            return self._filmInfoCache[row]
         model = getattr(self.mainWindow, 'moviesTableModel', None)
         try:
             cover = model.getCoverPath(row)
+            data = model.getMovieData(row) or {}
         except (AttributeError, IndexError, TypeError):
-            cover = None
-        return {'description': self._descriptionForRow(row), 'cover': cover}
+            cover, data = None, {}
+        def names(value):
+            if isinstance(value, str):
+                return [value] if value.strip() else []
+            return [str(name) for name in (value or []) if name]
+        cast = names(data.get('cast') or data.get('actors'))
+        credits = {'cover': cover,
+                   'cast': ', '.join(cast[:3]) + (', etc.' if len(cast) > 3 else ''),
+                   'directors': ', '.join(names(data.get('directors') or data.get('director')))}
+        self._filmInfoCache[row] = credits
+        return credits
 
     def _descriptionForRow(self, row):
         """Plot text for a movie row (cached - the data lives in a per-movie JSON file)."""
@@ -2628,7 +2675,6 @@ class RetroChannelWidget(QtWidgets.QWidget):
             chan['clock'],
             resolver=self._resolveVideoPath,
             titleGetter=self._titleForRow,
-            infoGetter=self._filmInfoForRow,
             parent=self,
         )
         engine.setPaused(self._pausedAll)
@@ -3142,6 +3188,13 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.guideCaption.setText(f"CH {self.guideHighlightIndex + 1:02d} \u2014 {chan['genre'].upper()}")
 
         engine = self.engines.get(self.guideHighlightIndex)
+        if engine is not None and engine.isShowingStandby() and engine.isShowingComingUp():
+            info = self._filmInfoForRow(engine.comingUpRow)
+            self.guideComingUp.setFilm(engine.comingUpStart, self._titleForRow(engine.comingUpRow),
+                                       info['cast'], info['directors'], info['cover'])
+            self.infoStack.setCurrentWidget(self.guideComingUp)
+            return
+        self.infoStack.setCurrentWidget(self.nowInfoPane)
         if engine and engine.currentRow is not None:
             nowRow = engine.currentRow
         else:
