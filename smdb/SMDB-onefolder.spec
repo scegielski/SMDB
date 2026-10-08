@@ -10,7 +10,7 @@ from PyInstaller.building.build_main import COLLECT
 REPO_ROOT = os.path.abspath(os.getcwd())
 
 # Bundle MediaInfo.dll if present, IMDb data, and the collections folder
-datas = []
+datas = [(os.path.join(REPO_ROOT, 'smdb', 'assets', 'promos'), 'smdb/assets/promos')]
 # Qt5 has no portable subtitle renderer; package the text-track readers.
 for tool in ('ffmpeg', 'ffprobe'):
     tool_path = shutil.which(tool)

@@ -4,13 +4,31 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtMultimedia import QMediaPlayer
-from smdb.RetroChannelWidget import ComingUpScreen, ChannelClock, ChannelEngine, RetroChannelWidget
+from smdb.RetroChannelWidget import ComingUpScreen, IntermissionScreen, ChannelClock, ChannelEngine, RetroChannelWidget
 
 
 class ComingUpTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+
+    def test_gap_promos_choose_once_per_gap_and_fit_video_pane(self):
+        screen = IntermissionScreen()
+        self.assertEqual(len(screen._promos), 4)
+        with patch('smdb.RetroChannelWidget.random.choice', side_effect=[screen._promos[0], screen._promos[3]]) as choose:
+            screen.showGap(0)
+            first = screen._image.cacheKey()
+            screen.showGap(0)
+            self.assertEqual(choose.call_count, 1)
+            self.assertEqual(screen._image.cacheKey(), first)
+            screen.showGap(1)
+            self.assertEqual(choose.call_count, 2)
+            self.assertNotEqual(screen._image.cacheKey(), first)
+        screen.resize(640, 480)
+        preview = screen.grab().toImage()
+        self.assertEqual(preview.pixelColor(320, 0), QtGui.QColor('black'))
+        self.assertNotEqual(preview.pixelColor(320, 240), QtGui.QColor('black'))
+        screen.close()
 
     def test_card_uses_pacific_time_cover_and_escaped_catalogue_text(self):
         screen = ComingUpScreen()

@@ -728,6 +728,34 @@ class _PathResolveTask(QtCore.QRunnable):
         self.signals.finished.emit(self.requestId, None, None)
 
 
+class IntermissionScreen(QtWidgets.QWidget):
+    """Choose a promo per scheduled gap and fit it without distorting it."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        folder = os.path.join(os.path.dirname(__file__), 'assets', 'promos')
+        self._promos = [QtGui.QPixmap(os.path.join(folder, f'promo{i}.png'))
+                        for i in range(1, 5)]
+        self._promos = [image for image in self._promos if not image.isNull()]
+        self._gap = None
+        self._image = QtGui.QPixmap()
+
+    def showGap(self, slotIndex):
+        if self._gap != slotIndex:
+            self._gap = slotIndex
+            self._image = random.choice(self._promos) if self._promos else QtGui.QPixmap()
+            self.update()
+
+    def paintEvent(self, event):
+        painter = QtGui.QPainter(self)
+        painter.fillRect(self.rect(), QtCore.Qt.black)
+        if not self._image.isNull():
+            size = self._image.size().scaled(self.size(), QtCore.Qt.KeepAspectRatio)
+            target = QtCore.QRect(QtCore.QPoint(), size)
+            target.moveCenter(self.rect().center())
+            painter.setRenderHint(QtGui.QPainter.SmoothPixmapTransform)
+            painter.drawPixmap(target, self._image)
+
+
 class ComingUpScreen(QtWidgets.QWidget):
     """Centered upcoming-film card for the guide's information pane."""
 
@@ -819,8 +847,7 @@ class ChannelEngine(QtCore.QObject):
         self._stack.setContentsMargins(0, 0, 0, 0)
 
         self.standbyScreen = StandByScreen()
-        self.comingUpScreen = QtWidgets.QWidget()
-        self.comingUpScreen.setStyleSheet('background: black; border: none;')
+        self.comingUpScreen = IntermissionScreen()
         self.comingUpRow = None
         self.comingUpStart = None
         self.slotA = ClipSlot(self)
@@ -1001,6 +1028,7 @@ class ChannelEngine(QtCore.QObject):
         start, _end = self.clock.publishedSlotTimes(nextIndex)
         self.comingUpRow = row
         self.comingUpStart = start
+        self.comingUpScreen.showGap(slotIndex)
         filmStart, filmEnd = self.clock.publishedSlotTimes(slotIndex)
         if self.currentRow is not None and self.activeSlot.duration > 0:
             self._gapMarkerTime = filmStart + self.activeSlot.duration / 1000.0
