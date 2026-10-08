@@ -29,8 +29,9 @@ import wave
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer, QSoundEffect, QVideoProbe
-from PyQt5.QtMultimediaWidgets import QVideoWidget
+from .VideoView import VideoView
 from .GuideTimeline import GuideTimeline
+from .Subtitles import SubtitleController
 
 if sys.platform == 'win32':
     import winsound as _winsound
@@ -192,7 +193,7 @@ class StandByScreen(QtWidgets.QWidget):
 
 
 class ClipSlot(QtCore.QObject):
-    """A single QMediaPlayer/QVideoWidget pair used as a playback buffer."""
+    """A single QMediaPlayer/composited VideoView pair used as a playback buffer."""
 
     becameReady = QtCore.pyqtSignal()
     playbackStarted = QtCore.pyqtSignal()
@@ -200,10 +201,18 @@ class ClipSlot(QtCore.QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.player = QMediaPlayer(None, QMediaPlayer.VideoSurface)
-        self.videoWidget = QVideoWidget()
+        self.videoWidget = VideoView()
         self.videoWidget.setStyleSheet("background: black;")
-        self.player.setVideoOutput(self.videoWidget)
+        self.player.setVideoOutput(self.videoWidget.videoSurface())
         self.player.setVolume(0)
+        self.subtitles = SubtitleController(self.videoWidget, self)
+        owner = parent
+        while owner is not None and not hasattr(owner, 'subtitlesEnabled'):
+            owner = owner.parent()
+        if owner is not None:
+            self.subtitles.setEnabled(owner.subtitlesEnabled)
+            self.subtitles.error.connect(owner._subtitleError)
+            self.subtitles.tracksChanged.connect(lambda: owner._subtitleTracksChanged(self))
 
         self.path = None
         self.duration = 0
@@ -231,6 +240,7 @@ class ClipSlot(QtCore.QObject):
         # position jump caused by the initial seek, before dismissing stand-by.
         previous = self._lastPlaybackPosition
         self._lastPlaybackPosition = position
+        self.subtitles.updatePosition(position)
         if (not self._probeSupported and self.isReady() and previous is not None
                 and 0 < position - previous < 2000
                 and self.player.state() == QMediaPlayer.PlayingState
@@ -254,6 +264,7 @@ class ClipSlot(QtCore.QObject):
         (used by the channel guide's live preview).
         """
         self.path = path
+        self.subtitles.load(path)
         self.duration = 0
         self._ready = False
         self._hasPlayingFrame = False
@@ -298,6 +309,7 @@ class ClipSlot(QtCore.QObject):
         pos = max(0, min(pos, maxPos))
         self.player.setPosition(pos)
         self._lastPlaybackPosition = pos
+        self.subtitles.updatePosition(pos)
 
     def setVolume(self, volume):
         self.player.setVolume(volume)
@@ -309,6 +321,7 @@ class ClipSlot(QtCore.QObject):
         self.player.pause()
 
     def stop(self):
+        self.subtitles.clear()
         self._hasPlayingFrame = False
         self._lastPlaybackPosition = None
         self._ready = False
@@ -722,7 +735,7 @@ class ChannelEngine(QtCore.QObject):
         """Re-bind each slot's video surface to its widget - some backends lose this binding
         when the widget is reparented (e.g. into/out of the guide preview frame)."""
         for slot in (self.slotA, self.slotB):
-            slot.player.setVideoOutput(slot.videoWidget)
+            slot.player.setVideoOutput(slot.videoWidget.videoSurface())
             slot.videoWidget.show()
             if slot.player.state() == QMediaPlayer.PlayingState:
                 # Nudge the backend to actually paint a frame into the freshly (re-)bound
@@ -1133,6 +1146,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._qualityByRow = {}
         self._filteredClocks = {}
         self._settings = getattr(parent, 'settings', None)
+        self.subtitlesEnabled = self._settings.value('smtvSubtitlesEnabled', False, type=bool) if self._settings else False
         self._savedSchedules = {}
         self._schedulePath = None
         self._excludedGenres = set(self._settings.value('smtvExcludedGenres', [], type=list)) if self._settings else set()
@@ -1363,6 +1377,13 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.setupButton.setFocusPolicy(QtCore.Qt.NoFocus)
         self.setupButton.clicked.connect(self.openChannelSetup)
         sideLayout.addWidget(self.setupButton)
+        self.subtitleButton = QtWidgets.QPushButton('SUBTITLES ON' if self.subtitlesEnabled else 'SUBTITLES')
+        self.subtitleButton.setStyleSheet(guideButton.styleSheet())
+        self.subtitleButton.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.subtitleMenu = QtWidgets.QMenu(self.subtitleButton)
+        self.subtitleButton.setMenu(self.subtitleMenu)
+        self.subtitleMenu.aboutToShow.connect(self._refreshSubtitleMenu)
+        sideLayout.addWidget(self.subtitleButton)
 
         self.volumeLabel = QtWidgets.QLabel(f"VOLUME {self.masterVolume}%")
         self.volumeLabel.setAlignment(QtCore.Qt.AlignCenter)
@@ -1396,6 +1417,87 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.sideScroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.sideScroll.setWidget(self.sideControls)
         rootLayout.addWidget(self.sideScroll)
+
+    def _subtitleSlot(self):
+        engine = self._guidePreviewHostedEngine if self.guideVisible else None
+        engine = engine or self.engines.get(self.currentIndex)
+        return engine.activeSlot if engine else self.guidePreviewSlot
+
+    def _subtitleError(self, message):
+        self.subtitleButton.setToolTip(message)
+
+    def _subtitleTracksChanged(self, slot):
+        if self.subtitleMenu.isVisible() and slot is self._subtitleSlot():
+            self._refreshSubtitleMenu()
+
+    def setSubtitlesEnabled(self, enabled):
+        self.subtitlesEnabled = bool(enabled)
+        if self._settings:
+            self._settings.setValue('smtvSubtitlesEnabled', self.subtitlesEnabled)
+        for engine in self.engines.values():
+            for slot in (engine.slotA, engine.slotB):
+                slot.subtitles.setEnabled(self.subtitlesEnabled)
+        if self.guidePreviewSlot:
+            self.guidePreviewSlot.subtitles.setEnabled(self.subtitlesEnabled)
+        self.subtitleButton.setText('SUBTITLES ON' if self.subtitlesEnabled else 'SUBTITLES')
+        self._refreshSubtitleMenu()
+
+    def _refreshSubtitleMenu(self):
+        menu = self.subtitleMenu
+        menu.clear()
+        off = menu.addAction('Off')
+        off.setCheckable(True)
+        off.setChecked(not self.subtitlesEnabled)
+        off.triggered.connect(lambda: self.setSubtitlesEnabled(False))
+        on = menu.addAction('On / automatic track')
+        on.setCheckable(True)
+        on.setChecked(self.subtitlesEnabled)
+        on.triggered.connect(lambda: self.setSubtitlesEnabled(True))
+        menu.addSeparator()
+        slot = self._subtitleSlot()
+        if slot and slot.path:
+            controller = slot.subtitles
+            controller.probe()
+            if controller.lastError:
+                status = controller.lastError
+            elif controller._pendingJobs:
+                status = 'Reading subtitle tracks…'
+            elif controller.cues:
+                status = 'Captions ready: ' + str(len(controller.cues)) + ' cues'
+            elif controller.tracks:
+                status = 'Select a supported subtitle track below'
+            else:
+                status = 'No subtitles found in this movie'
+            menu.addAction(status).setEnabled(False)
+            for track in controller.tracks:
+                action = menu.addAction(track['label'])
+                action.setCheckable(True)
+                action.setChecked(self.subtitlesEnabled and controller.selected == track['id'])
+                action.setEnabled(track.get('supported', True))
+                action.triggered.connect(lambda _checked=False, identifier=track['id'], target=controller:
+                                         self._selectSubtitle(target, identifier))
+            if not controller.tracks:
+                menu.addAction('No tracks found yet; reopen after scanning').setEnabled(False)
+        else:
+            menu.addAction('Start a movie to select subtitles').setEnabled(False)
+        menu.addSeparator()
+        load = menu.addAction('Load subtitle file…')
+        load.setEnabled(bool(slot and slot.path))
+        load.triggered.connect(self._loadSubtitleFile)
+
+    def _selectSubtitle(self, controller, identifier):
+        self.setSubtitlesEnabled(True)
+        controller.select(identifier)
+
+    def _loadSubtitleFile(self):
+        slot = self._subtitleSlot()
+        if not slot or not slot.path:
+            return
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Load subtitles', os.path.dirname(slot.path),
+                                                       'Text subtitles (*.srt *.vtt)')
+        if path:
+            self.setSubtitlesEnabled(True)
+            slot.subtitles.addFile(path)
 
     def setFontScale(self, scale):
         """Scale from the original fonts so repeated adjustments never compound."""

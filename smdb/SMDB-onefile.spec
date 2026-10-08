@@ -6,6 +6,7 @@
 # configured by the user.
 
 import os
+import shutil
 from glob import glob
 from PyInstaller.utils.hooks import collect_data_files
 from PyInstaller.building.build_main import Analysis, PYZ, EXE
@@ -14,6 +15,10 @@ from PyInstaller.building.build_main import Analysis, PYZ, EXE
 REPO_ROOT = os.path.abspath(os.getcwd())
 
 datas = collect_data_files('imdb', include_py_files=False)
+for tool in ('ffmpeg', 'ffprobe'):
+    tool_path = shutil.which(tool)
+    if tool_path:
+        datas.append((tool_path, 'media-tools'))
 collections_glob = os.path.join(REPO_ROOT, 'smdb', 'collections', '*')
 datas += [(path, 'collections') for path in glob(collections_glob) if os.path.isfile(path)]
 

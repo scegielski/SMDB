@@ -74,3 +74,9 @@ The film controls use two rows: ◀ / ▶ seek back/forward ten seconds. The bar
 ## Troubleshooting
 - If Qt fails to start on Linux, rerun `./setup.sh` without `SKIP_APT=1` to ensure the XCB libraries are installed.
 - On Windows, confirm that the bundled `MediaInfo.dll` stays next to the executable when distributing a PyInstaller build.
+
+### SMTV subtitles
+
+Use SUBTITLES on the TV controls to turn captions on/off, select an embedded text track, or load an external SRT/VTT file. Nearby files named like the movie (for example `Movie.srt`, `Movie.en.srt`, or `Movie.fr.vtt`) are discovered automatically. The on/off preference persists between launches. Captions follow the actual movie position through seeking, program changes, guide previews, and fullscreen. Video and captions paint together inside the same view; there is no separate floating subtitle window.
+
+Embedded text subtitles use FFmpeg/FFprobe, packaged with the Windows builds when available on the build machine; source runs use tools on PATH. Image-based tracks such as PGS/VobSub are listed but disabled. Text markup is rendered as plain captions.

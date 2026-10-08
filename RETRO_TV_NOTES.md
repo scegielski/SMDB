@@ -1,16 +1,17 @@
 # SMTV (smdb/RetroChannelWidget.py) - Status, Ideas, and History
 
-## Current status (2026-10-05)
+## Current status (2026-10-06)
 
-- Latest implementation commit: `5e1aa74`, pushed to `origin/master`. Use `git status` and `git log` to check subsequent repository changes.
+- Latest implementation commit: `f48f0a6`, pushed to `origin/master`. Use `git status` and `git log` to check subsequent repository changes.
 - SMDB and SMTV are separate application modes. SMTV starts with the guide open; FULL/F/F11 currently switches to video-only fullscreen and Esc restores controls.
 - The guide is a single repeating timeline with hourly AM/PM headings, quarter-hour program starts, yellow live time, and a cyan manual-playback cursor. Published film times remain fixed through seeking and program navigation.
 - Channel labels have a distinct style and adjustable column width. The video/info divider and the horizontal guide divider are also draggable; the latter defaults to halfway down. Covers appear under movie titles, with synopsis text wrapping around them.
 - Middle-button dragging pans by default. Setup → Guide offers saved browser-style automatic scrolling as an alternative.
 - Wheel alone scrolls vertically. Only Ctrl+wheel and the font menu adjust fonts; channels, programming, information, and controls have independent saved sizes. Ctrl+wheel over programming retains the time under the pointer.
+- SUBTITLES offers Off/On, embedded text tracks, nearby SRT/VTT files, and a file picker. Captions use media position and paint inside the composited video viewport, following guide/fullscreen geometry. Image-based tracks are listed as unsupported.
 - Setup saves channel, MPAA, and numeric quality-rating filters. Any category with an included film can become a channel. Reprogram Channel repicks its eligible lineup.
 - Lineups and original times persist in `smtv_schedule.json` beside the primary movie folder's `smdb_data.json`; restart rejoins the continuing broadcast.
-- Latest full native Windows suite: 58 tests passed. Builds are launched for testing when ready, and their output folder is linked in chat.
+- Latest full native Windows suite: 64 tests passed. Builds are launched for testing when ready, and their output folder is linked in chat.
 
 ## Ideas to choose from
 
@@ -23,7 +24,7 @@ Consult this checklist when asked what to implement next. These are candidate fe
 - [ ] Remove the fullscreen button from TV controls once fullscreen is the normal view; the dockable remote/TV controls would be the only obstruction.
 - [ ] Preview mode that randomly cuts between 1–10-second clips from the selected movie. Possibly show a floating player near the mouse over the guide schedule, like the current title/time tooltip.
 - [ ] Language filter in Setup.
-- [ ] Subtitle support.
+- [x] Text subtitle support: embedded tracks and external SRT/VTT, with saved on/off preference. Image-based tracks remain a future option.
 - [ ] Audio channel support.
 - [ ] Context menu for the relevant features above.
 - [ ] Alternate standby graphics and sound, including “coming up on sctv”.
@@ -32,6 +33,14 @@ Consult this checklist when asked what to implement next. These are candidate fe
 ## Implementation history
 
 The dated entries below describe the behavior at the time of each change; later entries and the current status supersede older designs.
+
+- Transparent subtitle styling (2026-10-06): removed the translucent caption rectangle. The viewport label paints white glyphs with a one-pixel dark outline and a transparent background. Native playback capture and subtitle tests confirm readable text and unchanged video pixels in the empty caption area.
+
+- Composited subtitle rendering (2026-10-06): the earlier separate-window overlay still failed to show text for the user. Replaced QVideoWidget with a QGraphicsVideoItem-backed VideoView, binding QMediaPlayer to its videoSurface. Captions are ordinary viewport children, painted together with video; removed topmost/transient windows and application-activation gating. Verified a native playback capture containing both a blue movie frame and caption glyphs, and guide/video/fullscreen transitions. Regression tests now count visible white caption pixels in a rendered viewport and confirm an actual embedded-text MKV renders both video and text. All sixty-four Windows tests pass.
+
+- Subtitle overlay visibility (2026-10-06): enabled captions now explicitly stay above the native Windows video surface using a transient topmost overlay. Captions hide when the application becomes inactive, so they do not float over other applications. The subtitle menu reports pending reading, loaded cue count, missing tracks, or errors. A native guide/video/fullscreen fixture and sixty-four regression tests pass.
+
+- Text subtitles (2026-10-06): added a per-ClipSlot subtitle controller, SRT/VTT decoding, overlapping-cue lookup and plain-text rendering. PositionChanged and explicit seeks synchronize captions with the movie rather than broadcast wall time. Nearby exact/dotted movie-name sidecars are discovered; SUBTITLES offers automatic/Off, embedded tracks, and file loading. Asynchronous FFprobe discovers tracks and FFmpeg converts embedded text to SRT; stale jobs are cancelled on load/stop. Both Windows build specs package available tools. Native Windows video requires a non-activating, input-transparent caption tool window positioned over its video widget; it tracks ancestor moves/resizes, returns to ordinary ownership when captions clear, and guards deleted Qt wrappers during cleanup. Saved `smtvSubtitlesEnabled` restores the preference. Image subtitles are disabled explicitly. All sixty-three Windows tests pass, including an actual embedded-text MKV fixture, cue timing/seeking, sidecars/encoding, movie clearing, and preference restoration; native playback/fullscreen checks also pass.
 
 - Restore Ctrl-only font zoom (2026-10-05): wheel alone scrolls vertically again in SMDB and SMTV. The timeline explicitly uses vertical wheel scrolling even when only its horizontal axis has a scroll range. Ctrl+wheel adjusts the pointed section independently using the original quarter-scale steps, preserves saved sizes and menu synchronization, and keeps programming time anchored beneath the pointer. All fifty-eight native Windows tests pass.
 

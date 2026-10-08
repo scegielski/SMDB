@@ -1,6 +1,7 @@
 ﻿# -*- mode: python ; coding: utf-8 -*-
 
 import os
+import shutil
 from glob import glob
 from PyInstaller.utils.hooks import collect_data_files
 from PyInstaller.building.build_main import COLLECT
@@ -10,6 +11,11 @@ REPO_ROOT = os.path.abspath(os.getcwd())
 
 # Bundle MediaInfo.dll if present, IMDb data, and the collections folder
 datas = []
+# Qt5 has no portable subtitle renderer; package the text-track readers.
+for tool in ('ffmpeg', 'ffprobe'):
+    tool_path = shutil.which(tool)
+    if tool_path:
+        datas.append((tool_path, 'media-tools'))
 mediainfo_dll = os.path.join(REPO_ROOT, 'smdb', 'MediaInfo.dll')
 if os.path.exists(mediainfo_dll):
     datas.append((mediainfo_dll, '.'))
