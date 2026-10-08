@@ -685,7 +685,7 @@ class GuideTimelineTests(unittest.TestCase):
                     self.assertEqual([b['slot'] for b in tv.guideTable.rows[0]['programs'] if b['playing']], [target])
                     tv.forwardTenButton.click()
                     engine.activeSlot.player.position.return_value = engine.activeSlot._lastPlaybackPosition
-                tv.previousProgramButton.click()
+                tv.skipProgram(-1)
                 self.app.processEvents()
                 start, end = clock.publishedSlotTimes(1)
                 self.assertEqual(clock.playbackOriginForSlot(1), 0.0)

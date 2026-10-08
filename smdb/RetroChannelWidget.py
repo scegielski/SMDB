@@ -1224,6 +1224,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.mainWindow = parent
         self._videoOsdStatus = {}
         self._pausedAll = False
+        self._powerOn = True
         self._remoteRestored = False
         self._videoPathCache = {}
         self._descriptionCache = {}
@@ -1234,6 +1235,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._qualityByRow = {}
         self._filteredClocks = {}
         self._settings = getattr(parent, 'settings', None)
+        self.remoteScale = max(0.5, min(2.0, self._settings.value('smtvRemoteScale', 0.85, type=float))) if self._settings else 0.85
         self.subtitlesEnabled = self._settings.value('smtvSubtitlesEnabled', False, type=bool) if self._settings else False
         self._subtitleDownloadAttempts = set()
         self._subtitleDownloadJobs = {}
@@ -1277,10 +1279,16 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.setStyleSheet(f'QWidget {{ font-family: "{family}"; }}')
         self._buildUI()
         self._baseFont = QtGui.QFont(font)
+        self._remoteStyles = [(widget, widget.styleSheet()) for widget in
+                              [self.sideControls] + self.sideControls.findChildren(QtWidgets.QWidget)
+                              if widget.styleSheet()]
+        self._remoteLayouts = [(layout, layout.contentsMargins(), layout.spacing())
+                               for layout in self.sideControls.findChildren(QtWidgets.QLayout)]
         self._fontStyles = [
             (widget, widget.styleSheet())
             for widget in self.findChildren(QtWidgets.QWidget)
-            if re.search(r'font-size:\s*\d+px', widget.styleSheet())
+            if not self.sideControls.isAncestorOf(widget)
+            and re.search(r'font-size:\s*\d+px', widget.styleSheet())
         ]
         self.activeFontSection = 'controls'
         self.sectionFontScales = {
@@ -1310,6 +1318,14 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.standbyPollTimer.setInterval(150)
         self.standbyPollTimer.timeout.connect(self._syncStandbyTone)
         self.standbyPollTimer.timeout.connect(self._ensureCurrentSubtitles)
+        self._remoteLastActivity = time.monotonic()
+        self._remoteMousePosition = QtGui.QCursor.pos()
+        self.remoteIdleTimer = QtCore.QTimer(self)
+        self.remoteIdleTimer.setInterval(100)
+        self.remoteIdleTimer.timeout.connect(self._pollRemoteActivity)
+        for widget in [self] + self.findChildren(QtWidgets.QWidget):
+            widget.setMouseTracking(True)
+        QtWidgets.QApplication.instance().installEventFilter(self)
 
         self._updateEmptyState()
 
@@ -1364,95 +1380,105 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.guideOverlay._overlayAnchor = 'fill'
         self.overlayArea.addOverlay(self.guideOverlay)
         self.guideOverlay.hide()
+        self.powerOffScreen = QtWidgets.QWidget()
+        self.powerOffScreen.setStyleSheet('background: black;')
+        self.displayStack.addWidget(self.powerOffScreen)
+        self.guidePowerOffScreen = QtWidgets.QWidget()
+        self.guidePowerOffScreen.setStyleSheet('background: black;')
 
-        # -- side "clicker" panel --
+        # Rounded rubber-button remote inspired by 1990s TV/VCR controllers.
         self.sideControls = QtWidgets.QFrame()
+        self.sideControls.setObjectName('remoteShell')
         self.sideControls.setStyleSheet(
-            "background: #222; border: 2px solid #555; border-radius: 10px;"
-        )
+            'QFrame#remoteShell { background: qlineargradient(x1:0,y1:0,x2:1,y2:0,'
+            'stop:0 #131820, stop:0.4 #303741, stop:1 #151a22); '
+            'border: 2px solid #505a67; border-radius: 30px; }')
         sideLayout = QtWidgets.QVBoxLayout(self.sideControls)
-        sideLayout.setSpacing(8)
+        sideLayout.setContentsMargins(16, 20, 16, 22)
+        sideLayout.setSpacing(12)
 
-        self.channelLcd = QtWidgets.QLabel("--")
-        self.channelLcd.setAlignment(QtCore.Qt.AlignCenter)
-        self.channelLcd.setStyleSheet(
-            "background: black; color: #3fff6b; font-size: 22px;"
-            "border: 2px inset #555; padding: 6px;"
-        )
-        sideLayout.addWidget(self.channelLcd)
-
-        self.genreLabel = QtWidgets.QLabel("")
-        self.genreLabel.setAlignment(QtCore.Qt.AlignCenter)
-        self.genreLabel.setWordWrap(True)
-        self.genreLabel.setStyleSheet("color: #ccc; font-size: 11px;")
-        sideLayout.addWidget(self.genreLabel)
-
-        upButton = QtWidgets.QPushButton("CH \u25B2")
-        self.channelUpButton = upButton
-        upButton.clicked.connect(self.channelUp)
-        downButton = QtWidgets.QPushButton("CH \u25BC")
-        self.channelDownButton = downButton
-        downButton.clicked.connect(self.channelDown)
-        for b in (upButton, downButton):
-            b.setStyleSheet(
-                "background: #444; color: white; font-weight: bold; font-size: 14px;"
-                "border-radius: 6px; padding: 10px;"
-            )
-            b.setFocusPolicy(QtCore.Qt.NoFocus)
-        sideLayout.addWidget(upButton)
-        sideLayout.addWidget(downButton)
-
-        self.nextProgramButton = QtWidgets.QPushButton('NEXT ▶')
-        self.previousProgramButton = QtWidgets.QPushButton('PREV ◀')
-        for button, step, name in ((self.nextProgramButton, 1, 'Next program'),
-                                   (self.previousProgramButton, -1, 'Previous program')):
-            button.setStyleSheet(upButton.styleSheet())
-            button.setFocusPolicy(QtCore.Qt.NoFocus)
-            button.setAccessibleName(name)
-            button.setToolTip(name + ' on this channel')
-            button.clicked.connect(lambda _checked=False, direction=step: self.skipProgram(direction))
-            sideLayout.addWidget(button)
-
-        self.backTenButton = QtWidgets.QPushButton('◀')
-        self.forwardTenButton = QtWidgets.QPushButton('▶')
-        self.beginningButton = QtWidgets.QPushButton('|◀')
-        for button, offset, beginning, name in (
-                (self.backTenButton, -10000, False, 'Back ten seconds'),
-                (self.forwardTenButton, 10000, False, 'Forward ten seconds')):
-            button.setStyleSheet(upButton.styleSheet())
-            button.setFocusPolicy(QtCore.Qt.NoFocus)
+        def remoteButton(text, name, callback=None, color='#454e58', size=14):
+            button = QtWidgets.QPushButton(text)
             button.setAccessibleName(name)
             button.setToolTip(name)
-            button.clicked.connect(lambda _checked=False, delta=offset, start=beginning:
-                                   self.seekCurrentFilm(delta, start))
+            button.setFocusPolicy(QtCore.Qt.NoFocus)
+            button.setStyleSheet(
+                'QPushButton { background: ' + color + '; color: #f1f3e9; '
+                f'font-size: {size}px; font-weight: bold; border: 2px solid #121820; '
+                'border-top-color: #76818f; border-left-color: #647180; '
+                'border-radius: 16px; padding: 6px 8px; } '
+                'QPushButton:hover { border-top-color: #b5c4d5; color: white; } '
+                'QPushButton:checked { background: #303944; border-top-color: #11151b; '
+                'border-left-color: #11151b; border-bottom-color: #76818f; border-right-color: #647180; } '
+                'QPushButton:pressed { background: #1b2430; border-color: #11151b; padding-top: 8px; padding-bottom: 4px; } '
+                'QPushButton:disabled { color: #69717a; background: #252c35; border-color: #1a2028; }')
+            if callback is not None:
+                button.clicked.connect(callback)
+            return button
 
-        self.beginningButton.setStyleSheet(upButton.styleSheet())
-        self.beginningButton.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.beginningButton.setAccessibleName('Beginning of current film or previous film')
+        self.remoteBrand = QtWidgets.QLabel('SMTV')
+        self.remoteBrand.setAlignment(QtCore.Qt.AlignCenter)
+        self.remoteBrand.setStyleSheet('color: #aeb8c3; background: transparent; border: none; '
+                                      'font-size: 20px; font-weight: bold; letter-spacing: 3px;')
+        branding = QtWidgets.QHBoxLayout()
+        branding.addWidget(self.remoteBrand, 1)
+        self.powerButton = remoteButton('POWER', 'Turn SMTV off', self.togglePower, '#8e4350', size=11)
+        self.powerButton.setStyleSheet(self.powerButton.styleSheet() +
+                                      'QPushButton { background: #45262c; } '
+                                      'QPushButton:checked { background: #a74b59; }')
+        self.powerButton.setCheckable(True)
+        self.powerButton.setChecked(True)
+        branding.addWidget(self.powerButton)
+        sideLayout.addLayout(branding)
+        utilityButtons = QtWidgets.QHBoxLayout()
+        self.remoteDockButton = remoteButton('UNDOCK', 'Dock or undock remote', self.toggleRemoteDock)
+        self.remoteDockButton.setToolTip('Dock or undock the remote. Drag its surface to move it.')
+        self.fullScreenButton = remoteButton('FULL', 'Fullscreen', self.toggleFullScreen, '#8e4350')
+        utilityButtons.addWidget(self.remoteDockButton)
+        utilityButtons.addWidget(self.fullScreenButton)
+        sideLayout.addLayout(utilityButtons)
+
+        tuningPad = QtWidgets.QFrame()
+        tuningPad.setObjectName('tuningPad')
+        tuningPad.setStyleSheet('QFrame#tuningPad { background: #202833; border: 1px solid #10151c; '
+                               'border-radius: 26px; }')
+        tuning = QtWidgets.QGridLayout(tuningPad)
+        tuning.setContentsMargins(10, 12, 10, 12)
+        tuning.setSpacing(6)
+        self.channelUpButton = remoteButton('CH\n▲', 'Channel up', self.channelUp, '#3c5f8b', size=11)
+        self.channelDownButton = remoteButton('CH\n▼', 'Channel down', self.channelDown, '#3c5f8b', size=11)
+        self.volumeUpButton = remoteButton('VOL\n+', 'Volume up', lambda: self.setVolume(self.masterVolume + 5), '#3c5f8b')
+        self.volumeDownButton = remoteButton('VOL\n−', 'Volume down', lambda: self.setVolume(self.masterVolume - 5), '#3c5f8b')
+        self.volumeUpButton.setAutoRepeat(True)
+        self.volumeDownButton.setAutoRepeat(True)
+        self.muteButton = remoteButton('Mute', 'Mute or restore volume', self.toggleMute, size=11)
+        self.muteButton.setCheckable(True)
+        self.muteButton.setChecked(self.masterVolume == 0)
+        tuning.addWidget(self.channelUpButton, 0, 1)
+        tuning.addWidget(self.volumeDownButton, 1, 0)
+        tuning.addWidget(self.volumeUpButton, 1, 2)
+        tuning.addWidget(self.muteButton, 2, 0, alignment=QtCore.Qt.AlignCenter)
+        tuning.addWidget(self.channelDownButton, 2, 1)
+        self.guideButton = remoteButton('Guide', 'Show or hide guide', self.toggleGuide, size=11)
+        self.guideButton.setCheckable(True)
+        self.guideButton.setChecked(self.guideVisible)
+        tuning.addWidget(self.guideButton, 2, 2, alignment=QtCore.Qt.AlignCenter)
+        sideLayout.addWidget(tuningPad)
+
+        self.setupButton = remoteButton('SETUP', 'Channel setup', self.openChannelSetup, size=11)
+
+        self.backTenButton = remoteButton('REW', 'Back ten seconds', lambda: self.seekCurrentFilm(-10000))
+        self.forwardTenButton = remoteButton('FF', 'Forward ten seconds', lambda: self.seekCurrentFilm(10000))
+        self.pauseButton = remoteButton('PAUSE', 'Pause all channels', self.togglePause, size=11)
+        self.beginningButton = remoteButton('|◀', 'Beginning of current film or previous film', self.restartCurrentFilm)
         self.beginningButton.setToolTip('Restart this film; press again for the previous film. Forward restores the saved position')
-        self.beginningButton.clicked.connect(self.restartCurrentFilm)
-
-        self.nextBeginningButton = QtWidgets.QPushButton('▶|')
-        self.nextBeginningButton.setStyleSheet(upButton.styleSheet())
-        self.nextBeginningButton.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.nextBeginningButton.setAccessibleName('Next film or restore resume position')
+        self.nowButton = remoteButton('NOW', 'Return to live broadcast', self.returnToLive, '#3c5f8b', size=11)
+        self.nextBeginningButton = remoteButton('▶|', 'Next film or restore resume position',
+                                               lambda: self.skipProgram(1, startUnvisited=True))
         self.nextBeginningButton.setToolTip('Restore saved position, or open the next film from its beginning')
-        self.nextBeginningButton.clicked.connect(lambda: self.skipProgram(1, startUnvisited=True))
         filmControls = QtWidgets.QGridLayout()
-        self.nowButton = QtWidgets.QPushButton('NOW')
-        self.nowButton.setStyleSheet(
-            'background: #444; color: white; font-size: 12px; border-radius: 6px; padding: 6px;')
-        self.nowButton.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.nowButton.setAccessibleName('Return to live broadcast')
-        self.nowButton.setToolTip('Return this channel to the current live broadcast time')
-        self.nowButton.clicked.connect(self.returnToLive)
+        filmControls.setSpacing(6)
         filmControls.addWidget(self.backTenButton, 0, 0)
-        self.pauseButton = QtWidgets.QPushButton('Ⅱ')
-        self.pauseButton.setStyleSheet(self.nowButton.styleSheet())
-        self.pauseButton.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.pauseButton.setAccessibleName('Pause all channels')
-        self.pauseButton.setToolTip('Pause all channels')
-        self.pauseButton.clicked.connect(self.togglePause)
         filmControls.addWidget(self.pauseButton, 0, 1)
         filmControls.addWidget(self.forwardTenButton, 0, 2)
         filmControls.addWidget(self.beginningButton, 1, 0)
@@ -1460,65 +1486,20 @@ class RetroChannelWidget(QtWidgets.QWidget):
         filmControls.addWidget(self.nextBeginningButton, 1, 2)
         sideLayout.addLayout(filmControls)
 
-        guideButton = QtWidgets.QPushButton("GUIDE")
-        self.guideButton = guideButton
-        guideButton.clicked.connect(self.toggleGuide)
-        self.muteButton = QtWidgets.QPushButton("Mute")
-        self.muteButton.clicked.connect(self.toggleMute)
-        self.fullScreenButton = QtWidgets.QPushButton("FULL")
-        self.fullScreenButton.clicked.connect(self.toggleFullScreen)
-        for b in (guideButton, self.muteButton, self.fullScreenButton):
-            b.setStyleSheet("background: #333; color: white; font-size: 14px; border-radius: 6px; padding: 8px;")
-            b.setFocusPolicy(QtCore.Qt.NoFocus)
-        sideLayout.addWidget(guideButton)
-        self.reprogramButton = QtWidgets.QPushButton('REPROGRAM\nCHANNEL')
-        self.reprogramButton.setStyleSheet(guideButton.styleSheet())
-        self.reprogramButton.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.reprogramButton.setToolTip('Pick a new random lineup for the current channel')
-        self.reprogramButton.clicked.connect(self.reprogramChannel)
-        sideLayout.addWidget(self.reprogramButton)
-        self.setupButton = QtWidgets.QPushButton('SETUP')
-        self.setupButton.setStyleSheet(guideButton.styleSheet())
-        self.setupButton.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.setupButton.clicked.connect(self.openChannelSetup)
-        sideLayout.addWidget(self.setupButton)
-        self.subtitleButton = QtWidgets.QPushButton('SUBTITLES ON' if self.subtitlesEnabled else 'SUBTITLES')
-        self.subtitleButton.setStyleSheet(guideButton.styleSheet())
-        self.subtitleButton.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.subtitleButton = remoteButton('SUBTITLES',
+                                          'Toggle subtitles', self.setSubtitlesEnabled, size=11)
+        self.subtitleButton.setStyleSheet(self.subtitleButton.styleSheet() +
+            'QPushButton:checked { background: #303944; border-top-color: #11151b; '
+            'border-left-color: #11151b; border-bottom-color: #76818f; '
+            'border-right-color: #647180; }')
+        self.subtitleButton.setCheckable(True)
+        self.subtitleButton.setChecked(self.subtitlesEnabled)
         self.subtitleMenu = QtWidgets.QMenu(self.subtitleButton)
-        self.subtitleButton.setMenu(self.subtitleMenu)
-        self.subtitleMenu.aboutToShow.connect(self._refreshSubtitleMenu)
         sideLayout.addWidget(self.subtitleButton)
-
-        self.volumeLabel = QtWidgets.QLabel(f"VOLUME {self.masterVolume}%")
-        self.volumeLabel.setAlignment(QtCore.Qt.AlignCenter)
-        self.volumeLabel.setStyleSheet("color: #ccc; font-size: 11px;")
-        sideLayout.addWidget(self.volumeLabel)
-        volumeButtons = QtWidgets.QVBoxLayout()
-        self.volumeDownButton = QtWidgets.QPushButton("VOL ▼")
-        self.volumeUpButton = QtWidgets.QPushButton("VOL ▲")
-        self.volumeDownButton.setAccessibleName("Volume down")
-        self.volumeUpButton.setAccessibleName("Volume up")
-        for button, step in ((self.volumeUpButton, 5), (self.volumeDownButton, -5)):
-            button.setStyleSheet(
-                "QPushButton { background: #444; color: white; font-weight: bold; font-size: 14px;"
-                "border-radius: 6px; padding: 10px; }"
-                "QPushButton:disabled { color: #777; background: #292929; }"
-            )
-            button.setFocusPolicy(QtCore.Qt.NoFocus)
-            button.setAutoRepeat(True)
-            button.clicked.connect(lambda _checked=False, delta=step: self.setVolume(self.masterVolume + delta))
-            volumeButtons.addWidget(button)
-        sideLayout.addLayout(volumeButtons)
-        sideLayout.addWidget(self.muteButton)
-        sideLayout.addWidget(self.fullScreenButton)
-
-        self.remoteDockButton = QtWidgets.QPushButton('UNDOCK')
-        self.remoteDockButton.setStyleSheet(guideButton.styleSheet())
-        self.remoteDockButton.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.remoteDockButton.clicked.connect(self.toggleRemoteDock)
-        self.remoteDockButton.setToolTip("Dock or undock the remote. Drag its surface to move it.")
-        sideLayout.insertWidget(0, self.remoteDockButton)
+        self.reprogramButton = remoteButton('REPROGRAM CHANNEL', 'Pick a new random lineup for this channel',
+                                           self.reprogramChannel, size=11)
+        sideLayout.addWidget(self.reprogramButton)
+        sideLayout.addWidget(self.setupButton)
         sideLayout.addStretch(1)
 
         # Large text must remain usable in shorter windows.
@@ -1530,10 +1511,10 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.controlsDock = RemoteDock(self.tvDockHost)
         self.controlsDock.setWidget(self.sideScroll)
         self.tvDockHost.addDockWidget(QtCore.Qt.RightDockWidgetArea, self.controlsDock)
-        self.controlsDock.setStyleSheet('QDockWidget { color: white; background: #222; } '
-                                       'QDockWidget::title { background: #353535; padding: 6px; }')
+        self.controlsDock.setStyleSheet('QDockWidget { color: white; background: #151a22; }')
         self.controlsDock.toggleViewAction().setText('SMTV Remote')
         self.controlsDock.topLevelChanged.connect(self._remoteDockChanged)
+        self.controlsDock.cornerResizeRequested.connect(self._resizeRemote)
         self.controlsDock.installEventFilter(self)
 
     def toggleRemoteDock(self):
@@ -1542,10 +1523,26 @@ class RetroChannelWidget(QtWidgets.QWidget):
 
     def _remoteDockChanged(self, floating):
         self.remoteDockButton.setText('DOCK' if floating else 'UNDOCK')
+        if hasattr(self, '_remoteStyles'):
+            self._applyRemoteSizes()
+        else:
+            self._fitFloatingRemote()
         self._saveRemoteState()
 
+    def _fitFloatingRemote(self):
+        dock = self.controlsDock
+        dock.setMaximumHeight(16777215)
+        if dock.isFloating():
+            self.sideControls.layout().activate()
+            screen = dock.screen()
+            available = screen.availableGeometry().height() - 40 if screen else 1000
+            frame = dock.style().pixelMetric(QtWidgets.QStyle.PM_DockWidgetFrameWidth, None, dock)
+            height = min(self.sideControls.sizeHint().height() + 2 * frame, available)
+            dock.setMaximumHeight(height)
+            dock.resize(dock.width(), height)
+
     def _saveRemoteState(self, *_args):
-        if self._settings is None or not self._remoteRestored or self._fullScreenTransition:
+        if self._settings is None or not self._remoteRestored or self._fullScreenTransition or self.isFullScreenActive:
             return
         self._settings.setValue('smtvRemoteFloating', self.controlsDock.isFloating())
         if self.controlsDock.isFloating():
@@ -1559,7 +1556,43 @@ class RetroChannelWidget(QtWidgets.QWidget):
                 if geometry:
                     self.controlsDock.restoreGeometry(geometry)
             self._remoteRestored = True
+        self._applyRemoteSizes()
         self.controlsDock.show()
+
+    def _wakeRemote(self):
+        self._remoteLastActivity = time.monotonic()
+        if not self.isActive:
+            return
+        if (self.isFullScreenActive and not self.controlsDock.isFloating()
+                and not self.controlsDock._fullscreenOverlay):
+            transitioning = self._fullScreenTransition
+            self._fullScreenTransition = True
+            try:
+                self.controlsDock.setFloating(True)
+            finally:
+                self._fullScreenTransition = transitioning
+        self.sideScroll.show()
+        self.controlsDock.show()
+        self.controlsDock.raise_()
+
+    def _pollRemoteActivity(self):
+        if not self.isActive or self.window().isMinimized():
+            return
+        position = QtGui.QCursor.pos()
+        moved = position != self._remoteMousePosition
+        self._remoteMousePosition = position
+        busy = (QtWidgets.QApplication.mouseButtons() != QtCore.Qt.NoButton
+                or self.controlsDock._press is not None
+                or QtWidgets.QApplication.activeModalWidget() is not None
+                or QtWidgets.QApplication.activePopupWidget() is not None)
+        if self.isFullScreenActive and self.controlsDock.isVisible():
+            self.controlsDock.raise_()
+        if moved:
+            self._wakeRemote()
+        elif busy:
+            self._remoteLastActivity = time.monotonic()
+        elif time.monotonic() - self._remoteLastActivity >= 5:
+            self.controlsDock.hide()
 
     def _subtitleSlot(self):
         engine = self._guidePreviewHostedEngine if self.guideVisible else None
@@ -1638,7 +1671,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
                 slot.subtitles.setEnabled(self.subtitlesEnabled)
         if self.guidePreviewSlot:
             self.guidePreviewSlot.subtitles.setEnabled(self.subtitlesEnabled)
-        self.subtitleButton.setText('SUBTITLES ON' if self.subtitlesEnabled else 'SUBTITLES')
+        self.subtitleButton.setText('SUBTITLES')
+        self.subtitleButton.setChecked(self.subtitlesEnabled)
         self._refreshSubtitleMenu()
 
     def _refreshSubtitleMenu(self):
@@ -1751,11 +1785,74 @@ class RetroChannelWidget(QtWidgets.QWidget):
                               f'font-family: "{font.family()}";',
                 style,
             ))
-        self.sideScroll.setFixedWidth(max(130, self.sideControls.sizeHint().width() + 24))
+        self._applyRemoteSizes()
         self.guideTable.setScale(self.sectionFontScales['guide'])
         self.guideTable.setChannelScale(self.sectionFontScales['channels'])
         self.overlayArea._layoutOverlay(self.banner)
         self.fontScaleChanged.emit(self.fontScale)
+
+    def _applyRemoteSizes(self):
+        scale = self.remoteScale
+        fontScale = self.sectionFontScales['controls']
+        family = self._baseFont.family()
+        for widget, style in self._remoteStyles:
+            def metric(match):
+                prefix = match.group(1) or ''
+                factor = scale * (fontScale if prefix else 1)
+                pixels = max(1, round(int(match.group(2)) * factor))
+                return prefix + str(pixels) + 'px' + (f'; font-family: "{family}"' if prefix else '')
+            widget.setStyleSheet(re.sub(r'(font-size:\s*)?(\d+)px', metric, style))
+            widget.ensurePolished()
+        for layout, margins, spacing in self._remoteLayouts:
+            layout.setContentsMargins(*(int(value * scale) for value in
+                (margins.left(), margins.top(), margins.right(), margins.bottom())))
+            if spacing >= 0:
+                layout.setSpacing(max(1, round(spacing * scale)))
+        height = max(round(34 * scale), self.muteButton.fontMetrics().height() + round(12 * scale))
+        for button in (self.muteButton, self.guideButton):
+            width = max(round(height * 1.5), button.fontMetrics().horizontalAdvance(button.text()) + round(14 * scale))
+            button.setFixedSize(width, height)
+            button.setStyleSheet(button.styleSheet() +
+                                f'QPushButton {{ border-radius: {height // 2}px; padding: 0; }}')
+        for layout, _margins, _spacing in reversed(self._remoteLayouts):
+            layout.invalidate()
+            layout.activate()
+        self.sideControls.layout().invalidate()
+        self.sideControls.layout().activate()
+        availableHeight = (self.controlsDock.screen().availableGeometry().height() - 40
+                           if self.controlsDock.isFloating() and self.controlsDock.screen()
+                           else self.tvDockHost.height())
+        scrollbar = (self.sideScroll.style().pixelMetric(QtWidgets.QStyle.PM_ScrollBarExtent)
+                     if self.sideControls.sizeHint().height() > availableHeight else 0)
+        self.sideScroll.setFixedWidth(max(100, self.sideControls.sizeHint().width() + 1 + scrollbar))
+        self.controlsDock.resizeScale = scale
+        self.controlsDock.cornerRadius = round(30 * scale)
+        self.controlsDock._updateShape()
+        self._fitFloatingRemote()
+
+    def _resizeRemote(self, size):
+        dock = self.controlsDock
+        factor = size.width() / max(1, dock.width())
+        self.remoteScale = max(0.5, min(2.0, self.remoteScale * factor))
+        self._applyRemoteSizes()
+        # Integer font sizes can step across a minimum-width boundary. Fit
+        # those metrics inside the requested outline before fixing geometry.
+        for _ in range(4):
+            hint = self.sideControls.minimumSizeHint()
+            fit = min(1.0, (size.width() - 2) / max(1, hint.width()),
+                      (size.height() - 2) / max(1, hint.height()))
+            if fit >= 1.0:
+                break
+            self.remoteScale *= fit * 0.995
+            self._applyRemoteSizes()
+        # Preserve the gesture's aspect ratio despite pixel-rounded font metrics.
+        frame = dock.style().pixelMetric(QtWidgets.QStyle.PM_DockWidgetFrameWidth, None, dock)
+        self.sideScroll.setFixedWidth(size.width() - 2 * frame)
+        dock.setMaximumHeight(size.height())
+        dock.resize(size)
+        if self._settings:
+            self._settings.setValue('smtvRemoteScale', self.remoteScale)
+        self._saveRemoteState()
 
     def _buildGuideOverlay(self):
         guide = QtWidgets.QFrame()
@@ -2025,9 +2122,9 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._updateEmptyState()
         if not self.channels:
             self.guideVisible = False
+            self.guideButton.setChecked(False)
             self.guideOverlay.hide()
             self.guideTable.setRows([], 0)
-            self._updateChannelLabel()
         elif self.isActive:
             self._tuneTo(self.currentIndex)
             self._openStartupGuide()
@@ -2114,14 +2211,15 @@ class RetroChannelWidget(QtWidgets.QWidget):
     def _updateEmptyState(self):
         hasChannels = bool(self.channels)
         for button in (self.channelUpButton, self.channelDownButton,
-                       self.nextProgramButton, self.previousProgramButton,
                        self.backTenButton, self.forwardTenButton, self.nowButton, self.pauseButton,
                        self.beginningButton, self.nextBeginningButton, self.guideButton,
                        self.reprogramButton):
-            button.setEnabled(hasChannels)
+            availableOff = button in (self.channelUpButton, self.channelDownButton,
+                                      self.guideButton, self.reprogramButton)
+            button.setEnabled(hasChannels and (self._powerOn or availableOff))
         if not hasChannels:
             self.nowPlayingLabel.setText("")
-            self.displayStack.setCurrentWidget(self.globalStandby)
+            self.displayStack.setCurrentWidget(self.globalStandby if self._powerOn else self.powerOffScreen)
 
     def reprogramChannel(self):
         if not self.channels:
@@ -2149,7 +2247,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self._updateGuidePreview()
 
     def _syncStandbyTone(self):
-        if self._pausedAll:
+        if self._pausedAll or not self._powerOn:
             self.standbyTone.stop()
             return
         """Continuous fallback: match the tone to whatever stand-by state is actually on
@@ -2198,6 +2296,14 @@ class RetroChannelWidget(QtWidgets.QWidget):
     def _tuneTo(self, index):
         if not self.channels:
             return
+        if not self._powerOn:
+            self.currentIndex = index % len(self.channels)
+            self.guideHighlightIndex = self.currentIndex
+            self.displayStack.setCurrentWidget(self.powerOffScreen)
+            if self.guideVisible:
+                self._refreshGuideTable()
+                self._updateGuidePreview()
+            return
         self.guideTable.resumePlaybackFollow()
         index = index % len(self.channels)
         self._releasePreviewHost()
@@ -2241,7 +2347,6 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if engine:
             self.displayStack.setCurrentWidget(engine.container)
             self._showBanner(engine)
-        self._updateChannelLabel()
         self._syncPauseButton()
         self._showVideoOsd('channel', (index + 1, self.channels[index]['genre']))
         self._updateNowPlayingLabel(engine)
@@ -2249,15 +2354,6 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self._refreshGuideTable()
             self._updateGuidePreview()
         self._syncStandbyTone()
-
-    def _updateChannelLabel(self):
-        if not self.channels:
-            self.channelLcd.setText("--")
-            self.genreLabel.setText("")
-            return
-        chan = self.channels[self.currentIndex]
-        self.channelLcd.setText(f"{self.currentIndex + 1:02d}")
-        self.genreLabel.setText(chan['genre'].upper())
 
     def _showBanner(self, engine):
         if self.isFullScreenActive:
@@ -2317,16 +2413,23 @@ class RetroChannelWidget(QtWidgets.QWidget):
         engine = self.engines.get(self.currentIndex)
         if engine:
             self.guideTable.resumePlaybackFollow()
-        if engine and engine.seekCurrentFilm(offsetMs, beginning) and self.guideVisible:
-            self._refreshGuideTable()
+        if engine and engine.seekCurrentFilm(offsetMs, beginning):
+            if self.guideVisible:
+                self._refreshGuideTable()
+            if not beginning and offsetMs:
+                start, _end = engine.clock.publishedSlotTimes(engine.currentSlotIndex)
+                timestamp = start + (engine.activeSlot._lastPlaybackPosition or 0) / 1000.0
+                self._showVideoOsd('seek', (int(offsetMs / 1000), timestamp))
 
     def _syncPauseButton(self, *_args):
-        self.pauseButton.setText('▶' if self._pausedAll else 'Ⅱ')
+        self.pauseButton.setText('PLAY' if self._pausedAll else 'PAUSE')
         label = 'Resume all channels' if self._pausedAll else 'Pause all channels'
         self.pauseButton.setAccessibleName(label)
         self.pauseButton.setToolTip(label)
 
     def togglePause(self):
+        if not self._powerOn:
+            return
         self._pausedAll = not self._pausedAll
         for channel in self.channels:
             channel['clock'].setPaused(self._pausedAll)
@@ -2343,6 +2446,28 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._syncPauseButton()
         self._updatePlaybackMarker()
         self._syncStandbyTone()
+
+    def togglePower(self):
+        self._powerOn = not self._powerOn
+        self.powerButton.setChecked(self._powerOn)
+        label = 'Turn SMTV off' if self._powerOn else 'Turn SMTV on'
+        self.powerButton.setAccessibleName(label)
+        self.powerButton.setToolTip(label)
+        self._updateEmptyState()
+        if not self._powerOn:
+            self._stopGuidePreview()
+            self._teardownAllEngines()
+            self.standbyTone.stop()
+            self.banner.hide()
+            self.displayStack.setCurrentWidget(self.powerOffScreen)
+            if self.guideVisible:
+                self._updateGuidePreview()
+        else:
+            self.displayStack.setCurrentWidget(self.globalStandby)
+            self.guidePowerOffScreen.hide()
+            if self.isActive and self.channels:
+                self._tuneTo(self.currentIndex)
+            self._syncStandbyTone()
 
     def toggleMute(self):
         self.setVolume(0 if self.masterVolume else self._lastVolume)
@@ -2372,8 +2497,9 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self._lastVolume = self.masterVolume
         self.volumeUpButton.setEnabled(self.masterVolume < 100)
         self.volumeDownButton.setEnabled(self.masterVolume > 0)
-        self.volumeLabel.setText(f"VOLUME {self.masterVolume}%")
-        self.muteButton.setText("Unmute" if self.masterVolume == 0 else "Mute")
+        self.muteButton.setChecked(self.masterVolume == 0)
+        self.muteButton.setAccessibleName('Restore volume' if self.masterVolume == 0 else 'Mute volume')
+        self.muteButton.setToolTip(self.muteButton.accessibleName())
         self.standbyTone.setVolume(self.masterVolume)
         if self.masterVolume != previousVolume:
             self._showVideoOsd('volume', self.masterVolume)
@@ -2392,6 +2518,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if not self.channels:
             return
         self.guideVisible = not self.guideVisible
+        self.guideButton.setChecked(self.guideVisible)
         self.guideOverlay.setVisible(self.guideVisible)
         if self.guideVisible:
             self._updateGuideTime()
@@ -2414,6 +2541,9 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._fsWindow = host
         self._fsWindowState = host.windowState()
         self._fsGuideVisible = self.guideVisible
+        self._fsRemoteFloating = self.controlsDock.isFloating()
+        self._fsRemoteGeometry = self.controlsDock.saveGeometry()
+        self._fsRemotePosition = self.controlsDock.mapToGlobal(QtCore.QPoint())
         self._fsMargins = self.layout().contentsMargins()
         self._fsSpacing = self.layout().spacing()
         self._fsLeftSpacing = self.leftColumn.spacing()
@@ -2435,9 +2565,26 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self.leftColumn.setSpacing(0)
             self.fullScreenButton.setText("EXIT FULL")
             host.showFullScreen()
+            dock = self.controlsDock
+            self.tvDockHost.removeDockWidget(dock)
+            dock._fullscreenOverlay = True
+            dock.setParent(self, QtCore.Qt.Widget)
+            self.sideScroll.show()
+            dock.setMaximumHeight(16777215)
+            dock.resize(self.sideScroll.width(), min(self.sideControls.sizeHint().height(), self.height()))
+            position = self.mapFromGlobal(self._fsRemotePosition)
+            dock.move(max(0, min(position.x(), self.width() - dock.width())),
+                      max(0, min(position.y(), self.height() - dock.height())))
+            self.remoteDockButton.setEnabled(False)
+            self._wakeRemote()
+            QtCore.QTimer.singleShot(200, self._raiseFullscreenRemote)
         finally:
             self._fullScreenTransition = False
         self.setFocus()
+
+    def _raiseFullscreenRemote(self):
+        if self.isActive and self.isFullScreenActive and self.controlsDock.isVisible():
+            self.controlsDock.raise_()
 
     def _exitFullScreen(self):
         if self._fsWindow is None:
@@ -2447,6 +2594,15 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._fullScreenTransition = True
         try:
             self.isFullScreenActive = False
+            dock = self.controlsDock
+            dock.hide()
+            dock._fullscreenOverlay = False
+            dock.setParent(self.tvDockHost, QtCore.Qt.Widget)
+            self.tvDockHost.addDockWidget(QtCore.Qt.RightDockWidgetArea, dock)
+            dock.setFloating(self._fsRemoteFloating)
+            if self._fsRemoteFloating:
+                dock.restoreGeometry(self._fsRemoteGeometry)
+            self.remoteDockButton.setEnabled(True)
             self.layout().setContentsMargins(self._fsMargins)
             self.layout().setSpacing(self._fsSpacing)
             self.leftColumn.setSpacing(self._fsLeftSpacing)
@@ -2498,6 +2654,9 @@ class RetroChannelWidget(QtWidgets.QWidget):
         engine.container.show()
 
     def _updateGuidePreview(self):
+        if not self._powerOn:
+            self._setPreviewContent(self.guidePowerOffScreen)
+            return
         if not self.channels:
             return
         idx = self.guideHighlightIndex
@@ -2573,6 +2732,12 @@ class RetroChannelWidget(QtWidgets.QWidget):
             # position or turn a ten-second seek into a multi-minute offset.
             timestamp = start + position / 1000.0
         self.guideTable.setPlaybackTime(timestamp)
+        seek = self._videoOsdStatus.get('seek')
+        if timestamp is not None and seek and seek[1] > time.monotonic():
+            value = (seek[0][0], timestamp)
+            self._videoOsdStatus['seek'] = (value, seek[1])
+            for slot in (engine.slotA, engine.slotB):
+                slot.videoWidget.osd.updateValue('seek', value)
 
     def _refreshGuideTable(self):
         if not self.channels:
@@ -2636,6 +2801,12 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.guideTable.ensureChannelVisible(self.guideHighlightIndex)
 
     def eventFilter(self, watched, event):
+        if (event.type() == QtCore.QEvent.MouseMove and self.isActive
+                and isinstance(watched, QtWidgets.QWidget)
+                and (watched is self or self.isAncestorOf(watched)
+                     or watched is self.controlsDock or self.controlsDock.isAncestorOf(watched))):
+            self._remoteMousePosition = QtGui.QCursor.pos()
+            self._wakeRemote()
         if watched is getattr(self, 'controlsDock', None) and event.type() in (QtCore.QEvent.Move, QtCore.QEvent.Resize):
             self._saveRemoteState()
         if (watched is self.guideTable.viewport()
@@ -2652,9 +2823,13 @@ class RetroChannelWidget(QtWidgets.QWidget):
             return
         self.isActive = True
         self._showRemote()
+        self._remoteLastActivity = time.monotonic()
+        self._remoteMousePosition = QtGui.QCursor.pos()
+        self.remoteIdleTimer.start()
         self._showGuideOnStart = True
         # Start before engine creation or any catalogue/tuning work can block Qt.
-        self.standbyTone.start()
+        if self._powerOn:
+            self.standbyTone.start()
         self.standbyPollTimer.start()
         if self.channels:
             self._tuneTo(self.currentIndex)
@@ -2670,12 +2845,14 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._saveRemoteState()
         self.controlsDock.hide()
         self.isActive = False
+        self.remoteIdleTimer.stop()
         self.standbyPollTimer.stop()
         self.standbyTone.stop()
         self._teardownAllEngines()
         self._stopGuidePreview()
         if self.guideVisible:
             self.guideVisible = False
+            self.guideButton.setChecked(False)
             self.guideOverlay.hide()
 
     def keyPressEvent(self, event):

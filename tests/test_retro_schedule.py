@@ -108,11 +108,11 @@ class FullMovieScheduleTests(unittest.TestCase):
             engine._prefetchRequestId = 11
             try:
                 with patch.object(engine, '_tuneIn') as tune:
-                    tv.previousProgramButton.click()
+                    tv.skipProgram(-1)
                     self.assertEqual(clock.whatsOnNow()[:3], (2, 2, 0.0))
                     self.assertNotEqual(engine._tuneRequestId, 10)
                     self.assertNotEqual(engine._prefetchRequestId, 11)
-                    tv.nextProgramButton.click()
+                    tv.skipProgram(1)
                     self.assertEqual(clock.whatsOnNow()[:3], (3, 0, 0.25))
                     self.assertEqual(tune.call_count, 2)
                     neighbor.skipProgram.assert_not_called()
@@ -333,7 +333,7 @@ class FullMovieScheduleTests(unittest.TestCase):
         self.enableControls(tv)
         try:
             with patch.object(engine, '_tuneIn') as tune, patch.object(engine, '_maybeSchedulePrefetch'):
-                tv.previousProgramButton.click()
+                tv.skipProgram(-1)
                 self.assertEqual(clock.slotInfo(0)[1], 0.42)
                 self.assertEqual(engine.currentSlotIndex, 0)
                 slot.player = Mock()

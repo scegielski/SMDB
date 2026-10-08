@@ -25,6 +25,11 @@ class VideoOsd(QtWidgets.QWidget):
         self.timer.start()
         self.update()
 
+    def updateValue(self, kind, value):
+        if kind in self.items:
+            self.items[kind] = (value, self.items[kind][1])
+            self.update()
+
     def _expire(self):
         now = time.monotonic()
         self.items = {kind: item for kind, item in self.items.items() if item[1] > now}
@@ -53,6 +58,13 @@ class VideoOsd(QtWidgets.QWidget):
             rect = QtCore.QRect(margin, margin, self.width() - margin * 2, size * 2)
             label = QtGui.QFontMetrics(font).elidedText(f'CH {number:02d}  {name.upper()}', QtCore.Qt.ElideRight, rect.width())
             text(rect, label)
+        if 'seek' in self.items:
+            seconds, timestamp = self.items['seek'][0]
+            top = round(self.height() * .32)
+            rect = QtCore.QRect(margin, top, self.width() - margin * 2, round(size * 1.4))
+            text(rect, f'{seconds:+d} SEC', QtCore.Qt.AlignCenter)
+            rect.translate(0, round(size * 1.4))
+            text(rect, time.strftime('%I:%M:%S %p', time.localtime(timestamp)), QtCore.Qt.AlignCenter)
         if 'volume' in self.items:
             volume = self.items['volume'][0]
             top = round(self.height() * .65)
@@ -74,6 +86,8 @@ class VideoOsd(QtWidgets.QWidget):
 class VideoView(QtWidgets.QGraphicsView):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setMouseTracking(True)
+        self.viewport().setMouseTracking(True)
         self.osd = VideoOsd(self.viewport())
         self.setScene(QtWidgets.QGraphicsScene(self))
         self.videoItem = QGraphicsVideoItem()

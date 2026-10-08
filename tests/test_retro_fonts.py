@@ -36,7 +36,7 @@ class RetroFontTests(unittest.TestCase):
                 self.assertEqual(restored.guideTable.channelScale, 1.25)
                 self.assertEqual(restored.guideTable.channelWidth, round(190 * 1.25))
                 self.assertEqual(restored.guideDescription.font().pixelSize(), 21)
-                self.assertEqual(restored.volumeUpButton.font().pixelSize(), 38)
+                self.assertEqual(restored.volumeUpButton.font().pixelSize(), round(14 * 2.75 * restored.remoteScale))
                 for _ in range(2):
                     restored.toggleFullScreen()
                     self.app.processEvents()
@@ -96,7 +96,7 @@ class RetroFontTests(unittest.TestCase):
         window.show()
         self.app.processEvents()
         widgets = [tv, tv.volumeUpButton, tv.volumeDownButton,
-                   tv.muteButton, tv.fullScreenButton,
+                   tv.fullScreenButton,
                    tv.nowPlayingLabel, tv.guideTable, tv.guideTable.viewport()]
 
         def snapshot():
@@ -107,9 +107,13 @@ class RetroFontTests(unittest.TestCase):
             for scale in (2.0, 1.25, 3.0):
                 tv.setFontScale(scale)
                 self.app.processEvents()
+                self.assertLessEqual(tv.sideControls.width(), tv.sideScroll.viewport().width())
                 expected = snapshot()
-                self.assertEqual(len(set(expected)), 1)
-                self.assertEqual(expected[0][1], round(14 * scale))
+                self.assertEqual(len(set(family for family,size in expected)), 1)
+                for widget,(_,size) in zip(widgets,expected):
+                    factor=tv.remoteScale if tv.sideControls.isAncestorOf(widget) else 1.0
+                    self.assertEqual(size, round(14 * scale * factor))
+                self.assertEqual(tv.muteButton.font().pixelSize(), round(11 * scale * tv.remoteScale))
                 for _ in range(2):
                     tv.toggleFullScreen()
                     self.app.processEvents()

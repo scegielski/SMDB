@@ -48,4 +48,37 @@ class VideoOsdTests(unittest.TestCase):
         finally:
             tv.engines.clear();tv.close()
 
+    def test_seek_buttons_show_updated_broadcast_time_and_expire(self):
+        tv=RetroChannelWidget()
+        slot=SimpleNamespace(duration=100000,_lastPlaybackPosition=20000)
+        clock=Mock();clock.publishedSlotTimes.return_value=(1700000000,1700000100)
+        engine=SimpleNamespace(activeSlot=slot,currentSlotIndex=0,clock=clock,
+            slotA=SimpleNamespace(videoWidget=Mock()),slotB=SimpleNamespace(videoWidget=Mock()))
+        def seek(offset,beginning):
+            slot._lastPlaybackPosition+=offset
+            return True
+        engine.seekCurrentFilm=seek
+        tv.engines={0:engine}
+        tv.channels=[{'genre':'Test','clock':clock}]
+        tv._updateEmptyState()
+        try:
+            tv.forwardTenButton.click()
+            engine.slotA.videoWidget.osd.display.assert_called_with('seek',(10,1700000030.0))
+            tv.backTenButton.click()
+            engine.slotB.videoWidget.osd.display.assert_called_with('seek',(-10,1700000020.0))
+            video=VideoView();video.resize(640,360);video.show();self.app.processEvents()
+            try:
+                with patch('smdb.VideoView.time.monotonic',return_value=10) as timer:
+                    video.osd.display('seek',(10,1700000030))
+                    picture=video.grab().toImage()
+                    green=sum(1 for y in range(100,200) for x in range(640)
+                        if picture.pixelColor(x,y).green()>200 and picture.pixelColor(x,y).red()<100)
+                    self.assertGreater(green,100)
+                    video.osd.updateValue('seek',(10,1700000031))
+                    self.assertEqual(video.osd.items['seek'][1],13)
+                    timer.return_value=13.1;video.osd._expire()
+                    self.assertTrue(video.osd.isHidden())
+            finally:video.close()
+        finally:tv.engines.clear();tv.channels=[];tv.close()
+
 if __name__=='__main__':unittest.main()

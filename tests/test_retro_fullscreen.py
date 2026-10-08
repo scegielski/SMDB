@@ -49,7 +49,8 @@ class FullScreenLifecycleTests(unittest.TestCase):
                         self.assertEqual(tv.engines, engines)
                         self.assertEqual({i: e.activeSlot.player for i, e in tv.engines.items()}, players)
                         self.assertEqual(tv.guideVisible, not fullscreen)
-                        self.assertEqual(tv.sideScroll.isHidden(), fullscreen)
+                        self.assertFalse(tv.sideScroll.isHidden())
+                        self.assertTrue(tv.controlsDock.isVisible())
                         self.assertEqual(tv.nowPlayingLabel.isHidden(), fullscreen)
                         if fullscreen:
                             self.assertIsNone(tv._guidePreviewHostedEngine)
