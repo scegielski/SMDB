@@ -240,8 +240,16 @@ class GuideTimeline(QtWidgets.QAbstractScrollArea):
         painter.setFont(channelFont)
         painter.fillRect(0, 0, self.channelWidth, self.headerHeight, QtGui.QColor('#1b2d42'))
         painter.setPen(QtGui.QColor('white'))
-        painter.drawText(QtCore.QRect(6, 0, self.channelWidth - 12, self.headerHeight),
-                         QtCore.Qt.AlignVCenter | QtCore.Qt.AlignLeft, 'CHANNELS')
+        clockLabel = time.strftime('%a %I:%M:%S %p', time.localtime(self.now))
+        clockFont = QtGui.QFont(channelFont)
+        available = max(1, self.channelWidth - 16)
+        labelWidth = QtGui.QFontMetrics(clockFont).horizontalAdvance(clockLabel)
+        if labelWidth > available:
+            clockFont.setPixelSize(max(8, int(clockFont.pixelSize() * available / labelWidth)))
+        painter.setFont(clockFont)
+        painter.drawText(QtCore.QRect(6, 0, self.channelWidth - 16, self.headerHeight),
+                         QtCore.Qt.AlignVCenter | QtCore.Qt.AlignLeft, clockLabel)
+        painter.setFont(channelFont)
         painter.setClipRect(0, self.headerHeight, self.channelWidth, height)
         for index, row in enumerate(self.rows):
             rect = self.rowRect(index)
