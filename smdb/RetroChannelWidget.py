@@ -2390,15 +2390,17 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self._refreshGuideTable()
 
     def returnToLive(self):
+        # Drop the old cyan cursor before any synchronous guide refresh can
+        # follow it and undo the return to the current wall-clock time.
+        self.guideTable.setPlaybackTime(None)
         engine = self.engines.get(self.currentIndex)
-        if engine is None:
-            return
-        engine.skipProgram(0, live=True)
-        self._updateNowPlayingLabel(engine)
+        if engine is not None:
+            engine.skipProgram(0, live=True)
+            self._updateNowPlayingLabel(engine)
         self.guideTable.setCurrentTime(time.time())
-        self.guideTable.showCurrentHour()
         if self.guideVisible:
             self._refreshGuideTable()
+        self.guideTable.showCurrentHour()
         self._syncStandbyTone()
 
     def _updatePlaybackMarker(self):

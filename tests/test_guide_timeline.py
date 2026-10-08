@@ -341,6 +341,40 @@ class GuideTimelineTests(unittest.TestCase):
         finally:
             guide.close()
 
+    def test_now_button_centers_live_time_after_panning_away_from_cyan(self):
+        from types import SimpleNamespace
+        guide = GuideTimeline()
+        guide.resize(900, 260)
+        guide.show()
+        self.app.processEvents()
+        engine = Mock()
+        context = SimpleNamespace(engines={0: engine}, currentIndex=0, guideVisible=True,
+            guideTable=guide, _updateNowPlayingLabel=Mock(), _syncStandbyTone=Mock(),
+            _refreshGuideTable=lambda: guide.setRows([], 0))
+        button = QtWidgets.QPushButton('NOW')
+        button.clicked.connect(lambda: RetroChannelWidget.returnToLive(context))
+        try:
+            with patch('smdb.RetroChannelWidget.time.time', return_value=36900):
+                guide.startTime, guide.endTime = 36000, 36000 + 48 * 3600
+                guide.setCurrentTime(36900)
+                guide.setRows([], 0)
+                for playback in (36000 + 12 * 3600, 36000 - 12 * 3600):
+                    guide.resumePlaybackFollow()
+                    guide.setPlaybackTime(playback)
+                    guide._manualPanView = True
+                    guide.horizontalScrollBar().setValue(guide.horizontalScrollBar().maximum())
+                    button.click()
+                    self.app.processEvents()
+                    self.assertIsNone(guide.playbackTime)
+                    self.assertFalse(guide._manualPanView)
+                    middle = guide.channelWidth + (guide.viewport().width() - guide.channelWidth) / 2
+                    self.assertAlmostEqual(guide.timeX(36900), middle, delta=1)
+                self.assertEqual(engine.skipProgram.call_count, 2)
+                engine.skipProgram.assert_called_with(0, live=True)
+        finally:
+            button.close()
+            guide.close()
+
     def test_now_then_seeking_uses_real_seconds_when_catalogue_runtime_differs(self):
         tv = RetroChannelWidget()
         with patch('smdb.RetroChannelWidget.time.time', return_value=36000) as wall, \
