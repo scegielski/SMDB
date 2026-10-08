@@ -65,6 +65,10 @@ class VideoOsd(QtWidgets.QWidget):
             text(rect, f'{seconds:+d} SEC', QtCore.Qt.AlignCenter)
             rect.translate(0, round(size * 1.4))
             text(rect, time.strftime('%I:%M:%S %p', time.localtime(timestamp)), QtCore.Qt.AlignCenter)
+        if 'subtitleOffset' in self.items:
+            seconds = self.items['subtitleOffset'][0]
+            text(QtCore.QRect(margin, round(self.height() * .50), self.width() - margin * 2, size * 2),
+                 f'SUBTITLES {seconds:+d} SEC', QtCore.Qt.AlignCenter)
         if 'volume' in self.items:
             volume = self.items['volume'][0]
             top = round(self.height() * .65)
@@ -98,6 +102,8 @@ class VideoView(QtWidgets.QGraphicsView):
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.setBackgroundBrush(QtGui.QColor('black'))
         self.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop)
+        # Interpolate decoded video frames when scaling the graphics item.
+        self.setRenderHint(QtGui.QPainter.SmoothPixmapTransform, True)
         self.setViewportUpdateMode(QtWidgets.QGraphicsView.FullViewportUpdate)
         self.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
 

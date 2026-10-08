@@ -91,6 +91,7 @@ class SubtitleController(QtCore.QObject):
         self.tracks = []
         self.selected = None
         self.position = 0
+        self.offsetMs = 0
         self.cues = []
         self.starts = []
         self.ends = []
@@ -293,10 +294,16 @@ class SubtitleController(QtCore.QObject):
         self.updatePosition(self.position)
         self.tracksChanged.emit()
 
+    def setOffset(self, offsetMs):
+        # Positive offsets delay captions; retain the actual media position.
+        self.offsetMs = int(offsetMs)
+        self.updatePosition(self.position)
+
     def updatePosition(self, position):
         if sip.isdeleted(self.video) or sip.isdeleted(self.label):
             return
         self.position = position
+        position -= self.offsetMs
         texts = []
         if self.enabled and self.statusMessage:
             texts.append(self.statusMessage)

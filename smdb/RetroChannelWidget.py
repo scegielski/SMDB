@@ -371,6 +371,7 @@ class ClipSlot(QtCore.QObject):
             self.videoWidget.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
             self.videoWidget.customContextMenuRequested.connect(owner._showVideoContextMenu)
             self.subtitles.setEnabled(owner.subtitlesEnabled)
+            self.subtitles.setOffset(getattr(owner, 'subtitleOffsetMs', 0))
             self.subtitles.error.connect(owner._subtitleError)
             self.subtitles.tracksChanged.connect(owner._subtitleTracksChanged)
 
@@ -1635,6 +1636,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._filteredClocks = {}
         self._settings = getattr(parent, 'settings', None)
         self.remoteScale = max(0.5, min(2.0, self._settings.value('smtvRemoteScale', 0.85, type=float))) if self._settings else 0.85
+        self.subtitleOffsetMs = 0
         self.subtitlesEnabled = self._settings.value('smtvSubtitlesEnabled', False, type=bool) if self._settings else False
         self._subtitleDownloadAttempts = set()
         self._subtitleDownloadJobs = {}
@@ -1914,6 +1916,14 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.subtitleButton.setChecked(self.subtitlesEnabled)
         self.subtitleMenu = QtWidgets.QMenu(self.subtitleButton)
         sideLayout.addWidget(self.subtitleButton)
+        subtitleTiming = QtWidgets.QHBoxLayout()
+        self.subtitleEarlierButton = remoteButton('−1 SEC', 'Show subtitles one second earlier',
+                                                  lambda: self.adjustSubtitleOffset(-1000), size=11)
+        self.subtitleLaterButton = remoteButton('+1 SEC', 'Show subtitles one second later',
+                                                lambda: self.adjustSubtitleOffset(1000), size=11)
+        subtitleTiming.addWidget(self.subtitleEarlierButton)
+        subtitleTiming.addWidget(self.subtitleLaterButton)
+        sideLayout.addLayout(subtitleTiming)
         self.reprogramButton = remoteButton('REPROGRAM CHANNEL', 'Pick a new random lineup for this channel',
                                            self.reprogramChannel, size=11)
         sideLayout.addWidget(self.reprogramButton)
@@ -2079,6 +2089,15 @@ class RetroChannelWidget(QtWidgets.QWidget):
                 controller.setStatusMessage('Subtitles unavailable', 5000)
         if self.subtitleMenu.isVisible():
             self._refreshSubtitleMenu()
+
+    def adjustSubtitleOffset(self, deltaMs):
+        self.subtitleOffsetMs += int(deltaMs)
+        for engine in self.engines.values():
+            for slot in (engine.slotA, engine.slotB):
+                slot.subtitles.setOffset(self.subtitleOffsetMs)
+        if self.guidePreviewSlot:
+            self.guidePreviewSlot.subtitles.setOffset(self.subtitleOffsetMs)
+        self._showVideoOsd('subtitleOffset', self.subtitleOffsetMs // 1000)
 
     def setSubtitlesEnabled(self, enabled):
         self.subtitlesEnabled = bool(enabled)

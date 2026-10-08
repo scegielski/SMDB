@@ -17,6 +17,46 @@ class SubtitleTests(unittest.TestCase):
     def setUpClass(cls):
         cls.app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
+    def test_offset_buttons_shift_captions_and_show_temporary_total(self):
+        from unittest.mock import Mock, patch
+        tv = RetroChannelWidget()
+        slot = ClipSlot(tv)
+        tv.engines = {0: Mock(slotA=slot, slotB=slot)}
+        tv.currentIndex = 0
+        controller = slot.subtitles
+        controller.enabled = True
+        controller._setCues([(1000, 2000, 'Caption')])
+        controller.updatePosition(1500)
+        try:
+            self.assertEqual(controller.label.text(), 'Caption')
+            with patch('smdb.VideoView.time.monotonic', return_value=10) as clock:
+                tv.subtitleLaterButton.click()
+                self.assertEqual(tv.subtitleOffsetMs, 1000)
+                self.assertEqual(controller.position, 1500)
+                self.assertEqual(controller.label.text(), '')
+                self.assertEqual(slot.videoWidget.osd.items['subtitleOffset'], (1, 13))
+                controller.updatePosition(2500)
+                self.assertEqual(controller.label.text(), 'Caption')
+                tv.subtitleLaterButton.click()
+                self.assertEqual(tv.subtitleOffsetMs, 2000)
+                tv.subtitleEarlierButton.click()
+                self.assertEqual(tv.subtitleOffsetMs, 1000)
+                tv.subtitleEarlierButton.click()
+                tv.subtitleEarlierButton.click()
+                self.assertEqual(tv.subtitleOffsetMs, -1000)
+                controller.updatePosition(500)
+                self.assertEqual(controller.label.text(), 'Caption')
+                later = ClipSlot(tv)
+                self.assertEqual(later.subtitles.offsetMs, -1000)
+                later.stop()
+                clock.return_value = 14
+                slot.videoWidget.osd._expire()
+                self.assertNotIn('subtitleOffset', slot.videoWidget.osd.items)
+        finally:
+            tv.engines = {}
+            slot.stop()
+            tv.close()
+
     def test_srt_vtt_unicode_markup_and_overlapping_cues(self):
         text = '\ufeff1\n00:00:01,000 --> 00:00:03,000\n<b>Hello</b> &amp; goodbye\nSecond line\n\n2\n00:00:02,000 --> 00:00:02,500\nOverlap\n'
         cues = parseSubtitles(text)
