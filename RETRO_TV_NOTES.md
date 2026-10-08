@@ -255,3 +255,7 @@ These ideas were recorded before the subsequent fixes; check current code and re
 - Guide corner clock (2026-10-08): replace CHANNELS in the fixed upper-left header with the live weekday and 12-hour time including seconds (e.g. Thu 02:30:15 PM). Use the existing wall-clock update, independently of the cyan playback position, with font fitting for narrow channel panes; channel-row fonts remain unchanged.
 
 - Unlabelled guide markers (2026-10-08): remove the time text above both yellow live-time and cyan playback pointers. Keep their lines, arrow ticks, colours, and cursor-follow behaviour; remove the unused label band so pointers begin at the top of the hour blocks. The fixed corner header remains the live weekday/time display.
+
+- Now Showing metadata (2026-10-08): add MPAA rating, catalogue IMDb score out of ten, runtime in minutes, director names, and the first six cast names (plus etc. for longer casts) above the synopsis beside the cover. Preserve cover text wrapping, section font controls, and the simplified Coming Up card. Cache these fields with the existing film metadata; show Not rated/Unknown/Not listed when unavailable. A Matrix catalogue check confirmed R, 8.7/10, 136 minutes, both directors, and the cast; the resulting panel was visually inspected. The coming-up/normal-info restoration regression passes.
+
+- Now Showing metadata colours (2026-10-08): use bright cyan field labels and white metadata values, with yellow MPAA and bright green IMDb scores. Keep the title yellow and synopsis lavender so ratings and credits stand out clearly.

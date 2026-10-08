@@ -2529,9 +2529,19 @@ class RetroChannelWidget(QtWidgets.QWidget):
                 return [value] if value.strip() else []
             return [str(name) for name in (value or []) if name]
         cast = names(data.get('cast') or data.get('actors'))
+        rawRating = data.get('rating')
+        try:
+            rating = f'{float(rawRating):g}/10' if float(rawRating) > 0 else 'Not rated'
+        except (TypeError, ValueError):
+            rating = 'Not rated'
+        runtime = re.search(r'\d+(?:\.\d+)?', str(data.get('runtime') or ''))
+        runtime = f'{float(runtime.group()):g} minutes' if runtime and float(runtime.group()) > 0 else 'Unknown'
         credits = {'cover': cover,
                    'cast': ', '.join(cast[:3]) + (', etc.' if len(cast) > 3 else ''),
-                   'directors': ', '.join(names(data.get('directors') or data.get('director')))}
+                   'actors': ', '.join(cast[:6]) + (', etc.' if len(cast) > 6 else ''),
+                   'directors': ', '.join(names(data.get('directors') or data.get('director'))),
+                   'mpaa': str(data.get('mpaa rating') or data.get('mpaa') or 'Not rated'),
+                   'rating': rating, 'runtime': runtime}
         self._filmInfoCache[row] = credits
         return credits
 
@@ -3200,6 +3210,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         else:
             nowRow = chan['clock'].whatsOnNow()[1]
         description = self._descriptionForRow(nowRow) or "No description available."
+        info = self._filmInfoForRow(nowRow)
         cover = ''
         model = getattr(self.mainWindow, 'moviesTableModel', None)
         try:
@@ -3222,7 +3233,15 @@ class RetroChannelWidget(QtWidgets.QWidget):
                              f'width="{image.width()}" height="{image.height()}"></td></tr></table>')
         self.guideDescription.setHtml(
             f"<p style='color:#ffcc00;font-weight:bold;'>{html.escape(self._titleForRow(nowRow))}</p>"
-            f'{cover}<p>{html.escape(description)}</p>'
+            f'{cover}<p style="color:#ffffff;">'
+            f'<b style="color:#00e5ff;">MPAA:</b> '
+            f'<b style="color:#ffcc00;">{html.escape(info["mpaa"])}</b> &nbsp; '
+            f'<b style="color:#00e5ff;">IMDb:</b> '
+            f'<b style="color:#65ff85;">{html.escape(info["rating"])}</b><br>'
+            f'<b style="color:#00e5ff;">Runtime:</b> {html.escape(info["runtime"])}<br>'
+            f'<b style="color:#00e5ff;">Directed by:</b> {html.escape(info["directors"] or "Not listed")}<br>'
+            f'<b style="color:#00e5ff;">Starring:</b> {html.escape(info["actors"] or "Not listed")}</p>'
+            f'<p>{html.escape(description)}</p>'
         )
 
     def _scrollGuideToHighlight(self):
