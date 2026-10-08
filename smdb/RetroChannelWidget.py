@@ -260,7 +260,7 @@ class ClipSlot(QtCore.QObject):
 
     def _onVideoFrame(self, frame):
         if (frame.isValid() and self.isReady()
-                and self.player.state() == QMediaPlayer.PlayingState):
+                and self.player.state() in (QMediaPlayer.PlayingState, QMediaPlayer.PausedState)):
             self._markPlaybackStarted()
 
     def _onPlaybackPosition(self, position):
@@ -379,6 +379,7 @@ class ChannelClock:
         self.broadcastAligned = broadcastAligned
         self.hasManualNavigation = False
         self.epoch = time.monotonic()
+        self._pausedAt = None
         self._rotation = []
         self._offsetFractions = {}
         self._startOverrides = {}
@@ -412,6 +413,17 @@ class ChannelClock:
         self._scheduleCycleSeconds = scheduledStart - self._scheduleStarts[0]
         if broadcastAligned:
             self.epoch -= wallNow - self._scheduleStarts[0]
+
+    def _clockNow(self):
+        return self._pausedAt if self._pausedAt is not None else time.monotonic()
+
+    def setPaused(self, paused):
+        if paused and self._pausedAt is None:
+            self._pausedAt = time.monotonic()
+            self.hasManualNavigation = True
+        elif not paused and self._pausedAt is not None:
+            self.epoch += time.monotonic() - self._pausedAt
+            self._pausedAt = None
 
     def publishedPrograms(self, start, end):
         """Repeat the fixed broadcast lineup in both directions, retaining padding."""
@@ -475,13 +487,13 @@ class ChannelClock:
     def finishSlot(self, slotIndex):
         # Playback completion is authoritative, including buffering delays and
         # inaccurate catalogue runtimes. Anchor the next movie to this moment.
-        elapsed = (time.monotonic() - self.epoch) * 1000.0
+        elapsed = (self._clockNow() - self.epoch) * 1000.0
         wallNow = time.time()
         wait = (math.ceil(wallNow / 900) * 900 - wallNow) * 1000 if self.broadcastAligned else 0
         self._durations[slotIndex] = max(1, elapsed + wait - self.slotStartMs(slotIndex) - (0 if wait else 1))
 
     def jumpToSlot(self, slotIndex):
-        self.epoch = time.monotonic() - (self.slotStartMs(slotIndex) + 1) / 1000.0
+        self.epoch = self._clockNow() - (self.slotStartMs(slotIndex) + 1) / 1000.0
 
     def returnToLive(self):
         """Restore the published broadcast after manual navigation or seeking."""
@@ -498,7 +510,7 @@ class ChannelClock:
             start, _end = self.publishedSlotTimes(slot)
             nextStart, _end = self.publishedSlotTimes(slot + 1)
             self._durations[slot] = (nextStart - start) * 1000
-        self.epoch = time.monotonic() - elapsed
+        self.epoch = self._clockNow() - elapsed
         self.hasManualNavigation = False
 
     def repositionSlot(self, slotIndex, row, duration, position):
@@ -539,7 +551,7 @@ class ChannelClock:
 
     def whatsOnNow(self):
         """Return (slotIndex, row, offsetFraction, positionInSlotMs, remainingMs)."""
-        elapsedMs = (time.monotonic() - self.epoch) * 1000.0
+        elapsedMs = (self._clockNow() - self.epoch) * 1000.0
         slotIndex = 0
         positionInSlotMs = max(0, elapsedMs)
         while positionInSlotMs >= self.durationForSlot(slotIndex):
@@ -590,6 +602,7 @@ class ChannelEngine(QtCore.QObject):
 
     def __init__(self, channelNumber, genreName, clock, resolver, titleGetter, parent=None):
         super().__init__(parent)
+        self._paused = False
         self.channelNumber = channelNumber
         self.genreName = genreName
         self.clock = clock
@@ -708,7 +721,7 @@ class ChannelEngine(QtCore.QObject):
             self._prefetchedSlotIndex = None
 
             self.activeSlot.setVolume(self.desiredVolume)
-            self.activeSlot.load(path, autoplay=True, seekFraction=offsetFraction, extraMs=positionInSlotMs)
+            self.activeSlot.load(path, autoplay=not self._paused, seekFraction=offsetFraction, extraMs=positionInSlotMs)
             self.programChanged.emit()
 
             self._scheduleAdvance(remainingMs)
@@ -738,8 +751,12 @@ class ChannelEngine(QtCore.QObject):
 
     def _onSlotReady(self, slot):
         # PlayingState/BufferedMedia can both precede the first video frame.
-        if (slot is self.activeSlot and slot.isReady() and slot._hasPlayingFrame
-                and slot.player.state() == QMediaPlayer.PlayingState):
+        pausedReady = self._paused and slot.player.state() == QMediaPlayer.PausedState
+        if (slot is self.activeSlot and slot.isReady()
+                and ((slot._hasPlayingFrame and slot.player.state() == QMediaPlayer.PlayingState)
+                     or pausedReady)):
+            # A paused load cannot produce advancing-position telemetry. Show
+            # its video surface so Qt can render the frozen frame after seeking.
             self._stack.setCurrentWidget(slot.videoWidget)
             owner = self.parent()
             if owner is not None and hasattr(owner, '_restoreVideoOsd'):
@@ -757,6 +774,26 @@ class ChannelEngine(QtCore.QObject):
 
     def isShowingStandby(self):
         return self._stack.currentWidget() is self.standbyScreen
+
+    def setPaused(self, paused):
+        wasPaused = self._paused
+        self._paused = paused
+        self.clock.setPaused(paused)
+        self.advanceTimer.stop()
+        self.prefetchTimer.stop()
+        slot = self.activeSlot
+        slot._autoplayAfterLoad = not paused
+        if paused:
+            slot.pause()
+            self.standbySlot.pause()
+        elif slot.isReady():
+            slot.play()
+            position = slot._lastPlaybackPosition or 0
+            self._scheduleAdvance(max(50, slot.duration - position))
+            self._maybeSchedulePrefetch(max(50, slot.duration - position))
+        elif wasPaused and not slot.path:
+            # Resume a channel paused in published padding or before resolution.
+            self._tuneIn()
 
     def setDesiredVolume(self, volume):
         self.desiredVolume = volume
@@ -794,9 +831,13 @@ class ChannelEngine(QtCore.QObject):
             self._onAdvanceTimer()
 
     def _scheduleAdvance(self, remainingMs):
+        if self._paused:
+            return
         self.advanceTimer.start(max(50, int(remainingMs)))
 
     def _maybeSchedulePrefetch(self, remainingMs):
+        if self._paused:
+            return
         leadMs = remainingMs - PREFETCH_LEAD_MS
         if leadMs <= 0:
             self._beginPrefetch()
@@ -860,7 +901,8 @@ class ChannelEngine(QtCore.QObject):
         self.currentRow = self.nextRow
         self.currentTitle = self.nextTitle
         self.clock.recordMedia(slotIndex, self.currentRow, self.activeSlot.duration)
-        self.activeSlot.play()
+        if not self._paused:
+            self.activeSlot.play()
         self.standbySlot.stop()
         self.nextRow = None
         self.nextTitle = ''
@@ -887,7 +929,7 @@ class ChannelEngine(QtCore.QObject):
             self.nextTitle = ''
             self._prefetchedSlotIndex = None
             self.activeSlot.setVolume(self.desiredVolume)
-            self.activeSlot.load(path, autoplay=True, seekFraction=offsetFraction, extraMs=positionInSlotMs)
+            self.activeSlot.load(path, autoplay=not self._paused, seekFraction=offsetFraction, extraMs=positionInSlotMs)
             self.programChanged.emit()
             remainingMs = self.clock.durationForSlot(slotIndex) - positionInSlotMs
             self._scheduleAdvance(remainingMs)
@@ -1180,6 +1222,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         super().__init__(parent)
         self.mainWindow = parent
         self._videoOsdStatus = {}
+        self._pausedAll = False
         self._videoPathCache = {}
         self._descriptionCache = {}
         self.channels = []
@@ -1395,9 +1438,16 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.nowButton.setToolTip('Return this channel to the current live broadcast time')
         self.nowButton.clicked.connect(self.returnToLive)
         filmControls.addWidget(self.backTenButton, 0, 0)
-        filmControls.addWidget(self.nowButton, 0, 1)
+        self.pauseButton = QtWidgets.QPushButton('Ⅱ')
+        self.pauseButton.setStyleSheet(self.nowButton.styleSheet())
+        self.pauseButton.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.pauseButton.setAccessibleName('Pause all channels')
+        self.pauseButton.setToolTip('Pause all channels')
+        self.pauseButton.clicked.connect(self.togglePause)
+        filmControls.addWidget(self.pauseButton, 0, 1)
         filmControls.addWidget(self.forwardTenButton, 0, 2)
         filmControls.addWidget(self.beginningButton, 1, 0)
+        filmControls.addWidget(self.nowButton, 1, 1)
         filmControls.addWidget(self.nextBeginningButton, 1, 2)
         sideLayout.addLayout(filmControls)
 
@@ -2018,7 +2068,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         hasChannels = bool(self.channels)
         for button in (self.channelUpButton, self.channelDownButton,
                        self.nextProgramButton, self.previousProgramButton,
-                       self.backTenButton, self.forwardTenButton, self.nowButton,
+                       self.backTenButton, self.forwardTenButton, self.nowButton, self.pauseButton,
                        self.beginningButton, self.nextBeginningButton, self.guideButton,
                        self.reprogramButton):
             button.setEnabled(hasChannels)
@@ -2052,6 +2102,9 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self._updateGuidePreview()
 
     def _syncStandbyTone(self):
+        if self._pausedAll:
+            self.standbyTone.stop()
+            return
         """Continuous fallback: match the tone to whatever stand-by state is actually on
         screen right now for the tuned-in channel, instead of reacting to one-shot events."""
         if not self.isActive:
@@ -2077,7 +2130,10 @@ class RetroChannelWidget(QtWidgets.QWidget):
             titleGetter=self._titleForRow,
             parent=self,
         )
+        engine.setPaused(self._pausedAll)
         engine.programChanged.connect(lambda idx=index: self._onProgramChanged(idx))
+        for slot in (engine.slotA, engine.slotB):
+            slot.player.stateChanged.connect(self._syncPauseButton)
         engine._stack.currentChanged.connect(lambda _index: self._syncStandbyTone())
         engine._stack.currentChanged.connect(
             lambda _index: QtCore.QTimer.singleShot(0, self._refreshGuideTable) if self.guideVisible else None)
@@ -2139,6 +2195,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self.displayStack.setCurrentWidget(engine.container)
             self._showBanner(engine)
         self._updateChannelLabel()
+        self._syncPauseButton()
         self._showVideoOsd('channel', (index + 1, self.channels[index]['genre']))
         self._updateNowPlayingLabel(engine)
         if self.guideVisible:
@@ -2215,6 +2272,30 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self.guideTable.resumePlaybackFollow()
         if engine and engine.seekCurrentFilm(offsetMs, beginning) and self.guideVisible:
             self._refreshGuideTable()
+
+    def _syncPauseButton(self, *_args):
+        self.pauseButton.setText('▶' if self._pausedAll else 'Ⅱ')
+        label = 'Resume all channels' if self._pausedAll else 'Pause all channels'
+        self.pauseButton.setAccessibleName(label)
+        self.pauseButton.setToolTip(label)
+
+    def togglePause(self):
+        self._pausedAll = not self._pausedAll
+        for channel in self.channels:
+            channel['clock'].setPaused(self._pausedAll)
+        for engine in self.engines.values():
+            slot = engine.activeSlot
+            if (self._pausedAll and engine.currentRow is not None
+                    and slot.isReady() and slot.duration > 0):
+                position = slot._lastPlaybackPosition
+                if position is None:
+                    position = slot.player.position()
+                engine.clock.hasManualNavigation = True
+                engine.clock.rememberPosition(engine.currentSlotIndex, engine.currentRow, slot.duration, position)
+            engine.setPaused(self._pausedAll)
+        self._syncPauseButton()
+        self._updatePlaybackMarker()
+        self._syncStandbyTone()
 
     def toggleMute(self):
         self.setVolume(0 if self.masterVolume else self._lastVolume)

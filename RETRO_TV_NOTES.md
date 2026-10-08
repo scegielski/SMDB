@@ -2,13 +2,14 @@
 
 ## Current status (2026-10-08)
 
-- Latest implementation commit: `72ae171` (NOW recentering), pushed to `origin/master`. Use `git status` and `git log` to check subsequent repository changes.
+- Latest implementation commit: `4dc3fa7` (video status overlays); `origin/master` currently has `72ae171`. Use `git status` and `git log` to check subsequent repository changes.
 - SMDB and SMTV are separate application modes. SMTV starts with the guide open; FULL/F/F11 currently switches to video-only fullscreen and Esc restores controls.
 - The guide is a single repeating timeline with hourly AM/PM headings, quarter-hour program starts, yellow live time, and a cyan manual-playback cursor. Published film times remain fixed through seeking and program navigation.
 - Channel labels have a distinct style and adjustable column width. The video/info divider and the horizontal guide divider are also draggable; the latter defaults to halfway down. Covers appear under movie titles, with synopsis text wrapping around them.
 - Middle-button dragging pans by default. Setup → Guide offers saved browser-style automatic scrolling as an alternative.
 - Wheel alone scrolls vertically. Only Ctrl+wheel and the font menu adjust fonts; channels, programming, information, and controls have independent saved sizes. Ctrl+wheel over programming retains the time under the pointer.
 - Standby uses color bars and an animated five-second film leader, with explicit Arial pixel fonts sized only to the video pane. App/section font controls cannot shrink the standby text. The countdown repeats only while buffering and never delays the first playing frame.
+- Film controls have pause/resume between the ten-second arrows, with NOW between the lower barred arrows. Pause freezes every channel clock and buffered player, suppresses standby tone, and shows newly tuned films as frozen video frames while paused; resume continues all channels together.
 - Channel changes show a green channel number/name at the upper left of the video; volume changes show a green segmented bar and numeric level (MUTE at zero) near the lower left. Overlays expire after three seconds, renew on repeated changes, pass mouse events through, and use independent video-relative font sizing.
 - With subtitles enabled, missing captions trigger a background English download via the configured OpenSubtitles routine. The video shows `Downloading subtitles...` until captions are ready; failures stop the progress message and report unavailability.
 - Right-click the SMTV video pane for the same movie context menu as the SMDB list. It targets the displayed film, including films hidden by database filters, and restores the database selection when dismissed.
@@ -37,6 +38,8 @@ Consult this checklist when asked what to implement next. These are candidate fe
 ## Implementation history
 
 The dated entries below describe the behavior at the time of each change; later entries and the current status supersede older designs.
+
+- Global pause and control layout (2026-10-08): moved NOW to the lower center between barred navigation arrows and added pause/resume in the upper center between ten-second arrows. Pause freezes all channel clocks, stops active/warmed players and advance/prefetch timers, suppresses standby tone, and prevents new movie loads from autoplaying. Resume preserves each position and shifts paused clock anchors by the elapsed pause interval; published guide times remain fixed. Five pause/layout tests pass, including a paused newly loaded channel that must show its video surface without advancing-position telemetry. The seven startup/standby tests and twenty-six timeline tests also pass; fourteen schedule tests passed before the paused-frame fix. Two native Windows movie players were verified to freeze and resume together. A newly loaded paused movie was separately verified to render its frame, remain in PausedState, and hold its exact position; it no longer stays on standby awaiting playback progress.
 
 - Classic video status overlays (2026-10-08): added a transparent mouse-pass-through viewport layer with green outlined channel text and 25 volume segments, plus numeric level/MUTE. Both statuses have separate three-second expirations; repeated actions renew them. Selected-channel buffers receive updates while neighboring channels remain untouched, and overlays follow guide/fullscreen video geometry. Fonts depend on video dimensions rather than app/section fonts. Two rendering/timeout/control tests, fourteen schedule checks, and the fullscreen check pass; real Windows video rendering and fullscreen geometry were verified and the captured frame inspected.
 
