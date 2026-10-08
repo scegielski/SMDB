@@ -728,6 +728,47 @@ class _PathResolveTask(QtCore.QRunnable):
         self.signals.finished.emit(self.requestId, None, None)
 
 
+class _ScanButton(QtWidgets.QPushButton):
+    scanStarted = QtCore.pyqtSignal()
+    scanFinished = QtCore.pyqtSignal()
+
+    def __init__(self, text):
+        super().__init__(text)
+        self._scanning = False
+        self._holdTimer = QtCore.QTimer(self)
+        self._holdTimer.setSingleShot(True)
+        self._holdTimer.setInterval(400)
+        self._holdTimer.timeout.connect(self._beginHold)
+
+    def _beginHold(self):
+        if self.isDown():
+            self._scanning = True
+            self.scanStarted.emit()
+
+    def mousePressEvent(self, event):
+        super().mousePressEvent(event)
+        if event.button() == QtCore.Qt.LeftButton and self.isDown():
+            self._holdTimer.start()
+
+    def finishScan(self):
+        self._holdTimer.stop()
+        if self._scanning:
+            self._scanning = False
+            self.scanFinished.emit()
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == QtCore.Qt.LeftButton and self._scanning:
+            # A completed hold must not also perform the quick-click skip.
+            self.setDown(False)
+            self.finishScan()
+        self._holdTimer.stop()
+        super().mouseReleaseEvent(event)
+
+    def hideEvent(self, event):
+        self.finishScan()
+        super().hideEvent(event)
+
+
 class IntermissionScreen(QtWidgets.QWidget):
     """Choose a promo per scheduled gap and fit it without distorting it."""
     def __init__(self, parent=None):
@@ -1577,6 +1618,10 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.mainWindow = parent
         self._videoOsdStatus = {}
         self._pausedAll = False
+        self._scanState = None
+        self._scanTimer = QtCore.QTimer(self)
+        self._scanTimer.setInterval(100)
+        self._scanTimer.timeout.connect(self._scanStep)
         self._powerOn = True
         self._remoteRestored = False
         self._videoPathCache = {}
@@ -1765,8 +1810,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
         sideLayout.setContentsMargins(16, 20, 16, 22)
         sideLayout.setSpacing(12)
 
-        def remoteButton(text, name, callback=None, color='#454e58', size=14):
-            button = QtWidgets.QPushButton(text)
+        def remoteButton(text, name, callback=None, color='#454e58', size=14, buttonClass=QtWidgets.QPushButton):
+            button = buttonClass(text)
             button.setAccessibleName(name)
             button.setToolTip(name)
             button.setFocusPolicy(QtCore.Qt.NoFocus)
@@ -1835,8 +1880,13 @@ class RetroChannelWidget(QtWidgets.QWidget):
 
         self.setupButton = remoteButton('SETUP', 'Channel setup', self.openChannelSetup, size=11)
 
-        self.backTenButton = remoteButton('REW', 'Back ten seconds', lambda: self.seekCurrentFilm(-10000))
-        self.forwardTenButton = remoteButton('FF', 'Forward ten seconds', lambda: self.seekCurrentFilm(10000))
+        self.backTenButton = remoteButton('REW', 'Back ten seconds; hold to scan backward at 3×',
+                                         lambda: self.seekCurrentFilm(-10000), buttonClass=_ScanButton)
+        self.forwardTenButton = remoteButton('FF', 'Forward ten seconds; hold to scan forward at 3×',
+                                            lambda: self.seekCurrentFilm(10000), buttonClass=_ScanButton)
+        for button, direction in ((self.backTenButton, -1), (self.forwardTenButton, 1)):
+            button.scanStarted.connect(lambda b=button, d=direction: self._startScan(b, d))
+            button.scanFinished.connect(self._stopScan)
         self.pauseButton = remoteButton('PAUSE', 'Pause all channels', self.togglePause, size=11)
         self.beginningButton = remoteButton('BACK', 'Beginning of current film or previous film', self.restartCurrentFilm)
         self.beginningButton.setToolTip('Restart this film; press again for the previous film. Forward restores the saved position')
@@ -2748,6 +2798,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         return engine
 
     def _teardownAllEngines(self):
+        self._stopScan()
         if self._tuningOverlay is not None:
             self._endTuningStatic()
         self._releasePreviewHost()
@@ -2766,6 +2817,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self._settings.setValue('smtvCurrentChannel', self._preferredChannel)
 
     def _tuneTo(self, index):
+        self._stopScan()
         if not self.channels:
             return
         index %= len(self.channels)
@@ -2892,6 +2944,56 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if engine and engine.restartCurrentFilm() and self.guideVisible:
             self._refreshGuideTable()
 
+    def _startScan(self, button, direction):
+        self._stopScan()
+        engine = self.engines.get(self.currentIndex)
+        if engine is None or engine.currentSlotIndex is None or not self._powerOn:
+            return
+        if engine.isShowingComingUp():
+            timestamp = engine._gapMarkerTime + max(0, engine.clock._clockNow() - engine._gapStartedAt)
+        elif isinstance(engine._pendingTimelineSeek, (int, float)):
+            timestamp = engine._pendingTimelineSeek
+        else:
+            timestamp = engine.clock.publishedSlotTimes(engine.currentSlotIndex)[0] + (engine.activeSlot._lastPlaybackPosition or 0) / 1000.0
+        self._scanState = (engine, button, direction, timestamp, time.monotonic(), engine._paused)
+        engine.setPaused(True)
+        button.setText(('FF' if direction > 0 else 'REW') + ' 3×')
+        self.guideTable.resumePlaybackFollow()
+        self._scanTimer.start()
+
+    def _scanStep(self, final=False):
+        if self._scanState is None:
+            return
+        engine, button, direction, origin, started, wasPaused = self._scanState
+        if not final and (not button.isDown() or self.engines.get(self.currentIndex) is not engine or not self._powerOn):
+            self._stopScan()
+            return
+        timestamp = origin + direction * 3 * max(0, time.monotonic() - started)
+        slot = engine.activeSlot
+        if not engine.isShowingComingUp() and not slot.isReady() and not final:
+            return  # Let a boundary load complete before requesting another seek.
+        start, end = engine.clock.publishedSlotTimes(engine.currentSlotIndex)
+        if not engine.isShowingComingUp() and slot.isReady() and engine.currentRow is not None and start <= timestamp < end:
+            engine._seekFilmPosition((timestamp - start) * 1000)
+        else:
+            engine._seekScheduledTime(timestamp)
+        if self.guideVisible:
+            self._refreshGuideTable()
+
+    def _stopScan(self):
+        if self._scanState is None:
+            return
+        engine, button, direction, origin, started, wasPaused = self._scanState
+        if self.engines.get(self.currentIndex) is engine:
+            self._scanStep(final=True)
+            engine.setPaused(wasPaused)
+        self._scanState = None
+        self._scanTimer.stop()
+        button._holdTimer.stop()
+        button._scanning = False
+        button.setDown(False)
+        button.setText('FF' if direction > 0 else 'REW')
+
     def seekCurrentFilm(self, offsetMs=0, beginning=False):
         engine = self.engines.get(self.currentIndex)
         if engine:
@@ -2933,6 +3035,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._syncStandbyTone()
 
     def togglePower(self):
+        self._stopScan()
         self._powerOn = not self._powerOn
         self.powerButton.setChecked(self._powerOn)
         label = 'Turn SMTV off' if self._powerOn else 'Turn SMTV on'
