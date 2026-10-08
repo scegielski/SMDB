@@ -75,6 +75,99 @@ def _ensureStandbyToneFile(native=False, gain=0.15):
     return path
 
 
+def _ensureChannelClickFile():
+    path = os.path.join(tempfile.gettempdir(), 'smdb_channel_click_v1.wav')
+    if not os.path.exists(path):
+        rate = 44100
+        noise = random.Random(1954)
+        frames = bytearray()
+        for i in range(round(rate * .065)):
+            t = i / rate
+            envelope = min(1, t / .001) * math.exp(-t * 110)
+            signal = .55 * noise.uniform(-1, 1) + .45 * math.sin(2 * math.pi * 1100 * t)
+            frames.extend(struct.pack('<h', round(signal * envelope * .65 * 32767)))
+        with wave.open(path, 'w') as file:
+            file.setnchannels(1)
+            file.setsampwidth(2)
+            file.setframerate(rate)
+            file.writeframes(frames)
+    return path
+
+
+class ChannelClick(QtCore.QObject):
+    """A short independent sound effect; never interrupts the native standby tone."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._effect = QSoundEffect(self)
+        self._requested = False
+        self._effect.setLoopCount(1)
+        self._effect.statusChanged.connect(self._playIfReady)
+        self._effect.setSource(QtCore.QUrl.fromLocalFile(_ensureChannelClickFile()))
+
+    def play(self, volume):
+        self.setVolume(volume)
+        self._requested = volume > 0
+        self._playIfReady()
+
+    def _playIfReady(self):
+        if self._requested and self._effect.status() == QSoundEffect.Ready:
+            self._requested = False
+            self._effect.stop()
+            self._effect.play()
+
+    def setVolume(self, volume):
+        self._effect.setVolume(.5 * max(0, min(100, volume)) / 100)
+        if volume <= 0:
+            self.stop()
+
+    def stop(self):
+        self._requested = False
+        self._effect.stop()
+
+
+def _ensureStaticHissFile():
+    path = os.path.join(tempfile.gettempdir(), 'smdb_static_hiss_v1.wav')
+    if not os.path.exists(path):
+        noise = random.Random(1990)
+        frames = b''.join(struct.pack('<h', noise.randrange(-16000, 16001)) for _ in range(22050))
+        with wave.open(path, 'w') as file:
+            file.setnchannels(1)
+            file.setsampwidth(2)
+            file.setframerate(44100)
+            file.writeframes(frames)
+    return path
+
+
+class StaticHiss(QtCore.QObject):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._effect = QSoundEffect(self)
+        self._requested = False
+        self._volume = 0.0
+        self._effect.setLoopCount(QSoundEffect.Infinite)
+        self._effect.statusChanged.connect(self._sync)
+        self._effect.setSource(QtCore.QUrl.fromLocalFile(_ensureStaticHissFile()))
+
+    def start(self, volume):
+        self._requested = True
+        self.setVolume(volume)
+
+    def setVolume(self, volume):
+        self._volume = .25 * max(0, min(100, volume)) / 100
+        self._effect.setVolume(self._volume)
+        self._sync()
+
+    def _sync(self):
+        if not self._requested or self._volume <= 0:
+            self._effect.stop()
+        elif self._effect.status() == QSoundEffect.Ready and not self._effect.isPlaying():
+            self._effect.play()
+
+    def stop(self):
+        self._requested = False
+        self._effect.stop()
+
+
 class StandbyTone(QtCore.QObject):
     """Loops a gentle test-pattern tone while a 'PLEASE STAND BY' screen is on air."""
 
@@ -148,7 +241,8 @@ class StandbyTone(QtCore.QObject):
 
 
 class StandByScreen(QtWidgets.QWidget):
-    """Animated color-bar leader; typography depends only on the video geometry."""
+    """Animated static and color-bar leader, sized independently of app fonts."""
+    staticFinished = QtCore.pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -156,7 +250,10 @@ class StandByScreen(QtWidgets.QWidget):
         self._elapsed = QtCore.QElapsedTimer()
         self._animationTimer = QtCore.QTimer(self)
         self._animationTimer.setInterval(33)
-        self._animationTimer.timeout.connect(self.update)
+        self._animationTimer.timeout.connect(self._animate)
+        self._staticUntil = 0.0
+        self._staticFrame = QtGui.QImage()
+        self._noiseRandom = random.Random()
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -166,6 +263,34 @@ class StandByScreen(QtWidgets.QWidget):
     def hideEvent(self, event):
         self._animationTimer.stop()
         super().hideEvent(event)
+
+    def startStatic(self, deadline=None):
+        self._staticUntil = time.monotonic() + 1.0 if deadline is None else deadline
+        self._makeStaticFrame()
+        self.update()
+
+    def isShowingStatic(self):
+        return time.monotonic() < self._staticUntil
+
+    def _makeStaticFrame(self):
+        width, height = min(1920, max(1, self.width())), min(1080, max(1, self.height()))
+        stride = (width + 3) & ~3
+        pixels = self._noiseRandom.randbytes(stride * height)
+        self._staticFrame = QtGui.QImage(pixels, width, height, stride, QtGui.QImage.Format_Grayscale8).copy()
+
+    def _animate(self):
+        if self.isShowingStatic():
+            self._makeStaticFrame()
+        elif self._staticUntil:
+            self._staticUntil = 0.0
+            self._elapsed.start()
+            self.staticFinished.emit()
+        self.update()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self.isShowingStatic():
+            self._makeStaticFrame()
 
     def _leaderPosition(self):
         elapsed = self._elapsed.elapsed() if self._elapsed.isValid() else 0
@@ -183,6 +308,12 @@ class StandByScreen(QtWidgets.QWidget):
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.Antialiasing)
         w, h = self.width(), self.height()
+        if self.isShowingStatic():
+            painter.drawImage(self.rect(), self._staticFrame)
+            painter.setPen(QtGui.QColor(0, 0, 0, 45))
+            for y in range(0, h, 4):
+                painter.drawLine(0, y, w, y)
+            return
         colors = ('#ebebeb', '#ebeb00', '#00ebeb', '#00eb00', '#eb00eb', '#eb0000', '#0000eb')
         for i, color in enumerate(colors):
             left, right = round(i * w / 7), round((i + 1) * w / 7)
@@ -697,6 +828,7 @@ class ChannelEngine(QtCore.QObject):
     def _tuneIn(self):
         """Sync playback to wherever the channel clock says we should be right now."""
         slotIndex, _, offsetFraction, positionInSlotMs, remainingMs = self.clock.whatsOnNow()
+        self.standbyScreen.startStatic()
         self._stack.setCurrentWidget(self.standbyScreen)
         if self.clock.broadcastAligned and positionInSlotMs >= self.clock.filmDurationForSlot(slotIndex):
             # Joining during the padded gap must not replay the film's last seconds.
@@ -917,6 +1049,7 @@ class ChannelEngine(QtCore.QObject):
         self.currentRow = None
         self.currentSlotIndex = slotIndex
         self.advanceTimer.stop()
+        self.standbyScreen.startStatic()
         self._stack.setCurrentWidget(self.standbyScreen)
 
         def onResolved(row, path):
@@ -1263,6 +1396,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._fullScreenTransition = False
         self._fsWindow = None
         self.standbyTone = StandbyTone(self)
+        self.channelClick = ChannelClick(self)
+        self.staticHiss = StaticHiss(self)
 
         self.setFocusPolicy(QtCore.Qt.StrongFocus)
         font = QtGui.QFont(self.font())
@@ -1279,6 +1414,15 @@ class RetroChannelWidget(QtWidgets.QWidget):
         # Qt style sheets with font-size can override ordinary QFont inheritance.
         self.setStyleSheet(f'QWidget {{ font-family: "{family}"; }}')
         self._buildUI()
+        self._tuningOverlay = None
+        self._tuningChannel = None
+        self._staticOverlays = [StandByScreen(self.overlayArea), StandByScreen(self.guidePreviewContainer)]
+        for overlay in self._staticOverlays:
+            overlay.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents)
+            overlay.hide()
+        self.tuningStaticTimer = QtCore.QTimer(self)
+        self.tuningStaticTimer.setInterval(16)
+        self.tuningStaticTimer.timeout.connect(self._pollTuningStatic)
         self._baseFont = QtGui.QFont(font)
         self._remoteStyles = [(widget, widget.styleSheet()) for widget in
                               [self.sideControls] + self.sideControls.findChildren(QtWidgets.QWidget)
@@ -1341,6 +1485,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.displayStack = QtWidgets.QStackedWidget()
         self.displayStack.setStyleSheet("background: black;")
         self.globalStandby = StandByScreen()
+        self.globalStandby.staticFinished.connect(self._syncStandbyTone)
         self.displayStack.addWidget(self.globalStandby)
         self.overlayArea = _OverlayArea(self.displayStack)
 
@@ -2248,8 +2393,61 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self._refreshGuideTable()
             self._updateGuidePreview()
 
+    def _beginTuningStatic(self, index):
+        now = time.monotonic()
+        self._tuningChannel = index
+        self._tuningStaticDeadline = now + 1.0
+        self._tuningStaticMinimum = now + .08
+        overlay = self._staticOverlays[1 if self.guideVisible else 0]
+        for other in self._staticOverlays:
+            other.hide()
+        self._tuningOverlay = overlay
+        overlay.setGeometry(overlay.parentWidget().rect())
+        overlay.startStatic(self._tuningStaticDeadline)
+        overlay.show()
+        overlay.raise_()
+        self.standbyTone.stop()
+        self.staticHiss.start(self.masterVolume)
+        self.tuningStaticTimer.start()
+        # Present snow before constructing players, resolving paths, or rebuilding the guide.
+        overlay.repaint()
+
+    def _pollTuningStatic(self):
+        if self._tuningOverlay is None:
+            return
+        now = time.monotonic()
+        engine = self.engines.get(self._tuningChannel)
+        ready = engine is not None and not engine.isShowingStandby()
+        if (ready and now >= self._tuningStaticMinimum) or now >= self._tuningStaticDeadline:
+            self._endTuningStatic()
+
+    def _endTuningStatic(self):
+        self.tuningStaticTimer.stop()
+        engine = self.engines.get(self._tuningChannel)
+        if engine is not None:
+            engine.standbyScreen._staticUntil = 0.0
+            engine.standbyScreen._elapsed.start()
+            engine.standbyScreen.update()
+        for overlay in self._staticOverlays:
+            overlay.hide()
+        self._tuningOverlay = None
+        self._tuningChannel = None
+        self.staticHiss.stop()
+        self._syncStandbyTone()
+
     def _syncStandbyTone(self):
-        if self._pausedAll or not self._powerOn:
+        if not self._powerOn or not self.isActive:
+            self.staticHiss.stop()
+            self.standbyTone.stop()
+            return
+        engine = self.engines.get(self.currentIndex) if self.channels else None
+        screen = engine.standbyScreen if engine is not None and engine.isShowingStandby() else self.globalStandby if engine is None else None
+        if self._tuningOverlay is not None or (screen is not None and screen.isShowingStatic()):
+            self.standbyTone.stop()
+            self.staticHiss.start(self.masterVolume)
+            return
+        self.staticHiss.stop()
+        if self._pausedAll:
             self.standbyTone.stop()
             return
         """Continuous fallback: match the tone to whatever stand-by state is actually on
@@ -2281,12 +2479,15 @@ class RetroChannelWidget(QtWidgets.QWidget):
         engine.programChanged.connect(lambda idx=index: self._onProgramChanged(idx))
         for slot in (engine.slotA, engine.slotB):
             slot.player.stateChanged.connect(self._syncPauseButton)
+        engine.standbyScreen.staticFinished.connect(self._syncStandbyTone)
         engine._stack.currentChanged.connect(lambda _index: self._syncStandbyTone())
         engine._stack.currentChanged.connect(
             lambda _index: QtCore.QTimer.singleShot(0, self._refreshGuideTable) if self.guideVisible else None)
         return engine
 
     def _teardownAllEngines(self):
+        if self._tuningOverlay is not None:
+            self._endTuningStatic()
         self._releasePreviewHost()
         for engine in list(self.engines.values()):
             engine.shutdown()
@@ -2305,6 +2506,11 @@ class RetroChannelWidget(QtWidgets.QWidget):
     def _tuneTo(self, index):
         if not self.channels:
             return
+        index %= len(self.channels)
+        changingChannel = index != self.currentIndex
+        if changingChannel and self._powerOn:
+            self._beginTuningStatic(index)
+            self.channelClick.play(self.masterVolume)
         if not self._powerOn:
             self.currentIndex = index % len(self.channels)
             self._rememberCurrentChannel()
@@ -2356,6 +2562,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.guideHighlightIndex = index
         engine = self.engines.get(index)
         if engine:
+            if changingChannel and engine.isShowingStandby():
+                engine.standbyScreen.startStatic(self._tuningStaticDeadline)
             self.displayStack.setCurrentWidget(engine.container)
             self._showBanner(engine)
         self._syncPauseButton()
@@ -2364,6 +2572,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if self.guideVisible:
             self._refreshGuideTable()
             self._updateGuidePreview()
+        if self._tuningOverlay is not None:
+            self._tuningOverlay.raise_()
         self._syncStandbyTone()
 
     def _showBanner(self, engine):
@@ -2466,6 +2676,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.powerButton.setToolTip(label)
         self._updateEmptyState()
         if not self._powerOn:
+            self._endTuningStatic()
+            self.channelClick.stop()
             self._stopGuidePreview()
             self._teardownAllEngines()
             self.standbyTone.stop()
@@ -2512,6 +2724,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.muteButton.setAccessibleName('Restore volume' if self.masterVolume == 0 else 'Mute volume')
         self.muteButton.setToolTip(self.muteButton.accessibleName())
         self.standbyTone.setVolume(self.masterVolume)
+        self.channelClick.setVolume(self.masterVolume)
+        self.staticHiss.setVolume(self.masterVolume)
         if self.masterVolume != previousVolume:
             self._showVideoOsd('volume', self.masterVolume)
         engine = self.engines.get(self.currentIndex)
@@ -2797,6 +3011,9 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.guideTable.ensureChannelVisible(self.guideHighlightIndex)
 
     def eventFilter(self, watched, event):
+        if (event.type() == QtCore.QEvent.Resize and getattr(self, '_tuningOverlay', None) is not None
+                and watched is self._tuningOverlay.parentWidget()):
+            self._tuningOverlay.setGeometry(watched.rect())
         if (event.type() == QtCore.QEvent.MouseMove and self.isActive
                 and isinstance(watched, QtWidgets.QWidget)
                 and (watched is self or self.isAncestorOf(watched)
@@ -2825,7 +3042,9 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._showGuideOnStart = True
         # Start before engine creation or any catalogue/tuning work can block Qt.
         if self._powerOn:
+            self.globalStandby.startStatic()
             self.standbyTone.start()
+            self._syncStandbyTone()
         self.standbyPollTimer.start()
         if self.channels:
             self._tuneTo(self.currentIndex)
@@ -2842,6 +3061,9 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.controlsDock.hide()
         self.isActive = False
         self.remoteIdleTimer.stop()
+        self._endTuningStatic()
+        self.staticHiss.stop()
+        self.channelClick.stop()
         self.standbyPollTimer.stop()
         self.standbyTone.stop()
         self._teardownAllEngines()
