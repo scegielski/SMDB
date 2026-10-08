@@ -741,6 +741,9 @@ class ChannelEngine(QtCore.QObject):
         if (slot is self.activeSlot and slot.isReady() and slot._hasPlayingFrame
                 and slot.player.state() == QMediaPlayer.PlayingState):
             self._stack.setCurrentWidget(slot.videoWidget)
+            owner = self.parent()
+            if owner is not None and hasattr(owner, '_restoreVideoOsd'):
+                owner._restoreVideoOsd(slot.videoWidget)
 
     def _checkForFrozenPlayback(self):
         slot = self.activeSlot
@@ -1176,6 +1179,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.mainWindow = parent
+        self._videoOsdStatus = {}
         self._videoPathCache = {}
         self._descriptionCache = {}
         self.channels = []
@@ -2135,6 +2139,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self.displayStack.setCurrentWidget(engine.container)
             self._showBanner(engine)
         self._updateChannelLabel()
+        self._showVideoOsd('channel', (index + 1, self.channels[index]['genre']))
         self._updateNowPlayingLabel(engine)
         if self.guideVisible:
             self._refreshGuideTable()
@@ -2214,7 +2219,26 @@ class RetroChannelWidget(QtWidgets.QWidget):
     def toggleMute(self):
         self.setVolume(0 if self.masterVolume else self._lastVolume)
 
+    def _showVideoOsd(self, kind, value):
+        self._videoOsdStatus[kind] = (value, time.monotonic() + 3)
+        engine = self.engines.get(self.currentIndex)
+        if engine:
+            for slot in (engine.slotA, engine.slotB):
+                slot.videoWidget.osd.display(kind, value)
+        elif self.guidePreviewSlot:
+            self.guidePreviewSlot.videoWidget.osd.display(kind, value)
+
+    def _restoreVideoOsd(self, video):
+        engine = self.engines.get(self.currentIndex)
+        if engine is None or video is not engine.activeSlot.videoWidget:
+            return
+        for kind, (value, deadline) in self._videoOsdStatus.items():
+            remaining = deadline - time.monotonic()
+            if remaining > 0:
+                video.osd.display(kind, value, remaining)
+
     def setVolume(self, volume):
+        previousVolume = self.masterVolume
         self.masterVolume = max(0, min(100, int(volume)))
         if self.masterVolume:
             self._lastVolume = self.masterVolume
@@ -2223,6 +2247,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.volumeLabel.setText(f"VOLUME {self.masterVolume}%")
         self.muteButton.setText("Unmute" if self.masterVolume == 0 else "Mute")
         self.standbyTone.setVolume(self.masterVolume)
+        if self.masterVolume != previousVolume:
+            self._showVideoOsd('volume', self.masterVolume)
         engine = self.engines.get(self.currentIndex)
         if engine:
             engine.setDesiredVolume(self.masterVolume)
