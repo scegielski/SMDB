@@ -935,10 +935,25 @@ class MainWindow(QtWidgets.QMainWindow):
         self.modeActionGroup = QtWidgets.QActionGroup(self)
         self.modeActionGroup.setExclusive(True)
         self.modeActions = {}
-        for mode, label in (('Database', 'SMDB'), ('TV', 'SMTV')):
-            action = QtWidgets.QAction(label, self, checkable=True)
+        for mode, label, filename in (('Database', 'SMDB', 'smdb.png'), ('TV', 'SMTV', 'sctv.png')):
+            action = QtWidgets.QWidgetAction(self)
+            action.setText(label)
+            action.setCheckable(True)
+            action.setIcon(QtGui.QIcon(str(Path(__file__).parent / 'assets' / 'modes' / filename)))
             action.triggered.connect(lambda _checked=False, selected=mode: self.setApplicationMode(selected))
             self.modeActionGroup.addAction(action)
+            button = QtWidgets.QToolButton(menu)
+            button.setDefaultAction(action)
+            button.setToolButtonStyle(QtCore.Qt.ToolButtonIconOnly)
+            button.setIconSize(QtCore.QSize(112, 112))
+            button.setFixedSize(128, 128)
+            button.setAccessibleName(label + ' mode')
+            button.setToolTip(label + ' mode')
+            button.setStyleSheet('QToolButton { padding: 5px; border: 2px solid transparent; border-radius: 8px; } '
+                                 'QToolButton:hover { border-color: #8bdfff; background: #233747; } '
+                                 'QToolButton:checked { border-color: #00d9ff; background: #183145; }')
+            button.clicked.connect(menu.hide)
+            action.setDefaultWidget(button)
             menu.addAction(action)
             self.modeActions[mode] = action
 
