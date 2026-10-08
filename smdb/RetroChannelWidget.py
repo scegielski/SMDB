@@ -32,6 +32,7 @@ from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer, QSoundEffect, QVideo
 from .VideoView import VideoView
 from .GuideTimeline import GuideTimeline
 from .Subtitles import SubtitleController
+from .SubtitleDownload import SubtitleDownloadJob
 
 if sys.platform == 'win32':
     import winsound as _winsound
@@ -200,7 +201,7 @@ class ClipSlot(QtCore.QObject):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.player = QMediaPlayer(None, QMediaPlayer.VideoSurface)
+        self.player = QMediaPlayer(self, QMediaPlayer.VideoSurface)
         self.videoWidget = VideoView()
         self.videoWidget.setStyleSheet("background: black;")
         self.player.setVideoOutput(self.videoWidget.videoSurface())
@@ -212,7 +213,7 @@ class ClipSlot(QtCore.QObject):
         if owner is not None:
             self.subtitles.setEnabled(owner.subtitlesEnabled)
             self.subtitles.error.connect(owner._subtitleError)
-            self.subtitles.tracksChanged.connect(lambda: owner._subtitleTracksChanged(self))
+            self.subtitles.tracksChanged.connect(owner._subtitleTracksChanged)
 
         self.path = None
         self.duration = 0
@@ -1147,6 +1148,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._filteredClocks = {}
         self._settings = getattr(parent, 'settings', None)
         self.subtitlesEnabled = self._settings.value('smtvSubtitlesEnabled', False, type=bool) if self._settings else False
+        self._subtitleDownloadAttempts = set()
+        self._subtitleDownloadJobs = {}
         self._savedSchedules = {}
         self._schedulePath = None
         self._excludedGenres = set(self._settings.value('smtvExcludedGenres', [], type=list)) if self._settings else set()
@@ -1219,6 +1222,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.standbyPollTimer = QtCore.QTimer(self)
         self.standbyPollTimer.setInterval(150)
         self.standbyPollTimer.timeout.connect(self._syncStandbyTone)
+        self.standbyPollTimer.timeout.connect(self._ensureCurrentSubtitles)
 
         self._updateEmptyState()
 
@@ -1426,8 +1430,53 @@ class RetroChannelWidget(QtWidgets.QWidget):
     def _subtitleError(self, message):
         self.subtitleButton.setToolTip(message)
 
-    def _subtitleTracksChanged(self, slot):
-        if self.subtitleMenu.isVisible() and slot is self._subtitleSlot():
+    def _subtitleTracksChanged(self):
+        if self.subtitleMenu.isVisible():
+            self._refreshSubtitleMenu()
+
+    def _ensureCurrentSubtitles(self):
+        if not self.isActive or not self.subtitlesEnabled:
+            return
+        slot = self._subtitleSlot()
+        if slot is None or not slot.path or not os.path.isfile(slot.path):
+            return
+        controller = slot.subtitles
+        if controller.cues or not controller._probed or controller._pendingJobs:
+            return
+        videoPath = os.path.normcase(os.path.abspath(slot.path))
+        if videoPath in self._subtitleDownloadAttempts:
+            return
+        self._subtitleDownloadAttempts.add(videoPath)
+        controller.setStatusMessage('Downloading subtitles...')
+        try:
+            row = next((row for row, path in self._videoPathCache.items()
+                        if path and os.path.normcase(os.path.abspath(path)) == videoPath), None)
+            if row is None:
+                raise ValueError('No catalogue entry is available for this movie.')
+            movieId = self.mainWindow.moviesTableModel.getId(row)
+            key = getattr(self.mainWindow, 'openSubtitlesApiKey', '')
+            job = SubtitleDownloadJob(movieId, os.path.splitext(slot.path)[0] + '.srt', key, videoPath)
+            self._subtitleDownloadJobs[videoPath] = job
+            job.signals.finished.connect(self._onSubtitleDownloadFinished)
+            QtCore.QThreadPool.globalInstance().start(job)
+        except Exception as error:
+            self._onSubtitleDownloadFinished(videoPath, '', str(error))
+
+    def _onSubtitleDownloadFinished(self, videoPath, path, error):
+        self._subtitleDownloadJobs.pop(videoPath, None)
+        slots = [slot for engine in self.engines.values() for slot in (engine.slotA, engine.slotB)]
+        if self.guidePreviewSlot:
+            slots.append(self.guidePreviewSlot)
+        for slot in slots:
+            if not slot.path or os.path.normcase(os.path.abspath(slot.path)) != videoPath:
+                continue
+            controller = slot.subtitles
+            if path:
+                controller.addFile(path)
+            else:
+                controller.error.emit(error or 'Subtitles are unavailable for this movie.')
+                controller.setStatusMessage('Subtitles unavailable', 5000)
+        if self.subtitleMenu.isVisible():
             self._refreshSubtitleMenu()
 
     def setSubtitlesEnabled(self, enabled):
@@ -1458,7 +1507,9 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if slot and slot.path:
             controller = slot.subtitles
             controller.probe()
-            if controller.lastError:
+            if controller.statusMessage:
+                status = controller.statusMessage
+            elif controller.lastError:
                 status = controller.lastError
             elif controller._pendingJobs:
                 status = 'Reading subtitle tracks…'

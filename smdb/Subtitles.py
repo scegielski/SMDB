@@ -99,6 +99,10 @@ class SubtitleController(QtCore.QObject):
         self._probed = False
         self._pendingJobs = 0
         self.lastError = ''
+        self.statusMessage = ''
+        self._statusTimer = QtCore.QTimer(self)
+        self._statusTimer.setSingleShot(True)
+        self._statusTimer.timeout.connect(lambda: self.setStatusMessage(''))
         self.error.connect(self._recordError)
         self.canvas.installEventFilter(self)
 
@@ -138,8 +142,9 @@ class SubtitleController(QtCore.QObject):
                 self.tracks = [{'id': str(p), 'label': p.name, 'path': str(p)}
                                for p in sorted(movie.parent.iterdir())
                                if p.is_file() and p.suffix.lower() in ('.srt', '.vtt')
-                               and (p.stem.casefold() == movie.stem.casefold()
-                                    or p.stem.casefold().startswith(movie.stem.casefold() + '.'))]
+                               and any(p.stem.casefold() == base
+                                       or p.stem.casefold().startswith(base + '.')
+                                       for base in (movie.stem.casefold(), movie.parent.name.casefold()))]
             except OSError:
                 pass
             if self.tracks:
@@ -151,8 +156,11 @@ class SubtitleController(QtCore.QObject):
     def clear(self):
         self._generation += 1
         for job in list(self._jobs):
-            job.kill()
-            job.waitForFinished(1000)
+            if job.state() == QtCore.QProcess.Starting:
+                job.waitForStarted(1000)
+            if job.state() != QtCore.QProcess.NotRunning:
+                job.kill()
+                job.waitForFinished(1000)
         self._jobs = []
         self.path = None
         self.tracks = []
@@ -162,6 +170,8 @@ class SubtitleController(QtCore.QObject):
         self._probed = False
         self._pendingJobs = 0
         self.lastError = ''
+        self.statusMessage = ''
+        self._statusTimer.stop()
         if not sip.isdeleted(self.label):
             self.label.clear()
             self.label.hide()
@@ -171,6 +181,14 @@ class SubtitleController(QtCore.QObject):
         if enabled:
             self.probe()
         self.updatePosition(self.position)
+
+    def setStatusMessage(self, message, timeout=0):
+        self._statusTimer.stop()
+        self.statusMessage = message
+        if timeout:
+            self._statusTimer.start(timeout)
+        self.updatePosition(self.position)
+        self.tracksChanged.emit()
 
     def _run(self, tool, arguments, callback):
         executable = mediaTool(tool)
@@ -196,14 +214,24 @@ class SubtitleController(QtCore.QObject):
             job.deleteLater()
 
         job.finished.connect(finished)
-        job.errorOccurred.connect(lambda error: self.error.emit('Could not start the subtitle reader.')
-                                  if error == QtCore.QProcess.FailedToStart and generation == self._generation else None)
+        def failed(error):
+            if error == QtCore.QProcess.FailedToStart:
+                if job in self._jobs:
+                    self._jobs.remove(job)
+                if generation == self._generation:
+                    self._pendingJobs = max(0, self._pendingJobs - 1)
+                    self.error.emit('Could not start the subtitle reader.')
+
+        job.errorOccurred.connect(failed)
         job.start(executable, arguments)
 
     def probe(self):
         if self._probed or not self.path:
             return
         self._probed = True
+        if not os.path.isfile(self.path):
+            self.error.emit('Movie file is unavailable for subtitle detection.')
+            return
         self._run('ffprobe', ['-v', 'error', '-select_streams', 's', '-show_streams', '-of', 'json', self.path], self._probeFinished)
 
     def _probeFinished(self, data):
@@ -252,6 +280,10 @@ class SubtitleController(QtCore.QObject):
 
     def _setCues(self, cues):
         self.cues = cues
+        if cues:
+            self.statusMessage = ''
+            self.lastError = ''
+            self._statusTimer.stop()
         self.starts = [cue[0] for cue in cues]
         maximum = 0
         self.ends = []
@@ -266,7 +298,9 @@ class SubtitleController(QtCore.QObject):
             return
         self.position = position
         texts = []
-        if self.enabled:
+        if self.enabled and self.statusMessage:
+            texts.append(self.statusMessage)
+        elif self.enabled:
             index = bisect.bisect_right(self.starts, position) - 1
             while index >= 0 and self.ends[index] > position:
                 start, end, text = self.cues[index]

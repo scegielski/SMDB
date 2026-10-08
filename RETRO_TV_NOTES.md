@@ -1,17 +1,18 @@
 # SMTV (smdb/RetroChannelWidget.py) - Status, Ideas, and History
 
-## Current status (2026-10-06)
+## Current status (2026-10-07)
 
-- Latest implementation commit: `f48f0a6`, pushed to `origin/master`. Use `git status` and `git log` to check subsequent repository changes.
+- Latest implementation commit: `8f1d505`, pushed to `origin/master`. Use `git status` and `git log` to check subsequent repository changes.
 - SMDB and SMTV are separate application modes. SMTV starts with the guide open; FULL/F/F11 currently switches to video-only fullscreen and Esc restores controls.
 - The guide is a single repeating timeline with hourly AM/PM headings, quarter-hour program starts, yellow live time, and a cyan manual-playback cursor. Published film times remain fixed through seeking and program navigation.
 - Channel labels have a distinct style and adjustable column width. The video/info divider and the horizontal guide divider are also draggable; the latter defaults to halfway down. Covers appear under movie titles, with synopsis text wrapping around them.
 - Middle-button dragging pans by default. Setup → Guide offers saved browser-style automatic scrolling as an alternative.
 - Wheel alone scrolls vertically. Only Ctrl+wheel and the font menu adjust fonts; channels, programming, information, and controls have independent saved sizes. Ctrl+wheel over programming retains the time under the pointer.
+- With subtitles enabled, missing captions trigger a background English download via the configured OpenSubtitles routine. The video shows `Downloading subtitles...` until captions are ready; failures stop the progress message and report unavailability.
 - SUBTITLES offers Off/On, embedded text tracks, nearby SRT/VTT files, and a file picker. Captions use media position and paint inside the composited video viewport, following guide/fullscreen geometry. Image-based tracks are listed as unsupported.
 - Setup saves channel, MPAA, and numeric quality-rating filters. Any category with an included film can become a channel. Reprogram Channel repicks its eligible lineup.
 - Lineups and original times persist in `smtv_schedule.json` beside the primary movie folder's `smdb_data.json`; restart rejoins the continuing broadcast.
-- Latest full native Windows suite: 64 tests passed. Builds are launched for testing when ready, and their output folder is linked in chat.
+- Latest full native Windows suite: 69 tests passed. Builds are launched for testing when ready, and their output folder is linked in chat.
 
 ## Ideas to choose from
 
@@ -33,6 +34,8 @@ Consult this checklist when asked what to implement next. These are candidate fe
 ## Implementation history
 
 The dated entries below describe the behavior at the time of each change; later entries and the current status supersede older designs.
+
+- Automatic missing-subtitle downloads (2026-10-07): with subtitles enabled, the visible movie is checked after local/embedded discovery finishes. If no usable cues exist, SMTV downloads English subtitles with the same OpenSubtitles search/download helper used by SMDB, reusing the configured API key and IMDb ID. The GUI remains responsive through a QThreadPool worker; the composited caption area shows `Downloading subtitles...` until validated cues load. Successful downloads are saved atomically beside the video. Missing results/errors show `Subtitles unavailable` briefly and remain in the menu details. Attempts are deduplicated per movie per run; buffered neighbors are not downloaded until visible, and stale completions cannot put old captions over another film. Existing folder-basename sidecars are also recognized. Video players are owned by their ClipSlots; Qt receiver-bound completion connections avoid callbacks into destroyed views, and unavailable files skip probing/downloads. All sixty-nine Windows tests pass, including mocked direct/ZIP API downloads, validation/atomic preservation, message transitions, deduplication, stale completion, and GUI responsiveness during a worker request.
 
 - Transparent subtitle styling (2026-10-06): removed the translucent caption rectangle. The viewport label paints white glyphs with a one-pixel dark outline and a transparent background. Native playback capture and subtitle tests confirm readable text and unchanged video pixels in the empty caption area.
 
