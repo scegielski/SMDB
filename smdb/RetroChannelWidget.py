@@ -920,11 +920,20 @@ class ChannelEngine(QtCore.QObject):
         target = current + step
         if target < 0:
             target = len(self.clock._rotation) - 1
-        if startUnvisited and self.clock.resumeInfoForSlot(target) is None:
+        if (startUnvisited or step < 0) and self.clock.resumeInfoForSlot(target) is None:
             beginning = True
         slot = self.activeSlot
         if self.currentRow is not None and slot.isReady() and slot.duration > 0:
-            self.clock.rememberPosition(current, self.currentRow, slot.duration, slot.player.position())
+            if current == self._previousNavigationSlot and self._beginningResume is not None:
+                # Leaving a restarted film must retain its pre-restart resume point.
+                self.clock.rememberPosition(current, *self._beginningResume)
+                if self._beginningMarkerOrigin is not None:
+                    self.clock._resumeMarkerOrigins[self._beginningResume[0]] = self._beginningMarkerOrigin
+            else:
+                position = slot._lastPlaybackPosition
+                if position is None:
+                    position = slot.player.position()
+                self.clock.rememberPosition(current, self.currentRow, slot.duration, position)
         self.advanceTimer.stop()
         self.prefetchTimer.stop()
         self._resolveSeq += 1
@@ -950,7 +959,7 @@ class ChannelEngine(QtCore.QObject):
         if beginning:
             self.clock.startSlotAtBeginning(target)
         elif not self.clock.resumeSlot(target) and self.clock.broadcastAligned:
-            # Manual NEXT/PREV retains random starts for unvisited films.
+            # Manual NEXT retains random starts; unvisited PREV starts at zero.
             self.clock._startOverrides[target] = self.clock._offsetFractions[target % len(self.clock._rotation)]
             self.clock._durations.pop(target, None)
         self.clock.jumpToSlot(target)
@@ -963,13 +972,15 @@ class ChannelEngine(QtCore.QObject):
         if current is None or self.currentRow is None or not slot.isReady() or slot.duration <= 0:
             return False
         saved = self._beginningResume if self._previousNavigationSlot == current else None
-        origin = self._beginningMarkerOrigin if saved is not None else self.clock.playbackOriginForSlot(current)
-        if saved is None:
-            position = slot._lastPlaybackPosition
-            if position is None:
-                position = slot.player.position()
-            saved = (self.currentRow, slot.duration, position)
-            self.clock.rememberPosition(current, *saved)
+        if saved is not None:
+            self.skipProgram(-1)
+            return True
+        origin = self.clock.playbackOriginForSlot(current)
+        position = slot._lastPlaybackPosition
+        if position is None:
+            position = slot.player.position()
+        saved = (self.currentRow, slot.duration, position)
+        self.clock.rememberPosition(current, *saved)
         if not self._seekFilmPosition(0):
             return False
         self._previousNavigationSlot = current
@@ -1361,8 +1372,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
 
         self.beginningButton.setStyleSheet(upButton.styleSheet())
         self.beginningButton.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.beginningButton.setAccessibleName('Beginning of current film')
-        self.beginningButton.setToolTip('Restart this film; forward restores the saved position')
+        self.beginningButton.setAccessibleName('Beginning of current film or previous film')
+        self.beginningButton.setToolTip('Restart this film; press again for the previous film. Forward restores the saved position')
         self.beginningButton.clicked.connect(self.restartCurrentFilm)
 
         self.nextBeginningButton = QtWidgets.QPushButton('▶|')

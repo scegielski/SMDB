@@ -109,7 +109,7 @@ class FullMovieScheduleTests(unittest.TestCase):
             try:
                 with patch.object(engine, '_tuneIn') as tune:
                     tv.previousProgramButton.click()
-                    self.assertEqual(clock.whatsOnNow()[:3], (2, 2, 0.75))
+                    self.assertEqual(clock.whatsOnNow()[:3], (2, 2, 0.0))
                     self.assertNotEqual(engine._tuneRequestId, 10)
                     self.assertNotEqual(engine._prefetchRequestId, 11)
                     tv.nextProgramButton.click()
@@ -241,10 +241,52 @@ class FullMovieScheduleTests(unittest.TestCase):
             engine.container.close()
             tv.close()
 
-    def test_barred_back_restarts_current_movie_without_loading_previous(self):
+    def test_barred_back_restarts_then_goes_previous_without_losing_resume(self):
         clock = ChannelClock([0, 1], lambda row: 100000)
         clock._rotation = [0, 1]
         clock.rememberPosition(0, 0, 100000, 42000)
+        engine = ChannelEngine(1, 'Action', clock, lambda row: None, str)
+        clock._playbackOrigins[1] = .25
+        engine.currentSlotIndex, engine.currentRow = 1, 1
+        slot = engine.activeSlot
+        realPlayer = slot.player
+        slot.player = Mock()
+        slot.path, slot.duration, slot._ready = 'current.mp4', 100000, True
+        slot._lastPlaybackPosition = 63000
+        tv = RetroChannelWidget()
+        tv.engines = {0: engine}
+        self.enableControls(tv)
+        try:
+            with patch.object(engine, '_tuneIn') as tune, patch.object(engine, '_maybeSchedulePrefetch'):
+                tv.beginningButton.click()
+                slot.player.setPosition.assert_called_with(0)
+                self.assertEqual((engine.currentSlotIndex, engine.currentRow), (1, 1))
+                self.assertEqual(clock.resumeInfoForSlot(1)[2], 63000)
+                tv.nextBeginningButton.click()
+                slot.player.setPosition.assert_called_with(63000)
+                self.assertEqual((engine.currentSlotIndex, engine.currentRow), (1, 1))
+                self.assertEqual(clock.resumeInfoForSlot(0)[2], 42000)
+                tune.assert_not_called()
+                slot.player.setMedia.assert_not_called()
+                tv.beginningButton.click()
+                tv.beginningButton.click()
+                self.assertEqual(engine.currentSlotIndex, 0)
+                self.assertEqual(clock.resumeInfoForSlot(1)[2], 63000)
+                self.assertEqual(clock.slotInfo(0)[1], .42)
+                self.assertEqual(clock._resumeMarkerOrigins[1], .25)
+                tune.assert_called_once()
+        finally:
+            tv.engines.clear()
+            slot.player = realPlayer
+            engine.shutdown()
+            engine.container.close()
+            tv.close()
+
+    def test_unvisited_previous_starts_at_zero_despite_stale_slot_offset(self):
+        clock = ChannelClock([0, 1], lambda row: 100000, broadcastAligned=True)
+        clock._rotation = [0, 1]
+        clock._offsetFractions = {0: .63, 1: .63}
+        clock._startOverrides[0] = .63
         engine = ChannelEngine(1, 'Action', clock, lambda row: None, str)
         engine.currentSlotIndex, engine.currentRow = 1, 1
         slot = engine.activeSlot
@@ -257,17 +299,19 @@ class FullMovieScheduleTests(unittest.TestCase):
         self.enableControls(tv)
         try:
             with patch.object(engine, '_tuneIn') as tune, patch.object(engine, '_maybeSchedulePrefetch'):
-                for _ in range(2):
-                    tv.beginningButton.click()
-                    slot.player.setPosition.assert_called_with(0)
-                    self.assertEqual((engine.currentSlotIndex, engine.currentRow), (1, 1))
-                    self.assertEqual(clock.resumeInfoForSlot(1)[2], 63000)
-                tv.nextBeginningButton.click()
-                slot.player.setPosition.assert_called_with(63000)
-                self.assertEqual((engine.currentSlotIndex, engine.currentRow), (1, 1))
-                self.assertEqual(clock.resumeInfoForSlot(0)[2], 42000)
-                tune.assert_not_called()
-                slot.player.setMedia.assert_not_called()
+                tv.beginningButton.click()
+                tv.beginningButton.click()
+                self.assertEqual(engine.currentSlotIndex, 0)
+                self.assertIsNone(clock.resumeInfoForSlot(0))
+                self.assertEqual(clock.slotInfo(0)[1], 0)
+                self.assertEqual(clock.playbackOriginForSlot(0), 0)
+                self.assertEqual(clock.resumeInfoForSlot(1)[2], 63000)
+                # The media load uses this target's zero, never the departed film's 63s.
+                slot.load('previous.mp4', autoplay=True, seekFraction=clock.slotInfo(0)[1])
+                slot._onDurationChanged(100000)
+                slot.player.setPosition.assert_called_with(0)
+                self.assertEqual(slot._lastPlaybackPosition, 0)
+                tune.assert_called_once()
         finally:
             tv.engines.clear()
             slot.player = realPlayer

@@ -2,7 +2,7 @@
 
 ## Current status (2026-10-07)
 
-- Latest implementation commit: `a9177b3` (video context menu); `origin/master` currently has `8f1d505`. Use `git status` and `git log` to check subsequent repository changes.
+- Latest implementation commit: `09dd376` (standby color-bar leader); `origin/master` currently has `8f1d505`. Use `git status` and `git log` to check subsequent repository changes.
 - SMDB and SMTV are separate application modes. SMTV starts with the guide open; FULL/F/F11 currently switches to video-only fullscreen and Esc restores controls.
 - The guide is a single repeating timeline with hourly AM/PM headings, quarter-hour program starts, yellow live time, and a cyan manual-playback cursor. Published film times remain fixed through seeking and program navigation.
 - Channel labels have a distinct style and adjustable column width. The video/info divider and the horizontal guide divider are also draggable; the latter defaults to halfway down. Covers appear under movie titles, with synopsis text wrapping around them.
@@ -36,6 +36,8 @@ Consult this checklist when asked what to implement next. These are candidate fe
 ## Implementation history
 
 The dated entries below describe the behavior at the time of each change; later entries and the current status supersede older designs.
+
+- Repeated barred-back navigation (2026-10-07): the first barred-back press restarts the current film; the next moves to the previous film and resumes its saved position if available, otherwise it starts at zero. Both PREV and the barred-back arrow clear any old slot offset for an unvisited previous film; unvisited NEXT retains its random start. Forward immediately after restart restores the pre-restart position. Leaving a restarted film preserves its original resume position and marker origin, instead of replacing them with zero. Updated the actual-button regression to cover both presses, saved previous-film position, and cyan marker origin; all 14 schedule and 25 timeline tests pass, including an unvisited previous film with a stale 63-second slot override that must load at zero.
 
 - Standby color-bar leader (2026-10-07): replaced the inherited-font gray test pattern with color bars, a circular animated 5-to-1 countdown, and a large PLEASE STAND BY banner. All painted fonts are explicitly set from video geometry, independent of app fonts and section zoom. Animation runs only while visible, resetting on each loading screen; it does not impose a countdown delay on playback. Two rendering/lifecycle tests and seven existing standby/tone tests pass on Windows; the 800x450 rendered preview was inspected.
 
