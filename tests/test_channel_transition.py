@@ -27,6 +27,23 @@ class ChannelTransitionTests(unittest.TestCase):
     def setUpClass(cls):
         cls.app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
+    def test_startup_uses_color_bars_without_static_or_hiss(self):
+        tv = RetroChannelWidget()
+        engine = ChannelEngine(1, 'Action', ChannelClock([0]), resolver=lambda row: None, titleGetter=str)
+        try:
+            with patch.object(tv.staticHiss, 'start') as hiss, patch.object(tv.standbyTone, 'start'):
+                tv.show()
+                self.app.processEvents()
+                self.assertFalse(tv.globalStandby.isShowingStatic())
+                self.assertIsNone(tv._tuningOverlay)
+                hiss.assert_not_called()
+            with patch.object(engine, '_startResolve'):
+                engine.start(showStatic=False)
+                self.assertTrue(engine.isShowingStandby())
+                self.assertFalse(engine.standbyScreen.isShowingStatic())
+        finally:
+            engine.shutdown(); engine.container.close(); tv.close()
+
     def test_static_animates_then_returns_to_color_bars_at_one_second(self):
         screen = StandByScreen()
         screen.resize(640, 360)
@@ -87,6 +104,7 @@ class ChannelTransitionTests(unittest.TestCase):
                     patch.object(tv, '_syncStandbyTone'), \
                     patch('smdb.RetroChannelWidget.time.monotonic', return_value=100):
                 tv._tuneTo(1)
+                engines[1].start.assert_called_with(showStatic=True)
                 click.assert_called_once_with(70)
                 self.assertIsNotNone(tv._tuningOverlay)
                 deadline = tv._tuningStaticDeadline

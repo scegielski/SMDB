@@ -974,16 +974,21 @@ class ChannelEngine(QtCore.QObject):
         onDone(row, path)
 
     # -- lifecycle ----------------------------------------------------------
-    def start(self):
+    def start(self, showStatic=True):
         if self.currentRow is None:
-            return self._tuneIn()
+            return self._tuneIn(showStatic=showStatic)
         return True
 
-    def _tuneIn(self):
+    def _tuneIn(self, showStatic=True):
         """Sync playback to wherever the channel clock says we should be right now."""
         slotIndex, _, offsetFraction, positionInSlotMs, remainingMs = self.clock.whatsOnNow()
         self.currentSlotIndex = slotIndex
-        self.standbyScreen.startStatic()
+        if showStatic:
+            self.standbyScreen.startStatic()
+        else:
+            self.standbyScreen._staticUntil = 0.0
+            self.standbyScreen._elapsed.start()
+            self.standbyScreen.update()
         self._stack.setCurrentWidget(self.standbyScreen)
         if self.clock.broadcastAligned and positionInSlotMs >= self.clock.filmDurationForSlot(slotIndex):
             # Joining during the padded gap must not replay the film's last seconds.
@@ -3033,7 +3038,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self.engines[index] = engine
             self.displayStack.addWidget(engine.container)
         self.engines[index].setDesiredVolume(self.masterVolume)
-        self.engines[index].start()
+        self.engines[index].start(showStatic=changingChannel)
 
         # Create/start everything else we need warmed (muted neighbors).
         for idx in needed:
@@ -3044,7 +3049,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
                 self.engines[idx] = engine
                 self.displayStack.addWidget(engine.container)
             self.engines[idx].setDesiredVolume(0)
-            self.engines[idx].start()
+            self.engines[idx].start(showStatic=False)
 
         self.currentIndex = index
         self._rememberCurrentChannel()
@@ -3609,7 +3614,9 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._showGuideOnStart = True
         # Start before engine creation or any catalogue/tuning work can block Qt.
         if self._powerOn:
-            self.globalStandby.startStatic()
+            self.globalStandby._staticUntil = 0.0
+            self.globalStandby._elapsed.start()
+            self.globalStandby.update()
             self.standbyTone.start()
             self._syncStandbyTone()
         self.standbyPollTimer.start()
