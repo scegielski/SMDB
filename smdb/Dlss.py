@@ -46,6 +46,7 @@ class DlssProcessor(QtCore.QObject):
         self.log = ''
         self._stopping = False
         self.frameCount = 0
+        self.intensityPercent = 100
         self._warmSize = None
         self._sharedBuffer = None
         self._sharedSize = 0
@@ -105,7 +106,7 @@ class DlssProcessor(QtCore.QObject):
         self._busy = (viewRef, image.width(), image.height(), generation, warmOnly)
         self._buffer.clear()
         self.timer.start()
-        flags = 2 if warmOnly else int(reset)
+        flags = (2 if warmOnly else int(reset)) | 8
         if os.name == 'nt':
             length = image.byteCount()
             if self._sharedSize != length:
@@ -116,9 +117,9 @@ class DlssProcessor(QtCore.QObject):
                 self._sharedSize = length
             self._sharedBuffer[:length] = bytes(pointer)
             name = self._sharedName.encode('ascii')
-            packet = struct.pack('<IIII', image.width(), image.height(), flags | 4, len(name)) + name
+            packet = struct.pack('<IIIII', image.width(), image.height(), flags | 4, self.intensityPercent, len(name)) + name
         else:
-            packet = struct.pack('<III', image.width(), image.height(), flags) + bytes(pointer)
+            packet = struct.pack('<IIII', image.width(), image.height(), flags, self.intensityPercent) + bytes(pointer)
         self.process.write(packet)
 
     def _readLog(self):

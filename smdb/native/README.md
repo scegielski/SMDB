@@ -24,3 +24,5 @@ The visible video prepares its GPU session in the background while DLSS is off. 
 NVIDIA/NGX/DLSS components retain their owners' terms. This integration is independent and is not endorsed by NVIDIA. The supplied RTX40 runtime is the same community Ada runtime used by the existing player.
 
 Frame conversion uses exact lookup tables and reused native buffers. Incoming decoded frames are retained without conversion while the worker is busy; the latest frame is converted on completion. This avoids converting discarded frames and keeps playback latency bounded.
+
+Intensity matches the original player: a 0–200% blend of original and enhanced pixels, with 100% as the default. NR evaluation parameters remain unchanged. Protocol bit 3 adds a four-byte unsigned intensity percentage immediately after the header, before the mapping name or frame payload. Zero reproduces original RGBA8; the CPU blend uses precomputed fixed-point contributions and clamps the final result.

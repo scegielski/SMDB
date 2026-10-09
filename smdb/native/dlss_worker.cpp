@@ -559,6 +559,27 @@ static void InitializeConversions() {
         g_halfToByte[i]=(uint8_t)std::max(0.f,std::min(255.f,HalfToFloat((uint16_t)i)*255.f+0.5f));
 }
 
+static unsigned g_blendPercent=100;
+static int32_t g_nrBlend[65536],g_baseBlend[256];
+static void SetBlendIntensity(unsigned percent) {
+    if(percent==g_blendPercent) return;
+    g_blendPercent=percent;
+    const float strength=percent/100.0f;
+    for(unsigned i=0;i<65536;++i) {
+        float v=HalfToFloat((uint16_t)i)*255.0f*strength;
+        v=std::max(-1024.f,std::min(1024.f,v));
+        g_nrBlend[i]=(int32_t)(v*4096.f);
+    }
+    for(unsigned i=0;i<256;++i)
+        g_baseBlend[i]=(int32_t)(HalfToFloat(g_byteToHalf[i])*255.0f*(1.f-strength)*4096.f);
+}
+static uint8_t BlendPixel(uint16_t enhanced,uint8_t original) {
+    if(g_blendPercent==100) return g_halfToByte[enhanced];
+    if(g_blendPercent==0) return original;
+    const int value=(g_nrBlend[enhanced]+g_baseBlend[original]+2048)>>12;
+    return (uint8_t)std::max(0,std::min(255,value));
+}
+
 static bool Process(const uint8_t* input, uint8_t* result, bool reset) {
     const UINT w=g_width,h=g_height;
     void* mapped=nullptr;
@@ -593,7 +614,7 @@ static bool Process(const uint8_t* input, uint8_t* result, bool reset) {
     for(UINT y=0;y<h;++y) {
         const uint16_t* row=(const uint16_t*)((const uint8_t*)mapped+y*g_pitch);
         for(UINT x=0;x<w;++x) {
-            for(UINT c=0;c<3;++c) result[(y*w+x)*4+c]=g_halfToByte[row[x*4+c]];
+            for(UINT c=0;c<3;++c) result[(y*w+x)*4+c]=BlendPixel(row[x*4+c],input[(y*w+x)*4+c]);
             result[(y*w+x)*4+3]=255;
         }
     }
@@ -614,6 +635,11 @@ int wmain(int argc,wchar_t** argv) {
     while(fread(&header,1,sizeof(header),stdin)==sizeof(header)) {
         if(!header.width || !header.height || header.width>8192 || header.height>8192) break;
         const size_t length=(size_t)header.width*header.height*4;
+        if(header.reset & 8) {
+            uint32_t percent=100;
+            if(fread(&percent,4,1,stdin)!=1 || percent>200) break;
+            SetBlendIntensity(percent);
+        }
         const bool useShared=(header.reset & 4)!=0;
         if(useShared) {
             uint32_t nameLength=0;

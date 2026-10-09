@@ -1940,11 +1940,28 @@ class RetroChannelWidget(QtWidgets.QWidget):
         sideLayout.addLayout(subtitleTiming)
         self.dlssButton = remoteButton('DLSS', 'Toggle DLSS 5 neural rendering', self.setDlssEnabled, size=11)
         self.dlssButton.setCheckable(True)
-        self.dlssButton.setStyleSheet(self.subtitleButton.styleSheet())
+        self.dlssButton.setStyleSheet(self.muteButton.styleSheet())
         self.dlssButton.setEnabled(self._dlssProcessor.available())
         if not self.dlssButton.isEnabled():
             self.dlssButton.setToolTip('DLSS runtime or native worker is missing')
-        sideLayout.addWidget(self.dlssButton)
+        tuning.addWidget(self.dlssButton, 0, 2, alignment=QtCore.Qt.AlignCenter)
+        self.dlssIntensityLabel = QtWidgets.QLabel('DLSS INTENSITY 100%')
+        self.dlssIntensityLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.dlssIntensityLabel.setStyleSheet('color: #aeb8c3; background: transparent; border: none; font-size: 11px;')
+        self.dlssIntensitySlider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.dlssIntensitySlider.setRange(0, 200)
+        self.dlssIntensitySlider.setValue(100)
+        self.dlssIntensitySlider.setSingleStep(1)
+        self.dlssIntensitySlider.setPageStep(10)
+        self.dlssIntensitySlider.setAccessibleName('DLSS intensity')
+        self.dlssIntensitySlider.setToolTip('DLSS blend intensity: 0% original, 100% normal, 200% stronger')
+        self.dlssIntensitySlider.setStyleSheet(
+            'QSlider::groove:horizontal { height: 6px; background: #111820; border-radius: 3px; } '
+            'QSlider::sub-page:horizontal { background: #3c5f8b; border-radius: 3px; } '
+            'QSlider::handle:horizontal { width: 14px; margin: -5px 0; background: #aeb8c3; border-radius: 7px; }')
+        self.dlssIntensitySlider.valueChanged.connect(self.setDlssIntensity)
+        sideLayout.addWidget(self.dlssIntensityLabel)
+        sideLayout.addWidget(self.dlssIntensitySlider)
         self.reprogramButton = remoteButton('REPROGRAM CHANNEL', 'Pick a new random lineup for this channel',
                                            self.reprogramChannel, size=11)
         sideLayout.addWidget(self.reprogramButton)
@@ -2111,12 +2128,20 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if self.subtitleMenu.isVisible():
             self._refreshSubtitleMenu()
 
+    def setDlssIntensity(self, percent):
+        percent = max(0, min(200, int(percent)))
+        self._dlssProcessor.intensityPercent = percent
+        self.dlssIntensityLabel.setText(f'DLSS INTENSITY {percent}%')
+        # Re-render a cached decoded frame too, so adjustment works while paused.
+        if self._dlssEnabled and self._dlssChosen is not None:
+            self._dlssChosen._frameSurface.submitFrame()
+
     def setDlssEnabled(self, enabled):
         self._dlssEnabled = bool(enabled)
         self._dlssState = 'starting' if enabled else 'off'
         self._dlssCaptureTimer.stop()
         self.dlssButton.setChecked(self._dlssEnabled)
-        self.dlssButton.setText('DLSS ON' if enabled else 'DLSS')
+        self.dlssButton.setText('DLSS')
         self._dlssProcessor.record('Remote toggle ' + ('ON' if enabled else 'OFF'))
         self._syncDlss()
         self._showVideoOsd('dlss', 'DLSS 5 ON' if self._dlssEnabled else 'DLSS 5 OFF')
@@ -2127,9 +2152,6 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._dlssCaptureTimer.stop()
         if self._dlssState != 'active':
             self._dlssState = 'active'
-            self.dlssButton.setText('DLSS ON')
-            self.dlssButton.setStyleSheet(self.subtitleButton.styleSheet() +
-                                         'QPushButton:checked { color: #39ff14; border-color: #39ff14; }')
             self._showVideoOsd('dlss', 'DLSS 5 ACTIVE')
         self.dlssButton.setToolTip(f'DLSS 5 active: {self._dlssProcessor.frameCount} frames processed. '
                                    f'Log: {self._dlssProcessor.logPath}')
@@ -2145,7 +2167,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._dlssProcessor.record('Toggle failed: ' + message)
         self._dlssProcessor.stop()
         self.dlssButton.setChecked(False)
-        self.dlssButton.setText('DLSS FAILED')
+        self.dlssButton.setText('DLSS')
         self.dlssButton.setToolTip(message + '. Normal video restored. Log: ' + str(self._dlssProcessor.logPath))
         self._syncDlss()
         self._showVideoOsd('dlss', 'DLSS FAILED: ' + message)
@@ -2163,11 +2185,10 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if self._dlssEnabled and self._dlssState in ('starting', 'waiting'):
             if chosen is None:
                 self._dlssState = 'waiting'
-                self.dlssButton.setText('DLSS WAITING')
+                self.dlssButton.setToolTip('DLSS enabled; waiting for a film')
                 self._dlssCaptureTimer.stop()
             else:
                 self._dlssState = 'starting'
-                self.dlssButton.setText('DLSS ON')
                 if not self._dlssCaptureTimer.isActive():
                     self._dlssProcessor.record('Selected video for DLSS')
                     self._dlssCaptureTimer.start()
@@ -2333,7 +2354,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
             if spacing >= 0:
                 layout.setSpacing(max(1, round(spacing * scale)))
         height = max(round(34 * scale), self.muteButton.fontMetrics().height() + round(12 * scale))
-        for button in (self.muteButton, self.guideButton):
+        for button in (self.muteButton, self.guideButton, self.dlssButton):
             width = max(round(height * 1.5), button.fontMetrics().horizontalAdvance(button.text()) + round(14 * scale))
             button.setFixedSize(width, height)
             button.setStyleSheet(button.styleSheet() +

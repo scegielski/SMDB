@@ -100,8 +100,8 @@ class RemoteDock(QtWidgets.QDockWidget):
                 return False
             if watched is not self and not self.isAncestorOf(watched):
                 return False
-            # Scrollbar gestures retain their normal behavior.
-            if isinstance(watched, QtWidgets.QScrollBar):
+            # Slider and scrollbar gestures retain their normal behavior.
+            if isinstance(watched, QtWidgets.QAbstractSlider):
                 return False
             corner = self._cornerAt(event.globalPos())
             if corner and self._press is None:

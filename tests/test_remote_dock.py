@@ -34,6 +34,31 @@ class RemoteDockTests(unittest.TestCase):
                 tv.toggleFullScreen();self.app.processEvents();self.assertTrue(dock.isVisible())
                 self.assertTrue(dock.isFloating())
         finally:tv.close()
+    def test_dlss_intensity_drag_adjusts_strength_without_moving_remote(self):
+        tv=RetroChannelWidget();tv.resize(1000,1000)
+        try:
+            tv.show();self.app.processEvents()
+            dock=tv.controlsDock;dock.setFloating(True);self.app.processEvents()
+            slider=tv.dlssIntensitySlider
+            before=dock.pos()
+            start=slider.rect().center()
+            end=start+QtCore.QPoint(35,0)
+            QtTest.QTest.mousePress(slider,QtCore.Qt.LeftButton,pos=start)
+            event=QtGui.QMouseEvent(QtCore.QEvent.MouseMove,QtCore.QPointF(end),
+                QtCore.QPointF(slider.mapToGlobal(end)),QtCore.Qt.NoButton,QtCore.Qt.LeftButton,QtCore.Qt.NoModifier)
+            self.app.sendEvent(slider,event)
+            QtTest.QTest.mouseRelease(slider,QtCore.Qt.LeftButton,pos=end)
+            self.assertEqual(dock.pos(),before)
+            self.assertGreater(slider.value(),100)
+            self.assertEqual(tv._dlssProcessor.intensityPercent,slider.value())
+            self.assertIn(str(slider.value()),tv.dlssIntensityLabel.text())
+            layout=tv.channelUpButton.parentWidget().layout()
+            self.assertIs(layout.itemAtPosition(0,2).widget(),tv.dlssButton)
+            self.assertIs(layout.itemAtPosition(0,1).widget(),tv.channelUpButton)
+            self.assertIs(layout.itemAtPosition(1,2).widget(),tv.volumeUpButton)
+        finally:
+            tv.close()
+
     def test_explicit_button_and_titleless_surface_drag(self):
         tv=RetroChannelWidget();tv.resize(1000,1000)
         try:

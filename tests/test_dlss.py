@@ -37,16 +37,16 @@ class DlssTests(unittest.TestCase):
         tv = RetroChannelWidget()
         try:
             tv.setDlssEnabled(True)
-            self.assertEqual(tv.dlssButton.text(), 'DLSS WAITING')
+            self.assertEqual(tv.dlssButton.text(), 'DLSS')
             self.assertTrue(tv.dlssButton.isChecked())
             tv._dlssProcessor.frameCount = 2
             tv._dlssFrameReady()
-            self.assertEqual(tv.dlssButton.text(), 'DLSS ON')
+            self.assertEqual(tv.dlssButton.text(), 'DLSS')
             self.assertIn('2 frames processed', tv.dlssButton.toolTip())
             self.assertEqual(tv._videoOsdStatus['dlss'][0], 'DLSS 5 ACTIVE')
             tv._dlssFailed('Test error')
             self.assertFalse(tv.dlssButton.isChecked())
-            self.assertEqual(tv.dlssButton.text(), 'DLSS FAILED')
+            self.assertEqual(tv.dlssButton.text(), 'DLSS')
             self.assertIn('Test error', tv.dlssButton.toolTip())
             self.assertTrue(tv._dlssProcessor.logPath.is_file())
         finally:
@@ -98,6 +98,13 @@ class DlssTests(unittest.TestCase):
             view.setDlssEnabled(True, processor, prewarm=True)
             waitFor(lambda: processor.frameCount == 3)
             self.assertEqual(processor.log.count('feature created'), 2)
+            processor.intensityPercent = 0
+            view._frameSurface.submitFrame()
+            waitFor(lambda: processor.frameCount == 4)
+            self.assertEqual(view._enhancedItem.pixmap().toImage().pixelColor(100, 100), QtGui.QColor('blue'))
+            processor.intensityPercent = 200
+            view._frameSurface.submitFrame()
+            waitFor(lambda: processor.frameCount == 5)
         finally:
             processor.stop(); surface.stop(); view.close()
 
