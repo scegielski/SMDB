@@ -88,6 +88,16 @@ class DlssTests(unittest.TestCase):
             waitFor(lambda: processor.frameCount == 2)
             self.assertEqual(processor.process.processId(), pid)
             self.assertEqual(processor.log.count('feature created'), 1)
+            view.setDlssEnabled(False, processor, prewarm=True)
+            smaller = image.scaled(320, 180)
+            surface.stop()
+            self.assertTrue(surface.start(QVideoSurfaceFormat(smaller.size(), QVideoFrame.Format_RGB32)))
+            surface.present(QVideoFrame(smaller))
+            waitFor(lambda: processor._warmSize == (320, 180))
+            self.assertEqual(processor.process.processId(), pid)
+            view.setDlssEnabled(True, processor, prewarm=True)
+            waitFor(lambda: processor.frameCount == 3)
+            self.assertEqual(processor.log.count('feature created'), 2)
         finally:
             processor.stop(); surface.stop(); view.close()
 
@@ -113,6 +123,19 @@ class DlssTests(unittest.TestCase):
             self.assertTrue(frames, processor.log)
             self.assertTrue(view._enhancedItem.isVisible())
             self.assertIn('feature created', processor.log)
+            # During an in-flight evaluation, decode newer frames without copying
+            # each one; completion must process the most recent decoded frame.
+            frame = QVideoFrame(image); frame.setStartTime(100000)
+            surface.present(frame)
+            frame = QVideoFrame(image); frame.setStartTime(200000)
+            surface.present(frame)
+            frame = QVideoFrame(image); frame.setStartTime(300000)
+            surface.present(frame)
+            deadline = time.monotonic() + 15
+            while processor._lastTimestamp != 300000 and not failures and time.monotonic() < deadline:
+                QtTest.QTest.qWait(10)
+            self.assertFalse(failures, processor.log)
+            self.assertEqual(processor._lastTimestamp, 300000)
             view.setDlssEnabled(False, processor)
             self.assertFalse(view._enhancedItem.isVisible())
         finally:

@@ -128,6 +128,9 @@ class _FrameSurface(QAbstractVideoSurface):
         if warmOnly and (not self.view._dlssPrewarm or not self.view._dlssProcessor.needsWarm(
                 self.lastFrame.width(), self.lastFrame.height())):
             return
+        if not warmOnly and self.view._dlssProcessor._busy:
+            self.view._dlssProcessor.deferFrame(self.view)
+            return
         frame = QVideoFrame(self.lastFrame)
         if not frame.map(QAbstractVideoBuffer.ReadOnly):
             return

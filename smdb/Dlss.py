@@ -4,6 +4,8 @@ from pathlib import Path
 import struct
 import datetime
 import weakref
+import mmap
+import uuid
 from PyQt5 import QtCore, QtGui, sip
 
 
@@ -38,12 +40,16 @@ class DlssProcessor(QtCore.QObject):
         self._buffer = bytearray()
         self._busy = None
         self._pending = None
+        self._deferredView = None
         self._lastSource = None
         self._lastTimestamp = None
         self.log = ''
         self._stopping = False
         self.frameCount = 0
         self._warmSize = None
+        self._sharedBuffer = None
+        self._sharedSize = 0
+        self._sharedName = None
         folder = Path(QtCore.QStandardPaths.writableLocation(QtCore.QStandardPaths.AppLocalDataLocation))
         folder.mkdir(parents=True, exist_ok=True)
         self.logPath = folder / 'smtv-dlss.log'
@@ -63,6 +69,10 @@ class DlssProcessor(QtCore.QObject):
         size = (width, height)
         return (self.available() and self._warmSize != size
                 and not (self._busy and self._busy[1:3] == size))
+
+    def deferFrame(self, view):
+        # Keep a reference to the latest decoded frame, not a converted CPU image.
+        self._deferredView = (weakref.ref(view), view._dlssGeneration)
 
     def submit(self, view, image, timestamp, warmOnly=False):
         if not self.available():
@@ -95,7 +105,21 @@ class DlssProcessor(QtCore.QObject):
         self._busy = (viewRef, image.width(), image.height(), generation, warmOnly)
         self._buffer.clear()
         self.timer.start()
-        self.process.write(struct.pack('<III', image.width(), image.height(), (2 if warmOnly else int(reset))) + bytes(pointer))
+        flags = 2 if warmOnly else int(reset)
+        if os.name == 'nt':
+            length = image.byteCount()
+            if self._sharedSize != length:
+                if self._sharedBuffer is not None:
+                    self._sharedBuffer.close()
+                self._sharedName = 'SMTV-DLSS-' + uuid.uuid4().hex
+                self._sharedBuffer = mmap.mmap(-1, length * 2, tagname=self._sharedName)
+                self._sharedSize = length
+            self._sharedBuffer[:length] = bytes(pointer)
+            name = self._sharedName.encode('ascii')
+            packet = struct.pack('<IIII', image.width(), image.height(), flags | 4, len(name)) + name
+        else:
+            packet = struct.pack('<III', image.width(), image.height(), flags) + bytes(pointer)
+        self.process.write(packet)
 
     def _readLog(self):
         message = bytes(self.process.readAllStandardError()).decode(errors='replace')
@@ -112,13 +136,15 @@ class DlssProcessor(QtCore.QObject):
         if length != width * height * 4:
             self._fail('DLSS initialization or evaluation failed')
             return
-        if len(self._buffer) < length + 4:
+        if len(self._buffer) < (4 if self._sharedBuffer is not None else length + 4):
             return
         self.timer.stop()
         self._warmSize = (width, height)
         view = viewRef()
         if not warmOnly and view is not None and not sip.isdeleted(view) and view.dlssEnabled and view._dlssGeneration == generation:
-            image = QtGui.QImage(bytes(self._buffer[4:4+length]), width, height,
+            pixels = (self._sharedBuffer[length:length*2] if self._sharedBuffer is not None
+                      else bytes(self._buffer[4:4+length]))
+            image = QtGui.QImage(pixels, width, height,
                                  QtGui.QImage.Format_RGBA8888).copy()
             view.showDlssFrame(image)
             self.frameCount += 1
@@ -128,8 +154,13 @@ class DlssProcessor(QtCore.QObject):
         self._busy = None
         self._buffer.clear()
         job, self._pending = self._pending, None
+        deferred, self._deferredView = self._deferredView, None
         if job:
             self._send(job)
+        elif deferred:
+            view = deferred[0]()
+            if view is not None and not sip.isdeleted(view) and view.dlssEnabled and view._dlssGeneration == deferred[1]:
+                view._frameSurface.submitFrame()
 
     def _fail(self, message):
         if self._stopping:
@@ -148,8 +179,14 @@ class DlssProcessor(QtCore.QObject):
         self._warmSize = None
         self.timer.stop()
         self._pending = self._busy = None
+        self._deferredView = None
         self._buffer.clear()
         self._lastSource = self._lastTimestamp = None
         if self.process.state() != QtCore.QProcess.NotRunning:
             self.process.kill()
             self.process.waitForFinished(1000)
+        if self._sharedBuffer is not None:
+            self._sharedBuffer.close()
+            self._sharedBuffer = None
+            self._sharedName = None
+            self._sharedSize = 0

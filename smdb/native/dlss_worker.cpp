@@ -549,6 +549,16 @@ static bool Initialize(UINT w, UINT h) {
     return true;
 }
 
+// Precompute exact scalar conversions once instead of doing floating-point
+// bit conversion and clamping for every channel of every video frame.
+static uint16_t g_byteToHalf[256];
+static uint8_t g_halfToByte[65536];
+static void InitializeConversions() {
+    for(unsigned i=0;i<256;++i) g_byteToHalf[i]=FloatToHalf(i/255.0f);
+    for(unsigned i=0;i<65536;++i)
+        g_halfToByte[i]=(uint8_t)std::max(0.f,std::min(255.f,HalfToFloat((uint16_t)i)*255.f+0.5f));
+}
+
 static bool Process(const uint8_t* input, uint8_t* result, bool reset) {
     const UINT w=g_width,h=g_height;
     void* mapped=nullptr;
@@ -556,7 +566,7 @@ static bool Process(const uint8_t* input, uint8_t* result, bool reset) {
     for(UINT y=0;y<h;++y) {
         uint16_t* row=(uint16_t*)((uint8_t*)mapped+y*g_pitch);
         for(UINT x=0;x<w;++x) for(UINT c=0;c<4;++c)
-            row[x*4+c]=FloatToHalf(input[(y*w+x)*4+c]/255.0f);
+            row[x*4+c]=g_byteToHalf[input[(y*w+x)*4+c]];
     }
     g_upload->Unmap(0,nullptr);
     auto b=TransitionBarrier(g_color.Get(),D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_COPY_DEST);
@@ -583,7 +593,7 @@ static bool Process(const uint8_t* input, uint8_t* result, bool reset) {
     for(UINT y=0;y<h;++y) {
         const uint16_t* row=(const uint16_t*)((const uint8_t*)mapped+y*g_pitch);
         for(UINT x=0;x<w;++x) {
-            for(UINT c=0;c<3;++c) result[(y*w+x)*4+c]=(uint8_t)std::max(0.f,std::min(255.f,HalfToFloat(row[x*4+c])*255.f+0.5f));
+            for(UINT c=0;c<3;++c) result[(y*w+x)*4+c]=g_halfToByte[row[x*4+c]];
             result[(y*w+x)*4+3]=255;
         }
     }
@@ -594,20 +604,46 @@ int wmain(int argc,wchar_t** argv) {
     if(argc!=2) return 1;
     g_base=argv[1];
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    InitializeConversions();
+    // Large binary frame transfers should not issue thousands of tiny CRT reads/writes.
+    setvbuf(stdin,nullptr,_IOFBF,1024*1024);
+    setvbuf(stdout,nullptr,_IOFBF,1024*1024);
+    std::vector<uint8_t> input,output;
+    HANDLE sharedHandle=nullptr; uint8_t* shared=nullptr; std::string sharedName;
     struct Header { uint32_t width,height,reset; } header;
     while(fread(&header,1,sizeof(header),stdin)==sizeof(header)) {
         if(!header.width || !header.height || header.width>8192 || header.height>8192) break;
         const size_t length=(size_t)header.width*header.height*4;
-        std::vector<uint8_t> input(length),output(length);
-        if(fread(input.data(),1,length,stdin)!=length) break;
+        const bool useShared=(header.reset & 4)!=0;
+        if(useShared) {
+            uint32_t nameLength=0;
+            if(fread(&nameLength,4,1,stdin)!=1 || !nameLength || nameLength>128) break;
+            std::string name(nameLength,'\0');
+            if(fread(&name[0],1,nameLength,stdin)!=nameLength) break;
+            if(name!=sharedName) {
+                if(shared) UnmapViewOfFile(shared);
+                if(sharedHandle) CloseHandle(sharedHandle);
+                sharedHandle=OpenFileMappingA(FILE_MAP_ALL_ACCESS,FALSE,name.c_str());
+                shared=sharedHandle ? (uint8_t*)MapViewOfFile(sharedHandle,FILE_MAP_ALL_ACCESS,0,0,length*2) : nullptr;
+                sharedName=name;
+                if(!shared) { uint32_t n=0;fwrite(&n,4,1,stdout);fflush(stdout);return 4; }
+            }
+        } else {
+            input.resize(length);output.resize(length);
+            if(fread(input.data(),1,length,stdin)!=length) break;
+        }
+        const uint8_t* inputPixels=useShared ? shared : input.data();
+        uint8_t* outputPixels=useShared ? shared+length : output.data();
         if(header.width!=g_width || header.height!=g_height) {
             Cleanup();
             if(!Initialize(header.width,header.height)) { uint32_t n=0;fwrite(&n,4,1,stdout);fflush(stdout);Cleanup();return 2; }
         }
-        if(header.reset & 2) output = input; // Prepare resources without changing normal playback.
-        else if(!g_shim_eval || !Process(input.data(),output.data(),(header.reset & 1)!=0)) { uint32_t n=0;fwrite(&n,4,1,stdout);fflush(stdout);return 3; }
+        if(header.reset & 2) { if(!useShared) output = input; } // Prepare resources without changing normal playback.
+        else if(!g_shim_eval || !Process(inputPixels,outputPixels,(header.reset & 1)!=0)) { uint32_t n=0;fwrite(&n,4,1,stdout);fflush(stdout);return 3; }
         uint32_t n=(uint32_t)length;
-        fwrite(&n,4,1,stdout);fwrite(output.data(),1,length,stdout);fflush(stdout);
+        fwrite(&n,4,1,stdout);if(!useShared) fwrite(output.data(),1,length,stdout);fflush(stdout);
     }
+    if(shared) UnmapViewOfFile(shared);
+    if(sharedHandle) CloseHandle(sharedHandle);
     Cleanup();return 0;
 }
