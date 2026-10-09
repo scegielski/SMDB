@@ -6,3 +6,7 @@ settings.json
 smdb/native/*.exe
 smdb/native/*.obj
 smdb/native/runtime/
+
+smdb/native/*.dll
+smdb/native/*.lib
+smdb/native/*.exp

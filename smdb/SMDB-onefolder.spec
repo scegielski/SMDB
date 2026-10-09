@@ -14,6 +14,9 @@ REPO_ROOT = os.path.abspath(os.getcwd())
 datas = [(os.path.join(REPO_ROOT, 'smdb', 'assets'), 'smdb/assets')]
 # Supply local DLSS files exactly as in the native NR player; never fetch runtimes.
 worker = Path(REPO_ROOT) / 'smdb' / 'native' / 'dlss_worker.exe'
+interop = worker.parent / 'dlss_interop.dll'
+if interop.is_file():
+    datas.append((str(interop), 'smdb/native'))
 if worker.is_file():
     datas.append((str(worker), 'smdb/native'))
     candidates = [Path(os.environ.get('SMDB_DLSS_RUNTIME', str(worker.parent / 'runtime')))]

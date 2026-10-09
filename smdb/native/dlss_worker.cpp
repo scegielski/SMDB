@@ -331,7 +331,9 @@ static std::wstring g_base;
 static HMODULE g_core=nullptr, g_nr=nullptr, g_shim=nullptr;
 static ComPtr<ID3D12Resource> g_color, g_output, g_upload, g_readback;
 static UINT g_width=0, g_height=0, g_pitch=0;
+static void CleanupGpu();
 static void Cleanup() {
+    CleanupGpu();
     if(g_feature) { if(g_shim_release) g_shim_release((void*)g_nr_release,g_feature); else if(g_release) g_release(g_feature); }
     g_feature=nullptr;
     if(g_params && g_core) { auto destroy=(NVSDK_NGX_Result (*)(NVSDK_NGX_Parameter*))GetProcAddress(g_core,"NVSDK_NGX_D3D12_DestroyParameters"); if(destroy) destroy(g_params); }
@@ -580,6 +582,8 @@ static uint8_t BlendPixel(uint16_t enhanced,uint8_t original) {
     return (uint8_t)std::max(0,std::min(255,value));
 }
 
+#include "dlss_gpu.h"
+
 static bool Process(const uint8_t* input, uint8_t* result, bool reset) {
     const UINT w=g_width,h=g_height;
     void* mapped=nullptr;
@@ -664,7 +668,10 @@ int wmain(int argc,wchar_t** argv) {
             Cleanup();
             if(!Initialize(header.width,header.height)) { uint32_t n=0;fwrite(&n,4,1,stdout);fflush(stdout);Cleanup();return 2; }
         }
-        if(header.reset & 2) { if(!useShared) output = input; } // Prepare resources without changing normal playback.
+        const bool gpuPresentation=(header.reset & 16)!=0;
+        if(gpuPresentation && (!useShared || !InitializeGpu(sharedName))) { uint32_t n=0;fwrite(&n,4,1,stdout);fflush(stdout);return 5; }
+        if(header.reset & 2) { if(!useShared) output = input; }
+        else if(gpuPresentation) { if(!ProcessGpu(inputPixels,(header.reset & 1)!=0)){uint32_t n=0;fwrite(&n,4,1,stdout);fflush(stdout);return 6;} } // Prepare resources without changing normal playback.
         else if(!g_shim_eval || !Process(inputPixels,outputPixels,(header.reset & 1)!=0)) { uint32_t n=0;fwrite(&n,4,1,stdout);fflush(stdout);return 3; }
         uint32_t n=(uint32_t)length;
         fwrite(&n,4,1,stdout);if(!useShared) fwrite(output.data(),1,length,stdout);fflush(stdout);

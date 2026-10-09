@@ -26,3 +26,11 @@ NVIDIA/NGX/DLSS components retain their owners' terms. This integration is indep
 Frame conversion uses exact lookup tables and reused native buffers. Incoming decoded frames are retained without conversion while the worker is busy; the latest frame is converted on completion. This avoids converting discarded frames and keeps playback latency bounded.
 
 Intensity matches the original player: a 0–200% blend of original and enhanced pixels, with 100% as the default. NR evaluation parameters remain unchanged. Protocol bit 3 adds a four-byte unsigned intensity percentage immediately after the header, before the mapping name or frame payload. Zero reproduces original RGBA8; the CPU blend uses precomputed fixed-point contributions and clamps the final result.
+
+## GPU presentation
+
+The default Windows path now follows `nr_player.cpp`: GPU conversion to FP16, NGX evaluation, GPU intensity blending, and GPU presentation. Qt still supplies decoded RGBA8 input and manages audio, seeking, subtitles, and overlays. Enhanced output is never read back to CPU memory or converted into a QPixmap.
+
+Protocol bit 4 selects GPU output with named shared-memory input. The worker publishes a named D3D12 RGBA8 texture (`mapping-name-gpu`) and acknowledges completion after its fence. `dlss_interop.dll` opens it through D3D11, copies the completed frame into a GPU texture registered with WGL_NV_DX_interop2, and exposes that texture to a composited QOpenGLWidget. Copies occur only on completed-frame notifications; ordinary repaints use the cached GPU texture. OpenGL consumption completes before the next worker request. The build script compiles both the worker and interop DLL, and PyInstaller includes both.
+
+Unsupported OpenGL interop automatically falls back to the original CPU presentation path while keeping DLSS enabled. On the same visible 960x540 view with a 1920x1080 60fps clip, GPU presentation displayed approximately 45 enhanced fps versus 20 with CPU presentation. This is a local measurement, not a guarantee of 60fps or complete decoder parity with the standalone player. Hardware checks cover orientation, captions/OSD, paused seeking, fullscreen transitions, resolution changes, toggle-off, and fallback.

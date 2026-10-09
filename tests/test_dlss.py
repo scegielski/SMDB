@@ -54,6 +54,7 @@ class DlssTests(unittest.TestCase):
 
     def test_prewarm_keeps_normal_video_and_reuses_worker_on_toggle(self):
         processor = DlssProcessor()
+        processor.useGpuPresentation = False
         if os.name != 'nt' or not processor.available():
             self.skipTest('Native worker and local DLSS runtime required')
         view = VideoView()
@@ -108,8 +109,93 @@ class DlssTests(unittest.TestCase):
         finally:
             processor.stop(); surface.stop(); view.close()
 
+    def test_unavailable_gpu_compositor_falls_back_without_disabling_dlss(self):
+        from unittest.mock import patch
+        processor = DlssProcessor()
+        if os.name != 'nt' or not processor.available():
+            self.skipTest('Native Windows GPU runtime required')
+        view = VideoView(); view.resize(200,200); view.show()
+        if not view._gpuView.supported():
+            view.close(); self.skipTest('GPU helper required')
+        image = QtGui.QImage(320,180,QtGui.QImage.Format_RGB32)
+        image.fill(QtGui.QColor('blue'))
+        surface=view.videoSurface()
+        failures=[];processor.failed.connect(failures.append)
+        try:
+            surface.start(QVideoSurfaceFormat(image.size(),QVideoFrame.Format_RGB32))
+            surface.present(QVideoFrame(image))
+            with patch.object(view,'showDlssGpuFrame',side_effect=RuntimeError('Unsupported compositor')):
+                view.setDlssEnabled(True,processor)
+                deadline=time.monotonic()+15
+                while not processor.frameCount and not failures and time.monotonic()<deadline:
+                    QtTest.QTest.qWait(10)
+            self.assertFalse(failures,processor.log)
+            self.assertGreater(processor.frameCount,0)
+            self.assertFalse(processor.useGpuPresentation)
+            self.assertTrue(view.dlssEnabled)
+            self.assertTrue(view._enhancedItem.isVisible())
+        finally:
+            processor.stop();surface.stop();view.close()
+
+    def test_gpu_presentation_preserves_orientation_captions_and_original_on_toggle(self):
+        from smdb.Subtitles import SubtitleController
+        processor = DlssProcessor()
+        if os.name != 'nt' or not processor.available():
+            self.skipTest('Native Windows GPU runtime required')
+        view = VideoView(); view.resize(640, 360); view.show()
+        if not view._gpuView.supported():
+            view.close(); self.skipTest('GPU presentation helper required')
+        processor.intensityPercent = 0
+        image = QtGui.QImage(640, 360, QtGui.QImage.Format_RGB32)
+        image.fill(QtGui.QColor('blue'))
+        painter = QtGui.QPainter(image)
+        painter.fillRect(0, 0, 640, 90, QtGui.QColor('red')); painter.end()
+        surface = view.videoSurface()
+        failures = []; processor.failed.connect(failures.append)
+        def waitFor(condition):
+            deadline = time.monotonic()+15
+            while not condition() and not failures and time.monotonic()<deadline:
+                QtTest.QTest.qWait(10)
+            self.assertFalse(failures, processor.log)
+            self.assertTrue(condition(), processor.log)
+        try:
+            surface.start(QVideoSurfaceFormat(image.size(), QVideoFrame.Format_RGB32))
+            surface.present(QVideoFrame(image))
+            view.setDlssEnabled(True, processor)
+            waitFor(lambda: processor.frameCount == 1)
+            self.assertTrue(view._gpuView.isVisible())
+            self.assertFalse(view._enhancedItem.isVisible())
+            frame = view._gpuView.grabFramebuffer()
+            self.assertEqual(frame.pixelColor(320, 30), QtGui.QColor('red'))
+            self.assertEqual(frame.pixelColor(320, 180), QtGui.QColor('blue'))
+            captions = SubtitleController(view); captions.enabled = True
+            captions._setCues([(0, 5000, 'GPU caption')]); captions.updatePosition(1000)
+            view.osd.display('volume', 70); self.app.processEvents()
+            rendered = view.grab().toImage()
+            self.assertGreater(sum(rendered.pixelColor(x, y).red()>200 and
+                                   rendered.pixelColor(x, y).green()>200
+                                   for x in range(190,450) for y in range(305,335)), 50)
+            view.showFullScreen(); self.app.processEvents()
+            view._frameSurface.submitFrame()
+            waitFor(lambda: processor.frameCount == 2)
+            self.assertIsNone(view._gpuView.error)
+            view.showNormal(); view.resize(640,360); self.app.processEvents()
+            # Resolution/texture changes must not reuse the old registration.
+            smaller = image.scaled(320, 180)
+            surface.stop(); surface.start(QVideoSurfaceFormat(smaller.size(), QVideoFrame.Format_RGB32))
+            surface.present(QVideoFrame(smaller))
+            waitFor(lambda: processor.frameCount == 3)
+            self.assertEqual(processor._warmSize, (320,180))
+            view.setDlssEnabled(False, processor)
+            self.assertFalse(view._gpuView.isVisible())
+            self.app.processEvents()
+            self.assertEqual(view.viewport().grab().toImage().pixelColor(320, 180), QtGui.QColor('blue'))
+        finally:
+            processor.stop(); surface.stop(); view.close()
+
     def test_native_pipeline_returns_enhanced_frame_and_toggle_restores_original(self):
         processor = DlssProcessor()
+        processor.useGpuPresentation = False
         if os.name != 'nt' or not processor.available():
             self.skipTest('Native worker and local DLSS runtime required')
         view = VideoView(); view.resize(640, 360); view.show()

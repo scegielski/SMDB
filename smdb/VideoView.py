@@ -1,5 +1,6 @@
 """Composited Qt video view, allowing captions to paint over video frames."""
 import time
+from .DlssGpu import DlssGpuView
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtMultimediaWidgets import QGraphicsVideoItem
@@ -116,7 +117,8 @@ class _FrameSurface(QAbstractVideoSurface):
         super().stop()
 
     def present(self, frame):
-        result = self.original.present(frame)
+        result = (frame.isValid() if self.view.dlssEnabled and self.view._gpuView.isVisible()
+                  else self.original.present(frame))
         self.lastFrame = QVideoFrame(frame)
         self.submitFrame()
         return result
@@ -150,6 +152,7 @@ class VideoView(QtWidgets.QGraphicsView):
         super().__init__(parent)
         self.setMouseTracking(True)
         self.viewport().setMouseTracking(True)
+        self._gpuView = DlssGpuView(self.viewport())
         self.osd = VideoOsd(self.viewport())
         self.setScene(QtWidgets.QGraphicsScene(self))
         self.videoItem = QGraphicsVideoItem()
@@ -185,12 +188,25 @@ class VideoView(QtWidgets.QGraphicsView):
         self._dlssPrewarm = prewarm
         self._dlssProcessor = processor
         self.resetDlssFrame()
+        if not enabled and self._frameSurface.lastFrame is not None:
+            self._frameSurface.original.present(self._frameSurface.lastFrame)
         if enabled or prewarm:
             self._frameSurface.submitFrame()
 
     def resetDlssFrame(self):
         self._dlssGeneration += 1
         self._enhancedItem.hide()
+        wasGpuVisible = self._gpuView.isVisible()
+        self._gpuView.hide()
+        if wasGpuVisible and self._frameSurface.lastFrame is not None:
+            self._frameSurface.original.present(self._frameSurface.lastFrame)
+
+    def showDlssGpuFrame(self, name, width, height):
+        self._gpuView.setGeometry(self.viewport().rect())
+        self._gpuView.present(name, width, height)
+        for widget in self.viewport().findChildren(QtWidgets.QWidget, options=QtCore.Qt.FindDirectChildrenOnly):
+            if widget is not self._gpuView:
+                widget.raise_()
 
     def showDlssFrame(self, image):
         self._enhancedItem.setPixmap(QtGui.QPixmap.fromImage(image))
@@ -210,6 +226,7 @@ class VideoView(QtWidgets.QGraphicsView):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self._fitDlssFrame()
+        self._gpuView.setGeometry(self.viewport().rect())
         size = QtCore.QSizeF(self.viewport().size())
         self.setSceneRect(QtCore.QRectF(QtCore.QPointF(), size))
         self.videoItem.setSize(size)

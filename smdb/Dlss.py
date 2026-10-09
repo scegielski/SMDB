@@ -47,6 +47,7 @@ class DlssProcessor(QtCore.QObject):
         self._stopping = False
         self.frameCount = 0
         self.intensityPercent = 100
+        self.useGpuPresentation = True
         self._warmSize = None
         self._sharedBuffer = None
         self._sharedSize = 0
@@ -106,7 +107,9 @@ class DlssProcessor(QtCore.QObject):
         self._busy = (viewRef, image.width(), image.height(), generation, warmOnly)
         self._buffer.clear()
         self.timer.start()
-        flags = (2 if warmOnly else int(reset)) | 8
+        gpuPresentation = self.useGpuPresentation and view._gpuView.supported()
+        flags = (2 if warmOnly else int(reset)) | 8 | (16 if gpuPresentation else 0)
+        self._busy += (gpuPresentation,)
         if os.name == 'nt':
             length = image.byteCount()
             if self._sharedSize != length:
@@ -133,7 +136,7 @@ class DlssProcessor(QtCore.QObject):
         if self._busy is None or len(self._buffer) < 4:
             return
         length = struct.unpack('<I', self._buffer[:4])[0]
-        viewRef, width, height, generation, warmOnly = self._busy
+        viewRef, width, height, generation, warmOnly, gpuPresentation = self._busy
         if length != width * height * 4:
             self._fail('DLSS initialization or evaluation failed')
             return
@@ -143,11 +146,25 @@ class DlssProcessor(QtCore.QObject):
         self._warmSize = (width, height)
         view = viewRef()
         if not warmOnly and view is not None and not sip.isdeleted(view) and view.dlssEnabled and view._dlssGeneration == generation:
-            pixels = (self._sharedBuffer[length:length*2] if self._sharedBuffer is not None
-                      else bytes(self._buffer[4:4+length]))
-            image = QtGui.QImage(pixels, width, height,
-                                 QtGui.QImage.Format_RGBA8888).copy()
-            view.showDlssFrame(image)
+            if gpuPresentation:
+                try:
+                    view.showDlssGpuFrame(self._sharedName + '-gpu', width, height)
+                except Exception as error:
+                    # ANGLE/remote-desktop contexts may lack NVIDIA interop.
+                    # Keep DLSS functional using the existing CPU display path.
+                    self.record('GPU presentation unavailable; using CPU fallback: ' + str(error))
+                    self.useGpuPresentation = False
+                    view._gpuView.hide()
+                    self._busy = self._pending = self._deferredView = None
+                    self._buffer.clear()
+                    view._frameSurface.submitFrame()
+                    return
+            else:
+                pixels = (self._sharedBuffer[length:length*2] if self._sharedBuffer is not None
+                          else bytes(self._buffer[4:4+length]))
+                image = QtGui.QImage(pixels, width, height,
+                                     QtGui.QImage.Format_RGBA8888).copy()
+                view.showDlssFrame(image)
             self.frameCount += 1
             if self.frameCount == 1:
                 self.record(f'First processed frame displayed: {width}x{height}')
