@@ -2,6 +2,7 @@ import json
 import os
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
@@ -13,6 +14,60 @@ class SchedulePersistenceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+
+    def test_resolved_current_and_surrounding_paths_survive_reorder_and_missing_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            parent = QtWidgets.QWidget()
+            parent.moviesFolder = directory
+            model = parent.moviesTableModel = Mock()
+            identities = [os.path.join(directory, 'movie' + str(i)) for i in range(5)]
+            videos = {identity: identity + '.mkv' for identity in identities}
+            for path in videos.values():
+                with open(path, 'wb'):
+                    pass
+            model.rowCount.return_value = 5
+            model.getPath.side_effect = lambda row: identities[row]
+            model.getGenres.return_value = ['Action']
+            model.getRuntime.return_value = '90'
+            model.getMpaaRating.return_value = 'PG'
+            model.getRating.return_value = 7
+            parent.resolveMovieVideoFile = Mock(side_effect=lambda row: videos[identities[row]])
+            tv = RetroChannelWidget(parent)
+            restored = None
+            try:
+                tv.refreshChannels()
+                clock = tv.channels[0]['clock']
+                current = clock.slotInfo(0)[0]
+                self.assertEqual(tv._resolveVideoPath(current), videos[identities[current]])
+                pool = Mock()
+                pool.start.side_effect = lambda task, priority: task.run()
+                with patch('smdb.RetroChannelWidget.QtCore.QThreadPool.globalInstance', return_value=pool):
+                    tv._warmSurroundingVideoPaths(SimpleNamespace(currentSlotIndex=0, clock=clock))
+                self.assertEqual(parent.resolveMovieVideoFile.call_count, 5)
+                tv._writeScheduleSidecar()
+                with open(os.path.join(directory, 'smtv_schedule.json'), encoding='utf-8') as file:
+                    self.assertEqual(len(json.load(file)['videoPaths']), 5)
+                identities.reverse()
+                restored = RetroChannelWidget(parent)
+                restored.refreshChannels()
+                parent.resolveMovieVideoFile.reset_mock()
+                for row in range(5):
+                    self.assertEqual(restored._resolveVideoPath(row), videos[identities[row]])
+                parent.resolveMovieVideoFile.assert_not_called()
+                missing = videos[identities[0]]
+                os.remove(missing)
+                replacement = missing + '.mp4'
+                with open(replacement, 'wb'):
+                    pass
+                videos[identities[0]] = replacement
+                self.assertEqual(restored._resolveVideoPath(0), replacement)
+                parent.resolveMovieVideoFile.assert_called_once_with(0)
+                self.assertEqual(restored._savedVideoPaths[os.path.normcase(identities[0])], replacement)
+            finally:
+                tv._pathSaveTimer.stop(); tv.close()
+                if restored:
+                    restored._pathSaveTimer.stop(); restored.close()
+                parent.close()
 
     def test_restart_preserves_paths_times_and_live_broadcast_after_row_reorder(self):
         with tempfile.TemporaryDirectory() as directory:

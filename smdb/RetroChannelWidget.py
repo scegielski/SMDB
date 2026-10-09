@@ -1616,6 +1616,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
     """
 
     fontScaleChanged = QtCore.pyqtSignal(float)
+    videoPathResolved = QtCore.pyqtSignal(str, str, str)
     NEIGHBOR_WARM_COUNT = 1  # warm this many channels on either side for instant surfing
     DEFAULT_FONT_SCALE = 2.0
     RETRO_FONT_FAMILIES = (
@@ -1645,6 +1646,13 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._dlssCaptureTimer.timeout.connect(self._dlssCaptureTimeout)
         self._remoteRestored = False
         self._videoPathCache = {}
+        self._savedVideoPaths = {}
+        self._pathWarmRows = set()
+        self._pathSaveTimer = QtCore.QTimer(self)
+        self._pathSaveTimer.setSingleShot(True)
+        self._pathSaveTimer.setInterval(500)
+        self._pathSaveTimer.timeout.connect(self._writeScheduleSidecar)
+        self.videoPathResolved.connect(self._rememberVideoPath)
         self._descriptionCache = {}
         self._filmInfoCache = {}
         self.channels = []
@@ -2540,6 +2548,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         path = os.path.join(folder, 'smtv_schedule.json') if isinstance(folder, str) and os.path.isdir(folder) else None
         if path != self._schedulePath:
             self._savedSchedules = {}
+            self._savedVideoPaths = {}
             self._schedulePath = path
             if path:
                 try:
@@ -2547,6 +2556,10 @@ class RetroChannelWidget(QtWidgets.QWidget):
                         data = json.load(file)
                     if data.get('version') == 1 and isinstance(data.get('channels'), dict):
                         self._savedSchedules = data['channels']
+                        cached = data.get('videoPaths', {})
+                        if isinstance(cached, dict):
+                            self._savedVideoPaths = {key: value for key, value in cached.items()
+                                                     if isinstance(key, str) and isinstance(value, str)}
                 except (OSError, ValueError, AttributeError):
                     pass
 
@@ -2574,6 +2587,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         ]
 
         self._videoPathCache = {}
+        self._pathWarmRows.clear()
         self._descriptionCache = {}
         self._filmInfoCache = {}
         self._availableChannels = newChannels
@@ -2640,11 +2654,17 @@ class RetroChannelWidget(QtWidgets.QWidget):
                 'programs': [{'path': identities[row], 'start': clock._scheduleStarts[index],
                               'end': clock._scheduleEnds[index], 'randomStart': clock._offsetFractions[index]}
                              for index, row in enumerate(clock._rotation)]}
+        self._writeScheduleSidecar()
+
+    def _writeScheduleSidecar(self):
+        if not self._schedulePath:
+            return
         file = QtCore.QSaveFile(self._schedulePath)
         if not file.open(QtCore.QIODevice.WriteOnly):
             print('Unable to save SMTV schedule: ' + file.errorString())
             return
-        payload = json.dumps({'version': 1, 'channels': self._savedSchedules}, indent=2).encode('utf-8')
+        payload = json.dumps({'version': 1, 'channels': self._savedSchedules,
+                              'videoPaths': self._savedVideoPaths}, indent=2).encode('utf-8')
         if file.write(payload) != len(payload) or not file.commit():
             print('Unable to save SMTV schedule: ' + file.errorString())
 
@@ -2769,8 +2789,21 @@ class RetroChannelWidget(QtWidgets.QWidget):
             return 0
 
     def _resolveVideoPath(self, row):
+        schedulePath = self._schedulePath or ''
         if row in self._videoPathCache:
-            return self._videoPathCache[row]
+            cached = self._videoPathCache[row]
+            if cached is None or os.path.isfile(cached):
+                return cached
+        model = getattr(self.mainWindow, 'moviesTableModel', None)
+        try:
+            identity = model.getPath(row)
+            identity = os.path.normcase(os.path.normpath(identity)) if isinstance(identity, str) and identity else None
+        except (AttributeError, IndexError, TypeError):
+            identity = None
+        cached = self._savedVideoPaths.get(identity)
+        if cached and os.path.isfile(cached):
+            self._videoPathCache[row] = cached
+            return cached
         path = None
         if self.mainWindow and hasattr(self.mainWindow, 'resolveMovieVideoFile'):
             try:
@@ -2778,7 +2811,35 @@ class RetroChannelWidget(QtWidgets.QWidget):
             except Exception:
                 path = None
         self._videoPathCache[row] = path
+        if identity and (isinstance(path, str) or path is None):
+            # Resolution runs on worker threads; persist only on the GUI thread.
+            try:
+                self.videoPathResolved.emit(schedulePath, identity, path or '')
+            except RuntimeError:
+                pass  # Widget was destroyed while a resolution finished.
         return path
+
+    def _rememberVideoPath(self, schedulePath, identity, path):
+        if schedulePath != (self._schedulePath or ''):
+            return
+        if self._savedVideoPaths.get(identity) != path:
+            if path:
+                self._savedVideoPaths[identity] = path
+            else:
+                self._savedVideoPaths.pop(identity, None)
+            self._pathSaveTimer.start()
+
+    def _warmSurroundingVideoPaths(self, engine):
+        slot = engine.currentSlotIndex
+        if not isinstance(slot, int) or not isinstance(engine.clock, ChannelClock):
+            return
+        for offset in (-2, -1, 1, 2):
+            row = engine.clock.slotInfo(slot + offset)[0]
+            if row in self._pathWarmRows or row in self._videoPathCache:
+                continue
+            self._pathWarmRows.add(row)
+            task = _PathResolveTask(0, [row], self._resolveVideoPath)
+            QtCore.QThreadPool.globalInstance().start(task, -1)
 
     def _titleForRow(self, row):
         model = getattr(self.mainWindow, 'moviesTableModel', None)
@@ -3087,6 +3148,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         engine = self.engines.get(idx)
         if engine is None:
             return
+        self._warmSurroundingVideoPaths(engine)
         if idx == self.currentIndex:
             self._showBanner(engine)
             self._updateNowPlayingLabel(engine)
@@ -3632,6 +3694,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if self._fullScreenTransition:
             return
         self._saveRemoteState()
+        self._pathSaveTimer.stop()
+        self._writeScheduleSidecar()
         self.controlsDock.hide()
         self.isActive = False
         self.remoteIdleTimer.stop()
