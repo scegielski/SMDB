@@ -79,6 +79,7 @@ class SubtitleController(QtCore.QObject):
         # Captions are ordinary children of the composited video viewport.
         self.canvas = video.viewport() if hasattr(video, 'viewport') else video
         self.label = _CaptionLabel(self.canvas)
+        self.label.setProperty('videoCaption', True)
         self.label.setTextFormat(QtCore.Qt.PlainText)
         self.label.setAlignment(QtCore.Qt.AlignCenter)
         self.label.setWordWrap(True)

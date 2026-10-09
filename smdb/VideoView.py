@@ -55,39 +55,47 @@ class VideoOsd(QtWidgets.QWidget):
                 painter.drawText(rect.translated(dx, dy), align, label)
             painter.setPen(green)
             painter.drawText(rect, align, label)
+        lines = []
         if 'channel' in self.items:
             number, name = self.items['channel'][0]
-            rect = QtCore.QRect(margin, margin, self.width() - margin * 2, size * 2)
-            label = QtGui.QFontMetrics(font).elidedText(f'CH {number:02d}  {name.upper()}', QtCore.Qt.ElideRight, rect.width())
-            text(rect, label)
+            lines.append((f'CH {number:02d}  {name.upper()}', QtCore.Qt.AlignLeft))
         if 'seek' in self.items:
             seconds, timestamp = self.items['seek'][0]
-            top = round(self.height() * .32)
-            rect = QtCore.QRect(margin, top, self.width() - margin * 2, round(size * 1.4))
-            text(rect, f'{seconds:+d} SEC', QtCore.Qt.AlignCenter)
-            rect.translate(0, round(size * 1.4))
-            text(rect, time.strftime('%I:%M:%S %p', time.localtime(timestamp)), QtCore.Qt.AlignCenter)
-        if 'dlss' in self.items:
-            text(QtCore.QRect(margin, round(self.height() * .20), self.width() - margin * 2, size * 2),
-                 self.items['dlss'][0], QtCore.Qt.AlignCenter)
+            lines.extend(((f'{seconds:+d} SEC', QtCore.Qt.AlignHCenter),
+                          (time.strftime('%I:%M:%S %p', time.localtime(timestamp)), QtCore.Qt.AlignHCenter)))
+        for kind, (value, _expiry) in self.items.items():
+            if kind not in ('channel', 'seek', 'subtitleOffset', 'volume'):
+                lines.append((str(value), QtCore.Qt.AlignHCenter))
         if 'subtitleOffset' in self.items:
-            seconds = self.items['subtitleOffset'][0]
-            text(QtCore.QRect(margin, round(self.height() * .50), self.width() - margin * 2, size * 2),
-                 f'SUBTITLES {seconds:+d} SEC', QtCore.Qt.AlignCenter)
-        if 'volume' in self.items:
-            volume = self.items['volume'][0]
-            top = round(self.height() * .65)
-            text(QtCore.QRect(margin, top, self.width() - margin * 2, size * 2),
-                 'MUTE' if volume == 0 else f'VOLUME {volume}')
+            lines.append((f'SUBTITLES {self.items["subtitleOffset"][0]:+d} SEC', QtCore.Qt.AlignHCenter))
+        volume = self.items.get('volume')
+        if volume:
+            lines.append(('MUTE' if volume[0] == 0 else f'VOLUME {volume[0]}', QtCore.Qt.AlignLeft))
+        # Keep the message stack at the bottom, above any visible captions.
+        bottom = self.height() - margin
+        for label in self.parentWidget().findChildren(QtWidgets.QLabel):
+            if label.property('videoCaption') and label.isVisible() and label.text():
+                bottom = min(bottom, label.y() - 8)
+        units = len(lines) * 1.4 + (0.85 if volume else 0)
+        size = min(size, max(12, int(min(bottom, self.height() * .48) / max(1, units))))
+        font.setPixelSize(size)
+        painter.setFont(font)
+        rowHeight = round(size * 1.4)
+        y = max(margin, bottom - len(lines) * rowHeight - (round(size * .85) if volume else 0))
+        for label, alignment in lines:
+            rect = QtCore.QRect(margin, y, self.width() - margin * 2, rowHeight)
+            label = QtGui.QFontMetrics(font).elidedText(label, QtCore.Qt.ElideRight, rect.width())
+            text(rect, label, alignment | QtCore.Qt.AlignVCenter)
+            y += rowHeight
+        if volume:
             barWidth = min(self.width() - 2 * margin, round(self.width() * .65))
             step = barWidth / 25
-            y = top + size * 2
             for index in range(25):
                 rect = QtCore.QRectF(margin + index * step, y, max(1, step * .55), size * .65)
                 painter.setPen(QtGui.QPen(QtGui.QColor('black'), 2))
-                painter.setBrush(green if index < round(volume / 4) else QtCore.Qt.NoBrush)
+                painter.setBrush(green if index < round(volume[0] / 4) else QtCore.Qt.NoBrush)
                 painter.drawRect(rect)
-                if index >= round(volume / 4):
+                if index >= round(volume[0] / 4):
                     painter.setPen(QtGui.QPen(green, 1))
                     painter.drawLine(QtCore.QPointF(rect.left(), rect.center().y()), QtCore.QPointF(rect.right(), rect.center().y()))
 

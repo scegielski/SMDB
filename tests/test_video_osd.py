@@ -70,10 +70,12 @@ class VideoOsdTests(unittest.TestCase):
             try:
                 with patch('smdb.VideoView.time.monotonic',return_value=10) as timer:
                     video.osd.display('seek',(10,1700000030))
-                    picture=video.grab().toImage()
-                    green=sum(1 for y in range(100,200) for x in range(640)
+                    picture=video.osd.grab().toImage()
+                    green=sum(1 for y in range(250,350) for x in range(640)
                         if picture.pixelColor(x,y).green()>200 and picture.pixelColor(x,y).red()<100)
                     self.assertGreater(green,100)
+                    self.assertFalse(any(picture.pixelColor(x,y).green()>200 and picture.pixelColor(x,y).red()<100
+                                         for y in range(0,180) for x in range(640)))
                     video.osd.updateValue('seek',(10,1700000031))
                     self.assertEqual(video.osd.items['seek'][1],13)
                     timer.return_value=13.1;video.osd._expire()
