@@ -3,6 +3,7 @@ import time
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtMultimediaWidgets import QGraphicsVideoItem
+from PyQt5.QtMultimedia import QAbstractVideoSurface, QVideoFrame, QAbstractVideoBuffer
 
 
 class VideoOsd(QtWidgets.QWidget):
@@ -65,6 +66,9 @@ class VideoOsd(QtWidgets.QWidget):
             text(rect, f'{seconds:+d} SEC', QtCore.Qt.AlignCenter)
             rect.translate(0, round(size * 1.4))
             text(rect, time.strftime('%I:%M:%S %p', time.localtime(timestamp)), QtCore.Qt.AlignCenter)
+        if 'dlss' in self.items:
+            text(QtCore.QRect(margin, round(self.height() * .20), self.width() - margin * 2, size * 2),
+                 self.items['dlss'][0], QtCore.Qt.AlignCenter)
         if 'subtitleOffset' in self.items:
             seconds = self.items['subtitleOffset'][0]
             text(QtCore.QRect(margin, round(self.height() * .50), self.width() - margin * 2, size * 2),
@@ -87,6 +91,57 @@ class VideoOsd(QtWidgets.QWidget):
                     painter.drawLine(QtCore.QPointF(rect.left(), rect.center().y()), QtCore.QPointF(rect.right(), rect.center().y()))
 
 
+class _FrameSurface(QAbstractVideoSurface):
+    """Forward Qt playback normally, with CPU RGB frames available to DLSS."""
+    def __init__(self, view, original):
+        super().__init__(view)
+        self.view = view
+        self.original = original
+        self.lastFrame = None
+
+    def supportedPixelFormats(self, handleType=QAbstractVideoBuffer.NoHandle):
+        if handleType != QAbstractVideoBuffer.NoHandle:
+            return []
+        return [QVideoFrame.Format_RGB32, QVideoFrame.Format_ARGB32]
+
+    def start(self, format):
+        self.view.resetDlssFrame()
+        self.lastFrame = None
+        return self.original.start(format) and super().start(format)
+
+    def stop(self):
+        self.lastFrame = None
+        self.view.resetDlssFrame()
+        self.original.stop()
+        super().stop()
+
+    def present(self, frame):
+        result = self.original.present(frame)
+        self.lastFrame = QVideoFrame(frame)
+        self.submitFrame()
+        return result
+
+    def submitFrame(self):
+        if self.lastFrame is None or self.view._dlssProcessor is None:
+            return
+        warmOnly = not self.view.dlssEnabled
+        if warmOnly and (not self.view._dlssPrewarm or not self.view._dlssProcessor.needsWarm(
+                self.lastFrame.width(), self.lastFrame.height())):
+            return
+        frame = QVideoFrame(self.lastFrame)
+        if not frame.map(QAbstractVideoBuffer.ReadOnly):
+            return
+        try:
+            format = QVideoFrame.imageFormatFromPixelFormat(frame.pixelFormat())
+            if format == QtGui.QImage.Format_Invalid:
+                return
+            bits = frame.bits(); bits.setsize(frame.mappedBytes())
+            image = QtGui.QImage(bits, frame.width(), frame.height(), frame.bytesPerLine(), format).copy()
+            self.view._dlssProcessor.submit(self.view, image, frame.startTime(), warmOnly)
+        finally:
+            frame.unmap()
+
+
 class VideoView(QtWidgets.QGraphicsView):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -97,6 +152,16 @@ class VideoView(QtWidgets.QGraphicsView):
         self.videoItem = QGraphicsVideoItem()
         self.videoItem.setAspectRatioMode(QtCore.Qt.KeepAspectRatio)
         self.scene().addItem(self.videoItem)
+        self.dlssEnabled = False
+        self._dlssPrewarm = False
+        self._dlssGeneration = 0
+        self._dlssProcessor = None
+        self._enhancedItem = QtWidgets.QGraphicsPixmapItem()
+        self._enhancedItem.setTransformationMode(QtCore.Qt.SmoothTransformation)
+        self._enhancedItem.setZValue(1)
+        self.scene().addItem(self._enhancedItem)
+        self._enhancedItem.hide()
+        self._frameSurface = _FrameSurface(self, self.videoItem.videoSurface())
         self.setFrameShape(QtWidgets.QFrame.NoFrame)
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
@@ -108,10 +173,40 @@ class VideoView(QtWidgets.QGraphicsView):
         self.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
 
     def videoSurface(self):
-        return self.videoItem.videoSurface()
+        return self._frameSurface
+
+    def setDlssEnabled(self, enabled, processor=None, prewarm=False):
+        if enabled == self.dlssEnabled and prewarm == self._dlssPrewarm:
+            return
+        self.dlssEnabled = enabled
+        self._dlssPrewarm = prewarm
+        self._dlssProcessor = processor
+        self.resetDlssFrame()
+        if enabled or prewarm:
+            self._frameSurface.submitFrame()
+
+    def resetDlssFrame(self):
+        self._dlssGeneration += 1
+        self._enhancedItem.hide()
+
+    def showDlssFrame(self, image):
+        self._enhancedItem.setPixmap(QtGui.QPixmap.fromImage(image))
+        self._fitDlssFrame()
+        self._enhancedItem.show()
+
+    def _fitDlssFrame(self):
+        size = self._enhancedItem.pixmap().size()
+        if size.isEmpty():
+            return
+        bounds = self.viewport().size()
+        scale = min(bounds.width() / size.width(), bounds.height() / size.height())
+        self._enhancedItem.setScale(scale)
+        self._enhancedItem.setPos((bounds.width() - size.width() * scale) / 2,
+                                 (bounds.height() - size.height() * scale) / 2)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        self._fitDlssFrame()
         size = QtCore.QSizeF(self.viewport().size())
         self.setSceneRect(QtCore.QRectF(QtCore.QPointF(), size))
         self.videoItem.setSize(size)

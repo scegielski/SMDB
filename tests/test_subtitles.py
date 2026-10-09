@@ -57,6 +57,34 @@ class SubtitleTests(unittest.TestCase):
             slot.stop()
             tv.close()
 
+    def test_channel_change_resets_offsets_including_warmed_and_new_slots(self):
+        from unittest.mock import Mock
+        tv = RetroChannelWidget()
+        slots = [ClipSlot(tv) for _ in range(3)]
+        tv.engines = {0: Mock(slotA=slots[0], slotB=slots[1])}
+        tv.guidePreviewSlot = slots[2]
+        tv.channels = [{'genre': 'Action'}, {'genre': 'Comedy'}]
+        tv._powerOn = False
+        try:
+            for offset in (2000, -3000):
+                tv.adjustSubtitleOffset(offset)
+                tv._tuneTo(tv.currentIndex)
+                self.assertEqual(tv.subtitleOffsetMs, offset)
+                tv.channelUp()
+                self.assertEqual(tv.subtitleOffsetMs, 0)
+                for slot in slots:
+                    self.assertEqual(slot.subtitles.offsetMs, 0)
+                newSlot = ClipSlot(tv)
+                self.assertEqual(newSlot.subtitles.offsetMs, 0)
+                newSlot.stop()
+                self.assertEqual(tv._videoOsdStatus['subtitleOffset'][0], 0)
+        finally:
+            tv.engines = {}
+            tv.guidePreviewSlot = None
+            for slot in slots:
+                slot.stop()
+            tv.close()
+
     def test_srt_vtt_unicode_markup_and_overlapping_cues(self):
         text = '\ufeff1\n00:00:01,000 --> 00:00:03,000\n<b>Hello</b> &amp; goodbye\nSecond line\n\n2\n00:00:02,000 --> 00:00:02,500\nOverlap\n'
         cues = parseSubtitles(text)

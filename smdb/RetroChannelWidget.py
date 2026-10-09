@@ -30,6 +30,7 @@ import wave
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer, QSoundEffect, QVideoProbe
 from .VideoView import VideoView
+from .Dlss import DlssProcessor
 from .GuideTimeline import GuideTimeline
 from .RemoteDock import RemoteDock
 from .Subtitles import SubtitleController
@@ -459,6 +460,7 @@ class ClipSlot(QtCore.QObject):
             pos = random.randint(0, self.duration - 1500)
         else:
             pos = 0
+        self.videoWidget.resetDlssFrame()
         self.player.setPosition(pos)
 
     def seekTo(self, fraction, extraMs=0):
@@ -468,6 +470,7 @@ class ClipSlot(QtCore.QObject):
         maxPos = max(0, self.duration - MIN_SEEK_RUNWAY_MS)
         pos = int(fraction * self.duration) + int(extraMs)
         pos = max(0, min(pos, maxPos))
+        self.videoWidget.resetDlssFrame()
         self.player.setPosition(pos)
         self._lastPlaybackPosition = pos
         self.subtitles.updatePosition(pos)
@@ -1446,6 +1449,7 @@ class ChannelEngine(QtCore.QObject):
         if target / slot.duration < self.clock.playbackOriginForSlot(self.currentSlotIndex):
             self.clock._playbackOrigins[self.currentSlotIndex] = 0.0
         self.clock.hasManualNavigation = True
+        slot.videoWidget.resetDlssFrame()
         slot.player.setPosition(target)
         slot._lastPlaybackPosition = target
         self.clock.repositionSlot(self.currentSlotIndex, self.currentRow, slot.duration, target)
@@ -1624,6 +1628,16 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._scanTimer.setInterval(100)
         self._scanTimer.timeout.connect(self._scanStep)
         self._powerOn = True
+        self._dlssEnabled = False
+        self._dlssProcessor = DlssProcessor(self)
+        self._dlssProcessor.failed.connect(self._dlssFailed)
+        self._dlssProcessor.frameProcessed.connect(self._dlssFrameReady)
+        self._dlssState = 'off'
+        self._dlssChosen = None
+        self._dlssCaptureTimer = QtCore.QTimer(self)
+        self._dlssCaptureTimer.setSingleShot(True)
+        self._dlssCaptureTimer.setInterval(8000)
+        self._dlssCaptureTimer.timeout.connect(self._dlssCaptureTimeout)
         self._remoteRestored = False
         self._videoPathCache = {}
         self._descriptionCache = {}
@@ -1860,10 +1874,10 @@ class RetroChannelWidget(QtWidgets.QWidget):
         tuning = QtWidgets.QGridLayout(tuningPad)
         tuning.setContentsMargins(10, 12, 10, 12)
         tuning.setSpacing(6)
-        self.channelUpButton = remoteButton('CH\n▲', 'Channel up', self.channelUp, '#3c5f8b', size=11)
-        self.channelDownButton = remoteButton('CH\n▼', 'Channel down', self.channelDown, '#3c5f8b', size=11)
+        self.channelUpButton = remoteButton('CH\n\u25b2', 'Channel up', self.channelUp, '#3c5f8b', size=11)
+        self.channelDownButton = remoteButton('CH\n\u25bc', 'Channel down', self.channelDown, '#3c5f8b', size=11)
         self.volumeUpButton = remoteButton('VOL\n+', 'Volume up', lambda: self.setVolume(self.masterVolume + 5), '#3c5f8b')
-        self.volumeDownButton = remoteButton('VOL\n−', 'Volume down', lambda: self.setVolume(self.masterVolume - 5), '#3c5f8b')
+        self.volumeDownButton = remoteButton('VOL\n\u2212', 'Volume down', lambda: self.setVolume(self.masterVolume - 5), '#3c5f8b')
         self.volumeUpButton.setAutoRepeat(True)
         self.volumeDownButton.setAutoRepeat(True)
         self.muteButton = remoteButton('Mute', 'Mute or restore volume', self.toggleMute, size=11)
@@ -1917,13 +1931,20 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.subtitleMenu = QtWidgets.QMenu(self.subtitleButton)
         sideLayout.addWidget(self.subtitleButton)
         subtitleTiming = QtWidgets.QHBoxLayout()
-        self.subtitleEarlierButton = remoteButton('−1 SEC', 'Show subtitles one second earlier',
+        self.subtitleEarlierButton = remoteButton('\u22121 SEC', 'Show subtitles one second earlier',
                                                   lambda: self.adjustSubtitleOffset(-1000), size=11)
         self.subtitleLaterButton = remoteButton('+1 SEC', 'Show subtitles one second later',
                                                 lambda: self.adjustSubtitleOffset(1000), size=11)
         subtitleTiming.addWidget(self.subtitleEarlierButton)
         subtitleTiming.addWidget(self.subtitleLaterButton)
         sideLayout.addLayout(subtitleTiming)
+        self.dlssButton = remoteButton('DLSS', 'Toggle DLSS 5 neural rendering', self.setDlssEnabled, size=11)
+        self.dlssButton.setCheckable(True)
+        self.dlssButton.setStyleSheet(self.subtitleButton.styleSheet())
+        self.dlssButton.setEnabled(self._dlssProcessor.available())
+        if not self.dlssButton.isEnabled():
+            self.dlssButton.setToolTip('DLSS runtime or native worker is missing')
+        sideLayout.addWidget(self.dlssButton)
         self.reprogramButton = remoteButton('REPROGRAM CHANNEL', 'Pick a new random lineup for this channel',
                                            self.reprogramChannel, size=11)
         sideLayout.addWidget(self.reprogramButton)
@@ -2089,6 +2110,72 @@ class RetroChannelWidget(QtWidgets.QWidget):
                 controller.setStatusMessage('Subtitles unavailable', 5000)
         if self.subtitleMenu.isVisible():
             self._refreshSubtitleMenu()
+
+    def setDlssEnabled(self, enabled):
+        self._dlssEnabled = bool(enabled)
+        self._dlssState = 'starting' if enabled else 'off'
+        self._dlssCaptureTimer.stop()
+        self.dlssButton.setChecked(self._dlssEnabled)
+        self.dlssButton.setText('DLSS ON' if enabled else 'DLSS')
+        self._dlssProcessor.record('Remote toggle ' + ('ON' if enabled else 'OFF'))
+        self._syncDlss()
+        self._showVideoOsd('dlss', 'DLSS 5 ON' if self._dlssEnabled else 'DLSS 5 OFF')
+
+    def _dlssFrameReady(self):
+        if not self._dlssEnabled:
+            return
+        self._dlssCaptureTimer.stop()
+        if self._dlssState != 'active':
+            self._dlssState = 'active'
+            self.dlssButton.setText('DLSS ON')
+            self.dlssButton.setStyleSheet(self.subtitleButton.styleSheet() +
+                                         'QPushButton:checked { color: #39ff14; border-color: #39ff14; }')
+            self._showVideoOsd('dlss', 'DLSS 5 ACTIVE')
+        self.dlssButton.setToolTip(f'DLSS 5 active: {self._dlssProcessor.frameCount} frames processed. '
+                                   f'Log: {self._dlssProcessor.logPath}')
+
+    def _dlssCaptureTimeout(self):
+        if self._dlssEnabled and self._dlssState != 'active' and not self._dlssProcessor._busy:
+            self._dlssFailed('No decoded video frames reached DLSS')
+
+    def _dlssFailed(self, message):
+        self._dlssCaptureTimer.stop()
+        self._dlssEnabled = False
+        self._dlssState = 'failed'
+        self._dlssProcessor.record('Toggle failed: ' + message)
+        self._dlssProcessor.stop()
+        self.dlssButton.setChecked(False)
+        self.dlssButton.setText('DLSS FAILED')
+        self.dlssButton.setToolTip(message + '. Normal video restored. Log: ' + str(self._dlssProcessor.logPath))
+        self._syncDlss()
+        self._showVideoOsd('dlss', 'DLSS FAILED: ' + message)
+
+    def _syncDlss(self):
+        engine = self._guidePreviewHostedEngine if self.guideVisible else self.engines.get(self.currentIndex)
+        chosen = engine.activeSlot.videoWidget if engine and self._powerOn and not engine.isShowingStandby() else None
+        if chosen is None and self.guideVisible and not engine and self.guidePreviewSlot and self._powerOn:
+            chosen = self.guidePreviewSlot.videoWidget
+        if chosen is not self._dlssChosen:
+            self._dlssChosen = chosen
+            if self._dlssEnabled:
+                self._dlssState = 'starting' if chosen else 'waiting'
+                self._dlssCaptureTimer.stop()
+        if self._dlssEnabled and self._dlssState in ('starting', 'waiting'):
+            if chosen is None:
+                self._dlssState = 'waiting'
+                self.dlssButton.setText('DLSS WAITING')
+                self._dlssCaptureTimer.stop()
+            else:
+                self._dlssState = 'starting'
+                self.dlssButton.setText('DLSS ON')
+                if not self._dlssCaptureTimer.isActive():
+                    self._dlssProcessor.record('Selected video for DLSS')
+                    self._dlssCaptureTimer.start()
+        for item in self.engines.values():
+            for slot in (item.slotA, item.slotB):
+                slot.videoWidget.setDlssEnabled(self._dlssEnabled and slot.videoWidget is chosen, self._dlssProcessor, prewarm=slot.videoWidget is chosen and self._dlssState != 'failed' and self._dlssProcessor.available())
+        if self.guidePreviewSlot:
+            self.guidePreviewSlot.videoWidget.setDlssEnabled(self._dlssEnabled and self.guidePreviewSlot.videoWidget is chosen, self._dlssProcessor, prewarm=self.guidePreviewSlot.videoWidget is chosen and self._dlssState != 'failed' and self._dlssProcessor.available())
 
     def adjustSubtitleOffset(self, deltaMs):
         self.subtitleOffsetMs += int(deltaMs)
@@ -2763,6 +2850,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._syncStandbyTone()
 
     def _syncStandbyTone(self):
+        self._syncDlss()
         if not self._powerOn or not self.isActive:
             self.staticHiss.stop()
             self.standbyTone.stop()
@@ -2818,6 +2906,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
 
     def _teardownAllEngines(self):
         self._stopScan()
+        self._dlssProcessor.stop()
         if self._tuningOverlay is not None:
             self._endTuningStatic()
         self._releasePreviewHost()
@@ -2841,6 +2930,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
             return
         index %= len(self.channels)
         changingChannel = index != self.currentIndex
+        if changingChannel and self.subtitleOffsetMs:
+            self.adjustSubtitleOffset(-self.subtitleOffsetMs)
         if changingChannel and self._powerOn:
             self._beginTuningStatic(index)
             self.channelClick.play(self.masterVolume)

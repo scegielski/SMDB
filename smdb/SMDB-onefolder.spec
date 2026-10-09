@@ -3,6 +3,7 @@
 import os
 import shutil
 from glob import glob
+from pathlib import Path
 from PyInstaller.utils.hooks import collect_data_files
 from PyInstaller.building.build_main import COLLECT
 
@@ -11,6 +12,19 @@ REPO_ROOT = os.path.abspath(os.getcwd())
 
 # Bundle MediaInfo.dll if present, IMDb data, and the collections folder
 datas = [(os.path.join(REPO_ROOT, 'smdb', 'assets'), 'smdb/assets')]
+# Supply local DLSS files exactly as in the native NR player; never fetch runtimes.
+worker = Path(REPO_ROOT) / 'smdb' / 'native' / 'dlss_worker.exe'
+if worker.is_file():
+    datas.append((str(worker), 'smdb/native'))
+    candidates = [Path(os.environ.get('SMDB_DLSS_RUNTIME', str(worker.parent / 'runtime')))]
+    candidates += sorted((Path.home() / 'Documents' / 'Codex').glob('*/bui/work/dlss5-nr-player'), reverse=True)
+    runtime = next((p for p in candidates if (p / 'caller/nvngx.dll').is_file()), None)
+    if runtime:
+        for relative in ('_nvngx.dll', 'nvngx_dlssnr.dll', 'runtime40/nvngx_dlssnr.dll', 'caller/nvngx.dll'):
+            path = runtime / relative
+            if path.is_file():
+                datas.append((str(path), 'smdb/native/runtime/' + str(Path(relative).parent)))
+
 # Qt5 has no portable subtitle renderer; package the text-track readers.
 for tool in ('ffmpeg', 'ffprobe'):
     tool_path = shutil.which(tool)
