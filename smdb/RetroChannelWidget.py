@@ -1960,8 +1960,32 @@ class RetroChannelWidget(QtWidgets.QWidget):
             'QSlider::sub-page:horizontal { background: #3c5f8b; border-radius: 3px; } '
             'QSlider::handle:horizontal { width: 14px; margin: -5px 0; background: #aeb8c3; border-radius: 7px; }')
         self.dlssIntensitySlider.valueChanged.connect(self.setDlssIntensity)
-        sideLayout.addWidget(self.dlssIntensityLabel)
-        sideLayout.addWidget(self.dlssIntensitySlider)
+        self.dlssSliders = QtWidgets.QWidget()
+        sliderLayout = QtWidgets.QVBoxLayout(self.dlssSliders)
+        sliderLayout.setContentsMargins(0, 0, 0, 0)
+        sliderLayout.setSpacing(4)
+        sliderLayout.addWidget(self.dlssIntensityLabel)
+        sliderLayout.addWidget(self.dlssIntensitySlider)
+        for name in ('Tone', 'Structure'):
+            label = QtWidgets.QLabel(f'DLSS {name.upper()} 100%')
+            label.setAlignment(QtCore.Qt.AlignCenter)
+            label.setStyleSheet(self.dlssIntensityLabel.styleSheet())
+            slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+            slider.setRange(0, 200)
+            slider.setValue(100)
+            slider.setPageStep(10)
+            slider.setAccessibleName('DLSS ' + name.lower())
+            slider.setToolTip(f'DLSS {name.lower()} strength: 0% to 200%, default 100%')
+            slider.setStyleSheet(self.dlssIntensitySlider.styleSheet())
+            setattr(self, 'dlss' + name + 'Label', label)
+            setattr(self, 'dlss' + name + 'Slider', slider)
+            slider.valueChanged.connect(lambda value, parameter=name: self.setDlssTuning(parameter, value))
+            sliderLayout.addWidget(label)
+            sliderLayout.addWidget(slider)
+        sideLayout.addWidget(self.dlssSliders)
+        self.dlssSliders.hide()
+        self.dlssModeButton = remoteButton('Natural', 'DLSS 5 mode: Default, Natural, Cinematic', self.cycleDlssMode, size=11)
+        sideLayout.addWidget(self.dlssModeButton)
         self.reprogramButton = remoteButton('REPROGRAM CHANNEL', 'Pick a new random lineup for this channel',
                                            self.reprogramChannel, size=11)
         sideLayout.addWidget(self.reprogramButton)
@@ -2128,6 +2152,22 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if self.subtitleMenu.isVisible():
             self._refreshSubtitleMenu()
 
+    def cycleDlssMode(self):
+        processor = self._dlssProcessor
+        processor.style = (processor.style + 1) % 3
+        name = ('Default', 'Natural', 'Cinematic')[processor.style]
+        self.dlssModeButton.setText(name)
+        self._showVideoOsd('dlss-mode', 'DLSS 5 ' + name.upper())
+        if self._dlssEnabled and self._dlssChosen is not None:
+            self._dlssChosen._frameSurface.submitFrame()
+
+    def setDlssTuning(self, name, percent):
+        percent = max(0, min(200, int(percent)))
+        setattr(self._dlssProcessor, name.lower() + 'Percent', percent)
+        getattr(self, 'dlss' + name + 'Label').setText(f'DLSS {name.upper()} {percent}%')
+        if self._dlssEnabled and self._dlssChosen is not None:
+            self._dlssChosen._frameSurface.submitFrame()
+
     def setDlssIntensity(self, percent):
         percent = max(0, min(200, int(percent)))
         self._dlssProcessor.intensityPercent = percent
@@ -2142,6 +2182,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._dlssCaptureTimer.stop()
         self.dlssButton.setChecked(self._dlssEnabled)
         self.dlssButton.setText('DLSS')
+        self.dlssSliders.setVisible(self._dlssEnabled)
+        self._applyRemoteSizes()
         self._dlssProcessor.record('Remote toggle ' + ('ON' if enabled else 'OFF'))
         self._syncDlss()
         self._showVideoOsd('dlss', 'DLSS 5 ON' if self._dlssEnabled else 'DLSS 5 OFF')
@@ -2167,6 +2209,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._dlssProcessor.record('Toggle failed: ' + message)
         self._dlssProcessor.stop()
         self.dlssButton.setChecked(False)
+        self.dlssSliders.hide()
+        self._applyRemoteSizes()
         self.dlssButton.setText('DLSS')
         self.dlssButton.setToolTip(message + '. Normal video restored. Log: ' + str(self._dlssProcessor.logPath))
         self._syncDlss()

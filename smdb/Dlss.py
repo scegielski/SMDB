@@ -47,6 +47,9 @@ class DlssProcessor(QtCore.QObject):
         self._stopping = False
         self.frameCount = 0
         self.intensityPercent = 100
+        self.style = 1  # Natural, preserving the existing rendering default.
+        self.tonePercent = 100
+        self.structurePercent = 100
         self.useGpuPresentation = True
         self._warmSize = None
         self._sharedBuffer = None
@@ -108,7 +111,7 @@ class DlssProcessor(QtCore.QObject):
         self._buffer.clear()
         self.timer.start()
         gpuPresentation = self.useGpuPresentation and view._gpuView.supported()
-        flags = (2 if warmOnly else int(reset)) | 8 | (16 if gpuPresentation else 0)
+        flags = (2 if warmOnly else int(reset)) | 8 | 32 | 64 | (16 if gpuPresentation else 0)
         self._busy += (gpuPresentation,)
         if os.name == 'nt':
             length = image.byteCount()
@@ -120,9 +123,9 @@ class DlssProcessor(QtCore.QObject):
                 self._sharedSize = length
             self._sharedBuffer[:length] = bytes(pointer)
             name = self._sharedName.encode('ascii')
-            packet = struct.pack('<IIIII', image.width(), image.height(), flags | 4, self.intensityPercent, len(name)) + name
+            packet = struct.pack('<IIIIIIII', image.width(), image.height(), flags | 4, self.intensityPercent, self.style, self.tonePercent, self.structurePercent, len(name)) + name
         else:
-            packet = struct.pack('<IIII', image.width(), image.height(), flags, self.intensityPercent) + bytes(pointer)
+            packet = struct.pack('<IIIIIII', image.width(), image.height(), flags, self.intensityPercent, self.style, self.tonePercent, self.structurePercent) + bytes(pointer)
         self.process.write(packet)
 
     def _readLog(self):

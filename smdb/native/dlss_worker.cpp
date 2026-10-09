@@ -636,6 +636,8 @@ int wmain(int argc,wchar_t** argv) {
     std::vector<uint8_t> input,output;
     HANDLE sharedHandle=nullptr; uint8_t* shared=nullptr; std::string sharedName;
     struct Header { uint32_t width,height,reset; } header;
+    uint32_t currentStyle=1;
+    uint32_t currentTone=100,currentStructure=100;
     while(fread(&header,1,sizeof(header),stdin)==sizeof(header)) {
         if(!header.width || !header.height || header.width>8192 || header.height>8192) break;
         const size_t length=(size_t)header.width*header.height*4;
@@ -643,6 +645,20 @@ int wmain(int argc,wchar_t** argv) {
             uint32_t percent=100;
             if(fread(&percent,4,1,stdin)!=1 || percent>200) break;
             SetBlendIntensity(percent);
+        }
+        bool styleChanged=false;
+        if(header.reset & 32) {
+            uint32_t style=1;
+            if(fread(&style,4,1,stdin)!=1 || style>2) break;
+            styleChanged=style!=currentStyle;
+            currentStyle=style;
+        }
+        bool tuningChanged=false;
+        if(header.reset & 64) {
+            uint32_t tone=100,structure=100;
+            if(fread(&tone,4,1,stdin)!=1 || fread(&structure,4,1,stdin)!=1 || tone>200 || structure>200) break;
+            tuningChanged=tone!=currentTone || structure!=currentStructure;
+            currentTone=tone;currentStructure=structure;
         }
         const bool useShared=(header.reset & 4)!=0;
         if(useShared) {
@@ -669,6 +685,11 @@ int wmain(int argc,wchar_t** argv) {
             if(!Initialize(header.width,header.height)) { uint32_t n=0;fwrite(&n,4,1,stdout);fflush(stdout);Cleanup();return 2; }
         }
         const bool gpuPresentation=(header.reset & 16)!=0;
+        g_params->Set("DLSSNR.Style", (int)currentStyle);
+        g_params->Set("DLSSNR.LocalToneStrength", currentTone/100.f);
+        g_params->Set("DLSSNR.LocalStructureStrength", currentStructure/100.f);
+        if(tuningChanged) { header.reset |= 1; Log("NR tuning: tone=%u structure=%u",currentTone,currentStructure); }
+        if(styleChanged) { header.reset |= 1; Log("NR style changed: %u",currentStyle); }
         if(gpuPresentation && (!useShared || !InitializeGpu(sharedName))) { uint32_t n=0;fwrite(&n,4,1,stdout);fflush(stdout);return 5; }
         if(header.reset & 2) { if(!useShared) output = input; }
         else if(gpuPresentation) { if(!ProcessGpu(inputPixels,(header.reset & 1)!=0)){uint32_t n=0;fwrite(&n,4,1,stdout);fflush(stdout);return 6;} } // Prepare resources without changing normal playback.

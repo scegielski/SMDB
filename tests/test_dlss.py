@@ -36,7 +36,25 @@ class DlssTests(unittest.TestCase):
         from smdb.RetroChannelWidget import RetroChannelWidget
         tv = RetroChannelWidget()
         try:
+            self.assertTrue(tv.dlssSliders.isHidden())
+            tv.dlssToneSlider.setValue(65)
+            tv.dlssStructureSlider.setValue(150)
+            self.assertEqual(tv._dlssProcessor.tonePercent, 65)
+            self.assertEqual(tv._dlssProcessor.structurePercent, 150)
+            self.assertEqual(tv.dlssToneLabel.text(), 'DLSS TONE 65%')
+            self.assertEqual(tv.dlssStructureLabel.text(), 'DLSS STRUCTURE 150%')
+            self.assertEqual(tv.dlssModeButton.text(), 'Natural')
+            for name, style in (('Cinematic', 2), ('Default', 0), ('Natural', 1)):
+                QtTest.QTest.mouseClick(tv.dlssModeButton, QtCore.Qt.LeftButton)
+                self.assertEqual(tv.dlssModeButton.text(), name)
+                self.assertEqual(tv._dlssProcessor.style, style)
+                self.assertEqual(tv._videoOsdStatus['dlss-mode'][0], 'DLSS 5 ' + name.upper())
             tv.setDlssEnabled(True)
+            self.assertFalse(tv.dlssSliders.isHidden())
+            tv.setDlssEnabled(False)
+            self.assertTrue(tv.dlssSliders.isHidden())
+            tv.setDlssEnabled(True)
+            self.assertEqual(tv.dlssToneSlider.value(), 65)
             self.assertEqual(tv.dlssButton.text(), 'DLSS')
             self.assertTrue(tv.dlssButton.isChecked())
             tv._dlssProcessor.frameCount = 2
@@ -45,6 +63,7 @@ class DlssTests(unittest.TestCase):
             self.assertIn('2 frames processed', tv.dlssButton.toolTip())
             self.assertEqual(tv._videoOsdStatus['dlss'][0], 'DLSS 5 ACTIVE')
             tv._dlssFailed('Test error')
+            self.assertTrue(tv.dlssSliders.isHidden())
             self.assertFalse(tv.dlssButton.isChecked())
             self.assertEqual(tv.dlssButton.text(), 'DLSS')
             self.assertIn('Test error', tv.dlssButton.toolTip())
@@ -186,6 +205,26 @@ class DlssTests(unittest.TestCase):
             surface.present(QVideoFrame(smaller))
             waitFor(lambda: processor.frameCount == 3)
             self.assertEqual(processor._warmSize, (320,180))
+            # All styles must evaluate while paused, without restarting the worker.
+            pid = processor.process.processId()
+            for count, style in enumerate((0, 2, 1), start=4):
+                processor.style = style
+                view._frameSurface.submitFrame()
+                waitFor(lambda: processor.frameCount == count)
+                self.assertEqual(processor.process.processId(), pid)
+                self.assertIsNone(view._gpuView.error)
+            self.assertIn('NR style changed: 0', processor.log)
+            self.assertIn('NR style changed: 2', processor.log)
+            self.assertIn('NR style changed: 1', processor.log)
+            for count, (tone, structure) in enumerate(((0, 200), (200, 0), (100, 100)), start=7):
+                processor.tonePercent = tone
+                processor.structurePercent = structure
+                view._frameSurface.submitFrame()
+                waitFor(lambda: processor.frameCount == count)
+                self.assertEqual(processor.process.processId(), pid)
+                self.assertIsNone(view._gpuView.error)
+            self.assertIn('NR tuning: tone=0 structure=200', processor.log)
+            self.assertIn('NR tuning: tone=200 structure=0', processor.log)
             view.setDlssEnabled(False, processor)
             self.assertFalse(view._gpuView.isVisible())
             self.app.processEvents()
