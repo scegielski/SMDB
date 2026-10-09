@@ -1957,7 +1957,6 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.dlssButton.setEnabled(self._dlssProcessor.available())
         if not self.dlssButton.isEnabled():
             self.dlssButton.setToolTip('DLSS runtime or native worker is missing')
-        tuning.addWidget(self.dlssButton, 0, 2, alignment=QtCore.Qt.AlignCenter)
         self.dlssIntensityLabel = QtWidgets.QLabel('DLSS INTENSITY 100%')
         self.dlssIntensityLabel.setAlignment(QtCore.Qt.AlignCenter)
         self.dlssIntensityLabel.setStyleSheet('color: #aeb8c3; background: transparent; border: none; font-size: 11px;')
@@ -1995,14 +1994,15 @@ class RetroChannelWidget(QtWidgets.QWidget):
             slider.valueChanged.connect(lambda value, parameter=name: self.setDlssTuning(parameter, value))
             sliderLayout.addWidget(label)
             sliderLayout.addWidget(slider)
-        sideLayout.addWidget(self.dlssSliders)
         self.dlssSliders.hide()
         self.dlssModeButton = remoteButton('Natural', 'DLSS 5 mode: Default, Natural, Cinematic', self.cycleDlssMode, size=11)
-        sideLayout.addWidget(self.dlssModeButton)
+        sliderLayout.addWidget(self.dlssModeButton)
         self.reprogramButton = remoteButton('REPROGRAM CHANNEL', 'Pick a new random lineup for this channel',
                                            self.reprogramChannel, size=11)
         sideLayout.addWidget(self.reprogramButton)
         sideLayout.addWidget(self.setupButton)
+        sideLayout.addWidget(self.dlssButton, alignment=QtCore.Qt.AlignCenter)
+        sideLayout.addWidget(self.dlssSliders)
         sideLayout.addStretch(1)
 
         # Large text must remain usable in shorter windows.
