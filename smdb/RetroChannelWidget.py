@@ -1700,6 +1700,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         super().__init__(parent)
         self.mainWindow = parent
         self._videoOsdStatus = {}
+        self._infoVisible = False
         self._pausedAll = False
         self._scanState = None
         self._scanTimer = QtCore.QTimer(self)
@@ -1977,6 +1978,9 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.muteButton = remoteButton('Mute', 'Mute or restore volume', self.toggleMute, size=11)
         self.muteButton.setCheckable(True)
         self.muteButton.setChecked(self.masterVolume == 0)
+        self.infoButton = remoteButton('Info', 'Show or hide current program information', self.toggleProgramInfo, size=11)
+        self.infoButton.setCheckable(True)
+        tuning.addWidget(self.infoButton, 0, 2, alignment=QtCore.Qt.AlignCenter)
         tuning.addWidget(self.channelUpButton, 0, 1)
         tuning.addWidget(self.volumeDownButton, 1, 0)
         tuning.addWidget(self.volumeUpButton, 1, 2)
@@ -2517,7 +2521,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
             if spacing >= 0:
                 layout.setSpacing(max(1, round(spacing * scale)))
         height = max(round(34 * scale), self.muteButton.fontMetrics().height() + round(12 * scale))
-        for button in (self.muteButton, self.guideButton, self.dlssButton):
+        for button in (self.muteButton, self.guideButton, self.infoButton, self.dlssButton):
             width = max(round(height * 1.5), button.fontMetrics().horizontalAdvance(button.text()) + round(14 * scale))
             button.setFixedSize(width, height)
             button.setStyleSheet(button.styleSheet() +
@@ -2805,6 +2809,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self._settings.setValue('smtvWeatherLocation', json.dumps(self.weatherService.config))
 
     def _weatherUpdated(self):
+        if self._infoVisible and self.channels and self.channels[self.currentIndex].get('weather'):
+            self.showProgramInfo()
         if self.guideVisible and self.channels:
             self._refreshGuideTable()
 
@@ -3036,7 +3042,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         hasChannels = bool(self.channels)
         for button in (self.channelUpButton, self.channelDownButton,
                        self.backTenButton, self.forwardTenButton, self.nowButton, self.pauseButton,
-                       self.beginningButton, self.nextBeginningButton, self.guideButton,
+                       self.beginningButton, self.nextBeginningButton, self.guideButton, self.infoButton,
                        self.reprogramButton):
             availableOff = button in (self.channelUpButton, self.channelDownButton,
                                       self.guideButton, self.reprogramButton)
@@ -3267,7 +3273,9 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self.displayStack.setCurrentWidget(engine.container)
             self._showBanner(engine)
         self._syncPauseButton()
-        self._showVideoOsd('channel', (index + 1, self.channels[index]['genre']))
+        self._showVideoOsd('channel', self._channelOsdPayload(index))
+        if self._infoVisible:
+            self.showProgramInfo()
         self._updateNowPlayingLabel(engine)
         if self.guideVisible:
             self._refreshGuideTable()
@@ -3297,6 +3305,9 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if idx == self.currentIndex:
             self._showBanner(engine)
             self._updateNowPlayingLabel(engine)
+            self._showVideoOsd('channel', self._channelOsdPayload(idx))
+            if self._infoVisible:
+                self.showProgramInfo()
         if self.guideVisible:
             self._refreshGuideTable()
 
@@ -3450,14 +3461,59 @@ class RetroChannelWidget(QtWidgets.QWidget):
     def toggleMute(self):
         self.setVolume(0 if self.masterVolume else self._lastVolume)
 
-    def _showVideoOsd(self, kind, value):
-        self._videoOsdStatus[kind] = (value, time.monotonic() + 3)
+    def _channelOsdPayload(self, index):
+        engine = self.engines.get(index)
+        title = engine.currentTitle if engine else ''
+        if engine and engine.isShowingComingUp():
+            title = 'Coming up: ' + self._titleForRow(engine.comingUpRow)
+        return (index + 1, self.channels[index]['genre'], title or 'Loading program…')
+
+    def toggleProgramInfo(self):
+        self._infoVisible = not self._infoVisible
+        self.infoButton.setChecked(self._infoVisible)
+        if self._infoVisible:
+            self.showProgramInfo()
+        else:
+            self._videoOsdStatus.pop('info', None)
+            for engine in self.engines.values():
+                for slot in (engine.slotA, engine.slotB):
+                    slot.videoWidget.osd.dismiss('info')
+            if self.guidePreviewSlot:
+                self.guidePreviewSlot.videoWidget.osd.dismiss('info')
+
+    def showProgramInfo(self):
+        if not self.channels or not self._powerOn:
+            return
         engine = self.engines.get(self.currentIndex)
-        if engine:
-            for slot in (engine.slotA, engine.slotB):
+        if self.channels[self.currentIndex].get('weather'):
+            document = QtGui.QTextDocument()
+            document.setHtml(self.weatherService.summary())
+            value = {'title': 'Local Weather', 'credits': self.weatherService.config.get('label', ''),
+                     'synopsis': document.toPlainText()}
+        elif engine is not None:
+            row = engine.comingUpRow if engine.isShowingComingUp() else engine.currentRow
+            if row is None:
+                self._showVideoOsd('info', {'title': 'Loading program…'})
+                return
+            info = self._filmInfoForRow(row)
+            value = {'title': self._titleForRow(row), 'directors': info['directors'],
+                     'actors': info['cast'], 'synopsis': self._descriptionForRow(row)}
+            if engine.isShowingComingUp():
+                value['credits'] = 'Coming up next'
+        else:
+            return
+        self._showVideoOsd('info', value)
+
+    def _showVideoOsd(self, kind, value):
+        seconds = float('inf') if kind == 'info' else 3
+        self._videoOsdStatus[kind] = (value, time.monotonic() + seconds)
+        engine = self.engines.get(self.currentIndex)
+        slots = (engine.slotA, engine.slotB) if engine else (self.guidePreviewSlot,) if self.guidePreviewSlot else ()
+        for slot in slots:
+            if kind == 'info':
+                slot.videoWidget.osd.display(kind, value, seconds)
+            else:
                 slot.videoWidget.osd.display(kind, value)
-        elif self.guidePreviewSlot:
-            self.guidePreviewSlot.videoWidget.osd.display(kind, value)
 
     def _restoreVideoOsd(self, video):
         engine = self.engines.get(self.currentIndex)

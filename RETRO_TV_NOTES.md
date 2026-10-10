@@ -328,3 +328,13 @@ These ideas were recorded before the subsequent fixes; check current code and re
 - Provider documentation: [Open-Meteo forecast](https://open-meteo.com/en/docs), [location search / GeoNames](https://open-meteo.com/en/docs/geocoding-api).
 
 - Weather background music: three original MIDI lounge cues (Evening Breeze, Local Outlook, Quiet Horizon) loop quietly. Original MIDI files and portable stereo PCM renditions are bundled under `smdb/assets/weather_music`; `smdb/generate_weather_music.py` regenerates them. No online music or external MIDI synth is required. Only the audible weather engine plays music; volume/mute, global pause, power, channel changes, and mode exit control it.
+
+
+## Remote program information
+
+- The capsule INFO button occupies the tuning pad's upper-right corner, above Volume Up. It toggles a persistent bottom-of-video card with the title/year, director, featured actors, and a brief wrapped synopsis. Weather shows its local conditions summary; movie padding shows the upcoming film.
+- Channel-change overlays include the movie title/year below the channel number/name. When a movie finishes resolving, the overlay refreshes with its title so a slow load does not leave only a channel label.
+- INFO has a pressed state and remains visible until toggled off; its details follow channel/program changes and weather updates.
+- Overlays pass mouse events through to the video and scale independently of application fonts.
+
+- Fixed a crash when persistent INFO coexists with channel/volume messages: the information card's fractional boundary produced a floating-point text-row coordinate, which Qt's integer rectangle rejected during paint. The message position is rounded; combined overlay repaint/resize checks cover this case.

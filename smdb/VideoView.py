@@ -1,4 +1,5 @@
 """Composited Qt video view, allowing captions to paint over video frames."""
+import html
 import time
 from .DlssGpu import DlssGpuView
 
@@ -25,6 +26,13 @@ class VideoOsd(QtWidgets.QWidget):
         self.show()
         self.raise_()
         self.timer.start()
+        self.update()
+
+    def dismiss(self, kind):
+        self.items.pop(kind, None)
+        if not self.items:
+            self.timer.stop()
+            self.hide()
         self.update()
 
     def updateValue(self, kind, value):
@@ -57,14 +65,17 @@ class VideoOsd(QtWidgets.QWidget):
             painter.drawText(rect, align, label)
         lines = []
         if 'channel' in self.items:
-            number, name = self.items['channel'][0]
+            value = self.items['channel'][0]
+            number, name = value[:2]
             lines.append((f'CH {number:02d}  {name.upper()}', QtCore.Qt.AlignLeft))
+            if len(value) > 2 and value[2]:
+                lines.append((value[2], QtCore.Qt.AlignLeft))
         if 'seek' in self.items:
             seconds, timestamp = self.items['seek'][0]
             lines.extend(((f'{seconds:+d} SEC', QtCore.Qt.AlignHCenter),
                           (time.strftime('%I:%M:%S %p', time.localtime(timestamp)), QtCore.Qt.AlignHCenter)))
         for kind, (value, _expiry) in self.items.items():
-            if kind not in ('channel', 'seek', 'subtitleOffset', 'volume'):
+            if kind not in ('channel', 'seek', 'subtitleOffset', 'volume', 'info'):
                 lines.append((str(value), QtCore.Qt.AlignHCenter))
         if 'subtitleOffset' in self.items:
             lines.append((f'SUBTITLES {self.items["subtitleOffset"][0]:+d} SEC', QtCore.Qt.AlignHCenter))
@@ -76,6 +87,43 @@ class VideoOsd(QtWidgets.QWidget):
         for label in self.parentWidget().findChildren(QtWidgets.QLabel):
             if label.property('videoCaption') and label.isVisible() and label.text():
                 bottom = min(bottom, label.y() - 8)
+        if 'info' in self.items:
+            info = self.items['info'][0]
+            escape = lambda value: html.escape(str(value or ''))
+            body = f'<div style="color:#39ff14;font-weight:bold;">{escape(info.get("title"))}</div>'
+            if info.get('credits'):
+                body += f'<div style="color:#ffda59;">{escape(info["credits"])}</div>'
+            if info.get('directors'):
+                body += '<div><b style="color:#8dd9ff;">Directed by:</b> ' + escape(info['directors'][:180]) + '</div>'
+            if info.get('actors'):
+                body += '<div><b style="color:#8dd9ff;">Starring:</b> ' + escape(info['actors'][:180]) + '</div>'
+            synopsis = ' '.join(str(info.get('synopsis') or '').split())
+            if synopsis:
+                body += '<p>' + escape(synopsis[:240] + ('…' if len(synopsis) > 240 else '')) + '</p>'
+            document = QtGui.QTextDocument()
+            infoFont = QtGui.QFont('Consolas')
+            infoSize = max(11, min(24, round(self.width() * .027)))
+            document.setDocumentMargin(0)
+            document.setDefaultStyleSheet('body { color: white; } p { margin-top: 5px; margin-bottom: 0; }')
+            document.setHtml('<body>' + body + '</body>')
+            document.setTextWidth(max(20, self.width() - margin * 2 - 24))
+            while True:
+                infoFont.setPixelSize(infoSize)
+                document.setDefaultFont(infoFont)
+                if document.size().height() <= self.height() * .48 or infoSize <= 10:
+                    break
+                infoSize -= 1
+            height = min(document.size().height() + 24, max(24, bottom - margin))
+            box = QtCore.QRectF(margin, max(margin, bottom - height), self.width() - margin * 2, height)
+            painter.setBrush(QtGui.QColor(5, 12, 28, 205))
+            painter.setPen(QtGui.QPen(QtGui.QColor('#719aba'), 1))
+            painter.drawRoundedRect(box, 8, 8)
+            painter.save()
+            painter.setClipRect(box.adjusted(10, 10, -10, -10))
+            painter.translate(box.left() + 12, box.top() + 12)
+            document.drawContents(painter)
+            painter.restore()
+            bottom = box.top() - 8
         units = len(lines) * 1.4 + (0.85 if volume else 0)
         size = min(size, max(12, int(min(bottom, self.height() * .48) / max(1, units))))
         font.setPixelSize(size)
@@ -83,7 +131,7 @@ class VideoOsd(QtWidgets.QWidget):
         rowHeight = round(size * 1.4)
         y = max(margin, bottom - len(lines) * rowHeight - (round(size * .85) if volume else 0))
         for label, alignment in lines:
-            rect = QtCore.QRect(margin, y, self.width() - margin * 2, rowHeight)
+            rect = QtCore.QRect(margin, round(y), self.width() - margin * 2, rowHeight)
             label = QtGui.QFontMetrics(font).elidedText(label, QtCore.Qt.ElideRight, rect.width())
             text(rect, label, alignment | QtCore.Qt.AlignVCenter)
             y += rowHeight
