@@ -321,13 +321,15 @@ These ideas were recorded before the subsequent fixes; check current code and re
 
 - WEATHER is a live channel alongside the movie genres, including an empty catalogue. It can be included/excluded in Setup and is independent of movie MPAA/quality filters.
 - Setup → Weather: search for a city/state/country or postal code, choose the matching location, select Fahrenheit/mph or Celsius/km/h, and press OK. Location and units persist in settings. No location is assumed; an unconfigured channel directs users to Setup.
-- Native Qt 4:3 blue-gradient weather cards cycle every ten seconds through current conditions, hourly forecast, and three-day outlook. Gold headings, monospaced text, simple weather icons, and subtle scanlines remain independent of application font zoom.
+- Native Qt 4:3 blue-gradient weather cards cycle every ten seconds through current conditions, hourly forecast, and six-day outlook in two rows of three. Gold headings, monospaced text, simple weather icons, and subtle scanlines remain independent of application font zoom.
 - Open-Meteo fetches run asynchronously, time out after 15 seconds, and refresh every ten minutes. Errors are visible; the last successful readings remain marked as the last update. Weather clock/forecast times follow the selected location's UTC offset. No fabricated readings are shown.
 - Power leaves the guide visible; pause freezes card rotation. Channel/volume overlays remain available. Movie seeking, subtitles, and reprogramming are disabled on WEATHER; DLSS waits for a movie surface. The guide shows hourly Local Weather blocks and weather information in its right panel.
 - Reference: FieldStation42's [WeatherStar recipe](https://fieldstation42.com/docs/guides/channel-recipes/#recipe-9-weatherstar-channel). This implementation renders locally in Qt and does not require Docker or an embedded browser.
 - Provider documentation: [Open-Meteo forecast](https://open-meteo.com/en/docs), [location search / GeoNames](https://open-meteo.com/en/docs/geocoding-api).
 
-- Weather background music: three original MIDI lounge cues (Evening Breeze, Local Outlook, Quiet Horizon) loop quietly. Original MIDI files and portable stereo PCM renditions are bundled under `smdb/assets/weather_music`; `smdb/generate_weather_music.py` regenerates them. No online music or external MIDI synth is required. Only the audible weather engine plays music; volume/mute, global pause, power, channel changes, and mode exit control it.
+- Weather background music: Nine original MIDI lounge cues loop quietly: Evening Breeze, Local Outlook, Quiet Horizon, Morning Windows, Coastal Drive, Rain on Glass, Sunset Local, City Lights, and Weekend Forecast. The expanded library varies tempos, chord rhythms, melodies, and keyboard/bell timbres; the six additional cues are longer than the original three. Original MIDI files and portable stereo PCM renditions are bundled under `smdb/assets/weather_music`; `smdb/generate_weather_music.py` regenerates them. No online music or external MIDI synth is required. Only the audible weather engine plays music; volume/mute, global pause, power, channel changes, and mode exit control it.
+
+- Hourly forecast columns share explicit boundaries and alignment for headings and readings. Temperature and rain values align on their right edges; times and conditions align on their left edges, preserving spacing as the weather screen scales.
 
 
 ## Remote program information

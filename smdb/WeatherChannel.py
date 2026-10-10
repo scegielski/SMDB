@@ -133,7 +133,7 @@ class WeatherService(QtCore.QObject):
             'current': 'temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m',
             'hourly': 'temperature_2m,weather_code,precipitation_probability',
             'daily': 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max',
-            'timezone': 'auto', 'forecast_days': 3, 'timeformat': 'unixtime',
+            'timezone': 'auto', 'forecast_days': 6, 'timeformat': 'unixtime',
             'temperature_unit': 'celsius' if metric else 'fahrenheit',
             'wind_speed_unit': 'kmh' if metric else 'mph'})
 
@@ -310,29 +310,36 @@ class WeatherScreen(QtWidgets.QWidget):
         elif self.page == 1:
             hours = data.get('hourly', {})
             indexes = [i for i, stamp in enumerate(hours.get('time', [])) if stamp >= time.time() - 3600][:5]
-            text(32, 145, 580, 30, 'TIME        TEMP   RAIN   CONDITIONS', 17, '#ffda59')
+            columns = ((32, 135, QtCore.Qt.AlignLeft),
+                       (176, 96, QtCore.Qt.AlignRight),
+                       (280, 64, QtCore.Qt.AlignRight),
+                       (365, 250, QtCore.Qt.AlignLeft))
+            for (x, width, alignment), heading in zip(columns, ('TIME', 'TEMP', 'RAIN', 'CONDITIONS')):
+                text(x, 145, width, 30, heading, 17, '#ffda59', alignment)
             for row, i in enumerate(indexes):
                 def item(key):
                     values = hours.get(key, [])
                     return values[i] if i < len(values) and values[i] is not None else '—'
                 y = 186 + row * 43
-                text(32, y, 135, 38, service.local_time(hours['time'][i]), 21)
-                text(176, y, 96, 38, f'{item("temperature_2m")}{unit}', 21, '#ffda59')
-                text(280, y, 80, 38, f'{item("precipitation_probability")}%', 21)
-                text(365, y, 250, 38, condition(item('weather_code')), 18)
+                values = (service.local_time(hours['time'][i]), f'{item("temperature_2m")}{unit}',
+                          f'{item("precipitation_probability")}%', condition(item('weather_code')))
+                for column, (x, width, alignment) in enumerate(columns):
+                    text(x, y, width, 38, values[column], 18 if column == 3 else 21,
+                         '#ffda59' if column == 1 else '#ffffff', alignment)
         else:
             daily = data.get('daily', {})
-            for i, stamp in enumerate(daily.get('time', [])[:3]):
-                x = 28 + i * 200
-                text(x, 158, 186, 32, service.local_time(stamp, '%a').upper(), 27, '#ffda59', QtCore.Qt.AlignHCenter)
+            for i, stamp in enumerate(daily.get('time', [])[:6]):
+                x = 28 + (i % 3) * 200
+                y = 145 + (i // 3) * 140
+                text(x, y, 186, 29, service.local_time(stamp, '%a').upper(), 24, '#ffda59', QtCore.Qt.AlignHCenter)
                 codes = daily.get('weather_code', [])
                 code = codes[i] if i < len(codes) else None
-                self._icon(p, x + 44, 204, code, .68)
-                text(x, 288, 186, 42, condition(code), 17, align=QtCore.Qt.AlignHCenter)
-                for key, y, label in (('temperature_2m_max', 340, 'HI'), ('temperature_2m_min', 378, 'LO')):
+                self._icon(p, x + 67, y + 30, code, .43)
+                text(x, y + 78, 186, 26, condition(code), 16, align=QtCore.Qt.AlignHCenter)
+                for key, dy, label in (('temperature_2m_max', 101, 'HI'), ('temperature_2m_min', 122, 'LO')):
                     values = daily.get(key, [])
                     value = values[i] if i < len(values) and values[i] is not None else '—'
-                    text(x, y, 186, 32, f'{label} {value}{unit}', 26, '#ffda59' if label == 'HI' else '#8dd9ff', QtCore.Qt.AlignHCenter)
+                    text(x, y + dy, 186, 21, f'{label} {value}{unit}', 18, '#ffda59' if label == 'HI' else '#8dd9ff', QtCore.Qt.AlignHCenter)
         p.fillRect(QtCore.QRectF(0, 431, 640, 49), QtGui.QColor('#10162e'))
         text(26, 434, 588, 23, service.status, 14, '#e6ce90')
         text(26, 457, 588, 20, 'Open-Meteo / GeoNames      SMTV WEATHER', 13, '#adb9dd')

@@ -52,6 +52,7 @@ class WeatherTests(unittest.TestCase):
             params = get.call_args.args[1]
             self.assertEqual(params['temperature_unit'], 'celsius')
             self.assertEqual(params['timezone'], 'auto')
+            self.assertEqual(params['forecast_days'], 6)
         data = {'current': {'temperature_2m': 18, 'weather_code': 2}, 'utc_offset_seconds': 7200}
         service._received(data, '')
         self.assertIn('18°C', service.summary())
@@ -103,14 +104,14 @@ class WeatherTests(unittest.TestCase):
 
     def test_original_music_assets_and_audio_controls(self):
         assets = Path(__file__).resolve().parents[1] / 'smdb' / 'assets' / 'weather_music'
-        self.assertEqual(len(list(assets.glob('*.mid'))), 3)
+        self.assertEqual(len(list(assets.glob('*.mid'))), 9)
         for midi in assets.glob('*.mid'):
             self.assertTrue(midi.read_bytes().startswith(b'MThd'))
             with wave.open(str(midi.with_suffix('.wav'))) as audio:
                 self.assertEqual(audio.getnchannels(), 2)
                 self.assertGreater(audio.getnframes() / audio.getframerate(), 30)
         music = WeatherMusic()
-        self.assertEqual(music.playlist.mediaCount(), 3)
+        self.assertEqual(music.playlist.mediaCount(), 9)
         with patch.object(music.player, 'play') as play, patch.object(music.player, 'pause') as pause, patch.object(music.player, 'stop') as stop:
             music.sync(70, active=True)
             play.assert_called_once()
@@ -146,7 +147,7 @@ class WeatherTests(unittest.TestCase):
                                       'relative_humidity_2m': 74, 'wind_speed_10m': 8, 'wind_direction_10m': 240},
                            'utc_offset_seconds': -25200,
                            'hourly': {'time': [now + i * 3600 for i in range(5)], 'temperature_2m': [64, 62, 60, 59, 58], 'weather_code': [2, 3, 3, 61, 61], 'precipitation_probability': [5, 10, 20, 50, 60]},
-                           'daily': {'time': [now + i * 86400 for i in range(3)], 'temperature_2m_max': [66, 62, 65], 'temperature_2m_min': [52, 49, 51], 'weather_code': [2, 61, 3]}}, '')
+                           'daily': {'time': [now + i * 86400 for i in range(6)], 'temperature_2m_max': [66, 62, 65, 68, 64, 63], 'temperature_2m_min': [52, 49, 51, 53, 50, 48], 'weather_code': [2, 61, 3, 0, 2, 61]}}, '')
         screen = WeatherScreen(service)
         screen.resize(960, 720)
         with patch.object(service, 'start'):
