@@ -311,3 +311,20 @@ These ideas were recorded before the subsequent fixes; check current code and re
 - DLSS mode visibility (2026-10-08): move the Default/Natural/Cinematic button into the same collapsible controls group as intensity, tone, and structure. Hide the whole group while DLSS is disabled or failed; retain the selected mode across toggles.
 
 - DLSS bottom controls (2026-10-08): move the capsule DLSS toggle below Setup at the bottom of the controller. Expand intensity, tone, structure, and the mode button directly beneath it only while enabled. Preserve the toggle's checked bevel and the remote's existing scrolling/resizing behavior.
+
+- Fullscreen outer edge (2026-10-08): remove the TV root layout's four-pixel margins while fullscreen so the gray window background no longer outlines the program. Restore the original margins on exit; preserve guide visibility and the remote overlay. Fullscreen geometry and margin-restoration checks pass.
+
+- Fullscreen idle pointer (2026-10-08): hide the mouse pointer with the controller after the same five seconds of inactivity. Restore it on mouse movement, fullscreen exit, mode hide, minimization, or dialog/drag activity. Scope cursor changes to the fullscreen window and restore explicit guide/resize cursors rather than setting an application-global override. Isolated Windows checks for idle hide, video mouse wake, fullscreen exit, and unchanged windowed remote behavior pass; combined native multimedia teardown remains unreliable.
+
+
+## Retro local weather channel
+
+- WEATHER is a live channel alongside the movie genres, including an empty catalogue. It can be included/excluded in Setup and is independent of movie MPAA/quality filters.
+- Setup → Weather: search for a city/state/country or postal code, choose the matching location, select Fahrenheit/mph or Celsius/km/h, and press OK. Location and units persist in settings. No location is assumed; an unconfigured channel directs users to Setup.
+- Native Qt 4:3 blue-gradient weather cards cycle every ten seconds through current conditions, hourly forecast, and three-day outlook. Gold headings, monospaced text, simple weather icons, and subtle scanlines remain independent of application font zoom.
+- Open-Meteo fetches run asynchronously, time out after 15 seconds, and refresh every ten minutes. Errors are visible; the last successful readings remain marked as the last update. Weather clock/forecast times follow the selected location's UTC offset. No fabricated readings are shown.
+- Power leaves the guide visible; pause freezes card rotation. Channel/volume overlays remain available. Movie seeking, subtitles, and reprogramming are disabled on WEATHER; DLSS waits for a movie surface. The guide shows hourly Local Weather blocks and weather information in its right panel.
+- Reference: FieldStation42's [WeatherStar recipe](https://fieldstation42.com/docs/guides/channel-recipes/#recipe-9-weatherstar-channel). This implementation renders locally in Qt and does not require Docker or an embedded browser.
+- Provider documentation: [Open-Meteo forecast](https://open-meteo.com/en/docs), [location search / GeoNames](https://open-meteo.com/en/docs/geocoding-api).
+
+- Weather background music: three original MIDI lounge cues (Evening Breeze, Local Outlook, Quiet Horizon) loop quietly. Original MIDI files and portable stereo PCM renditions are bundled under `smdb/assets/weather_music`; `smdb/generate_weather_music.py` regenerates them. No online music or external MIDI synth is required. Only the audible weather engine plays music; volume/mute, global pause, power, channel changes, and mode exit control it.

@@ -148,7 +148,7 @@ class SchedulePersistenceTests(unittest.TestCase):
                     stream.write('{broken')
                 restored = RetroChannelWidget(parent)
                 restored.refreshChannels()
-                self.assertEqual(len(restored.channels), 1)
+                self.assertEqual(len(restored.channels), 2)
                 with open(os.path.join(directory, 'smtv_schedule.json')) as stream:
                     self.assertEqual(json.load(stream)['version'], 1)
             finally:

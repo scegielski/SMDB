@@ -27,8 +27,9 @@ import tempfile
 import time
 import wave
 
-from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5 import QtCore, QtGui, QtWidgets, sip
 from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer, QSoundEffect, QVideoProbe
+from .WeatherChannel import WeatherService, WeatherScreen, WeatherSettingsPage, WeatherMusic
 from .VideoView import VideoView
 from .Dlss import DlssProcessor
 from .GuideTimeline import GuideTimeline
@@ -1511,9 +1512,77 @@ class _OverlayArea(QtWidgets.QWidget):
             widget.setGeometry((rect.width() - w) // 2, (rect.height() - h) // 2, w, h)
 
 
+class WeatherChannelEngine(ChannelEngine):
+    """Live weather shares the TV surface and OSD, without loading a movie."""
+    def __init__(self, *args, weatherService, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.music = WeatherMusic(self)
+        self.weather = WeatherScreen(weatherService, self.slotA.videoWidget.viewport())
+        weatherService.updated.connect(self._weatherChanged)
+        self.weatherService = weatherService
+        self.weatherTick = QtCore.QTimer(self)
+        self.weatherTick.setInterval(1000)
+        self.weatherTick.timeout.connect(self._weatherChanged)
+        self.watchdogTimer.stop()
+
+    def _weatherChanged(self):
+        if self.currentRow is None:
+            return
+        slot = self.clock.whatsOnNow()[0]
+        if slot != self.currentSlotIndex:
+            self.currentSlotIndex = slot
+            self.programChanged.emit()
+
+    def start(self, showStatic=True):
+        self.currentRow = -1
+        self.currentSlotIndex = self.clock.whatsOnNow()[0]
+        self.currentTitle = 'Local Weather'
+        self.nextTitle = 'Local Weather'
+        self._stack.setCurrentWidget(self.slotA.videoWidget)
+        self.weather.show()
+        self.weather.raise_()
+        self.slotA.videoWidget.osd.raise_()
+        self.weatherTick.start()
+        self.weatherService.start()
+        self.music.sync(self.desiredVolume, self._paused, True)
+        self.programChanged.emit()
+
+    def setPaused(self, paused):
+        self._paused = paused
+        self.clock.setPaused(paused)
+        self.weather.paused = paused
+        self.music.sync(self.desiredVolume, paused, self.currentRow is not None)
+
+    def setDesiredVolume(self, volume):
+        super().setDesiredVolume(volume)
+        self.music.sync(volume, self._paused, self.currentRow is not None)
+
+    def refreshVideoOutputs(self):
+        self.weather.setGeometry(self.slotA.videoWidget.viewport().rect())
+        self.weather.raise_()
+        self.slotA.videoWidget.osd.raise_()
+
+    def skipProgram(self, step, beginning=False, startUnvisited=False, live=False):
+        if live:
+            self.clock.returnToLive()
+
+    def seekCurrentFilm(self, offsetMs=0, beginning=False):
+        return False
+
+    def restartCurrentFilm(self):
+        return False
+
+    def shutdown(self):
+        self.weatherTick.stop()
+        self.music.stop()
+        self.weatherService.updated.disconnect(self._weatherChanged)
+        self.weather.timer.stop()
+        super().shutdown()
+
+
 class _ChannelSetupDialog(QtWidgets.QDialog):
     def __init__(self, channels, excludedGenres, parent=None, ratingCounts=None, excludedRatings=None,
-                 qualityRange=(0.0, 10.0), includeUnrated=True, panMode='drag'):
+                 qualityRange=(0.0, 10.0), includeUnrated=True, panMode='drag', weatherConfig=None):
         super().__init__(parent)
         self.setWindowTitle('SMTV channel setup')
         self.resize(600, 650)
@@ -1526,7 +1595,8 @@ class _ChannelSetupDialog(QtWidgets.QDialog):
         self.channelChecks = {}
         for channel in channels:
             genre = channel['genre']
-            checkbox = QtWidgets.QCheckBox(f"{genre.upper()} ({len(channel['rows'])} movies)")
+            label = f"{genre.upper()} (live local weather)" if channel.get("weather") else f"{genre.upper()} ({len(channel['rows'])} movies)"
+            checkbox = QtWidgets.QCheckBox(label)
             checkbox.setChecked(genre not in excludedGenres)
             self.channelChecks[genre] = checkbox
             checks.addWidget(checkbox)
@@ -1588,6 +1658,8 @@ class _ChannelSetupDialog(QtWidgets.QDialog):
         hint.setWordWrap(True)
         guideLayout.addRow(hint)
         self.pages.addTab(guidePage, 'Guide')
+        self.weatherPage = WeatherSettingsPage(weatherConfig, self)
+        self.pages.addTab(self.weatherPage, 'Weather')
         layout.addWidget(self.pages, 1)
         selection = QtWidgets.QHBoxLayout()
         for label, checked in (('Select all', True), ('Clear all', False)):
@@ -1645,6 +1717,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._dlssCaptureTimer.setInterval(8000)
         self._dlssCaptureTimer.timeout.connect(self._dlssCaptureTimeout)
         self._remoteRestored = False
+        self._hiddenPointerWidgets = []
         self._videoPathCache = {}
         self._savedVideoPaths = {}
         self._pathWarmRows = set()
@@ -1662,6 +1735,14 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._qualityByRow = {}
         self._filteredClocks = {}
         self._settings = getattr(parent, 'settings', None)
+        try:
+            weatherConfig = json.loads(self._settings.value('smtvWeatherLocation', '{}', type=str)) if self._settings else {}
+        except (TypeError, ValueError):
+            weatherConfig = {}
+        self.weatherService = WeatherService(weatherConfig, self)
+        self.weatherPreview = WeatherScreen(self.weatherService, self)
+        self.weatherPreview.hide()
+        self.weatherService.updated.connect(self._weatherUpdated)
         self.remoteScale = max(0.5, min(2.0, self._settings.value('smtvRemoteScale', 0.85, type=float))) if self._settings else 0.85
         self.subtitleOffsetMs = 0
         self.subtitlesEnabled = self._settings.value('smtvSubtitlesEnabled', False, type=bool) if self._settings else False
@@ -2063,6 +2144,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.controlsDock.show()
 
     def _wakeRemote(self):
+        self._setPointerHidden(False)
         self._remoteLastActivity = time.monotonic()
         if not self.isActive:
             return
@@ -2078,8 +2160,29 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.controlsDock.show()
         self.controlsDock.raise_()
 
+    def _setPointerHidden(self, hidden):
+        if hidden:
+            if self._hiddenPointerWidgets or not self.isFullScreenActive:
+                return
+            host = self.window()
+            # Hide within this window only; preserve explicit resize/pan cursors.
+            for widget in [host] + host.findChildren(QtWidgets.QWidget):
+                explicit = widget.testAttribute(QtCore.Qt.WA_SetCursor)
+                if widget is host or explicit:
+                    self._hiddenPointerWidgets.append((widget, explicit, QtGui.QCursor(widget.cursor())))
+                    widget.setCursor(QtCore.Qt.BlankCursor)
+        else:
+            widgets, self._hiddenPointerWidgets = self._hiddenPointerWidgets, []
+            for widget, explicit, cursor in widgets:
+                if not sip.isdeleted(widget):
+                    if explicit:
+                        widget.setCursor(cursor)
+                    else:
+                        widget.unsetCursor()
+
     def _pollRemoteActivity(self):
         if not self.isActive or self.window().isMinimized():
+            self._setPointerHidden(False)
             return
         position = QtGui.QCursor.pos()
         moved = position != self._remoteMousePosition
@@ -2093,9 +2196,11 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if moved:
             self._wakeRemote()
         elif busy:
+            self._setPointerHidden(False)
             self._remoteLastActivity = time.monotonic()
         elif time.monotonic() - self._remoteLastActivity >= 5:
             self.controlsDock.hide()
+            self._setPointerHidden(self.isFullScreenActive)
 
     def _subtitleSlot(self):
         engine = self._guidePreviewHostedEngine if self.guideVisible else None
@@ -2231,8 +2336,9 @@ class RetroChannelWidget(QtWidgets.QWidget):
 
     def _syncDlss(self):
         engine = self._guidePreviewHostedEngine if self.guideVisible else self.engines.get(self.currentIndex)
-        chosen = engine.activeSlot.videoWidget if engine and self._powerOn and not engine.isShowingStandby() else None
-        if chosen is None and self.guideVisible and not engine and self.guidePreviewSlot and self._powerOn:
+        chosen = engine.activeSlot.videoWidget if engine and not isinstance(engine, WeatherChannelEngine) and self._powerOn and not engine.isShowingStandby() else None
+        if (chosen is None and self.guideVisible and not engine and self.guidePreviewSlot and self._powerOn
+                and not (self.channels and self.channels[self.guideHighlightIndex].get('weather'))):
             chosen = self.guidePreviewSlot.videoWidget
         if chosen is not self._dlssChosen:
             self._dlssChosen = chosen
@@ -2541,9 +2647,6 @@ class RetroChannelWidget(QtWidgets.QWidget):
     def refreshChannels(self):
         """(Re)build the channel list (one per genre) from the movies table model."""
         model = getattr(self.mainWindow, 'moviesTableModel', None)
-        if model is None:
-            return
-
         folder = getattr(self.mainWindow, 'moviesFolder', None)
         path = os.path.join(folder, 'smtv_schedule.json') if isinstance(folder, str) and os.path.isdir(folder) else None
         if path != self._schedulePath:
@@ -2568,7 +2671,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._ratingCounts = {}
         self._qualityByRow = {}
         self._filteredClocks = {}
-        for row in range(model.rowCount()):
+        for row in range(model.rowCount() if model is not None else 0):
             self._qualityByRow[row] = self._qualityForRow(model, row)
             rating = self._mpaaForRow(model, row)
             self._ratingByRow[row] = rating
@@ -2590,6 +2693,14 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._pathWarmRows.clear()
         self._descriptionCache = {}
         self._filmInfoCache = {}
+        weatherClock = ChannelClock([-1], lambda row: 3600000, broadcastAligned=True)
+        start = math.floor(time.time() / 3600) * 3600
+        weatherClock._scheduleStarts = [start]
+        weatherClock._scheduleEnds = [start + 3600]
+        weatherClock._scheduleCycleSeconds = 3600
+        weatherClock._offsetFractions = {0: 0.0}
+        weatherClock.epoch = time.monotonic() - (time.time() - start)
+        newChannels.append({'genre': 'Weather', 'rows': [-1], 'clock': weatherClock, 'weather': True})
         self._availableChannels = newChannels
         self._applyChannelSelection()
 
@@ -2645,6 +2756,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if not self._schedulePath:
             return
         for channel in self._availableChannels + self.channels:
+            if channel.get('weather'):
+                continue
             key, identities = self._scheduleIdentity(channel['genre'], channel['rows'])
             if key is None:
                 continue
@@ -2672,7 +2785,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         dialog = _ChannelSetupDialog(self._availableChannels, self._excludedGenres, self,
                                      self._ratingCounts, self._excludedRatings,
                                      (self._minimumQuality, self._maximumQuality), self._includeUnratedQuality,
-                                     self.guideTable.panMode)
+                                     self.guideTable.panMode, self.weatherService.config)
         if dialog.exec_() == QtWidgets.QDialog.Accepted:
             available = set(dialog.channelChecks)
             excluded = (self._excludedGenres - available) | {
@@ -2684,6 +2797,16 @@ class RetroChannelWidget(QtWidgets.QWidget):
                                        (dialog.minimumRating.value(), dialog.maximumRating.value()),
                                        dialog.includeUnrated.isChecked())
             self.setGuidePanMode(dialog.panMode.currentData())
+            self.setWeatherLocation(dialog.weatherPage.configuration())
+
+    def setWeatherLocation(self, config):
+        self.weatherService.configure(config)
+        if self._settings:
+            self._settings.setValue('smtvWeatherLocation', json.dumps(self.weatherService.config))
+
+    def _weatherUpdated(self):
+        if self.guideVisible and self.channels:
+            self._refreshGuideTable()
 
     def setGuidePanMode(self, mode):
         self.guideTable.setPanMode(mode)
@@ -2723,6 +2846,9 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.channels = []
         for channel in self._availableChannels:
             if channel['genre'] in self._excludedGenres:
+                continue
+            if channel.get('weather'):
+                self.channels.append(channel)
                 continue
             rows = [row for row in channel['rows']
                     if self._ratingByRow.get(row, 'Unknown') not in self._excludedRatings
@@ -2789,6 +2915,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
             return 0
 
     def _resolveVideoPath(self, row):
+        if row == -1:
+            return None
         schedulePath = self._schedulePath or ''
         if row in self._videoPathCache:
             cached = self._videoPathCache[row]
@@ -2830,6 +2958,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self._pathSaveTimer.start()
 
     def _warmSurroundingVideoPaths(self, engine):
+        if isinstance(engine, WeatherChannelEngine):
+            return
         slot = engine.currentSlotIndex
         if not isinstance(slot, int) or not isinstance(engine.clock, ChannelClock):
             return
@@ -2842,6 +2972,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
             QtCore.QThreadPool.globalInstance().start(task, -1)
 
     def _titleForRow(self, row):
+        if row == -1:
+            return 'Local Weather'
         model = getattr(self.mainWindow, 'moviesTableModel', None)
         if model is None or row is None:
             return ''
@@ -2909,6 +3041,14 @@ class RetroChannelWidget(QtWidgets.QWidget):
             availableOff = button in (self.channelUpButton, self.channelDownButton,
                                       self.guideButton, self.reprogramButton)
             button.setEnabled(hasChannels and (self._powerOn or availableOff))
+        if hasChannels and self.channels[self.currentIndex].get('weather'):
+            for button in (self.backTenButton, self.forwardTenButton, self.beginningButton,
+                           self.nextBeginningButton, self.reprogramButton, self.subtitleButton,
+                           self.subtitleEarlierButton, self.subtitleLaterButton):
+                button.setEnabled(False)
+        elif hasChannels:
+            for button in (self.subtitleButton, self.subtitleEarlierButton, self.subtitleLaterButton):
+                button.setEnabled(self._powerOn)
         if not hasChannels:
             self.nowPlayingLabel.setText("")
             self.displayStack.setCurrentWidget(self.globalStandby if self._powerOn else self.powerOffScreen)
@@ -2917,6 +3057,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if not self.channels:
             return
         channel = self.channels[self.currentIndex]
+        if channel.get('weather'):
+            return
         clock = ChannelClock(channel['rows'], self._durationForRow, broadcastAligned=True)
         self._releasePreviewHost()
         self._stopGuidePreview()
@@ -3017,13 +3159,15 @@ class RetroChannelWidget(QtWidgets.QWidget):
     # ------------------------------------------------------------------
     def _createEngine(self, index):
         chan = self.channels[index]
-        engine = ChannelEngine(
+        engineClass = WeatherChannelEngine if chan.get('weather') else ChannelEngine
+        weatherArgs = {'weatherService': self.weatherService} if chan.get('weather') else {}
+        engine = engineClass(
             index + 1,
             chan['genre'],
             chan['clock'],
             resolver=self._resolveVideoPath,
             titleGetter=self._titleForRow,
-            parent=self,
+            parent=self, **weatherArgs,
         )
         engine.setPaused(self._pausedAll)
         engine.programChanged.connect(lambda idx=index: self._onProgramChanged(idx))
@@ -3113,6 +3257,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
             self.engines[idx].start(showStatic=False)
 
         self.currentIndex = index
+        self._updateEmptyState()
         self._rememberCurrentChannel()
         self.guideHighlightIndex = index
         engine = self.engines.get(index)
@@ -3189,7 +3334,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
     def _startScan(self, button, direction):
         self._stopScan()
         engine = self.engines.get(self.currentIndex)
-        if engine is None or engine.currentSlotIndex is None or not self._powerOn:
+        if engine is None or isinstance(engine, WeatherChannelEngine) or engine.currentSlotIndex is None or not self._powerOn:
             return
         if engine.isShowingComingUp():
             timestamp = engine._gapMarkerTime + max(0, engine.clock._clockNow() - engine._gapStartedAt)
@@ -3260,6 +3405,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if not self._powerOn:
             return
         self._pausedAll = not self._pausedAll
+        self.weatherPreview.paused = self._pausedAll
         for channel in self.channels:
             channel['clock'].setPaused(self._pausedAll)
         for engine in self.engines.values():
@@ -3374,6 +3520,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         host = self.window()
         self._fsWindow = host
         self._fsWindowState = host.windowState()
+        self._fsLayoutMargins = self.layout().contentsMargins()
         self._fsRemoteFloating = self.controlsDock.isFloating()
         self._fsRemoteGeometry = self.controlsDock.saveGeometry()
         self._fsRemotePosition = self.controlsDock.mapToGlobal(QtCore.QPoint())
@@ -3385,6 +3532,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._fullScreenTransition = True
         try:
             self.isFullScreenActive = True
+            self.layout().setContentsMargins(0, 0, 0, 0)
             for widget, _visible in self._fsChrome:
                 widget.hide()
             self.fullScreenButton.setText("EXIT FULL")
@@ -3418,6 +3566,8 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self._fullScreenTransition = True
         try:
             self.isFullScreenActive = False
+            self._setPointerHidden(False)
+            self.layout().setContentsMargins(self._fsLayoutMargins)
             dock = self.controlsDock
             dock.hide()
             dock._fullscreenOverlay = False
@@ -3492,6 +3642,15 @@ class RetroChannelWidget(QtWidgets.QWidget):
                 self.displayStack.removeWidget(engine.container)
             self._setPreviewContent(engine.container)
             self._guidePreviewHostedEngine = engine
+            return
+
+        if self.channels[idx].get('weather'):
+            if self._guidePreviewHostedEngine is not None:
+                self._releasePreviewHost()
+            if self.guidePreviewSlot:
+                self.guidePreviewSlot.stop()
+            self._setPreviewContent(self.weatherPreview)
+            self.weatherPreview.paused = self._pausedAll
             return
 
         # No live engine for this channel (outside the warmed neighbor range) - fall back to a
@@ -3592,6 +3751,10 @@ class RetroChannelWidget(QtWidgets.QWidget):
         chan = self.channels[self.guideHighlightIndex]
         self.guideCaption.setText(f"CH {self.guideHighlightIndex + 1:02d} \u2014 {chan['genre'].upper()}")
 
+        if chan.get('weather'):
+            self.infoStack.setCurrentWidget(self.nowInfoPane)
+            self.guideDescription.setHtml(self.weatherService.summary())
+            return
         engine = self.engines.get(self.guideHighlightIndex)
         if engine is not None and engine.isShowingStandby() and engine.isShowingComingUp():
             info = self._filmInfoForRow(engine.comingUpRow)
@@ -3693,6 +3856,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         super().hideEvent(event)
         if self._fullScreenTransition:
             return
+        self._setPointerHidden(False)
         self._saveRemoteState()
         self._pathSaveTimer.stop()
         self._writeScheduleSidecar()
@@ -3703,6 +3867,7 @@ class RetroChannelWidget(QtWidgets.QWidget):
         self.staticHiss.stop()
         self.channelClick.stop()
         self.standbyPollTimer.stop()
+        self.weatherService.refreshTimer.stop()
         self.standbyTone.stop()
         self._teardownAllEngines()
         self._stopGuidePreview()

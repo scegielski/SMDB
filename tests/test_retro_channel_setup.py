@@ -56,24 +56,25 @@ class ChannelSetupTests(unittest.TestCase):
                 tv.refreshChannels()
                 originalClock = tv.channels[0]['clock']
                 tv.setExcludedChannels(['Comedy'])
-                self.assertEqual([channel['genre'] for channel in tv.channels], ['Action'])
+                self.assertEqual([channel['genre'] for channel in tv.channels], ['Action', 'Weather'])
                 self.assertIs(tv.channels[0]['clock'], originalClock)
                 dialog = _ChannelSetupDialog(tv._availableChannels, tv._excludedGenres, tv)
                 self.assertTrue(dialog.channelChecks['Action'].isChecked())
                 self.assertFalse(dialog.channelChecks['Comedy'].isChecked())
                 dialog.channelChecks['Action'].setChecked(False)
+                dialog.channelChecks['Weather'].setChecked(False)
                 with patch('smdb.RetroChannelWidget._ChannelSetupDialog', return_value=dialog), \
                         patch.object(dialog, 'exec_', return_value=QtWidgets.QDialog.Accepted):
                     tv.setupButton.click()
                 self.assertEqual(tv.channels, [])
                 self.assertTrue(tv.setupButton.isEnabled())
                 self.assertFalse(tv.channelUpButton.isEnabled())
-                self.assertEqual(len(tv._availableChannels), 2)
+                self.assertEqual(len(tv._availableChannels), 3)
                 restored = RetroChannelWidget(parent)
                 restored.refreshChannels()
                 self.assertEqual(restored.channels, [])
                 restored.setExcludedChannels([])
-                self.assertEqual(len(restored.channels), 2)
+                self.assertEqual(len(restored.channels), 3)
                 self.assertTrue(restored.channelUpButton.isEnabled())
                 dialog.close()
             finally:
@@ -128,7 +129,7 @@ class ChannelSetupTests(unittest.TestCase):
             tv.setChannelPreferences([], [])
             tv.setChannelPreferences([], ['R'])
             self.assertIs(tv.channels[0]['clock'], clock)
-            tv.setExcludedChannels(['Action', 'Comedy'])
+            tv.setExcludedChannels(['Action', 'Comedy', 'Weather'])
             self.assertFalse(tv.reprogramButton.isEnabled())
             tv.reprogramChannel()
         finally:
@@ -168,7 +169,7 @@ class ChannelSetupTests(unittest.TestCase):
                 restored.setChannelPreferences([], ['R'], (6.093, 8.6), False)
                 self.assertEqual(restored.channels[0]['rows'], [0, 1])
                 restored.setChannelPreferences([], [], (9.0, 10.0), False)
-                self.assertEqual(restored.channels, [])
+                self.assertEqual([channel['genre'] for channel in restored.channels], ['Weather'])
                 self.assertTrue(restored.setupButton.isEnabled())
                 self.assertLessEqual(dialog.minimumRating.value(), dialog.maximumRating.value())
                 dialog.minimumRating.setValue(10.0)
@@ -193,7 +194,7 @@ class ChannelSetupTests(unittest.TestCase):
             restored = None
             try:
                 tv.refreshChannels()
-                self.assertEqual(len(tv.channels), 2)
+                self.assertEqual(len(tv.channels), 3)
                 dialog = _ChannelSetupDialog(tv._availableChannels, set(), tv, tv._ratingCounts, set())
                 self.assertEqual(set(dialog.ratingChecks), {'PG', 'R', 'Unknown', 'Unrated'})
                 dialog.pages.setCurrentIndex(1)
@@ -203,17 +204,17 @@ class ChannelSetupTests(unittest.TestCase):
                 with patch('smdb.RetroChannelWidget._ChannelSetupDialog', return_value=dialog), \
                         patch.object(dialog, 'exec_', return_value=QtWidgets.QDialog.Accepted):
                     tv.setupButton.click()
-                self.assertEqual([(channel['genre'], channel['rows']) for channel in tv.channels], [('Action', [0])])
+                self.assertEqual([(channel['genre'], channel['rows']) for channel in tv.channels], [('Action', [0]), ('Weather', [-1])])
                 self.assertEqual(tv.channels[0]['clock']._rotation, [0])
                 restored = RetroChannelWidget(parent)
                 restored.refreshChannels()
                 self.assertEqual(restored.channels[0]['rows'], [0])
                 restored.setChannelPreferences([], ['PG', 'R', 'Unknown', 'Unrated'])
-                self.assertEqual(restored.channels, [])
+                self.assertEqual([channel['genre'] for channel in restored.channels], ['Weather'])
                 self.assertTrue(restored.setupButton.isEnabled())
-                self.assertEqual(len(restored._availableChannels), 2)
+                self.assertEqual(len(restored._availableChannels), 3)
                 restored.setChannelPreferences([], [])
-                self.assertEqual(len(restored.channels), 2)
+                self.assertEqual(len(restored.channels), 3)
                 dialog.close()
             finally:
                 tv.close()

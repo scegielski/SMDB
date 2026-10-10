@@ -69,8 +69,10 @@ class RemoteIdleTests(unittest.TestCase):
         self.tv._remoteLastActivity = 95
         self.tick(100)
         self.assertTrue(self.tv.controlsDock.isHidden())
+        self.assertEqual(self.tv.cursor().shape(), QtCore.Qt.BlankCursor)
         self.tick(101, moved=True)
         self.assertTrue(self.tv.controlsDock.isVisible())
+        self.assertNotEqual(self.tv.cursor().shape(), QtCore.Qt.BlankCursor)
         self.assertTrue(self.tv.controlsDock._fullscreenOverlay)
         self.assertTrue(self.tv.nowPlayingLabel.isHidden())
         self.point = self.point + QtCore.QPoint(10, 0)
@@ -79,6 +81,7 @@ class RemoteIdleTests(unittest.TestCase):
         self.tv._exitFullScreen()
         self.app.processEvents()
         self.assertFalse(self.tv.controlsDock.isFloating())
+        self.assertNotEqual(self.tv.cursor().shape(), QtCore.Qt.BlankCursor)
 
     def test_fullscreen_remote_shares_video_window_and_is_top_child(self):
         self.tv._enterFullScreen()
@@ -107,12 +110,14 @@ class RemoteIdleTests(unittest.TestCase):
         self.tv._remoteLastActivity = 100
         self.tick(105)
         self.assertTrue(self.tv.controlsDock.isHidden())
+        self.assertEqual(video.viewport().cursor().shape(), QtCore.Qt.BlankCursor)
         with patch.object(QtGui.QCursor, 'pos', return_value=self.point):
             event = QtGui.QMouseEvent(QtCore.QEvent.MouseMove, QtCore.QPointF(80, 70),
                                      QtCore.Qt.NoButton, QtCore.Qt.NoButton, QtCore.Qt.NoModifier)
             QtWidgets.QApplication.sendEvent(video.viewport(), event)
         self.assertTrue(video.viewport().hasMouseTracking())
         self.assertTrue(self.tv.controlsDock.isVisible())
+        self.assertNotEqual(video.viewport().cursor().shape(), QtCore.Qt.BlankCursor)
         self.assertIs(self.tv.controlsDock.window(), self.tv.window())
 
     def test_fullscreen_overlay_drag_keeps_remote_in_video_window(self):
