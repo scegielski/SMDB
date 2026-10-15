@@ -2145,7 +2145,9 @@ class RetroChannelWidget(QtWidgets.QWidget):
                     self.controlsDock.restoreGeometry(geometry)
             self._remoteRestored = True
         self._applyRemoteSizes()
+        self.sideScroll.show()
         self.controlsDock.show()
+        self.controlsDock.raise_()
 
     def _wakeRemote(self):
         self._setPointerHidden(False)
@@ -3888,7 +3890,9 @@ class RetroChannelWidget(QtWidgets.QWidget):
         if self._fullScreenTransition:
             return
         self.isActive = True
-        self._showRemote()
+        # A floating dock can be hidden again while its stacked parent is being
+        # shown. Restore it after Qt has completed the mode switch and layout.
+        QtCore.QTimer.singleShot(0, self._restoreRemoteAfterShow)
         self._remoteLastActivity = time.monotonic()
         self._remoteMousePosition = QtGui.QCursor.pos()
         self.remoteIdleTimer.start()
@@ -3907,6 +3911,12 @@ class RetroChannelWidget(QtWidgets.QWidget):
         else:
             self._syncStandbyTone()
         self.setFocus()
+
+    def _restoreRemoteAfterShow(self):
+        if not self.isActive or not self.isVisible() or self._fullScreenTransition:
+            return
+        self._showRemote()
+        self._wakeRemote()
 
     def hideEvent(self, event):
         super().hideEvent(event)

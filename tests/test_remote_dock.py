@@ -7,6 +7,36 @@ from smdb.RetroChannelWidget import RetroChannelWidget
 class RemoteDockTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):cls.app=QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    def test_start_in_database_then_switch_restores_floating_remote_contents(self):
+        with tempfile.TemporaryDirectory() as folder:
+            parent = QtWidgets.QWidget()
+            parent.settings = QtCore.QSettings(str(Path(folder) / 'test.ini'), QtCore.QSettings.IniFormat)
+            parent.settings.setValue('smtvRemoteFloating', True)
+            stack = QtWidgets.QStackedWidget(parent)
+            stack.addWidget(QtWidgets.QWidget())
+            tv = RetroChannelWidget(parent)
+            stack.addWidget(tv)
+            layout = QtWidgets.QVBoxLayout(parent);layout.addWidget(stack)
+            parent.resize(1000, 900);parent.show();self.app.processEvents()
+            try:
+                tv.sideScroll.hide()
+                for attempt in range(2):
+                    stack.setCurrentWidget(tv);self.app.processEvents()
+                    self.assertTrue(tv.controlsDock.isFloating())
+                    self.assertTrue(tv.controlsDock.isVisible())
+                    self.assertTrue(tv.sideScroll.isVisible())
+                    self.assertTrue(tv.sideControls.isVisible())
+                    tv.controlsDock.hide()
+                    tv.sideScroll.hide()
+                    stack.setCurrentIndex(0);self.app.processEvents()
+                    self.assertFalse(tv.controlsDock.isVisible())
+                # A queued restore must not reopen the remote after a fast exit.
+                stack.setCurrentWidget(tv);stack.setCurrentIndex(0);self.app.processEvents()
+                self.assertFalse(tv.controlsDock.isVisible())
+            finally:
+                parent.close();parent.deleteLater()
+                self.app.sendPostedEvents(None, QtCore.QEvent.DeferredDelete)
+
     def test_floating_redocking_and_mode_visibility_preserve_controls(self):
         tv=RetroChannelWidget();tv.resize(1000,1000)
         try:

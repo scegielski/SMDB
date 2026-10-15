@@ -340,3 +340,5 @@ These ideas were recorded before the subsequent fixes; check current code and re
 - Overlays pass mouse events through to the video and scale independently of application fonts.
 
 - Fixed a crash when persistent INFO coexists with channel/volume messages: the information card's fractional boundary produced a floating-point text-row coordinate, which Qt's integer rectangle rejected during paint. The message position is rounded; combined overlay repaint/resize checks cover this case.
+
+- Switching from SMDB to SMTV restores the controller after the stacked view finishes showing, unhides its contents, and raises it with a fresh idle timer.
